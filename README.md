@@ -136,7 +136,7 @@ The app can be installed as a standalone app:
 ## Project Structure
 
 ```
-botbrain/
+falconforge/
 ├── src/
 │   ├── lib/
 │   │   ├── auth.tsx         # Authentication context

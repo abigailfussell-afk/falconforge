@@ -560,7 +560,7 @@ export const useAppStore = create<AppState>()(
             },
         }),
         {
-            name: 'ftc-team-manager-storage',
+            name: 'falconforge-storage',
             partialize: (state) => ({
                 tasks: state.tasks,
                 members: state.members,
@@ -580,7 +580,7 @@ export const useAppStore = create<AppState>()(
 
 // Initialize theme on load
 if (typeof window !== 'undefined') {
-    const storedTheme = localStorage.getItem('ftc-team-manager-storage');
+    const storedTheme = localStorage.getItem('falconforge-storage');
     if (storedTheme) {
         try {
             const { state } = JSON.parse(storedTheme);

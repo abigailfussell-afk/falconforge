@@ -1,5 +1,5 @@
 {
-  "name": "BotBrain",
+  "name": "FalconForge",
   "description": "A comprehensive management tool for FTC Robotics teams including Kanban, Scouting, Match Planning, and AI-powered Portfolio generation.",
   "requestFramePermissions": [
     "microphone"

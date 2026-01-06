@@ -14,7 +14,7 @@ If all devices are on the same WiFi:
 
 ## Method 2: GitHub Pages (Permanent & Offline)
 Your app is live at:
-**[https://abigailfussell-afk.github.io/ftc-team-manager/](https://abigailfussell-afk.github.io/ftc-team-manager/)**
+**[https://abigailfussell-afk.github.io/falconforge/](https://abigailfussell-afk.github.io/falconforge/)**
 
 ### Steps to Install on Phone:
 
