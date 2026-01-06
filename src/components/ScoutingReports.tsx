@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppStore, ScoutingReport } from '../src/lib/store';
+import { useAppStore, ScoutingReport } from '../lib/store';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
 
 const ScoutingReports: React.FC = () => {

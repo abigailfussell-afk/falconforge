@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Task, Flashcard } from '../types';
-import { generatePortfolioSummary, generateInterviewQuestions } from '../services/geminiService';
-import { useAppStore, PortfolioEntry } from '../src/lib/store';
+import { Task, Flashcard } from '../../types';
+import { generatePortfolioSummary, generateInterviewQuestions } from '../../services/geminiService';
+import { useAppStore, PortfolioEntry } from '../lib/store';
 import { Sparkles, Download, ArrowRight, Loader2, UploadCloud, CloudOff, Clock, Trash2, FileText, X } from 'lucide-react';
-import { useSync } from '../src/lib/sync';
+import { useSync } from '../lib/sync';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Set up PDF.js worker using unpkg (mirrors npm packages directly)

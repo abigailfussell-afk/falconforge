@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ChecklistItem } from '../types';
-import { DEFAULT_CHECKLIST, MOCK_MEMBERS, MOCK_TEAMS } from '../constants';
+import { ChecklistItem } from '../../types';
+import { DEFAULT_CHECKLIST, MOCK_MEMBERS, MOCK_TEAMS } from '../../constants';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 
 const PreMatchChecklist: React.FC = () => {

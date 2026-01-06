@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Users, Layers, UserPlus, Check, Calendar, AlertTriangle, Search, WifiOff, X, AtSign, User, Save, Edit3 } from 'lucide-react';
-import { Member, Team } from '../types';
-import { useAppStore } from '../src/lib/store';
-import { supabase, isSupabaseConfigured } from '../src/lib/supabase';
-import { useCurrentUser } from '../src/lib/user-context';
-import { useAuth } from '../src/lib/auth';
+import { Member, Team } from '../../types';
+import { useAppStore } from '../lib/store';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { useCurrentUser } from '../lib/user-context';
+import { useAuth } from '../lib/auth';
 
 interface SupabaseUser {
     id: string;

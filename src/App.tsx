@@ -6,13 +6,13 @@ import { useAppStore } from './lib/store';
 import LoginPage from './pages/Login';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 
-// Import existing components (we'll move these to src/components later)
-import KanbanBoard from '../components/KanbanBoard';
-import ScoutingReports from '../components/Competition';
-import PreMatchChecklist from '../components/PreMatchChecklist';
-import MatchPlanner from '../components/MatchPlanner';
-import PortfolioAI from '../components/PortfolioAI';
-import AdminSettings from '../components/AdminSettings';
+// Import consolidated components from src/components
+import SprintPlanning from './components/SprintPlanning';
+import ScoutingReports from './components/ScoutingReports';
+import PreMatchChecklist from './components/PreMatchChecklist';
+import MatchPlanner from './components/MatchPlanner';
+import PortfolioAI from './components/PortfolioAI';
+import AdminSettings from './components/AdminSettings';
 import DashboardHome from './components/DashboardHome';
 
 function Dashboard() {
@@ -219,7 +219,7 @@ function Dashboard() {
                 <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 lg:p-6">
                     {activeTab === 'dashboard' && <DashboardHome setActiveTab={setActiveTab} />}
                     {activeTab === 'kanban' && (
-                        <KanbanBoard
+                        <SprintPlanning
                             tasks={tasksForComponents}
                             setTasks={(newTasks) => {
                                 // This bridges the old component API with the new store

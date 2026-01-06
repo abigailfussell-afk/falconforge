@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import { FIELD_IMAGE_URL } from '../constants';
+import { FIELD_IMAGE_URL } from '../../constants';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X } from 'lucide-react';
-import { useAppStore, MatchPlan } from '../src/lib/store';
+import { useAppStore, MatchPlan } from '../lib/store';
 
 const MatchPlanner: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
