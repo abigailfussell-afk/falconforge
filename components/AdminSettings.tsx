@@ -178,8 +178,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
     };
 
     return (
-        <div className="p-3 md:p-6 max-w-6xl mx-auto w-full h-full overflow-y-auto">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Admin Settings</h2>
+        <div className="max-w-6xl mx-auto w-full h-full overflow-y-auto overflow-x-hidden">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">Admin Settings</h2>
 
             {/* Profile Section - only show when logged in with Supabase */}
             {isConfigured && user && (
@@ -192,8 +192,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                     {/* Profile Message */}
                     {profileMessage && (
                         <div className={`mb-4 p-3 rounded-lg text-sm ${profileMessage.type === 'success'
-                                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
-                                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
+                            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
+                            : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
                             }`}>
                             {profileMessage.text}
                         </div>
@@ -448,7 +448,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                         />
                         <button
                             onClick={addTeam}
-                            className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition"
+                            className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10"
                         >
                             <Plus size={20} />
                         </button>
@@ -464,21 +464,21 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                             {teams.map((team) => (
                                 <div key={team.id} className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
+                                    <div className="flex flex-wrap justify-between items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
                                         <h4 className="font-bold text-slate-700 dark:text-slate-200">{team.name}</h4>
-                                        <div className="flex gap-2 self-end sm:self-auto">
+                                        <div className="flex gap-2 items-center">
                                             <button
                                                 onClick={() => setEditingTeamId(editingTeamId === team.id ? null : team.id)}
-                                                className={`text-xs px-3 py-1 rounded-full transition ${editingTeamId === team.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                                className={`text-xs px-3 py-1.5 rounded-full transition ${editingTeamId === team.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                             >
                                                 {editingTeamId === team.id ? 'Done' : 'Manage Members'}
                                             </button>
                                             <button
                                                 onClick={() => removeTeam(team.id)}
-                                                className="text-slate-400 hover:text-red-500"
+                                                className="text-slate-400 hover:text-red-500 p-1"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -545,7 +545,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                     />
                     <button
                         onClick={() => { if (newSeasonName.trim()) { addSeason(newSeasonName.trim()); setNewSeasonName(''); } }}
-                        className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition"
+                        className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10"
                     >
                         <Plus size={20} />
                     </button>
@@ -555,14 +555,14 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                 <div className="space-y-3">
                     {seasons.map((season) => (
                         <div key={season.id} className={`border rounded-lg overflow-hidden ${currentSeasonId === season.id ? 'border-orange-400 ring-2 ring-orange-200 dark:ring-orange-900/50' : 'border-slate-200 dark:border-slate-600'}`}>
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
+                            <div className="flex flex-wrap justify-between items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
                                 <div className="flex items-center gap-2">
                                     {currentSeasonId === season.id && (
                                         <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full font-bold">Active</span>
                                     )}
                                     <h4 className="font-bold text-slate-700 dark:text-slate-200">{season.name}</h4>
                                 </div>
-                                <div className="flex gap-2 self-end sm:self-auto">
+                                <div className="flex gap-2 items-center">
                                     <button
                                         onClick={() => {
                                             if (editingSeasonId === season.id) {
@@ -573,14 +573,14 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                                                 setEditFieldImageUrl(season.fieldImageUrl || '');
                                             }
                                         }}
-                                        className={`text-xs px-3 py-1 rounded-full transition ${editingSeasonId === season.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                        className={`text-xs px-3 py-1.5 rounded-full transition ${editingSeasonId === season.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                     >
                                         {editingSeasonId === season.id ? 'Done' : 'Edit'}
                                     </button>
                                     {seasons.length > 1 && (
                                         <button
                                             onClick={() => setDeleteConfirmSeasonId(season.id)}
-                                            className="text-slate-400 hover:text-red-500"
+                                            className="text-slate-400 hover:text-red-500 p-1"
                                         >
                                             <Trash2 size={18} />
                                         </button>

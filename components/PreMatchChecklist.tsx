@@ -47,14 +47,14 @@ const PreMatchChecklist: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col max-w-3xl mx-auto w-full p-2 md:p-6">
+        <div className="h-full flex flex-col max-w-3xl mx-auto w-full">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
-                <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-slate-50 dark:bg-slate-900/50">
+                <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
+                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400">Reset this list before every match.</p>
                     </div>
-                    <div className="flex gap-2 self-end sm:self-auto">
+                    <div className="flex gap-2">
                         <button
                             onClick={() => setIsEditingChecklist(!isEditingChecklist)}
                             className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 ${isEditingChecklist ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}

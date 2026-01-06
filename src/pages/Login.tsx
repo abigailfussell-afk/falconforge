@@ -52,7 +52,7 @@ export default function LoginPage() {
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="max-w-md w-full">
                     <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg shadow-orange-500/25 mb-4">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg shadow-orange-500/25 mb-4 p-1">
                             {/* Original Bot icon replaced with img tag for actual logo */}
                             <img
                                 src={`${import.meta.env.BASE_URL}falcon_logo.png`}
@@ -90,7 +90,7 @@ export default function LoginPage() {
             <div className="max-w-md w-full">
                 {/* Logo & Title */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 mb-4 p-4">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 mb-4 p-2">
                         <img
                             src={`${import.meta.env.BASE_URL}falcon_logo.png`}
                             className="w-full h-full object-contain"

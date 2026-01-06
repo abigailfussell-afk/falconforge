@@ -288,15 +288,15 @@ function App() {
                 <div className="text-center">
                     <div className="relative w-24 h-24 mx-auto mb-8">
                         <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
-                        <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl">
+                        <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl p-2">
                             <img
                                 src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                                className="w-16 h-16 object-contain animate-pulse"
+                                className="w-full h-full object-contain animate-pulse"
                                 alt="FalconForge Logo"
                             />
                         </div>
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-2 tracking-tight">FalconForge</h2>
+                    <h2 className="text-xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h2>
                     <div className="flex items-center justify-center gap-2 text-slate-400">
                         <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
                         <p className="text-sm font-medium">Preparing your workspace...</p>
@@ -319,15 +319,16 @@ function App() {
                     <div className="text-center">
                         <div className="relative w-24 h-24 mx-auto mb-8">
                             <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
-                            <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl">
+                            <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl p-2">
                                 <img
                                     src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                                    className="w-16 h-16 object-contain animate-pulse"
+                                    className="w-full h-full object-contain animate-pulse"
                                     alt="FalconForge Logo"
                                 />
                             </div>
                         </div>
-                        <h2 className="text-xl font-bold text-white mb-2 tracking-tight">Authenticating</h2>
+                        <h2 className="text-xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h2>
+                        <p className="text-sm text-slate-400 mb-4">Authenticating</p>
                         <div className="flex items-center justify-center gap-2 text-slate-400">
                             <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
                             <p className="text-sm font-medium">Securing your session...</p>

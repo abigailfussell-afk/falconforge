@@ -134,7 +134,7 @@ const MatchPlanner: React.FC = () => {
   return (
     <div className="flex flex-col lg:flex-row gap-2 md:gap-4 lg:h-full h-auto lg:overflow-hidden overflow-visible">
       <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative min-h-[500px] lg:min-h-0">
-        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-600 shadow-sm">
+        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 shadow-sm">
           <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={() => setIsDrawingEnabled(!isDrawingEnabled)}
@@ -144,10 +144,10 @@ const MatchPlanner: React.FC = () => {
               <Pen size={18} />
             </button>
             <div className="h-6 w-px bg-slate-300 dark:bg-slate-600"></div>
-            <button onClick={() => setColor('#ef4444')} className={`w-4 h-4 md:w-5 md:h-5 rounded-full bg-red-500 border-2 ${color === '#ef4444' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
-            <button onClick={() => setColor('#3b82f6')} className={`w-4 h-4 md:w-5 md:h-5 rounded-full bg-blue-500 border-2 ${color === '#3b82f6' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
-            <button onClick={() => setColor('#22c55e')} className={`w-4 h-4 md:w-5 md:h-5 rounded-full bg-green-500 border-2 ${color === '#22c55e' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
-            <button onClick={() => setColor('#facc15')} className={`w-4 h-4 md:w-5 md:h-5 rounded-full bg-yellow-400 border-2 ${color === '#facc15' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
+            <button onClick={() => setColor('#ef4444')} className={`w-3 h-3 md:w-5 md:h-5 rounded-full bg-red-500 border-2 ${color === '#ef4444' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
+            <button onClick={() => setColor('#3b82f6')} className={`w-3 h-3 md:w-5 md:h-5 rounded-full bg-blue-500 border-2 ${color === '#3b82f6' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
+            <button onClick={() => setColor('#22c55e')} className={`w-3 h-3 md:w-5 md:h-5 rounded-full bg-green-500 border-2 ${color === '#22c55e' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
+            <button onClick={() => setColor('#facc15')} className={`w-3 h-3 md:w-5 md:h-5 rounded-full bg-yellow-400 border-2 ${color === '#facc15' ? 'border-slate-800 dark:border-white' : 'border-transparent'}`} />
           </div>
           <div className="flex items-center gap-1">
             <button

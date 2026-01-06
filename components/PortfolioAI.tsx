@@ -182,109 +182,111 @@ const PortfolioAI: React.FC<PortfolioAIProps> = ({ tasks, view }) => {
   };
 
   return (
-    <div className="h-full flex flex-col p-2 md:p-6 max-w-5xl mx-auto w-full overflow-y-auto">
+    <div className="h-full flex flex-col max-w-7xl mx-auto w-full overflow-y-auto">
       <div className="flex-1">
         {view === 'portfolio' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 h-full">
-            {/* Left Panel - Controls */}
-            <div className="md:col-span-1 space-y-4">
-              <div className="bg-orange-50 dark:bg-slate-800 p-3 md:p-4 rounded-xl border border-orange-100 dark:border-slate-700">
-                <h3 className="font-bold text-orange-900 dark:text-orange-400 mb-2">Portfolio Helper</h3>
-                <p className="text-sm text-orange-800/80 dark:text-slate-300 mb-4">
-                  The AI analyzes your tasks to create a summary of your season's technical achievements.
-                </p>
+          <>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">Portfolio Helper</h2>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6">
+              {/* Left Panel - Controls */}
+              <div className="md:col-span-2 space-y-4">
+                <div className="bg-orange-50 dark:bg-slate-800 p-3 md:p-4 rounded-xl border border-orange-100 dark:border-slate-700">
+                  <p className="text-sm text-orange-800/80 dark:text-slate-300 mb-4">
+                    The AI analyzes your tasks to create a summary of your season's technical achievements.
+                  </p>
 
-                <div className="mb-4">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-2">Include Tasks</label>
-                  <div className="flex bg-white dark:bg-slate-900 rounded-lg p-1 border border-orange-100 dark:border-slate-600">
-                    <button
-                      onClick={() => setFilterStatus('done')}
-                      className={`flex-1 py-1 text-xs font-medium rounded transition ${filterStatus === 'done' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`}
-                    >
-                      Completed Only
-                    </button>
-                    <button
-                      onClick={() => setFilterStatus('all')}
-                      className={`flex-1 py-1 text-xs font-medium rounded transition ${filterStatus === 'all' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`}
-                    >
-                      All Tasks
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-xs text-orange-800/60 dark:text-slate-400 font-mono bg-white/50 dark:bg-slate-900/50 p-2 rounded mb-4">
-                  Tasks Analyzed: {filterStatus === 'done' ? tasks.filter(t => t.status === 'Done').length : tasks.length}
-                </div>
-                <button
-                  onClick={handleGeneratePortfolio}
-                  disabled={loading || !isOnline}
-                  className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-orange-700 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : (isOnline ? <Sparkles size={18} /> : <CloudOff size={18} />)}
-                  {!isOnline ? 'Offline - AI Disabled' : 'Generate Summary'}
-                </button>
-                {!isOnline && (
-                  <p className="text-[10px] text-center text-slate-500 mt-2">Connecting to internet will enable AI features.</p>
-                )}
-              </div>
-
-              {/* History Panel */}
-              <div className="bg-white dark:bg-slate-800 p-3 md:p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                <h3 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 text-sm">
-                  <Clock size={16} /> History
-                </h3>
-                {portfolioHistory.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No saved summaries yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {portfolioHistory.map((entry: PortfolioEntry) => (
-                      <div
-                        key={entry.id}
-                        onClick={() => handleSelectHistory(entry)}
-                        className={`p-2 rounded-lg cursor-pointer transition text-sm border ${selectedHistoryId === entry.id
-                          ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700'
-                          : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
+                  <div className="mb-4">
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-2">Include Tasks</label>
+                    <div className="flex bg-white dark:bg-slate-900 rounded-lg p-1 border border-orange-100 dark:border-slate-600">
+                      <button
+                        onClick={() => setFilterStatus('done')}
+                        className={`flex-1 py-1 text-xs font-medium rounded transition ${filterStatus === 'done' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`}
                       >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatDate(entry.createdAt)}</p>
-                            <p className="text-xs text-slate-600 dark:text-slate-300 truncate">{entry.taskCount} tasks</p>
-                          </div>
-                          <button
-                            onClick={(e) => handleDeleteHistory(e, entry.id)}
-                            className="text-slate-400 hover:text-red-500 transition p-1 shrink-0"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        Completed Only
+                      </button>
+                      <button
+                        onClick={() => setFilterStatus('all')}
+                        className={`flex-1 py-1 text-xs font-medium rounded transition ${filterStatus === 'all' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`}
+                      >
+                        All Tasks
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* Right Panel - Generated Content */}
-            <div className="md:col-span-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 h-full flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-slate-800 dark:text-white">Generated Content</h3>
-                {generatedPortfolio && (
-                  <button className="text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-slate-900">
-                    <Download size={14} /> Copy MD
+                  <div className="text-xs text-orange-800/60 dark:text-slate-400 font-mono bg-white/50 dark:bg-slate-900/50 p-2 rounded mb-4">
+                    Tasks Analyzed: {filterStatus === 'done' ? tasks.filter(t => t.status === 'Done').length : tasks.length}
+                  </div>
+                  <button
+                    onClick={handleGeneratePortfolio}
+                    disabled={loading || !isOnline}
+                    className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-orange-700 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={18} /> : (isOnline ? <Sparkles size={18} /> : <CloudOff size={18} />)}
+                    {!isOnline ? 'Offline - AI Disabled' : 'Generate Summary'}
                   </button>
-                )}
+                  {!isOnline && (
+                    <p className="text-[10px] text-center text-slate-500 mt-2">Connecting to internet will enable AI features.</p>
+                  )}
+                </div>
+
+                {/* History Panel */}
+                <div className="bg-white dark:bg-slate-800 p-3 md:p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h3 className="font-bold text-slate-800 dark:text-white mb-3 flex items-center gap-2 text-sm">
+                    <Clock size={16} /> History
+                  </h3>
+                  {portfolioHistory.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No saved summaries yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {portfolioHistory.map((entry: PortfolioEntry) => (
+                        <div
+                          key={entry.id}
+                          onClick={() => handleSelectHistory(entry)}
+                          className={`p-2 rounded-lg cursor-pointer transition text-sm border ${selectedHistoryId === entry.id
+                            ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{formatDate(entry.createdAt)}</p>
+                              <p className="text-xs text-slate-600 dark:text-slate-300 truncate">{entry.taskCount} tasks</p>
+                            </div>
+                            <button
+                              onClick={(e) => handleDeleteHistory(e, entry.id)}
+                              className="text-slate-400 hover:text-red-500 transition p-1 shrink-0"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-700 dark:text-slate-300 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-100 dark:border-slate-700">
-                {generatedPortfolio || <span className="text-slate-400 italic">Content will appear here...</span>}
+
+              {/* Right Panel - Generated Content */}
+              <div className="md:col-span-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 h-full flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800 dark:text-white">Generated Content</h3>
+                  {generatedPortfolio && (
+                    <button className="text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-slate-900">
+                      <Download size={14} /> Copy MD
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-700 dark:text-slate-300 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-100 dark:border-slate-700">
+                  {generatedPortfolio || <span className="text-slate-400 italic">Content will appear here...</span>}
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {view === 'judging' && (
           <div className="flex flex-col">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Judging Prep</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">Judging Prep</h2>
             <div className="space-y-6">
               {/* Context Input Section */}
               <div className="bg-white dark:bg-slate-800 p-3 md:p-6 rounded-xl border border-slate-200 dark:border-slate-700">
