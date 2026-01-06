@@ -2,8 +2,9 @@ export const TaskStatus = {
   Backlog: 'Backlog',
   ToDo: 'To Do',
   InProgress: 'In Progress',
-  Validation: 'Validation',
-  Done: 'Done'
+  Testing: 'Testing',
+  Done: 'Done',
+  Archived: 'Archived'
 } as const;
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
@@ -48,6 +49,7 @@ export interface Task {
   timeline: TimelineEvent[];
   createdAt: number;
   dueDate?: number;
+  archivedAt?: number;
 }
 
 export interface ScoutingReport {

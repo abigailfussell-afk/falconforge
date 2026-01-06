@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Menu, X, Sun, Moon, Settings, ClipboardCheck, GraduationCap, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Menu, X, Sun, Moon, Settings, ClipboardCheck, GraduationCap, LogOut, User, Activity, ChevronDown } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import LoginPage from './pages/Login';
@@ -13,13 +13,19 @@ import PreMatchChecklist from '../components/PreMatchChecklist';
 import MatchPlanner from '../components/MatchPlanner';
 import PortfolioAI from '../components/PortfolioAI';
 import AdminSettings from '../components/AdminSettings';
+import DashboardHome from './components/DashboardHome';
 
 function Dashboard() {
-    const [activeTab, setActiveTab] = useState('kanban');
+    const [activeTab, setActiveTab] = useState('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { user, signOut, isConfigured } = useAuth();
-    const { tasks, members, teams, theme, setTheme, addTask, updateTask, setMembers, setTeams } = useAppStore();
+    const { tasks: allTasks, members: allMembers, teams: allTeams, theme, setTheme, addTask, updateTask, setMembers, setTeams, seasons, currentSeasonId, setCurrentSeason } = useAppStore();
     const navigate = useNavigate();
+
+    // Filter data by current season (include items with no seasonId for backwards compatibility)
+    const tasks = allTasks.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
+    const members = allMembers.filter(m => !m.seasonId || m.seasonId === currentSeasonId);
+    const teams = allTeams.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
 
     // Adapt store data to component props format
     const tasksForComponents = tasks.map(t => ({
@@ -53,15 +59,33 @@ function Dashboard() {
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden transition-colors duration-200">
-            {/* Sidebar - Visible on LG screens and up (Desktop) */}
             <aside className="hidden lg:flex w-64 flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 h-full">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
-                    <img src="/logo.png" className="w-12 h-12 object-contain rounded-lg" alt="Logo" />
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">FTC Manager</h1>
+                    <img src={`${import.meta.env.BASE_URL}falcon_logo.png`} className="w-12 h-12 object-contain" alt="FalconForge Logo" />
+                    <h1 className="text-xl font-black italic tracking-tighter bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent drop-shadow-sm">FALCON<span className="text-slate-700 dark:text-slate-300">FORGE</span></h1>
+                </div>
+
+                {/* Season Selector */}
+                <div className="px-4 pt-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Season</label>
+                    <div className="relative">
+                        <select
+                            value={currentSeasonId || ''}
+                            onChange={(e) => setCurrentSeason(e.target.value)}
+                            className="w-full appearance-none bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+                        >
+                            {seasons.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
                 </div>
 
                 <nav className="flex-1 p-4 overflow-y-auto">
-                    <NavItem id="kanban" label="Sprint Planning" icon={LayoutDashboard} />
+                    <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} />
+                    <div className="my-4 border-t border-slate-100 dark:border-slate-700"></div>
+                    <NavItem id="kanban" label="Sprint Planning" icon={Activity} />
                     <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                     <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                     <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
@@ -91,22 +115,25 @@ function Dashboard() {
 
                     {/* User section */}
                     {isConfigured && user && (
-                        <div className="mt-4 flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
-                            <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
-                                <User size={16} className="text-orange-600 dark:text-orange-400" />
+                        <div className="mt-4 flex flex-col gap-2">
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+                                <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
+                                    <User size={16} className="text-orange-600 dark:text-orange-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                        {user.user_metadata?.full_name || user.email}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleSignOut}
+                                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                    title="Sign out"
+                                >
+                                    <LogOut size={16} />
+                                </button>
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                    {user.user_metadata?.full_name || user.email}
-                                </p>
-                            </div>
-                            <button
-                                onClick={handleSignOut}
-                                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                                title="Sign out"
-                            >
-                                <LogOut size={16} />
-                            </button>
+                            <SyncStatusIndicator variant="full" />
                         </div>
                     )}
                 </div>
@@ -115,11 +142,11 @@ function Dashboard() {
             {/* Mobile/Tablet Header - Visible below LG screens */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 z-20 safe-area-top">
                 <div className="flex items-center gap-2">
-                    <img src="/logo.png" className="w-12 h-12 object-contain rounded-lg" alt="Logo" />
-                    <span className="font-bold text-lg text-slate-900 dark:text-white">FTC Manager</span>
+                    <img src={`${import.meta.env.BASE_URL}falcon_logo.png`} className="w-12 h-12 object-contain" alt="FalconForge Logo" />
+                    <span className="font-black text-lg italic tracking-tighter"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-700 dark:text-slate-300">FORGE</span></span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <SyncStatusIndicator />
+                    <SyncStatusIndicator variant="icon" />
                     <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="text-slate-600 dark:text-slate-300">
                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                     </button>
@@ -131,9 +158,40 @@ function Dashboard() {
 
             {/* Mobile/Tablet Menu Overlay */}
             {isMobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 bg-white dark:bg-slate-800 z-50 pt-20 px-4 safe-area-top">
+                <div className="lg:hidden fixed inset-0 bg-white dark:bg-slate-800 z-50 pt-4 px-4 safe-area-top">
+                    <div className="flex items-center justify-between mb-6 px-2">
+                        <div className="flex items-center gap-2">
+                            <img src={`${import.meta.env.BASE_URL}falcon_logo.png`} className="w-10 h-10 object-contain" alt="FalconForge Logo" />
+                            <span className="font-black text-xl italic tracking-tighter"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-700 dark:text-slate-300">FORGE</span></span>
+                        </div>
+                        <button
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition flex items-center justify-center w-10 h-10"
+                        >
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    {/* Mobile Season Selector */}
+                    <div className="mb-4 px-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Season</label>
+                        <div className="relative">
+                            <select
+                                value={currentSeasonId || ''}
+                                onChange={(e) => setCurrentSeason(e.target.value)}
+                                className="w-full appearance-none bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-slate-700 dark:text-slate-200"
+                            >
+                                {seasons.map((s) => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+                    </div>
+
                     <nav className="space-y-2">
-                        <NavItem id="kanban" label="Sprint Planning" icon={LayoutDashboard} />
+                        <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} />
+                        <NavItem id="kanban" label="Sprint Planning" icon={Activity} />
                         <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                         <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                         <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
@@ -158,12 +216,8 @@ function Dashboard() {
 
             {/* Main Content Area */}
             <main className="flex-1 h-full overflow-hidden relative pt-16 lg:pt-0">
-                {/* Sync status for desktop */}
-                <div className="hidden lg:block absolute top-4 right-4 z-10">
-                    <SyncStatusIndicator />
-                </div>
-
                 <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 lg:p-6">
+                    {activeTab === 'dashboard' && <DashboardHome setActiveTab={setActiveTab} />}
                     {activeTab === 'kanban' && (
                         <KanbanBoard
                             tasks={tasksForComponents}
@@ -230,12 +284,23 @@ function App() {
     // Show loading screen while checking auth
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
                 <div className="text-center">
-                    <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 animate-pulse">
-                        B
+                    <div className="relative w-24 h-24 mx-auto mb-8">
+                        <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
+                        <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl">
+                            <img
+                                src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                                className="w-16 h-16 object-contain animate-pulse"
+                                alt="FalconForge Logo"
+                            />
+                        </div>
                     </div>
-                    <p className="text-slate-400">Loading...</p>
+                    <h2 className="text-xl font-bold text-white mb-2 tracking-tight">FalconForge</h2>
+                    <div className="flex items-center justify-center gap-2 text-slate-400">
+                        <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-sm font-medium">Preparing your workspace...</p>
+                    </div>
                 </div>
             </div>
         );
@@ -250,12 +315,23 @@ function App() {
 
             <Route path="/auth/callback" element={
                 // OAuth callback handling
-                <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
                     <div className="text-center">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 animate-pulse">
-                            B
+                        <div className="relative w-24 h-24 mx-auto mb-8">
+                            <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
+                            <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl">
+                                <img
+                                    src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                                    className="w-16 h-16 object-contain animate-pulse"
+                                    alt="FalconForge Logo"
+                                />
+                            </div>
                         </div>
-                        <p className="text-slate-400">Completing sign in...</p>
+                        <h2 className="text-xl font-bold text-white mb-2 tracking-tight">Authenticating</h2>
+                        <div className="flex items-center justify-center gap-2 text-slate-400">
+                            <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-sm font-medium">Securing your session...</p>
+                        </div>
                     </div>
                 </div>
             } />

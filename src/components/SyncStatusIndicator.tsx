@@ -2,18 +2,17 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle, Check } from 'lucide-react';
 import { useSync } from '../lib/sync';
 import { isSupabaseConfigured } from '../lib/supabase';
 
-export default function SyncStatusIndicator() {
+interface SyncStatusIndicatorProps {
+    variant?: 'full' | 'icon';
+}
+
+export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndicatorProps) {
     const { isOnline, syncStatus, pendingChanges, lastSyncTime, sync, error } = useSync();
     const isConfigured = isSupabaseConfigured();
 
     // Don't show anything in demo mode - just a subtle indicator
     if (!isConfigured) {
-        return (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <div className="w-2 h-2 bg-amber-400 rounded-full"></div>
-                <span className="text-xs text-amber-300 font-medium">Demo Mode</span>
-            </div>
-        );
+        return null;
     }
 
     const getStatusIcon = () => {
@@ -69,13 +68,17 @@ export default function SyncStatusIndicator() {
 
     return (
         <button
-            onClick={() => isOnline && sync()}
-            disabled={!isOnline || syncStatus === 'syncing'}
-            className={`flex items-center gap-2 px-3 py-1.5 ${getStatusColor()} border rounded-lg transition-all hover:opacity-80 disabled:cursor-not-allowed`}
+            onClick={() => sync()}
+            disabled={syncStatus === 'syncing' || !isOnline}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${getStatusColor()} ${variant === 'icon' ? 'aspect-square justify-center' : ''}`}
             title={error || (lastSyncTime ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 'Click to sync')}
         >
-            {getStatusIcon()}
-            <span className="text-xs font-medium text-slate-300">{getStatusText()}</span>
+            <span className={syncStatus === 'syncing' ? 'animate-spin' : ''}>
+                {getStatusIcon()}
+            </span>
+            {variant === 'full' && (
+                <span>{getStatusText()}</span>
+            )}
         </button>
     );
 }

@@ -11,7 +11,7 @@ export interface LocalTask {
     teamId?: string;
     title: string;
     description?: string;
-    status: 'Backlog' | 'To Do' | 'In Progress' | 'Validation' | 'Done';
+    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done';
     type: 'Feature' | 'Bug';
     assignedTo?: string;
     tags: string[];

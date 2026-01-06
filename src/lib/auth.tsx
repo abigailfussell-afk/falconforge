@@ -16,6 +16,7 @@ interface AuthContextType extends AuthState {
     signInWithMicrosoft: () => Promise<{ error: AuthError | null }>;
     signOut: () => Promise<void>;
     resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+    updateProfile: (fullName: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,14 +35,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
+        // Safety timeout for initial auth check (especially useful for offline PWA)
+        const authTimeout = setTimeout(() => {
+            setState(prev => {
+                if (prev.isLoading) {
+                    console.warn('Auth check timed out, proceeding to app...');
+                    return { ...prev, isLoading: false };
+                }
+                return prev;
+            });
+        }, 1500);
+
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
+            clearTimeout(authTimeout);
             setState(prev => ({
                 ...prev,
                 session,
                 user: session?.user ?? null,
                 isLoading: false,
             }));
+        }).catch(err => {
+            console.error('Auth session error:', err);
+            clearTimeout(authTimeout);
+            setState(prev => ({ ...prev, isLoading: false }));
         });
 
         // Listen for auth changes
@@ -135,7 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const signOut = useCallback(async () => {
-        if (!supabase) return;
+        if (!supabase) {
+            // In demo mode, still clear the local state
+            setState(prev => ({
+                ...prev,
+                user: null,
+                session: null,
+            }));
+            return;
+        }
         await supabase.auth.signOut();
     }, []);
 
@@ -148,6 +173,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
     }, []);
 
+    const updateProfile = useCallback(async (fullName: string) => {
+        if (!supabase) return { error: { message: 'Supabase not configured' } as AuthError };
+
+        const { data, error } = await supabase.auth.updateUser({
+            data: { full_name: fullName }
+        });
+
+        // Update local state with the new user data
+        if (!error && data.user) {
+            setState(prev => ({
+                ...prev,
+                user: data.user,
+            }));
+        }
+
+        return { error };
+    }, []);
+
     const value: AuthContextType = {
         ...state,
         signInWithEmail,
@@ -156,6 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithMicrosoft,
         signOut,
         resetPassword,
+        updateProfile,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-# FTC Team Manager
+# FalconForge
 
 A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Features sprint planning, scouting reports, match planning, portfolio generation, and judging prep - all with offline-first support.
 

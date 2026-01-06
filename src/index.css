@@ -1,7 +1,9 @@
-/* FTC Team Manager - Global Styles */
+/* FalconForge - Global Styles */
 
 /* Base reset */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -9,7 +11,8 @@
   margin: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -20,16 +23,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-img, picture, video, canvas, svg {
+img,
+picture,
+video,
+canvas,
+svg {
   display: block;
   max-width: 100%;
 }
 
-input, button, textarea, select {
+input,
+button,
+textarea,
+select {
   font: inherit;
 }
 
-p, h1, h2, h3, h4, h5, h6 {
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   overflow-wrap: break-word;
 }
 
@@ -100,6 +116,7 @@ p, h1, h2, h3, h4, h5, h6 {
     opacity: 0;
     transform: translateX(-50%) translateY(1rem);
   }
+
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
@@ -123,8 +140,9 @@ p, h1, h2, h3, h4, h5, h6 {
 
 /* Touch-friendly tap targets */
 @media (pointer: coarse) {
-  button, 
-  input[type="checkbox"], 
+
+  button,
+  input[type="checkbox"],
   input[type="radio"],
   a {
     min-height: 44px;
@@ -137,7 +155,7 @@ p, h1, h2, h3, h4, h5, h6 {
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
   .safe-area-top {
     padding-top: env(safe-area-inset-top);
   }
@@ -157,4 +175,35 @@ p, h1, h2, h3, h4, h5, h6 {
 
 .dark .glass {
   background: rgba(15, 23, 42, 0.7);
+}
+
+/* Custom spacing for scrollable containers */
+.custom-scrollbar {
+  padding-right: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 10px;
+}
+
+/* 3D Card Flip Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
 }

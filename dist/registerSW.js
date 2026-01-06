@@ -1,1 +1,1 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/ftc-team-manager/sw.js', { scope: '/ftc-team-manager/' })})}
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/falconforge/sw.js', { scope: '/falconforge/' })})}

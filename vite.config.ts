@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: "/ftc-team-manager/",
+    base: mode === 'production' ? "/falconforge/" : "/",
     server: {
       port: 3000,
       host: '0.0.0.0',
@@ -17,27 +17,28 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'robots.txt', 'DecodeField.png'],
         manifest: {
-          name: 'FTC Team Manager',
-          short_name: 'FTC Manager',
+          name: 'FalconForge',
+          short_name: 'FalconForge',
           description: 'Manage your FTC robotics team - sprint planning, scouting, match planning, and more',
           theme_color: '#ea580c',
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'any',
-          start_url: '/',
+          scope: mode === 'production' ? '/falconforge/' : '/',
+          start_url: mode === 'production' ? '/falconforge/' : '/',
           icons: [
             {
-              src: '/icon-192.png',
+              src: 'icon-192.png',
               sizes: '192x192',
               type: 'image/png',
             },
             {
-              src: '/icon-512.png',
+              src: 'icon-512.png',
               sizes: '512x512',
               type: 'image/png',
             },
             {
-              src: '/icon-512.png',
+              src: 'icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',

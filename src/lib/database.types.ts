@@ -151,7 +151,7 @@ export interface Database {
                     team_id: string | null
                     title: string
                     description: string | null
-                    status: 'Backlog' | 'To Do' | 'In Progress' | 'Validation' | 'Done'
+                    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done'
                     type: 'Feature' | 'Bug'
                     assigned_to: string | null
                     tags: string[]
@@ -168,7 +168,7 @@ export interface Database {
                     team_id?: string | null
                     title: string
                     description?: string | null
-                    status?: 'Backlog' | 'To Do' | 'In Progress' | 'Validation' | 'Done'
+                    status?: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done'
                     type?: 'Feature' | 'Bug'
                     assigned_to?: string | null
                     tags?: string[]
@@ -183,7 +183,7 @@ export interface Database {
                     team_id?: string | null
                     title?: string
                     description?: string | null
-                    status?: 'Backlog' | 'To Do' | 'In Progress' | 'Validation' | 'Done'
+                    status?: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done'
                     type?: 'Feature' | 'Bug'
                     assigned_to?: string | null
                     tags?: string[]

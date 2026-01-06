@@ -14,7 +14,7 @@ export interface Task {
     id: string;
     title: string;
     description: string;
-    status: 'Backlog' | 'To Do' | 'In Progress' | 'Validation' | 'Done';
+    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done';
     type: 'Feature' | 'Bug';
     assignedTo: string;
     department: string;
@@ -23,18 +23,21 @@ export interface Task {
     timeline: { id: string; type: 'comment' | 'history'; authorId: string; content: string; timestamp: number }[];
     createdAt: number;
     dueDate?: number;
+    seasonId?: string;
 }
 
 export interface Member {
     id: string;
     firstName: string;
     lastNameInitial: string;
+    seasonId?: string;
 }
 
 export interface Team {
     id: string;
     name: string;
     memberIds: string[];
+    seasonId?: string;
 }
 
 export interface ScoutingReport {
@@ -51,6 +54,7 @@ export interface ScoutingReport {
     parking: 'No Park' | 'Full Park' | 'Partial Park';
     rating: number;
     endGameNotes: string;
+    seasonId?: string;
 }
 
 export interface ChecklistItem {
@@ -58,6 +62,7 @@ export interface ChecklistItem {
     text: string;
     checked: boolean;
     assignedTo?: string;
+    seasonId?: string;
 }
 
 export interface MatchPlan {
@@ -69,23 +74,41 @@ export interface MatchPlan {
     partnerAutonomous: boolean;
     partnerPark: boolean;
     updatedAt: number;
+    seasonId?: string;
 }
 
-// Default data for new users/demo mode
-const DEFAULT_MEMBERS: Member[] = [
-    { id: 'm1', firstName: 'Abby', lastNameInitial: 'B' },
-    { id: 'm2', firstName: 'Ben', lastNameInitial: 'C' },
-    { id: 'm3', firstName: 'Charlie', lastNameInitial: 'D' },
-    { id: 'm4', firstName: 'Dana', lastNameInitial: 'E' },
-    { id: 'm5', firstName: 'Evan', lastNameInitial: 'F' },
-];
+export interface PortfolioEntry {
+    id: string;
+    content: string;
+    createdAt: number;
+    taskCount: number;
+    seasonId?: string;
+}
+
+export interface Season {
+    id: string;
+    name: string;
+    fieldImageUrl: string;
+    createdAt: number;
+}
+
+// Default season for migration
+const DEFAULT_SEASON: Season = {
+    id: 'season-2025-2026',
+    name: '2025-2026 Decode',
+    fieldImageUrl: '',
+    createdAt: Date.now(),
+};
+
+// Default data for new users/demo mode - Empty so users start fresh with instructions
+const DEFAULT_MEMBERS: Member[] = [];
 
 const DEFAULT_TEAMS: Team[] = [
-    { id: 't1', name: 'Programming', memberIds: ['m1'] },
-    { id: 't2', name: 'Build', memberIds: ['m2'] },
-    { id: 't3', name: 'Drive', memberIds: ['m3'] },
-    { id: 't4', name: 'Scouting', memberIds: ['m5'] },
-    { id: 't5', name: 'Outreach', memberIds: ['m4'] },
+    { id: 'team-build', name: 'Build', memberIds: [] },
+    { id: 'team-programming', name: 'Programming', memberIds: [] },
+    { id: 'team-drive', name: 'Drive', memberIds: [] },
+    { id: 'team-scouting', name: 'Scouting', memberIds: [] },
+    { id: 'team-outreach', name: 'Outreach', memberIds: [] },
 ];
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
@@ -111,12 +134,17 @@ interface AppState {
     scoutingReports: ScoutingReport[];
     checklist: ChecklistItem[];
     matchPlans: MatchPlan[];
+    portfolioHistory: PortfolioEntry[];
+    seasons: Season[];
+    currentSeasonId: string | null;
 
     // UI state
     theme: 'light' | 'dark';
+    geminiApiKey: string | null;
 
     // Actions
     setTheme: (theme: 'light' | 'dark') => void;
+    setGeminiApiKey: (key: string | null) => void;
 
     // Task actions
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'timeline'>) => void;
@@ -136,6 +164,7 @@ interface AppState {
 
     // Scouting actions
     addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
+    deleteScoutingReport: (id: string) => void;
 
     // Checklist actions
     toggleChecklistItem: (id: string) => void;
@@ -148,6 +177,17 @@ interface AppState {
     addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt'>) => void;
     deleteMatchPlan: (id: string) => void;
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
+
+    // Portfolio History actions
+    addPortfolioEntry: (content: string, taskCount: number) => void;
+    deletePortfolioEntry: (id: string) => void;
+
+    // Season actions
+    addSeason: (name: string, fieldImageUrl?: string) => void;
+    updateSeason: (id: string, updates: Partial<Season>) => void;
+    deleteSeason: (id: string) => void;
+    setCurrentSeason: (id: string | null) => void;
+    getCurrentSeason: () => Season | null;
 
     // Data management
     initializeStore: () => Promise<void>;
@@ -166,7 +206,11 @@ export const useAppStore = create<AppState>()(
             scoutingReports: [],
             checklist: DEFAULT_CHECKLIST,
             matchPlans: [],
-            theme: 'light',
+            portfolioHistory: [],
+            seasons: [DEFAULT_SEASON],
+            currentSeasonId: DEFAULT_SEASON.id,
+            theme: 'dark',
+            geminiApiKey: null,
 
             // Theme
             setTheme: (theme) => {
@@ -178,12 +222,15 @@ export const useAppStore = create<AppState>()(
                 }
             },
 
+            setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+
             // Tasks
             addTask: (taskData) => {
                 const task: Task = {
                     ...taskData,
                     id: generateId(),
                     createdAt: Date.now(),
+                    seasonId: get().currentSeasonId || undefined,
                     timeline: [{
                         id: generateId(),
                         type: 'history',
@@ -232,6 +279,7 @@ export const useAppStore = create<AppState>()(
                     id: generateId(),
                     firstName,
                     lastNameInitial,
+                    seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({ members: [...state.members, member] }));
             },
@@ -254,6 +302,7 @@ export const useAppStore = create<AppState>()(
                     id: generateId(),
                     name,
                     memberIds: [],
+                    seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({ teams: [...state.teams, team] }));
             },
@@ -283,10 +332,25 @@ export const useAppStore = create<AppState>()(
                 const report: ScoutingReport = {
                     ...reportData,
                     id: generateId(),
+                    seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({
                     scoutingReports: [...state.scoutingReports, report],
                 }));
+
+                if (!get().isDemoMode) {
+                    queueForSync('scoutingReports', report.id, 'create', report);
+                }
+            },
+
+            deleteScoutingReport: (id) => {
+                set((state) => ({
+                    scoutingReports: state.scoutingReports.filter((r) => r.id !== id),
+                }));
+
+                if (!get().isDemoMode) {
+                    queueForSync('scoutingReports', id, 'delete', null);
+                }
             },
 
             // Checklist
@@ -309,6 +373,7 @@ export const useAppStore = create<AppState>()(
                     id: generateId(),
                     text,
                     checked: false,
+                    seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({ checklist: [...state.checklist, item] }));
             },
@@ -333,6 +398,7 @@ export const useAppStore = create<AppState>()(
                     ...planData,
                     id: generateId(),
                     updatedAt: Date.now(),
+                    seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({ matchPlans: [...state.matchPlans, plan] }));
 
@@ -366,6 +432,75 @@ export const useAppStore = create<AppState>()(
                 }
             },
 
+            // Portfolio History
+            addPortfolioEntry: (content, taskCount) => {
+                const entry: PortfolioEntry = {
+                    id: generateId(),
+                    content,
+                    createdAt: Date.now(),
+                    taskCount,
+                    seasonId: get().currentSeasonId || undefined,
+                };
+                set((state) => ({ portfolioHistory: [entry, ...state.portfolioHistory] }));
+            },
+
+            deletePortfolioEntry: (id) => {
+                set((state) => ({
+                    portfolioHistory: state.portfolioHistory.filter((e) => e.id !== id),
+                }));
+            },
+
+            // Seasons
+            addSeason: (name, fieldImageUrl = '') => {
+                const season: Season = {
+                    id: generateId(),
+                    name,
+                    fieldImageUrl,
+                    createdAt: Date.now(),
+                };
+                set((state) => ({
+                    seasons: [...state.seasons, season],
+                    currentSeasonId: season.id, // Auto-switch to new season
+                }));
+            },
+
+            updateSeason: (id, updates) => {
+                set((state) => ({
+                    seasons: state.seasons.map((s) =>
+                        s.id === id ? { ...s, ...updates } : s
+                    ),
+                }));
+            },
+
+            deleteSeason: (id) => {
+                const state = get();
+                // Don't allow deleting the last season
+                if (state.seasons.length <= 1) return;
+
+                // Delete all data associated with this season
+                set((s) => ({
+                    seasons: s.seasons.filter((season) => season.id !== id),
+                    tasks: s.tasks.filter((t) => t.seasonId !== id),
+                    members: s.members.filter((m) => m.seasonId !== id),
+                    teams: s.teams.filter((t) => t.seasonId !== id),
+                    scoutingReports: s.scoutingReports.filter((r) => r.seasonId !== id),
+                    checklist: s.checklist.filter((c) => c.seasonId !== id),
+                    matchPlans: s.matchPlans.filter((p) => p.seasonId !== id),
+                    portfolioHistory: s.portfolioHistory.filter((p) => p.seasonId !== id),
+                    // Switch to another season if this was the current one
+                    currentSeasonId: s.currentSeasonId === id
+                        ? s.seasons.find((season) => season.id !== id)?.id || null
+                        : s.currentSeasonId,
+                }));
+            },
+
+            setCurrentSeason: (id) => set({ currentSeasonId: id }),
+
+            getCurrentSeason: () => {
+                const state = get();
+                return state.seasons.find((s) => s.id === state.currentSeasonId) || null;
+            },
+
             // Data management
             initializeStore: async () => {
                 // Load data from IndexedDB if available
@@ -377,7 +512,7 @@ export const useAppStore = create<AppState>()(
                                 id: t.id,
                                 title: t.title,
                                 description: t.description || '',
-                                status: t.status as "Backlog" | "To Do" | "In Progress" | "Validation" | "Done",
+                                status: t.status as "Backlog" | "To Do" | "In Progress" | "Testing" | "Done",
                                 type: t.type as "Feature" | "Bug",
                                 assignedTo: t.assignedTo || '',
                                 department: t.teamId || '',
@@ -433,7 +568,11 @@ export const useAppStore = create<AppState>()(
                 scoutingReports: state.scoutingReports,
                 checklist: state.checklist,
                 matchPlans: state.matchPlans,
+                portfolioHistory: state.portfolioHistory,
+                seasons: state.seasons,
+                currentSeasonId: state.currentSeasonId,
                 theme: state.theme,
+                geminiApiKey: state.geminiApiKey,
             }),
         }
     )

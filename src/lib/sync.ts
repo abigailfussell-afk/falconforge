@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
 import { supabase } from './supabase';
 
@@ -19,6 +19,7 @@ export function useSync(): UseSyncResult {
     const [pendingChanges, setPendingChanges] = useState(0);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const syncingRef = useRef(false);
 
     // Track online/offline status
     useEffect(() => {
@@ -30,6 +31,7 @@ export function useSync(): UseSyncResult {
         const handleOffline = () => {
             setIsOnline(false);
             setSyncStatus('offline');
+            syncingRef.current = false;
         };
 
         window.addEventListener('online', handleOnline);
@@ -55,19 +57,22 @@ export function useSync(): UseSyncResult {
         return () => clearInterval(interval);
     }, []);
 
-    // Auto-sync when coming back online
+    // Auto-sync when coming back online or when pending changes increase
+    // Added guard to prevent starting a sync while one is in progress
     useEffect(() => {
-        if (isOnline && pendingChanges > 0 && syncStatus === 'idle') {
+        if (isOnline && pendingChanges > 0 && syncStatus === 'idle' && !syncingRef.current) {
             sync();
         }
-    }, [isOnline, pendingChanges]);
+    }, [isOnline, pendingChanges, syncStatus]);
 
     const sync = useCallback(async () => {
+        if (syncingRef.current) return;
         if (!isOnline || !supabase) {
             setSyncStatus('offline');
             return;
         }
 
+        syncingRef.current = true;
         setSyncStatus('syncing');
         setError(null);
 
@@ -82,14 +87,17 @@ export function useSync(): UseSyncResult {
                     await db.syncQueue.delete(item.id);
                 } catch (err) {
                     // Update retry count
-                    await db.syncQueue.update(item.id, {
-                        retryCount: item.retryCount + 1,
-                        lastError: err instanceof Error ? err.message : 'Unknown error',
-                    });
+                    const newRetryCount = (item.retryCount || 0) + 1;
 
-                    // If too many retries, log error but continue
-                    if (item.retryCount >= 5) {
-                        console.error(`Sync item ${item.id} failed after 5 retries:`, err);
+                    // If too many retries, log error and remove from queue to prevent stuck state
+                    if (newRetryCount >= 5) {
+                        console.error(`Sync item ${item.id} failed after 5 retries. Removing from queue.`, err);
+                        await db.syncQueue.delete(item.id);
+                    } else {
+                        await db.syncQueue.update(item.id, {
+                            retryCount: newRetryCount,
+                            lastError: err instanceof Error ? err.message : 'Unknown error',
+                        });
                     }
                 }
             }
@@ -107,6 +115,8 @@ export function useSync(): UseSyncResult {
             console.error('Sync failed:', err);
             setError(err instanceof Error ? err.message : 'Sync failed');
             setSyncStatus('error');
+        } finally {
+            syncingRef.current = false;
         }
     }, [isOnline]);
 
