@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { Task, Flashcard } from "../types";
-import { supabase, supabaseUrl, supabaseAnonKey } from "../src/lib/supabase";
+import { supabase, supabaseUrl, supabaseAnonKey } from "../lib/supabase";
 
 const getAI = (providedKey?: string) => {
   // Prioritize provided key (from store), then env var

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Users, Layers, UserPlus, Check, Calendar, AlertTriangle, Search, WifiOff, X, AtSign, User, Save, Edit3 } from 'lucide-react';
-import { Member, Team } from '../../types';
+import { Member, Team } from '../types';
 import { useAppStore } from '../lib/store';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useCurrentUser } from '../lib/user-context';

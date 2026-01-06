@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Task, Flashcard } from '../../types';
-import { generatePortfolioSummary, generateInterviewQuestions } from '../../services/geminiService';
+import { Task, Flashcard } from '../types';
+import { generatePortfolioSummary, generateInterviewQuestions } from '../services/geminiService';
 import { useAppStore, PortfolioEntry } from '../lib/store';
 import { Sparkles, Download, ArrowRight, Loader2, UploadCloud, CloudOff, Clock, Trash2, FileText, X } from 'lucide-react';
 import { useSync } from '../lib/sync';

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Task, TaskStatus, TaskType, Member, Team, TimelineEvent } from '../../types';
-import { STATUS_COLUMNS } from '../../constants';
+import { Task, TaskStatus, TaskType, Member, Team, TimelineEvent } from '../types';
+import { STATUS_COLUMNS } from '../constants';
 import { Plus, Calendar as CalendarIcon, List, Layout, Clock, Send, Trash2, ChevronDown, ChevronRight, X, Archive, RotateCcw } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
 
