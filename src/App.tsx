@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Menu, X, Sun, Moon, Settings, ClipboardCheck, GraduationCap, LogOut, User, Activity, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Menu, X, Sun, Moon, Settings, ClipboardCheck, GraduationCap, LogOut, User, Activity, ChevronDown, ArrowRightLeft } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import LoginPage from './pages/Login';
+import TeamPicker from './pages/TeamPicker';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 
 // Import consolidated components from src/components
@@ -31,7 +32,9 @@ function Dashboard() {
         setSubTeams,
         seasons,
         currentSeasonId,
-        setCurrentSeason
+        setCurrentSeason,
+        currentTeamId,
+        teams
     } = useAppStore();
     const navigate = useNavigate();
 
@@ -111,12 +114,6 @@ function Dashboard() {
 
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700">
                     <div className="bg-slate-100 dark:bg-slate-700 rounded-xl p-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Appearance</p>
-                            <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400">
-                                {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-                            </button>
-                        </div>
                         <div className="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-300">
                             <span>Tasks Done</span>
                             <span className="font-bold">{tasks.filter(t => t.status === 'Done').length}</span>
@@ -146,7 +143,78 @@ function Dashboard() {
                                     <LogOut size={16} />
                                 </button>
                             </div>
-                            <SyncStatusIndicator variant="full" />
+
+                            {/* Team Switcher - Matches user section style exactly */}
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+                                <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber?.slice(0, 2)}` : 'T'}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => navigate('/team-picker')}
+                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors"
+                                    title="Switch Team"
+                                >
+                                    <ArrowRightLeft size={16} />
+                                </button>
+                            </div>
+
+                            {/* Sync Status + Theme Toggle */}
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                    <SyncStatusIndicator variant="full" />
+                                </div>
+                                <button
+                                    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                                >
+                                    {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Demo mode team switcher - when not logged in */}
+                    {(!isConfigured || !user) && (
+                        <div className="mt-4 flex flex-col gap-2">
+                            {/* Team Switcher - Matches user section style exactly */}
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+                                <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber?.slice(0, 2)}` : 'T'}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => navigate('/team-picker')}
+                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors"
+                                    title="Switch Team"
+                                >
+                                    <ArrowRightLeft size={16} />
+                                </button>
+                            </div>
+
+                            {/* Theme Toggle for demo mode */}
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                                >
+                                    {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -171,7 +239,7 @@ function Dashboard() {
 
             {/* Mobile/Tablet Menu Overlay */}
             {isMobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 bg-white dark:bg-slate-800 z-50 pt-4 px-4 safe-area-top">
+                <div className="lg:hidden fixed inset-0 bg-white dark:bg-slate-800 z-50 pt-4 px-4 safe-area-top overflow-y-auto flex flex-col">
                     <div className="flex items-center justify-between mb-6 px-2">
                         <div className="flex items-center gap-2">
                             <img src={`${import.meta.env.BASE_URL}falcon_logo.png`} className="w-10 h-10 object-contain" alt="FalconForge Logo" />
@@ -214,13 +282,49 @@ function Dashboard() {
                     </nav>
 
                     {isConfigured && user && (
-                        <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2 pb-4">
+                            {/* Mobile Team Switcher - Above Sign Out */}
+                            <button
+                                onClick={() => { navigate('/team-picker'); setIsMobileMenuOpen(false); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl transition-all"
+                            >
+                                <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber}` : 'Team'}
+                                    </p>
+                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
+                                    </p>
+                                </div>
+                                <ArrowRightLeft size={16} className="text-slate-400" />
+                            </button>
+
                             <button
                                 onClick={handleSignOut}
                                 className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
                             >
                                 <LogOut size={20} />
                                 <span className="font-medium">Sign Out</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Demo mode mobile team switcher */}
+                    {(!isConfigured || !user) && (
+                        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 pb-4">
+                            <button
+                                onClick={() => { navigate('/team-picker'); setIsMobileMenuOpen(false); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl transition-all"
+                            >
+                                <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber}` : 'Team'}
+                                    </p>
+                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
+                                    </p>
+                                </div>
+                                <ArrowRightLeft size={16} className="text-slate-400" />
                             </button>
                         </div>
                     )}
@@ -322,8 +426,8 @@ function App() {
     return (
         <Routes>
             <Route path="/login" element={
-                // If already logged in (or demo mode), redirect to dashboard
-                !isConfigured || user ? <Navigate to="/" replace /> : <LoginPage />
+                // If already logged in (or demo mode), redirect to team picker
+                !isConfigured || user ? <Navigate to="/team-picker" replace /> : <LoginPage />
             } />
 
             <Route path="/auth/callback" element={
@@ -348,6 +452,11 @@ function App() {
                         </div>
                     </div>
                 </div>
+            } />
+
+            <Route path="/team-picker" element={
+                // Team selection page - accessible when authenticated
+                !isConfigured || user ? <TeamPicker /> : <Navigate to="/login" replace />
             } />
 
             <Route path="/*" element={

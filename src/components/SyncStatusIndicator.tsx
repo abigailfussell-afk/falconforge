@@ -70,7 +70,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
         <button
             onClick={() => sync()}
             disabled={syncStatus === 'syncing' || !isOnline}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${getStatusColor()} ${variant === 'icon' ? 'aspect-square justify-center' : ''}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all w-full ${getStatusColor()} ${variant === 'icon' ? 'aspect-square justify-center' : ''}`}
             title={error || (lastSyncTime ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 'Click to sync')}
         >
             <span className={syncStatus === 'syncing' ? 'animate-spin' : ''}>

@@ -3,12 +3,53 @@ import Dexie, { Table } from 'dexie';
 /**
  * Local database for offline-first functionality
  * Uses IndexedDB via Dexie for fast local storage
+ * 
+ * Entity Model (v2):
+ * - Team: Top-level team entity (formerly "Organization")
+ * - TeamMember: Users associated with a Team
+ * - SubTeam: Working groups within a Team (e.g., Build, Programming)
+ * - Tasks, Checklists, etc. are scoped to a Team
  */
+
+// Top-level Team entity
+export interface LocalTeam {
+    id: string;
+    name: string;
+    teamNumber: string | null;
+    inviteCode: string;
+    ownerId: string;
+    createdAt: number;
+    syncStatus: 'synced' | 'pending' | 'conflict';
+}
+
+// Team Members - users associated with a Team
+export interface LocalTeamMember {
+    id: string;
+    teamId: string;
+    userId: string;
+    role: 'coach' | 'mentor' | 'student';
+    fullName: string | null;
+    email: string;
+    avatarUrl: string | null;
+    joinedAt: number;
+    syncStatus: 'synced' | 'pending' | 'conflict';
+}
+
+// Sub-Teams - working groups within a Team
+export interface LocalSubTeam {
+    id: string;
+    teamId: string;
+    seasonId?: string;
+    name: string;
+    memberIds: string[];
+    syncStatus: 'synced' | 'pending' | 'conflict';
+}
 
 export interface LocalTask {
     id: string;
-    organizationId: string;
-    teamId?: string;
+    teamId: string;
+    subTeamId?: string;
+    seasonId?: string;
     title: string;
     description?: string;
     status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done';
@@ -29,7 +70,8 @@ export interface LocalTask {
 
 export interface LocalChecklist {
     id: string;
-    organizationId: string;
+    teamId: string;
+    seasonId?: string;
     name: string;
     items: { id: string; text: string; checked: boolean; assignedTo?: string }[];
     isTemplate: boolean;
@@ -39,7 +81,8 @@ export interface LocalChecklist {
 
 export interface LocalScoutingReport {
     id: string;
-    organizationId: string;
+    teamId: string;
+    seasonId?: string;
     opponentTeamNumber: string;
     matchNumber: number;
     eventName?: string;
@@ -62,7 +105,8 @@ export interface LocalScoutingReport {
 
 export interface LocalMatchPlan {
     id: string;
-    organizationId: string;
+    teamId: string;
+    seasonId?: string;
     matchNumber?: number;
     allianceTeam?: string;
     drawingData: any; // SVG path data
@@ -82,48 +126,34 @@ export interface SyncQueueItem {
     lastError?: string;
 }
 
-export interface LocalMember {
-    id: string;
-    organizationId: string;
-    firstName: string;
-    lastNameInitial: string;
-    userId?: string; // Linked Supabase user ID
-    syncStatus: 'synced' | 'pending' | 'conflict';
-}
-
-export interface LocalTeam {
-    id: string;
-    organizationId: string;
-    name: string;
-    memberIds: string[];
-    syncStatus: 'synced' | 'pending' | 'conflict';
-}
-
-class FTCManagerDatabase extends Dexie {
+class FalconForgeDatabase extends Dexie {
+    teams!: Table<LocalTeam, string>;
+    teamMembers!: Table<LocalTeamMember, string>;
+    subTeams!: Table<LocalSubTeam, string>;
     tasks!: Table<LocalTask, string>;
     checklists!: Table<LocalChecklist, string>;
     scoutingReports!: Table<LocalScoutingReport, string>;
     matchPlans!: Table<LocalMatchPlan, string>;
     syncQueue!: Table<SyncQueueItem, string>;
-    members!: Table<LocalMember, string>;
-    teams!: Table<LocalTeam, string>;
 
     constructor() {
-        super('FTCManagerDB');
+        super('FalconForgeDB');
 
+        // Version 1: Initial schema with new entity model
         this.version(1).stores({
-            tasks: 'id, organizationId, teamId, status, syncStatus, updatedAt',
-            checklists: 'id, organizationId, syncStatus',
-            scoutingReports: 'id, organizationId, opponentTeamNumber, matchNumber, syncStatus',
-            matchPlans: 'id, organizationId, syncStatus',
+            teams: 'id, ownerId, syncStatus',
+            teamMembers: 'id, teamId, userId, syncStatus',
+            subTeams: 'id, teamId, seasonId, syncStatus',
+            tasks: 'id, teamId, subTeamId, seasonId, status, syncStatus, updatedAt',
+            checklists: 'id, teamId, seasonId, syncStatus',
+            scoutingReports: 'id, teamId, seasonId, opponentTeamNumber, matchNumber, syncStatus',
+            matchPlans: 'id, teamId, seasonId, syncStatus',
             syncQueue: 'id, tableName, timestamp, retryCount',
-            members: 'id, organizationId, syncStatus',
-            teams: 'id, organizationId, syncStatus',
         });
     }
 }
 
-export const db = new FTCManagerDatabase();
+export const db = new FalconForgeDatabase();
 
 // Helper to generate UUIDs
 export function generateId(): string {
@@ -155,11 +185,12 @@ export async function getPendingSyncCount(): Promise<number> {
 
 // Clear all local data (for logout)
 export async function clearLocalDatabase() {
+    await db.teams.clear();
+    await db.teamMembers.clear();
+    await db.subTeams.clear();
     await db.tasks.clear();
     await db.checklists.clear();
     await db.scoutingReports.clear();
     await db.matchPlans.clear();
     await db.syncQueue.clear();
-    await db.members.clear();
-    await db.teams.clear();
 }
