@@ -19,13 +19,26 @@ function Dashboard() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { user, signOut, isConfigured } = useAuth();
-    const { tasks: allTasks, members: allMembers, teams: allTeams, theme, setTheme, addTask, updateTask, setMembers, setTeams, seasons, currentSeasonId, setCurrentSeason } = useAppStore();
+    const {
+        tasks: allTasks,
+        teamMembers: allTeamMembers,
+        subTeams: allSubTeams,
+        theme,
+        setTheme,
+        addTask,
+        updateTask,
+        setTeamMembers,
+        setSubTeams,
+        seasons,
+        currentSeasonId,
+        setCurrentSeason
+    } = useAppStore();
     const navigate = useNavigate();
 
     // Filter data by current season (include items with no seasonId for backwards compatibility)
     const tasks = allTasks.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
-    const members = allMembers.filter(m => !m.seasonId || m.seasonId === currentSeasonId);
-    const teams = allTeams.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
+    const teamMembers = allTeamMembers.filter(m => m.teamId === useAppStore.getState().currentTeamId);
+    const subTeams = allSubTeams.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
 
     // Adapt store data to component props format
     const tasksForComponents = tasks.map(t => ({
@@ -240,8 +253,8 @@ function Dashboard() {
                                     }
                                 });
                             }}
-                            members={members}
-                            teams={teams}
+                            teamMembers={teamMembers}
+                            subTeams={subTeams}
                         />
                     )}
                     {activeTab === 'checklist' && <PreMatchChecklist />}
@@ -251,10 +264,10 @@ function Dashboard() {
                     {activeTab === 'judging' && <PortfolioAI tasks={tasksForComponents} view="judging" />}
                     {activeTab === 'admin' && (
                         <AdminSettings
-                            members={members}
-                            setMembers={setMembers}
-                            teams={teams}
-                            setTeams={setTeams}
+                            teamMembers={teamMembers}
+                            setTeamMembers={setTeamMembers}
+                            subTeams={subTeams}
+                            setSubTeams={setSubTeams}
                         />
                     )}
                 </div>

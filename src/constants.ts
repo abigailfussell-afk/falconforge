@@ -1,4 +1,4 @@
-import { TaskStatus, Member, Team } from './types';
+import { TaskStatus, SubTeam, Team, TeamMember } from './types';
 
 export const STATUS_COLUMNS = [
   TaskStatus.Backlog,
@@ -8,20 +8,45 @@ export const STATUS_COLUMNS = [
   TaskStatus.Done
 ];
 
-export const MOCK_MEMBERS: Member[] = [
-  { id: 'm1', firstName: 'Abby', lastNameInitial: 'B' },
-  { id: 'm2', firstName: 'Ben', lastNameInitial: 'C' },
-  { id: 'm3', firstName: 'Charlie', lastNameInitial: 'D' },
-  { id: 'm4', firstName: 'Dana', lastNameInitial: 'E' },
-  { id: 'm5', firstName: 'Evan', lastNameInitial: 'F' },
+// Demo teams for offline/demo mode
+// In production, users create teams or join via invite code
+export const DEMO_TEAMS: Team[] = [
+  {
+    id: 'demo-team-1',
+    name: 'Demo Team 1',
+    teamNumber: '00001',
+    inviteCode: 'DEMO1',
+    ownerId: 'demo-user',
+    createdAt: Date.now()
+  },
+  {
+    id: 'demo-team-2',
+    name: 'Demo Team 2',
+    teamNumber: '00002',
+    inviteCode: 'DEMO2',
+    ownerId: 'demo-user',
+    createdAt: Date.now()
+  },
 ];
 
-export const MOCK_TEAMS: Team[] = [
-  { id: 't1', name: 'Programming', memberIds: ['m1'] },
-  { id: 't2', name: 'Build', memberIds: ['m2'] },
-  { id: 't3', name: 'Drive', memberIds: ['m3'] },
-  { id: 't4', name: 'Scouting', memberIds: ['m5'] },
-  { id: 't5', name: 'Outreach', memberIds: ['m4'] },
+// Demo team members for offline/demo mode
+// In production, these come from Supabase users via TeamMember relationships
+export const DEMO_TEAM_MEMBERS: TeamMember[] = [
+  { id: 'tm1', teamId: 'demo-team-1', userId: 'u1', role: 'student', fullName: 'Abby Brown', email: 'abby@demo.com', avatarUrl: null, joinedAt: Date.now() },
+  { id: 'tm2', teamId: 'demo-team-1', userId: 'u2', role: 'student', fullName: 'Ben Clark', email: 'ben@demo.com', avatarUrl: null, joinedAt: Date.now() },
+  { id: 'tm3', teamId: 'demo-team-1', userId: 'u3', role: 'student', fullName: 'Charlie Davis', email: 'charlie@demo.com', avatarUrl: null, joinedAt: Date.now() },
+  { id: 'tm4', teamId: 'demo-team-1', userId: 'u4', role: 'mentor', fullName: 'Dana Evans', email: 'dana@demo.com', avatarUrl: null, joinedAt: Date.now() },
+  { id: 'tm5', teamId: 'demo-team-1', userId: 'u5', role: 'coach', fullName: 'Evan Foster', email: 'evan@demo.com', avatarUrl: null, joinedAt: Date.now() },
+];
+
+// Default sub-teams (working groups within a Team)
+// Renamed from MOCK_TEAMS
+export const DEFAULT_SUBTEAMS: SubTeam[] = [
+  { id: 'subteam-programming', name: 'Programming', memberIds: [] },
+  { id: 'subteam-build', name: 'Build', memberIds: [] },
+  { id: 'subteam-drive', name: 'Drive', memberIds: [] },
+  { id: 'subteam-scouting', name: 'Scouting', memberIds: [] },
+  { id: 'subteam-outreach', name: 'Outreach', memberIds: [] },
 ];
 
 export const DEFAULT_CHECKLIST = [

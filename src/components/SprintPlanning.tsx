@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Task, TaskStatus, TaskType, Member, Team, TimelineEvent } from '../types';
+import { Task, TaskStatus, TaskType, SubTeam, TeamMember, TimelineEvent } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { Plus, Calendar as CalendarIcon, List, Layout, Clock, Send, Trash2, ChevronDown, ChevronRight, X, Archive, RotateCcw } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
@@ -7,11 +7,11 @@ import { useCurrentUser } from '../lib/user-context';
 interface SprintPlanningProps {
     tasks: Task[];
     setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
-    members: Member[];
-    teams: Team[];
+    teamMembers: TeamMember[];
+    subTeams: SubTeam[];
 }
 
-const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, members, teams }) => {
+const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMembers, subTeams }) => {
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isNewTask, setIsNewTask] = useState(false);
@@ -33,19 +33,37 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
         }
     }, [isModalOpen, isNewTask]);
 
-    const getMemberName = (id: string) => {
-        const m = members.find(mem => mem.id === id);
-        return m ? `${m.firstName} ${m.lastNameInitial}.` : 'Unassigned';
+    // Helper to get display name for a TeamMember
+    const getMemberDisplayName = (member: TeamMember): string => {
+        if (member.fullName) return member.fullName;
+        return member.email.split('@')[0];
     };
 
-    const getTeamName = (id: string) => {
-        const t = teams.find(team => team.id === id);
+    // Helper to get initials for a TeamMember
+    const getMemberInitials = (member: TeamMember): string => {
+        if (member.fullName) {
+            const parts = member.fullName.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+            }
+            return parts[0]?.substring(0, 2).toUpperCase() || '?';
+        }
+        return member.email.substring(0, 2).toUpperCase();
+    };
+
+    const getMemberName = (id: string) => {
+        const m = teamMembers.find(mem => mem.id === id);
+        return m ? getMemberDisplayName(m) : 'Unassigned';
+    };
+
+    const getSubTeamName = (id: string) => {
+        const t = subTeams.find(team => team.id === id);
         return t ? t.name : 'General';
     };
 
     const getInitials = (id: string) => {
-        const m = members.find(mem => mem.id === id);
-        return m ? `${m.firstName[0]}${m.lastNameInitial}` : '?';
+        const m = teamMembers.find(mem => mem.id === id);
+        return m ? getMemberInitials(m) : '?';
     };
 
     const openTask = (task: Task) => {
@@ -61,8 +79,8 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
             description: '',
             status: TaskStatus.Backlog,
             type: TaskType.Feature,
-            assignedTo: members[0]?.id || '',
-            department: teams[0]?.id || '',
+            assignedTo: teamMembers[0]?.id || '',
+            department: subTeams[0]?.id || '',
             tags: [],
             checklist: [],
             timeline: [],
@@ -206,7 +224,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
                                     </div>
                                     <h4 className="font-medium text-slate-800 dark:text-slate-200 mb-1">{task.title || 'Untitled'}</h4>
                                     <div className="flex items-center gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
-                                        <span className="bg-slate-100 dark:bg-slate-600 px-1.5 py-0.5 rounded">{getTeamName(task.department)}</span>
+                                        <span className="bg-slate-100 dark:bg-slate-600 px-1.5 py-0.5 rounded">{getSubTeamName(task.department)}</span>
                                         {task.dueDate && <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400"><Clock size={10} />{new Date(task.dueDate).toLocaleDateString()}</span>}
                                         <div className="flex-1"></div>
                                         {task.assignedTo && (
@@ -311,7 +329,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
                                 <div className="flex-1 min-w-0">
                                     <h4 className="font-medium text-slate-800 dark:text-white truncate">{task.title}</h4>
                                     <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                        <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{getTeamName(task.department)}</span>
+                                        <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{getSubTeamName(task.department)}</span>
                                         <span>•</span>
                                         <span>{getMemberName(task.assignedTo)}</span>
                                         {task.archivedAt && (
@@ -412,13 +430,13 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Team</label>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Sub-Team</label>
                                     <select
                                         value={activeTask.department}
                                         onChange={(e) => setActiveTask({ ...activeTask, department: e.target.value })}
                                         className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                                     >
-                                        {teams.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                        {subTeams.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -429,7 +447,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
                                         className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                                     >
                                         <option value="">Unassigned</option>
-                                        {members.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastNameInitial}.</option>)}
+                                        {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m)}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -527,7 +545,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, member
                                         // Check if author is the current logged-in user or a roster member
                                         const isCurrentUser = currentUser && event.authorId === currentUser.id;
                                         const isSystem = event.authorId === 'System';
-                                        const isMember = !isCurrentUser && !isSystem && members.find(m => m.id === event.authorId);
+                                        const isMember = !isCurrentUser && !isSystem && teamMembers.find(m => m.id === event.authorId);
 
                                         // Determine display name and initials
                                         const authorName = isSystem

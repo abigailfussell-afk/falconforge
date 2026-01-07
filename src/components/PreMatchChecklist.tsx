@@ -1,12 +1,25 @@
 import React, { useState } from 'react';
 import { ChecklistItem } from '../types';
-import { DEFAULT_CHECKLIST, MOCK_MEMBERS, MOCK_TEAMS } from '../constants';
+import { DEFAULT_CHECKLIST } from '../constants';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { useAppStore } from '../lib/store';
 
 const PreMatchChecklist: React.FC = () => {
     const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
     const [isEditingChecklist, setIsEditingChecklist] = useState(false);
     const [newChecklistItem, setNewChecklistItem] = useState('');
+
+    // Get teamMembers and subTeams from the store
+    const teamMembers = useAppStore((state) => state.teamMembers);
+    const subTeams = useAppStore((state) => state.subTeams);
+
+    // Helper to get display name for a TeamMember
+    const getMemberDisplayName = (id: string): string => {
+        const member = teamMembers.find(m => m.id === id);
+        if (!member) return id; // fallback to the stored value
+        if (member.fullName) return member.fullName;
+        return member.email.split('@')[0];
+    };
 
     const toggleCheck = (id: string) => {
         if (isEditingChecklist) return;
@@ -44,6 +57,19 @@ const PreMatchChecklist: React.FC = () => {
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         [newList[index], newList[targetIndex]] = [newList[targetIndex], newList[index]];
         setChecklist(newList);
+    };
+
+    // Get the display value for assignment (could be subTeam name or member name)
+    const getAssignmentDisplay = (assignedTo: string | undefined): string => {
+        if (!assignedTo) return '';
+        // Check if it's a subTeam
+        const subTeam = subTeams.find(t => t.id === assignedTo || t.name === assignedTo);
+        if (subTeam) return subTeam.name;
+        // Check if it's a member
+        const member = teamMembers.find(m => m.id === assignedTo);
+        if (member) return getMemberDisplayName(member.id);
+        // Return as-is (legacy value)
+        return assignedTo;
     };
 
     return (
@@ -94,7 +120,7 @@ const PreMatchChecklist: React.FC = () => {
                                 {/* Show assignment badge in view mode */}
                                 {!isEditingChecklist && item.assignedTo && (
                                     <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-2 py-1 rounded flex-shrink-0">
-                                        {item.assignedTo}
+                                        {getAssignmentDisplay(item.assignedTo)}
                                     </span>
                                 )}
                             </div>
@@ -108,11 +134,11 @@ const PreMatchChecklist: React.FC = () => {
                                         onChange={(e) => updateAssignment(item.id, e.target.value)}
                                     >
                                         <option value="">Anyone</option>
-                                        <optgroup label="Teams">
-                                            {MOCK_TEAMS.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                        <optgroup label="Sub-Teams">
+                                            {subTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                         </optgroup>
-                                        <optgroup label="Members">
-                                            {MOCK_MEMBERS.map(m => <option key={m.id} value={m.firstName}>{m.firstName} {m.lastNameInitial}.</option>)}
+                                        <optgroup label="Team Members">
+                                            {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m.id)}</option>)}
                                         </optgroup>
                                     </select>
 

@@ -2,11 +2,18 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { db, generateId, queueForSync } from './offline-db';
 import { isSupabaseConfigured } from './supabase';
+import { DEFAULT_SUBTEAMS, DEMO_TEAMS, DEMO_TEAM_MEMBERS } from '../constants';
+import type { Team, TeamMember, SubTeam } from '../types';
 
 /**
  * Main application store using Zustand
  * Data is persisted to IndexedDB for offline support
  * Changes are queued for sync when online
+ * 
+ * ENTITY RENAME (2026-01-05):
+ * - Team = Top-level FTC team organization (new)
+ * - TeamMember = Supabase users belonging to a Team (replaces Member)
+ * - SubTeam = Working groups (Build, Programming, etc.) - renamed from Team
  */
 
 // Types matching the existing app structure
@@ -16,27 +23,13 @@ export interface Task {
     description: string;
     status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done';
     type: 'Feature' | 'Bug';
-    assignedTo: string;
-    department: string;
+    assignedTo: string;  // TeamMember ID
+    department: string;  // SubTeam ID
     tags: string[];
     checklist: { id: string; text: string; completed: boolean }[];
     timeline: { id: string; type: 'comment' | 'history'; authorId: string; content: string; timestamp: number }[];
     createdAt: number;
     dueDate?: number;
-    seasonId?: string;
-}
-
-export interface Member {
-    id: string;
-    firstName: string;
-    lastNameInitial: string;
-    seasonId?: string;
-}
-
-export interface Team {
-    id: string;
-    name: string;
-    memberIds: string[];
     seasonId?: string;
 }
 
@@ -61,7 +54,7 @@ export interface ChecklistItem {
     id: string;
     text: string;
     checked: boolean;
-    assignedTo?: string;
+    assignedTo?: string;  // TeamMember ID or SubTeam ID
     seasonId?: string;
 }
 
@@ -89,8 +82,12 @@ export interface Season {
     id: string;
     name: string;
     fieldImageUrl: string;
+    teamId?: string;  // Scoped to Team
     createdAt: number;
 }
+
+// Re-export types from types.ts for convenience
+export type { Team, TeamMember, SubTeam };
 
 // Default season for migration
 const DEFAULT_SEASON: Season = {
@@ -100,18 +97,8 @@ const DEFAULT_SEASON: Season = {
     createdAt: Date.now(),
 };
 
-// Default data for new users/demo mode - Empty so users start fresh with instructions
-const DEFAULT_MEMBERS: Member[] = [];
-
-const DEFAULT_TEAMS: Team[] = [
-    { id: 'team-build', name: 'Build', memberIds: [] },
-    { id: 'team-programming', name: 'Programming', memberIds: [] },
-    { id: 'team-drive', name: 'Drive', memberIds: [] },
-    { id: 'team-scouting', name: 'Scouting', memberIds: [] },
-    { id: 'team-outreach', name: 'Outreach', memberIds: [] },
-];
-
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
+// Default data for new users/demo mode
+const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
     { id: '1', text: 'Turn off robot', checked: false },
     { id: '2', text: 'Swap main battery', checked: false },
     { id: '3', text: 'Charge old battery', checked: false },
@@ -123,14 +110,18 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 ];
 
 interface AppState {
-    // Organization context
+    // Team context (top-level organization)
+    currentTeamId: string | null;
+    teams: Team[];  // Teams the user belongs to
+    teamMembers: TeamMember[];  // Members of the current team (cached from Supabase)
+
+    // Organization context (legacy - will be removed)
     currentOrganizationId: string | null;
     isDemoMode: boolean;
 
     // Core data
     tasks: Task[];
-    members: Member[];
-    teams: Team[];
+    subTeams: SubTeam[];  // Renamed from teams
     scoutingReports: ScoutingReport[];
     checklist: ChecklistItem[];
     matchPlans: MatchPlan[];
@@ -146,21 +137,21 @@ interface AppState {
     setTheme: (theme: 'light' | 'dark') => void;
     setGeminiApiKey: (key: string | null) => void;
 
+    // Team actions (top-level)
+    setCurrentTeam: (teamId: string | null) => void;
+    setTeams: (teams: Team[]) => void;
+    setTeamMembers: (members: TeamMember[]) => void;
+
     // Task actions
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'timeline'>) => void;
     updateTask: (id: string, updates: Partial<Task>) => void;
     deleteTask: (id: string) => void;
 
-    // Member actions
-    addMember: (firstName: string, lastNameInitial: string) => void;
-    removeMember: (id: string) => void;
-    setMembers: (members: Member[]) => void;
-
-    // Team actions
-    addTeam: (name: string) => void;
-    removeTeam: (id: string) => void;
-    toggleMemberInTeam: (teamId: string, memberId: string) => void;
-    setTeams: (teams: Team[]) => void;
+    // SubTeam actions (renamed from Team actions)
+    addSubTeam: (name: string) => void;
+    removeSubTeam: (id: string) => void;
+    toggleMemberInSubTeam: (subTeamId: string, teamMemberId: string) => void;
+    setSubTeams: (subTeams: SubTeam[]) => void;
 
     // Scouting actions
     addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
@@ -198,13 +189,15 @@ export const useAppStore = create<AppState>()(
     persist(
         (set, get) => ({
             // Initial state
+            currentTeamId: DEMO_TEAMS[0]?.id || null,
+            teams: DEMO_TEAMS,
+            teamMembers: DEMO_TEAM_MEMBERS,
             currentOrganizationId: null,
             isDemoMode: !isSupabaseConfigured(),
             tasks: [],
-            members: DEFAULT_MEMBERS,
-            teams: DEFAULT_TEAMS,
+            subTeams: DEFAULT_SUBTEAMS,
             scoutingReports: [],
-            checklist: DEFAULT_CHECKLIST,
+            checklist: DEFAULT_CHECKLIST_ITEMS,
             matchPlans: [],
             portfolioHistory: [],
             seasons: [DEFAULT_SEASON],
@@ -223,6 +216,11 @@ export const useAppStore = create<AppState>()(
             },
 
             setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+
+            // Team actions (top-level)
+            setCurrentTeam: (teamId) => set({ currentTeamId: teamId }),
+            setTeams: (teams) => set({ teams }),
+            setTeamMembers: (members) => set({ teamMembers: members }),
 
             // Tasks
             addTask: (taskData) => {
@@ -273,59 +271,36 @@ export const useAppStore = create<AppState>()(
                 }
             },
 
-            // Members
-            addMember: (firstName, lastNameInitial) => {
-                const member: Member = {
-                    id: generateId(),
-                    firstName,
-                    lastNameInitial,
-                    seasonId: get().currentSeasonId || undefined,
-                };
-                set((state) => ({ members: [...state.members, member] }));
-            },
-
-            removeMember: (id) => {
-                set((state) => ({
-                    members: state.members.filter((m) => m.id !== id),
-                    teams: state.teams.map((t) => ({
-                        ...t,
-                        memberIds: t.memberIds.filter((mid) => mid !== id),
-                    })),
-                }));
-            },
-
-            setMembers: (members) => set({ members }),
-
-            // Teams
-            addTeam: (name) => {
-                const team: Team = {
+            // SubTeams (renamed from Teams)
+            addSubTeam: (name) => {
+                const subTeam: SubTeam = {
                     id: generateId(),
                     name,
                     memberIds: [],
                     seasonId: get().currentSeasonId || undefined,
                 };
-                set((state) => ({ teams: [...state.teams, team] }));
+                set((state) => ({ subTeams: [...state.subTeams, subTeam] }));
             },
 
-            removeTeam: (id) => {
+            removeSubTeam: (id) => {
                 set((state) => ({
-                    teams: state.teams.filter((t) => t.id !== id),
+                    subTeams: state.subTeams.filter((t) => t.id !== id),
                 }));
             },
 
-            toggleMemberInTeam: (teamId, memberId) => {
+            toggleMemberInSubTeam: (subTeamId, teamMemberId) => {
                 set((state) => ({
-                    teams: state.teams.map((t) => {
-                        if (t.id !== teamId) return t;
-                        const memberIds = t.memberIds.includes(memberId)
-                            ? t.memberIds.filter((id) => id !== memberId)
-                            : [...t.memberIds, memberId];
+                    subTeams: state.subTeams.map((t) => {
+                        if (t.id !== subTeamId) return t;
+                        const memberIds = t.memberIds.includes(teamMemberId)
+                            ? t.memberIds.filter((id) => id !== teamMemberId)
+                            : [...t.memberIds, teamMemberId];
                         return { ...t, memberIds };
                     }),
                 }));
             },
 
-            setTeams: (teams) => set({ teams }),
+            setSubTeams: (subTeams) => set({ subTeams }),
 
             // Scouting
             addScoutingReport: (reportData) => {
@@ -456,6 +431,7 @@ export const useAppStore = create<AppState>()(
                     id: generateId(),
                     name,
                     fieldImageUrl,
+                    teamId: get().currentTeamId || undefined,
                     createdAt: Date.now(),
                 };
                 set((state) => ({
@@ -481,8 +457,7 @@ export const useAppStore = create<AppState>()(
                 set((s) => ({
                     seasons: s.seasons.filter((season) => season.id !== id),
                     tasks: s.tasks.filter((t) => t.seasonId !== id),
-                    members: s.members.filter((m) => m.seasonId !== id),
-                    teams: s.teams.filter((t) => t.seasonId !== id),
+                    subTeams: s.subTeams.filter((t) => t.seasonId !== id),
                     scoutingReports: s.scoutingReports.filter((r) => r.seasonId !== id),
                     checklist: s.checklist.filter((c) => c.seasonId !== id),
                     matchPlans: s.matchPlans.filter((p) => p.seasonId !== id),
@@ -551,20 +526,22 @@ export const useAppStore = create<AppState>()(
             resetToDefaults: () => {
                 set({
                     tasks: [],
-                    members: DEFAULT_MEMBERS,
-                    teams: DEFAULT_TEAMS,
+                    subTeams: DEFAULT_SUBTEAMS,
                     scoutingReports: [],
-                    checklist: DEFAULT_CHECKLIST,
+                    checklist: DEFAULT_CHECKLIST_ITEMS,
                     matchPlans: [],
+                    teamMembers: DEMO_TEAM_MEMBERS,
                 });
             },
         }),
         {
             name: 'falconforge-storage',
             partialize: (state) => ({
-                tasks: state.tasks,
-                members: state.members,
+                currentTeamId: state.currentTeamId,
                 teams: state.teams,
+                teamMembers: state.teamMembers,
+                tasks: state.tasks,
+                subTeams: state.subTeams,
                 scoutingReports: state.scoutingReports,
                 checklist: state.checklist,
                 matchPlans: state.matchPlans,

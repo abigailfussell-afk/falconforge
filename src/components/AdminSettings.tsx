@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Users, Layers, UserPlus, Check, Calendar, AlertTriangle, Search, WifiOff, X, AtSign, User, Save, Edit3 } from 'lucide-react';
-import { Member, Team } from '../types';
+import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useCurrentUser } from '../lib/user-context';
@@ -13,17 +13,17 @@ interface SupabaseUser {
 }
 
 interface AdminSettingsProps {
-    members: Member[];
-    setMembers: (members: Member[]) => void;
-    teams: Team[];
-    setTeams: (teams: Team[]) => void;
+    teamMembers: TeamMember[];
+    setTeamMembers: (members: TeamMember[]) => void;
+    subTeams: SubTeam[];
+    setSubTeams: (subTeams: SubTeam[]) => void;
 }
 
-const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, teams, setTeams }) => {
+const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembers, subTeams, setSubTeams }) => {
     const [firstName, setFirstName] = useState('');
     const [lastInitial, setLastInitial] = useState('');
-    const [newTeamName, setNewTeamName] = useState('');
-    const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+    const [newSubTeamName, setNewSubTeamName] = useState('');
+    const [editingSubTeamId, setEditingSubTeamId] = useState<string | null>(null);
 
     // Supabase user search state
     const [userSearch, setUserSearch] = useState('');
@@ -107,31 +107,40 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
         return () => clearTimeout(timer);
     }, [userSearch, showSearch, isOffline]);
 
-    // Add a user from search results to the roster
+    // Add a user from search results to the team roster
     const addUserFromSearch = (user: SupabaseUser) => {
-        const nameParts = user.full_name?.trim().split(/\s+/) || [user.email.split('@')[0]];
-        const firstNameVal = nameParts[0] || 'User';
-        const lastInitialVal = nameParts.length > 1 ? nameParts[nameParts.length - 1][0] : firstNameVal[0];
-
-        const newMember: Member = {
-            id: user.id, // Use the Supabase user ID
-            firstName: firstNameVal,
-            lastNameInitial: lastInitialVal.toUpperCase()
+        const currentTeamId = useAppStore.getState().currentTeamId;
+        const newTeamMember: TeamMember = {
+            id: `tm-${Date.now()}`,
+            teamId: currentTeamId || 'demo-team-1',
+            userId: user.id,
+            role: 'student',
+            fullName: user.full_name,
+            email: user.email,
+            avatarUrl: null,
+            joinedAt: Date.now()
         };
-        setMembers([...members, newMember]);
+        setTeamMembers([...teamMembers, newTeamMember]);
         setUserSearch('');
         setSearchResults([]);
         setShowSearch(false);
     };
 
-    const addMember = () => {
+    // Manual member entry (creates a demo TeamMember)
+    const addMemberManually = () => {
         if (firstName.trim() && lastInitial.trim().length === 1) {
-            const newMember: Member = {
-                id: Date.now().toString(),
-                firstName: firstName.trim(),
-                lastNameInitial: lastInitial.trim().toUpperCase()
+            const currentTeamId = useAppStore.getState().currentTeamId;
+            const newTeamMember: TeamMember = {
+                id: `tm-${Date.now()}`,
+                teamId: currentTeamId || 'demo-team-1',
+                userId: `manual-${Date.now()}`,
+                role: 'student',
+                fullName: `${firstName.trim()} ${lastInitial.trim().toUpperCase()}.`,
+                email: `${firstName.toLowerCase()}@demo.local`,
+                avatarUrl: null,
+                joinedAt: Date.now()
             };
-            setMembers([...members, newMember]);
+            setTeamMembers([...teamMembers, newTeamMember]);
             setFirstName('');
             setLastInitial('');
         } else {
@@ -139,42 +148,60 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
         }
     };
 
-    const removeMember = (id: string) => {
-        setMembers(members.filter(m => m.id !== id));
-        // Remove from teams as well
-        setTeams(teams.map(t => ({
+    const removeTeamMember = (id: string) => {
+        setTeamMembers(teamMembers.filter(m => m.id !== id));
+        // Remove from sub-teams as well
+        setSubTeams(subTeams.map(t => ({
             ...t,
             memberIds: t.memberIds.filter(mid => mid !== id)
         })));
     };
 
-    const addTeam = () => {
-        if (newTeamName.trim()) {
-            const newTeam: Team = {
-                id: Date.now().toString(),
-                name: newTeamName.trim(),
+    const addSubTeam = () => {
+        if (newSubTeamName.trim()) {
+            const newSubTeam: SubTeam = {
+                id: `subteam-${Date.now()}`,
+                name: newSubTeamName.trim(),
                 memberIds: []
             };
-            setTeams([...teams, newTeam]);
-            setNewTeamName('');
+            setSubTeams([...subTeams, newSubTeam]);
+            setNewSubTeamName('');
         }
     };
 
-    const removeTeam = (id: string) => {
-        setTeams(teams.filter(t => t.id !== id));
+    const removeSubTeam = (id: string) => {
+        setSubTeams(subTeams.filter(t => t.id !== id));
     };
 
-    const toggleMemberInTeam = (teamId: string, memberId: string) => {
-        setTeams(teams.map(t => {
-            if (t.id !== teamId) return t;
-            const isMember = t.memberIds.includes(memberId);
+    const toggleMemberInSubTeam = (subTeamId: string, teamMemberId: string) => {
+        setSubTeams(subTeams.map(t => {
+            if (t.id !== subTeamId) return t;
+            const isMember = t.memberIds.includes(teamMemberId);
             return {
                 ...t,
                 memberIds: isMember
-                    ? t.memberIds.filter(id => id !== memberId)
-                    : [...t.memberIds, memberId]
+                    ? t.memberIds.filter(id => id !== teamMemberId)
+                    : [...t.memberIds, teamMemberId]
             };
         }));
+    };
+
+    // Helper to get display name for a TeamMember
+    const getMemberDisplayName = (member: TeamMember): string => {
+        if (member.fullName) return member.fullName;
+        return member.email.split('@')[0];
+    };
+
+    // Helper to get initials for a TeamMember
+    const getMemberInitials = (member: TeamMember): string => {
+        if (member.fullName) {
+            const parts = member.fullName.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+            }
+            return parts[0]?.substring(0, 2).toUpperCase() || '?';
+        }
+        return member.email.substring(0, 2).toUpperCase();
     };
 
     return (
@@ -260,7 +287,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                 </div>
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-                {/* Members Management */}
+                {/* Team Roster (TeamMembers) */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
                     <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
                         <Users className="text-orange-600" size={24} />
@@ -385,11 +412,11 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                                     onChange={(e) => setLastInitial(e.target.value)}
                                     placeholder="B"
                                     className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-center"
-                                    onKeyDown={(e) => e.key === 'Enter' && addMember()}
+                                    onKeyDown={(e) => e.key === 'Enter' && addMemberManually()}
                                 />
                             </div>
                             <button
-                                onClick={addMember}
+                                onClick={addMemberManually}
                                 className="bg-orange-600 text-white p-2.5 rounded-lg hover:bg-orange-700 transition mb-[1px]"
                             >
                                 <UserPlus size={20} />
@@ -397,8 +424,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                         </div>
                     )}
 
-                    {/* Member List or Empty State */}
-                    {members.length === 0 ? (
+                    {/* Team Member List or Empty State */}
+                    {teamMembers.length === 0 ? (
                         <div className="text-center py-8 px-4">
                             <Users size={40} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
                             <h4 className="font-semibold text-slate-600 dark:text-slate-400 mb-2">No team members yet</h4>
@@ -410,16 +437,19 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                         </div>
                     ) : (
                         <ul className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
-                            {members.map((member) => (
+                            {teamMembers.map((member) => (
                                 <li key={member.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group hover:bg-slate-100 dark:hover:bg-slate-700 transition">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 text-xs">
-                                            {member.firstName[0]}{member.lastNameInitial}
+                                            {getMemberInitials(member)}
                                         </div>
-                                        <span className="font-medium text-slate-700 dark:text-slate-200">{member.firstName} {member.lastNameInitial}.</span>
+                                        <div>
+                                            <span className="font-medium text-slate-700 dark:text-slate-200">{getMemberDisplayName(member)}</span>
+                                            <span className="text-xs text-slate-400 dark:text-slate-500 ml-2 capitalize">{member.role}</span>
+                                        </div>
                                     </div>
                                     <button
-                                        onClick={() => removeMember(member.id)}
+                                        onClick={() => removeTeamMember(member.id)}
                                         className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
                                     >
                                         <Trash2 size={18} />
@@ -430,7 +460,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                     )}
                 </div>
 
-                {/* Teams Management */}
+                {/* Sub-Teams Management */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
                     <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
                         <Layers className="text-orange-600" size={24} />
@@ -440,44 +470,44 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                     <div className="flex gap-2 mb-4">
                         <input
                             type="text"
-                            value={newTeamName}
-                            onChange={(e) => setNewTeamName(e.target.value)}
-                            placeholder="New Team Name (e.g. Pit Crew)"
+                            value={newSubTeamName}
+                            onChange={(e) => setNewSubTeamName(e.target.value)}
+                            placeholder="New Sub-Team Name (e.g. Pit Crew)"
                             className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
-                            onKeyDown={(e) => e.key === 'Enter' && addTeam()}
+                            onKeyDown={(e) => e.key === 'Enter' && addSubTeam()}
                         />
                         <button
-                            onClick={addTeam}
+                            onClick={addSubTeam}
                             className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10"
                         >
                             <Plus size={20} />
                         </button>
                     </div>
 
-                    {/* Teams List or Empty State */}
-                    {teams.length === 0 ? (
+                    {/* Sub-Teams List or Empty State */}
+                    {subTeams.length === 0 ? (
                         <div className="text-center py-8 px-4">
                             <Layers size={40} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
                             <h4 className="font-semibold text-slate-600 dark:text-slate-400 mb-2">No sub-teams yet</h4>
                             <p className="text-sm text-slate-500 dark:text-slate-500">
-                                Create sub-teams to organize your members by role (e.g., Pit Crew, Drivers, Build Team). Add a team using the form above, then assign members to it.
+                                Create sub-teams to organize your members by role (e.g., Pit Crew, Drivers, Build Team). Add a sub-team using the form above, then assign members to it.
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                            {teams.map((team) => (
-                                <div key={team.id} className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
+                            {subTeams.map((subTeam) => (
+                                <div key={subTeam.id} className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
                                     <div className="flex flex-wrap justify-between items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
-                                        <h4 className="font-bold text-slate-700 dark:text-slate-200">{team.name}</h4>
+                                        <h4 className="font-bold text-slate-700 dark:text-slate-200">{subTeam.name}</h4>
                                         <div className="flex gap-2 items-center">
                                             <button
-                                                onClick={() => setEditingTeamId(editingTeamId === team.id ? null : team.id)}
-                                                className={`text-xs px-3 py-1.5 rounded-full transition ${editingTeamId === team.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                                onClick={() => setEditingSubTeamId(editingSubTeamId === subTeam.id ? null : subTeam.id)}
+                                                className={`text-xs px-3 py-1.5 rounded-full transition ${editingSubTeamId === subTeam.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                             >
-                                                {editingTeamId === team.id ? 'Done' : 'Manage Members'}
+                                                {editingSubTeamId === subTeam.id ? 'Done' : 'Manage Members'}
                                             </button>
                                             <button
-                                                onClick={() => removeTeam(team.id)}
+                                                onClick={() => removeSubTeam(subTeam.id)}
                                                 className="text-slate-400 hover:text-red-500 p-1"
                                             >
                                                 <Trash2 size={18} />
@@ -485,34 +515,34 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                                         </div>
                                     </div>
 
-                                    {/* Member List for this Team */}
+                                    {/* Member List for this Sub-Team */}
                                     <div className="p-3 bg-white dark:bg-slate-800">
-                                        {editingTeamId === team.id ? (
-                                            members.length === 0 ? (
+                                        {editingSubTeamId === subTeam.id ? (
+                                            teamMembers.length === 0 ? (
                                                 <p className="text-xs text-slate-400 italic">Add members to your Team Roster first before assigning them to sub-teams.</p>
                                             ) : (
                                                 <div className="grid grid-cols-2 gap-2">
-                                                    {members.map(m => (
+                                                    {teamMembers.map(m => (
                                                         <div
                                                             key={m.id}
-                                                            onClick={() => toggleMemberInTeam(team.id, m.id)}
-                                                            className={`cursor-pointer p-2 rounded border flex items-center justify-between text-sm ${team.memberIds.includes(m.id) ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400'}`}
+                                                            onClick={() => toggleMemberInSubTeam(subTeam.id, m.id)}
+                                                            className={`cursor-pointer p-2 rounded border flex items-center justify-between text-sm ${subTeam.memberIds.includes(m.id) ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400'}`}
                                                         >
-                                                            <span>{m.firstName} {m.lastNameInitial}.</span>
-                                                            {team.memberIds.includes(m.id) && <Check size={14} />}
+                                                            <span>{getMemberDisplayName(m)}</span>
+                                                            {subTeam.memberIds.includes(m.id) && <Check size={14} />}
                                                         </div>
                                                     ))}
                                                 </div>
                                             )
                                         ) : (
                                             <div className="flex flex-wrap gap-2">
-                                                {team.memberIds.length === 0 && <span className="text-xs text-slate-400 italic">No members assigned.</span>}
-                                                {team.memberIds.map(mid => {
-                                                    const m = members.find(mem => mem.id === mid);
+                                                {subTeam.memberIds.length === 0 && <span className="text-xs text-slate-400 italic">No members assigned.</span>}
+                                                {subTeam.memberIds.map(mid => {
+                                                    const m = teamMembers.find(mem => mem.id === mid);
                                                     if (!m) return null;
                                                     return (
                                                         <span key={mid} className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-600">
-                                                            {m.firstName} {m.lastNameInitial}.
+                                                            {getMemberDisplayName(m)}
                                                         </span>
                                                     );
                                                 })}
@@ -635,7 +665,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ members, setMembers, team
                         </p>
                         <ul className="text-sm text-slate-500 dark:text-slate-400 list-disc list-inside mb-4">
                             <li>All tasks</li>
-                            <li>All team members</li>
+                            <li>All sub-team assignments</li>
                             <li>All scouting reports</li>
                             <li>All match plans</li>
                             <li>All portfolio entries</li>
