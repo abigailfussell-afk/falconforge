@@ -53,7 +53,8 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
 
     const handleSignOut = async () => {
         await signOut();
-        navigate('/login');
+        // Use window.location for a clean redirect to ensure auth state is cleared
+        window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };
 
     // Demo mode: Show demo teams
@@ -64,20 +65,20 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
-            {/* Header */}
+            {/* Header - Matches Login page styling */}
             <div className="text-center mb-8">
-                <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 mb-4 p-2">
                     <img
                         src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                        className="w-16 h-16 object-contain"
+                        className="w-full h-full object-contain"
                         alt="FalconForge Logo"
                     />
-                    <h1 className="text-3xl font-black italic tracking-tighter">
-                        <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
-                        <span className="text-slate-300">FORGE</span>
-                    </h1>
                 </div>
-                <p className="text-slate-400 text-lg">Select a team to continue</p>
+                <h1 className="text-3xl font-black italic tracking-tighter mb-2">
+                    <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
+                    <span className="text-slate-300">FORGE</span>
+                </h1>
+                <p className="text-slate-400">Select a team to continue</p>
             </div>
 
             {/* Team List Card */}
@@ -113,14 +114,14 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                             key={team.id}
                             onClick={() => handleSelectTeam(team.id)}
                             className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${currentTeamId === team.id
-                                    ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
-                                    : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
+                                ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
+                                : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${currentTeamId === team.id
-                                        ? 'bg-orange-500/30 text-orange-400'
-                                        : 'bg-slate-600 text-slate-300'
+                                    ? 'bg-orange-500/30 text-orange-400'
+                                    : 'bg-slate-600 text-slate-300'
                                     }`}>
                                     {team.teamNumber ? `#${team.teamNumber.slice(-3)}` : team.name.charAt(0)}
                                 </div>
