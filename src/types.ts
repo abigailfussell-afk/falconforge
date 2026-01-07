@@ -43,12 +43,50 @@ export interface TeamMember {
   id: string;
   teamId: string;
   userId: string;
-  role: 'coach' | 'mentor' | 'student';
+  role: 'coach' | 'assistant_coach' | 'mentor' | 'student';
+  status: 'pending' | 'approved' | 'removed';
+  isBillingActive: boolean;
+  age13Plus: boolean | null;
   // User display info (populated from Supabase users table)
   fullName: string | null;
   email: string;
   avatarUrl: string | null;
   joinedAt: number;
+}
+
+/**
+ * Invite - Team invite link for joining
+ */
+export interface Invite {
+  id: string;
+  teamId: string;
+  code: string;
+  createdBy: string;
+  expiresAt: number | null;
+  createdAt: number;
+}
+
+/**
+ * AttestationType - Types of legal acknowledgements
+ */
+export type AttestationType =
+  | 'terms'
+  | 'privacy'
+  | 'community_guidelines'
+  | 'age_18_plus'
+  | 'coppa_responsibility'
+  | 'billing_acknowledgement'
+  | 'age_13_plus';
+
+/**
+ * UserAttestation - Record of user's legal acknowledgements
+ */
+export interface UserAttestation {
+  id: string;
+  userId: string;
+  attestationType: AttestationType;
+  version: string;
+  attestedAt: number;
 }
 
 /**

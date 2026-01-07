@@ -153,12 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = useCallback(async () => {
         if (!supabase) {
-            // In demo mode, still clear the local state
-            setState(prev => ({
-                ...prev,
-                user: null,
-                session: null,
-            }));
+            console.error('Cannot sign out: Supabase not configured');
             return;
         }
         await supabase.auth.signOut();
@@ -213,14 +208,15 @@ export function useAuth() {
     return context;
 }
 
-// Hook to require authentication
+// Hook to require authentication - now always requires real auth
 export function useRequireAuth() {
     const auth = useAuth();
 
+    // Supabase must be configured for the app to work
     if (!auth.isConfigured) {
-        // In demo mode, allow access
-        return { ...auth, isDemoMode: true };
+        throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
     }
 
-    return { ...auth, isDemoMode: false };
+    return auth;
 }
+

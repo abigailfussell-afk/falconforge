@@ -46,14 +46,13 @@ export default function LoginPage() {
         }
     };
 
-    // Demo mode notice
+    // Supabase must be configured
     if (!isConfigured) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="max-w-md w-full">
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg shadow-orange-500/25 mb-4 p-1">
-                            {/* Original Bot icon replaced with img tag for actual logo */}
                             <img
                                 src={`${import.meta.env.BASE_URL}falcon_logo.png`}
                                 className="w-full h-full object-contain"
@@ -61,24 +60,20 @@ export default function LoginPage() {
                             />
                         </div>
                         <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
-                        <p className="text-slate-400">Running in Demo Mode</p>
+                        <p className="text-slate-400">Configuration Required</p>
                     </div>
 
                     <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-6 shadow-xl">
-                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-6">
-                            <p className="text-amber-200 text-sm">
-                                <strong>Demo Mode:</strong> Cloud sync is disabled. Your data will be saved locally in this browser.
-                                To enable authentication and cloud sync, configure your Supabase credentials in <code className="bg-slate-700 px-1 rounded">.env.local</code>
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+                            <p className="text-red-200 text-sm">
+                                <strong>Supabase Not Configured:</strong> This app requires Supabase for authentication and data storage.
+                                Please configure your Supabase credentials in <code className="bg-slate-700 px-1 rounded">.env.local</code>:
                             </p>
+                            <ul className="text-red-300 text-xs mt-2 space-y-1 list-disc list-inside">
+                                <li>VITE_SUPABASE_URL</li>
+                                <li>VITE_SUPABASE_ANON_KEY</li>
+                            </ul>
                         </div>
-
-                        <a
-                            href="/"
-                            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
-                        >
-                            Continue to App
-                            <ArrowRight className="w-4 h-4" />
-                        </a>
                     </div>
                 </div>
             </div>

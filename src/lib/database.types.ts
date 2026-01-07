@@ -106,18 +106,27 @@ export interface Database {
                     id: string
                     team_id: string
                     user_id: string
-                    role: 'coach' | 'mentor' | 'student'
+                    role: 'coach' | 'assistant_coach' | 'mentor' | 'student'
+                    status: 'pending' | 'approved' | 'removed'
+                    is_billing_active: boolean
+                    age_13_plus: boolean | null
                     joined_at: string
                 }
                 Insert: {
                     id?: string
                     team_id: string
                     user_id: string
-                    role?: 'coach' | 'mentor' | 'student'
+                    role?: 'coach' | 'assistant_coach' | 'mentor' | 'student'
+                    status?: 'pending' | 'approved' | 'removed'
+                    is_billing_active?: boolean
+                    age_13_plus?: boolean | null
                     joined_at?: string
                 }
                 Update: {
-                    role?: 'coach' | 'mentor' | 'student'
+                    role?: 'coach' | 'assistant_coach' | 'mentor' | 'student'
+                    status?: 'pending' | 'approved' | 'removed'
+                    is_billing_active?: boolean
+                    age_13_plus?: boolean | null
                 }
             }
             // Renamed from 'teams' - Working groups within a Team (Build, Programming, etc.)
@@ -319,6 +328,49 @@ export interface Database {
                     updated_at?: string
                 }
             }
+            // Invites for team joining
+            invites: {
+                Row: {
+                    id: string
+                    team_id: string
+                    code: string
+                    created_by: string
+                    expires_at: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    team_id: string
+                    code: string
+                    created_by: string
+                    expires_at?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    expires_at?: string | null
+                }
+            }
+            // User legal attestations
+            user_attestations: {
+                Row: {
+                    id: string
+                    user_id: string
+                    attestation_type: 'terms' | 'privacy' | 'community_guidelines' | 'age_18_plus' | 'coppa_responsibility' | 'billing_acknowledgement' | 'age_13_plus'
+                    version: string
+                    attested_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    attestation_type: 'terms' | 'privacy' | 'community_guidelines' | 'age_18_plus' | 'coppa_responsibility' | 'billing_acknowledgement' | 'age_13_plus'
+                    version?: string
+                    attested_at?: string
+                }
+                Update: {
+                    version?: string
+                    attested_at?: string
+                }
+            }
         }
         Views: {}
         Functions: {}
@@ -338,3 +390,6 @@ export type Task = Database['public']['Tables']['tasks']['Row']
 export type Checklist = Database['public']['Tables']['checklists']['Row']
 export type ScoutingReport = Database['public']['Tables']['scouting_reports']['Row']
 export type MatchPlan = Database['public']['Tables']['match_plans']['Row']
+export type Invite = Database['public']['Tables']['invites']['Row']
+export type UserAttestation = Database['public']['Tables']['user_attestations']['Row']
+

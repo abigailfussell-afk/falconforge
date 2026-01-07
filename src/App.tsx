@@ -5,6 +5,12 @@ import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import LoginPage from './pages/Login';
 import TeamPicker from './pages/TeamPicker';
+import Onboarding from './pages/Onboarding';
+import CreateTeam from './pages/CreateTeam';
+import JoinTeam from './pages/JoinTeam';
+import TermsAndConditions from './pages/legal/TermsAndConditions';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import CommunityGuidelines from './pages/legal/CommunityGuidelines';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 
 // Import consolidated components from src/components
@@ -181,43 +187,6 @@ function Dashboard() {
                             </div>
                         </div>
                     )}
-
-                    {/* Demo mode team switcher - when not logged in */}
-                    {(!isConfigured || !user) && (
-                        <div className="mt-4 flex flex-col gap-2">
-                            {/* Team Switcher - Matches user section style exactly */}
-                            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
-                                <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber?.slice(0, 2)}` : 'T'}
-                                    </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => navigate('/team-picker')}
-                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors"
-                                    title="Switch Team"
-                                >
-                                    <ArrowRightLeft size={16} />
-                                </button>
-                            </div>
-
-                            {/* Theme Toggle for demo mode */}
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                                    className="p-2 text-slate-400 hover:text-orange-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-                                    title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-                                >
-                                    {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </aside>
 
@@ -309,26 +278,6 @@ function Dashboard() {
                             </button>
                         </div>
                     )}
-
-                    {/* Demo mode mobile team switcher */}
-                    {(!isConfigured || !user) && (
-                        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 pb-4">
-                            <button
-                                onClick={() => { navigate('/team-picker'); setIsMobileMenuOpen(false); }}
-                                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl transition-all"
-                            >
-                                <div className="flex-1 min-w-0 text-left">
-                                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                                        {teams.find(t => t.id === currentTeamId)?.teamNumber ? `#${teams.find(t => t.id === currentTeamId)?.teamNumber}` : 'Team'}
-                                    </p>
-                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                                        {teams.find(t => t.id === currentTeamId)?.name || 'Select Team'}
-                                    </p>
-                                </div>
-                                <ArrowRightLeft size={16} className="text-slate-400" />
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -382,7 +331,7 @@ function Dashboard() {
 }
 
 function App() {
-    const { user, isLoading, isConfigured } = useAuth();
+    const { user, isLoading } = useAuth();
     const { theme, initializeStore } = useAppStore();
 
     // Initialize store on mount
@@ -432,13 +381,12 @@ function App() {
 
     return (
         <Routes>
+            {/* Public routes */}
             <Route path="/login" element={
-                // If already logged in (or demo mode), redirect to team picker
-                !isConfigured || user ? <Navigate to="/team-picker" replace /> : <LoginPage />
+                user ? <Navigate to="/teams" replace /> : <LoginPage />
             } />
 
             <Route path="/auth/callback" element={
-                // OAuth callback handling
                 <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
                     <div className="text-center">
                         <div className="relative w-24 h-24 mx-auto mb-8">
@@ -461,14 +409,34 @@ function App() {
                 </div>
             } />
 
-            <Route path="/team-picker" element={
-                // Team selection page - accessible when authenticated
-                !isConfigured || user ? <TeamPicker /> : <Navigate to="/login" replace />
+            {/* Legal pages - public */}
+            <Route path="/legal/terms" element={<TermsAndConditions />} />
+            <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+            <Route path="/legal/community" element={<CommunityGuidelines />} />
+
+            {/* Onboarding routes - require auth */}
+            <Route path="/onboarding" element={
+                user ? <Onboarding /> : <Navigate to="/login" replace />
             } />
 
+            <Route path="/create-team" element={
+                user ? <CreateTeam /> : <Navigate to="/login" replace />
+            } />
+
+            <Route path="/join/:code?" element={
+                <JoinTeam />
+            } />
+
+            <Route path="/teams" element={
+                user ? <TeamPicker /> : <Navigate to="/login" replace />
+            } />
+
+            {/* Legacy route - redirect to /teams */}
+            <Route path="/team-picker" element={<Navigate to="/teams" replace />} />
+
+            {/* Main app - require auth and team */}
             <Route path="/*" element={
-                // Main app - accessible in demo mode or when authenticated
-                !isConfigured || user ? <Dashboard /> : <Navigate to="/login" replace />
+                user ? <Dashboard /> : <Navigate to="/login" replace />
             } />
         </Routes>
     );

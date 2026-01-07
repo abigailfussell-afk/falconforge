@@ -57,11 +57,10 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };
 
-    // Demo mode: Show demo teams
-    const displayTeams = teams.length > 0 ? teams : [
-        { id: 'demo-team-1', name: 'Demo Team 1', teamNumber: '00001', inviteCode: 'DEMO1', ownerId: 'demo-user', createdAt: Date.now() },
-        { id: 'demo-team-2', name: 'Demo Team 2', teamNumber: '00002', inviteCode: 'DEMO2', ownerId: 'demo-user', createdAt: Date.now() },
-    ];
+    // If no teams and no pending, redirect to onboarding
+    if (teams.length === 0) {
+        // Will be checked after render - could redirect in useEffect
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
@@ -109,7 +108,7 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                 <div className="p-4 space-y-3">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">Your Teams</p>
 
-                    {displayTeams.map((team) => (
+                    {teams.map((team) => (
                         <button
                             key={team.id}
                             onClick={() => handleSelectTeam(team.id)}
@@ -136,7 +135,7 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                         </button>
                     ))}
 
-                    {displayTeams.length === 0 && (
+                    {teams.length === 0 && (
                         <div className="text-center py-8 text-slate-400">
                             <Users size={40} className="mx-auto mb-3 opacity-50" />
                             <p>You're not a member of any teams yet.</p>
@@ -156,7 +155,7 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                                 Create a Team
                             </button>
                             <button
-                                onClick={() => setShowJoinTeam(true)}
+                                onClick={() => navigate('/join')}
                                 className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
                             >
                                 <Key size={20} />
@@ -195,13 +194,6 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                     )}
                 </div>
             </div>
-
-            {/* Demo Mode Notice */}
-            {!isConfigured && (
-                <p className="mt-6 text-slate-500 text-sm">
-                    Demo Mode: Select a team to explore the app
-                </p>
-            )}
         </div>
     );
 };

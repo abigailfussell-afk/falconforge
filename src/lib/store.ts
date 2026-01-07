@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { db, generateId, queueForSync } from './offline-db';
-import { isSupabaseConfigured } from './supabase';
-import { DEFAULT_SUBTEAMS, DEMO_TEAMS, DEMO_TEAM_MEMBERS } from '../constants';
+import { DEFAULT_SUBTEAMS } from '../constants';
 import type { Team, TeamMember, SubTeam } from '../types';
 
 /**
@@ -115,10 +114,6 @@ interface AppState {
     teams: Team[];  // Teams the user belongs to
     teamMembers: TeamMember[];  // Members of the current team (cached from Supabase)
 
-    // Organization context (legacy - will be removed)
-    currentOrganizationId: string | null;
-    isDemoMode: boolean;
-
     // Core data
     tasks: Task[];
     subTeams: SubTeam[];  // Renamed from teams
@@ -189,11 +184,9 @@ export const useAppStore = create<AppState>()(
     persist(
         (set, get) => ({
             // Initial state
-            currentTeamId: DEMO_TEAMS[0]?.id || null,
-            teams: DEMO_TEAMS,
-            teamMembers: DEMO_TEAM_MEMBERS,
-            currentOrganizationId: null,
-            isDemoMode: !isSupabaseConfigured(),
+            currentTeamId: null,
+            teams: [],
+            teamMembers: [],
             tasks: [],
             subTeams: DEFAULT_SUBTEAMS,
             scoutingReports: [],
@@ -240,10 +233,8 @@ export const useAppStore = create<AppState>()(
 
                 set((state) => ({ tasks: [...state.tasks, task] }));
 
-                // Queue for sync if online mode
-                if (!get().isDemoMode) {
-                    queueForSync('tasks', task.id, 'create', task);
-                }
+                // Queue for sync
+                queueForSync('tasks', task.id, 'create', task);
             },
 
             updateTask: (id, updates) => {
@@ -253,11 +244,9 @@ export const useAppStore = create<AppState>()(
                     ),
                 }));
 
-                if (!get().isDemoMode) {
-                    const task = get().tasks.find(t => t.id === id);
-                    if (task) {
-                        queueForSync('tasks', id, 'update', { ...task, ...updates });
-                    }
+                const task = get().tasks.find(t => t.id === id);
+                if (task) {
+                    queueForSync('tasks', id, 'update', { ...task, ...updates });
                 }
             },
 
@@ -266,9 +255,7 @@ export const useAppStore = create<AppState>()(
                     tasks: state.tasks.filter((t) => t.id !== id),
                 }));
 
-                if (!get().isDemoMode) {
-                    queueForSync('tasks', id, 'delete', null);
-                }
+                queueForSync('tasks', id, 'delete', null);
             },
 
             // SubTeams (renamed from Teams)
@@ -312,20 +299,14 @@ export const useAppStore = create<AppState>()(
                 set((state) => ({
                     scoutingReports: [...state.scoutingReports, report],
                 }));
-
-                if (!get().isDemoMode) {
-                    queueForSync('scoutingReports', report.id, 'create', report);
-                }
+                queueForSync('scoutingReports', report.id, 'create', report);
             },
 
             deleteScoutingReport: (id) => {
                 set((state) => ({
                     scoutingReports: state.scoutingReports.filter((r) => r.id !== id),
                 }));
-
-                if (!get().isDemoMode) {
-                    queueForSync('scoutingReports', id, 'delete', null);
-                }
+                queueForSync('scoutingReports', id, 'delete', null);
             },
 
             // Checklist
@@ -376,20 +357,14 @@ export const useAppStore = create<AppState>()(
                     seasonId: get().currentSeasonId || undefined,
                 };
                 set((state) => ({ matchPlans: [...state.matchPlans, plan] }));
-
-                if (!get().isDemoMode) {
-                    queueForSync('matchPlans', plan.id, 'create', plan);
-                }
+                queueForSync('matchPlans', plan.id, 'create', plan);
             },
 
             deleteMatchPlan: (id) => {
                 set((state) => ({
                     matchPlans: state.matchPlans.filter((p) => p.id !== id),
                 }));
-
-                if (!get().isDemoMode) {
-                    queueForSync('matchPlans', id, 'delete', null);
-                }
+                queueForSync('matchPlans', id, 'delete', null);
             },
 
             updateMatchPlan: (id, updates) => {
@@ -398,12 +373,9 @@ export const useAppStore = create<AppState>()(
                         p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p
                     ),
                 }));
-
-                if (!get().isDemoMode) {
-                    const plan = get().matchPlans.find(p => p.id === id);
-                    if (plan) {
-                        queueForSync('matchPlans', id, 'update', { ...plan, ...updates });
-                    }
+                const plan = get().matchPlans.find(p => p.id === id);
+                if (plan) {
+                    queueForSync('matchPlans', id, 'update', { ...plan, ...updates });
                 }
             },
 
@@ -530,7 +502,7 @@ export const useAppStore = create<AppState>()(
                     scoutingReports: [],
                     checklist: DEFAULT_CHECKLIST_ITEMS,
                     matchPlans: [],
-                    teamMembers: DEMO_TEAM_MEMBERS,
+                    teamMembers: [],
                 });
             },
         }),

@@ -5,6 +5,8 @@ import { useAppStore } from '../lib/store';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useCurrentUser } from '../lib/user-context';
 import { useAuth } from '../lib/auth';
+import InviteManager from './InviteManager';
+import MemberManager from './MemberManager';
 
 interface SupabaseUser {
     id: string;
@@ -115,6 +117,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
             teamId: currentTeamId || 'demo-team-1',
             userId: user.id,
             role: 'student',
+            status: 'pending',
+            isBillingActive: false,
+            age13Plus: null,
             fullName: user.full_name,
             email: user.email,
             avatarUrl: null,
@@ -135,6 +140,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                 teamId: currentTeamId || 'demo-team-1',
                 userId: `manual-${Date.now()}`,
                 role: 'student',
+                status: 'approved',
+                isBillingActive: false,
+                age13Plus: null,
                 fullName: `${firstName.trim()} ${lastInitial.trim().toUpperCase()}.`,
                 email: `${firstName.toLowerCase()}@demo.local`,
                 avatarUrl: null,
@@ -286,6 +294,32 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                     </div>
                 </div>
             )}
+
+            {/* Invite Links Section - only show for coaches when Supabase is configured */}
+            {isConfigured && user && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
+                    <InviteManager teamId={useAppStore.getState().currentTeamId || ''} />
+                </div>
+            )}
+
+            {/* Member Management Section - only show when Supabase is configured */}
+            {isConfigured && user && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+                        <Users className="text-orange-600" size={24} />
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white">Member Management</h3>
+                    </div>
+                    <MemberManager
+                        teamId={useAppStore.getState().currentTeamId || ''}
+                        teamMembers={teamMembers}
+                        onMembersChange={() => {
+                            // Refresh team members from store
+                            // The store handles syncing with Supabase
+                        }}
+                    />
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                 {/* Team Roster (TeamMembers) */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
