@@ -15,7 +15,7 @@ interface PendingTeam {
 export default function Onboarding() {
     const navigate = useNavigate();
     const { user, signOut, ageClassification } = useAuth();
-    const { teams, setTeams, setCurrentTeam, currentTeamId } = useAppStore();
+    const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -86,8 +86,34 @@ export default function Onboarding() {
         }
     };
 
-    const handleSelectTeam = (teamId: string) => {
+    const handleSelectTeam = async (teamId: string) => {
         setCurrentTeam(teamId);
+
+        // Fetch seasons for the selected team from Supabase
+        if (supabase) {
+            try {
+                const { data: seasonsData, error } = await supabase
+                    .from('seasons')
+                    .select('id, team_id, name, field_image_url, created_at')
+                    .eq('team_id', teamId) as { data: any[] | null; error: any };
+
+                if (!error && seasonsData && seasonsData.length > 0) {
+                    // Map Supabase data to store's Season type
+                    const seasons = seasonsData.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        fieldImageData: s.field_image_url || '',
+                        teamId: s.team_id,
+                        createdAt: new Date(s.created_at).getTime(),
+                    }));
+                    setSeasons(seasons);
+                }
+                // If no seasons or error, keep the default season (graceful fallback)
+            } catch (err) {
+                console.warn('Failed to load seasons:', err);
+            }
+        }
+
         navigate('/');
     };
 
@@ -162,14 +188,14 @@ export default function Onboarding() {
                                         key={team.id}
                                         onClick={() => handleSelectTeam(team.id)}
                                         className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${currentTeamId === team.id
-                                                ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
-                                                : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
+                                            ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
+                                            : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${currentTeamId === team.id
-                                                    ? 'bg-orange-500/30 text-orange-400'
-                                                    : 'bg-slate-600 text-slate-300'
+                                                ? 'bg-orange-500/30 text-orange-400'
+                                                : 'bg-slate-600 text-slate-300'
                                                 }`}>
                                                 {team.teamNumber ? `#${team.teamNumber.slice(-3)}` : team.name.charAt(0)}
                                             </div>

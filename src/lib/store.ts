@@ -173,6 +173,7 @@ interface AppState {
     updateSeason: (id: string, updates: Partial<Season>) => void;
     deleteSeason: (id: string) => void;
     setCurrentSeason: (id: string | null) => void;
+    setSeasons: (seasons: Season[]) => void;
     getCurrentSeason: () => Season | null;
 
     // Data management
@@ -442,6 +443,14 @@ export const useAppStore = create<AppState>()(
             },
 
             setCurrentSeason: (id) => set({ currentSeasonId: id }),
+            setSeasons: (seasons) => {
+                const currentSeasonId = get().currentSeasonId;
+                // If current season is not in the new list, switch to the first one
+                const newCurrentId = seasons.find(s => s.id === currentSeasonId)
+                    ? currentSeasonId
+                    : seasons[0]?.id || null;
+                set({ seasons, currentSeasonId: newCurrentId });
+            },
 
             getCurrentSeason: () => {
                 const state = get();
