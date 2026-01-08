@@ -13,7 +13,7 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
     signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-    signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null; user: any }>;
+    signUpWithEmail: (email: string, password: string, fullName: string, ageClassification?: AgeClassification) => Promise<{ error: AuthError | null; user: any }>;
     signInWithGoogle: () => Promise<{ error: AuthError | null }>;
     signInWithMicrosoft: () => Promise<{ error: AuthError | null }>;
     signOut: () => Promise<void>;
@@ -90,55 +90,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const ensureUserProfile = async (user: User) => {
         if (!supabase) return;
 
-        // Check if user profile exists
-        const { data: existingUser } = await supabase
+        // Get age classification from user_metadata (set during signup)
+        const ageFromMetadata = user.user_metadata?.age_classification || null;
+        const privacyAccepted = user.user_metadata?.privacy_accepted === true;
+
+        // Use upsert to handle both new users and existing users
+        // This avoids issues with RLS errors causing false "user not found" results
+        const { error: upsertError } = await supabase
             .from('users')
-            .select('id, age_classification')
-            .eq('id', user.id)
-            .single() as { data: { id: string; age_classification: string | null } | null };
-
-        // Create profile if it doesn't exist
-        if (!existingUser) {
-            // Check for pending age classification from signup
-            const pendingAge = localStorage.getItem('pending_age_classification');
-            const pendingAttestation = localStorage.getItem('pending_privacy_attestation');
-
-            await supabase.from('users').insert({
+            .upsert({
                 id: user.id,
                 email: user.email!,
-                full_name: user.user_metadata.full_name || user.user_metadata.name || null,
-                avatar_url: user.user_metadata.avatar_url || null,
-                age_classification: pendingAge || null,
-            } as any);
+                full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+                avatar_url: user.user_metadata?.avatar_url || null,
+                // Only set age_classification if it comes from metadata (won't overwrite existing)
+                ...(ageFromMetadata ? { age_classification: ageFromMetadata } : {}),
+            } as any, {
+                onConflict: 'id',
+                ignoreDuplicates: false, // Update on conflict
+            });
 
-            // Record pending attestation if it exists
-            if (pendingAttestation === 'true') {
+        if (upsertError) {
+            console.error('[Auth] Error upserting user profile:', upsertError);
+        }
+
+        // Record privacy attestation if accepted (only once)
+        if (privacyAccepted) {
+            // Check if attestation already exists
+            const { data: existingAttestation } = await supabase
+                .from('user_attestations')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('attestation_type', 'privacy_and_guidelines')
+                .single();
+
+            if (!existingAttestation) {
                 await supabase.from('user_attestations').insert({
                     user_id: user.id,
                     attestation_type: 'privacy_and_guidelines',
                     version: '1.0',
                 } as any);
             }
+        }
 
-            // Clear localStorage
-            localStorage.removeItem('pending_age_classification');
-            localStorage.removeItem('pending_privacy_attestation');
+        // Now fetch the user's age classification for local state
+        const { data: userData } = await supabase
+            .from('users')
+            .select('age_classification')
+            .eq('id', user.id)
+            .single() as { data: { age_classification: string | null } | null };
 
-            // Update local state
-            if (pendingAge) {
-                setState(prev => ({
-                    ...prev,
-                    ageClassification: pendingAge as AgeClassification,
-                }));
-            }
-        } else {
-            // Existing user - fetch age classification
-            if (existingUser.age_classification) {
-                setState(prev => ({
-                    ...prev,
-                    ageClassification: existingUser.age_classification as AgeClassification,
-                }));
-            }
+        if (userData?.age_classification) {
+            setState(prev => ({
+                ...prev,
+                ageClassification: userData.age_classification as AgeClassification,
+            }));
+        } else if (ageFromMetadata) {
+            // Fallback to metadata if DB query failed (e.g., RLS issues)
+            setState(prev => ({
+                ...prev,
+                ageClassification: ageFromMetadata as AgeClassification,
+            }));
         }
     };
 
@@ -149,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
     }, []);
 
-    const signUpWithEmail = useCallback(async (email: string, password: string, fullName: string) => {
+    const signUpWithEmail = useCallback(async (email: string, password: string, fullName: string, ageClassification?: AgeClassification) => {
         if (!supabase) return { error: { message: 'Supabase not configured' } as AuthError, user: null };
 
         const { data, error } = await supabase.auth.signUp({
@@ -158,6 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             options: {
                 data: {
                     full_name: fullName,
+                    age_classification: ageClassification || null,
+                    privacy_accepted: ageClassification ? true : false,
                 },
             },
         });

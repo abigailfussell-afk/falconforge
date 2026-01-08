@@ -117,6 +117,9 @@ $$;
 -- 7. Update join_team_with_invite function
 -- ============================================
 
+-- Drop the old function signature with age_confirmed parameter (if exists)
+DROP FUNCTION IF EXISTS join_team_with_invite(text, boolean);
+
 CREATE OR REPLACE FUNCTION join_team_with_invite(
   invite_code text
 )
@@ -226,5 +229,42 @@ BEGIN
   WHERE id = auth.uid();
   
   RETURN json_build_object('success', true);
+END;
+$$;
+
+-- ============================================
+-- 9. Update handle_new_user trigger to include age_classification
+-- ============================================
+
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO users (id, email, full_name, avatar_url, age_classification)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'age_classification'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+    age_classification = COALESCE(EXCLUDED.age_classification, users.age_classification),
+    updated_at = now();
+
+  -- Also create privacy attestation if accepted
+  IF NEW.raw_user_meta_data->>'privacy_accepted' = 'true' THEN
+    INSERT INTO user_attestations (user_id, attestation_type, version)
+    VALUES (NEW.id, 'privacy_and_guidelines', '1.0')
+    ON CONFLICT DO NOTHING;
+  END IF;
+  
+  RETURN NEW;
 END;
 $$;

@@ -92,8 +92,8 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            // NOW create the account with Supabase Auth
-            const { error: signupError, user } = await signUpWithEmail(email.trim(), password, fullName.trim());
+            // NOW create the account with Supabase Auth - include age in user metadata
+            const { error: signupError, user } = await signUpWithEmail(email.trim(), password, fullName.trim(), ageSelection);
 
             if (signupError) {
                 // Handle duplicate email error specifically
@@ -116,11 +116,8 @@ export default function LoginPage() {
                 return;
             }
 
-            // Note: Age classification and attestations will be recorded after email verification
-            // when the user signs in for the first time. For now, we store in localStorage
-            // so we can prompt them to complete profile after verification.
-            localStorage.setItem('pending_age_classification', ageSelection);
-            localStorage.setItem('pending_privacy_attestation', 'true');
+            // Age classification is now stored in user_metadata and will be applied
+            // when the user verifies email and signs in for the first time
 
             // Success! Show email verification message
             setMessage('Account created! Please check your email to verify your account, then sign in.');
