@@ -142,7 +142,7 @@ export default function JoinTeam() {
                             </p>
                         </div>
                         <button
-                            onClick={() => navigate('/teams')}
+                            onClick={() => navigate('/onboarding')}
                             className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
                         >
                             View My Teams
@@ -203,7 +203,7 @@ export default function JoinTeam() {
                         <div className="flex gap-3">
                             <button
                                 type="button"
-                                onClick={() => navigate('/teams')}
+                                onClick={() => navigate('/onboarding')}
                                 className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                             >
                                 <ArrowLeft size={18} />

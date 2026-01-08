@@ -268,3 +268,44 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- ============================================
+-- 10. Fix RLS infinite recursion on team_members
+-- The old policy referenced team_members in its own SELECT, causing recursion
+-- ============================================
+
+-- Drop the problematic policies
+DROP POLICY IF EXISTS team_members_select_policy ON team_members;
+DROP POLICY IF EXISTS users_select_teammates ON users;
+
+-- Create simpler policies that don't self-reference
+
+-- 1. Users can see their own team_members records directly
+CREATE POLICY team_members_select_own ON team_members 
+  FOR SELECT USING (user_id = auth.uid());
+
+-- 2. Users can see all members of teams they belong to (using a function to avoid recursion)
+CREATE OR REPLACE FUNCTION get_user_team_ids(user_uuid uuid)
+RETURNS SETOF uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT team_id FROM team_members 
+  WHERE user_id = user_uuid AND status = 'approved';
+$$;
+
+CREATE POLICY team_members_select_teammates ON team_members 
+  FOR SELECT USING (
+    team_id IN (SELECT get_user_team_ids(auth.uid()))
+  );
+
+-- 3. Fix users table policy to avoid recursion
+CREATE POLICY users_select_via_teams ON users 
+  FOR SELECT USING (
+    id IN (
+      SELECT tm.user_id FROM team_members tm
+      WHERE tm.team_id IN (SELECT get_user_team_ids(auth.uid()))
+    )
+  );

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Key, Clock, LogOut, Loader2 } from 'lucide-react';
+import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../lib/store';
+import type { Team } from '../types';
 
 interface PendingTeam {
     teamId: string;
@@ -13,14 +15,15 @@ interface PendingTeam {
 export default function Onboarding() {
     const navigate = useNavigate();
     const { user, signOut, ageClassification } = useAuth();
+    const { teams, setTeams, setCurrentTeam, currentTeamId } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        loadPendingTeams();
+        loadTeams();
     }, [user]);
 
-    const loadPendingTeams = async () => {
+    const loadTeams = async () => {
         if (!supabase || !user) {
             setIsLoading(false);
             return;
@@ -35,7 +38,9 @@ export default function Onboarding() {
                     status,
                     teams:team_id (
                         id,
-                        name
+                        name,
+                        team_number,
+                        owner_id
                     )
                 `)
                 .eq('user_id', user.id) as { data: any[] | null; error: any };
@@ -47,14 +52,23 @@ export default function Onboarding() {
             }
 
             if (memberships && memberships.length > 0) {
-                // Check if any are approved - if so, redirect to team picker
+                // Get approved teams
                 const approved = memberships.filter(m => m.status === 'approved');
                 if (approved.length > 0) {
-                    navigate('/teams');
-                    return;
+                    // Build teams array for the store
+                    const approvedTeams: Team[] = approved.map(m => ({
+                        id: m.teams?.id || m.team_id,
+                        name: m.teams?.name || 'Unknown Team',
+                        teamNumber: m.teams?.team_number || null,
+                        ownerId: m.teams?.owner_id || '',
+                        createdAt: Date.now(),
+                    }));
+
+                    // Populate the store
+                    setTeams(approvedTeams);
                 }
 
-                // Show pending teams
+                // Get pending teams
                 const pending: PendingTeam[] = memberships
                     .filter(m => m.status === 'pending')
                     .map(m => ({
@@ -72,6 +86,11 @@ export default function Onboarding() {
         }
     };
 
+    const handleSelectTeam = (teamId: string) => {
+        setCurrentTeam(teamId);
+        navigate('/');
+    };
+
     const handleSignOut = async () => {
         await signOut();
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
@@ -82,7 +101,7 @@ export default function Onboarding() {
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-                    <p className="text-slate-400">Loading...</p>
+                    <p className="text-slate-400">Loading your teams...</p>
                 </div>
             </div>
         );
@@ -104,44 +123,79 @@ export default function Onboarding() {
                         <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
                         <span className="text-slate-300">FORGE</span>
                     </h1>
-                    <p className="text-slate-400">Welcome! Let's get you set up.</p>
+                    <p className="text-slate-400">
+                        {teams.length > 0 ? 'Select a team to continue' : 'Welcome! Let\'s get you set up.'}
+                    </p>
                 </div>
 
-                {/* User Info */}
-                {user && (
-                    <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-4 mb-6 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
-                                <Users size={20} className="text-orange-400" />
+                {/* Main Card */}
+                <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+                    {/* User Info */}
+                    {user && (
+                        <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <Users size={20} className="text-orange-400" />
+                                </div>
+                                <div>
+                                    <p className="font-medium text-white">{user.user_metadata?.full_name || user.email}</p>
+                                    <p className="text-xs text-slate-400">{user.email}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-medium text-white">{user.user_metadata?.full_name || user.email}</p>
-                                <p className="text-xs text-slate-400">{user.email}</p>
+                            <button
+                                onClick={handleSignOut}
+                                className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                                title="Sign out"
+                            >
+                                <LogOut size={18} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Approved Teams Section */}
+                    {teams.length > 0 && (
+                        <div className="p-4 border-b border-slate-700/50">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Your Teams</p>
+                            <div className="space-y-2">
+                                {teams.map((team) => (
+                                    <button
+                                        key={team.id}
+                                        onClick={() => handleSelectTeam(team.id)}
+                                        className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${currentTeamId === team.id
+                                                ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
+                                                : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${currentTeamId === team.id
+                                                    ? 'bg-orange-500/30 text-orange-400'
+                                                    : 'bg-slate-600 text-slate-300'
+                                                }`}>
+                                                {team.teamNumber ? `#${team.teamNumber.slice(-3)}` : team.name.charAt(0)}
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-semibold">{team.name}</p>
+                                                {team.teamNumber && (
+                                                    <p className="text-xs text-slate-400">Team #{team.teamNumber}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={20} className="text-slate-400" />
+                                    </button>
+                                ))}
                             </div>
                         </div>
-                        <button
-                            onClick={handleSignOut}
-                            className="p-2 text-slate-400 hover:text-red-400 transition-colors"
-                            title="Sign out"
-                        >
-                            <LogOut size={18} />
-                        </button>
-                    </div>
-                )}
+                    )}
 
-                {/* Main Card */}
-                <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-6 shadow-xl">
                     {/* Pending Teams Section */}
                     {pendingTeams.length > 0 && (
-                        <div className="mb-6">
-                            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                                Pending Invitations
-                            </h2>
-                            <div className="space-y-3">
+                        <div className="p-4 border-b border-slate-700/50">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Pending Invitations</p>
+                            <div className="space-y-2">
                                 {pendingTeams.map((team) => (
                                     <div
                                         key={team.teamId}
-                                        className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-4 flex items-center justify-between"
+                                        className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-4 flex items-center"
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
@@ -155,27 +209,14 @@ export default function Onboarding() {
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-slate-500 text-xs mt-3 text-center">
-                                You'll be able to access these teams once a coach approves your membership.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Divider */}
-                    {pendingTeams.length > 0 && (
-                        <div className="relative my-6">
-                            <div className="border-t border-slate-700" />
-                            <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 px-3 text-sm text-slate-500">
-                                or
-                            </span>
                         </div>
                     )}
 
                     {/* Actions */}
-                    <div className="space-y-4">
-                        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
-                            {pendingTeams.length > 0 ? 'Get Started Another Way' : 'Get Started'}
-                        </h2>
+                    <div className="p-4 space-y-3">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
+                            {teams.length > 0 || pendingTeams.length > 0 ? 'Or...' : 'Get Started'}
+                        </p>
 
                         {ageClassification === '18_plus' && (
                             <button

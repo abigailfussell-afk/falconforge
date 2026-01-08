@@ -4,7 +4,6 @@ import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Menu, X, Sun, Moon, S
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import LoginPage from './pages/Login';
-import TeamPicker from './pages/TeamPicker';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
 import JoinTeam from './pages/JoinTeam';
@@ -164,7 +163,7 @@ function Dashboard() {
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => navigate('/team-picker')}
+                                    onClick={() => navigate('/onboarding')}
                                     className="p-2 text-slate-400 hover:text-orange-500 transition-colors"
                                     title="Switch Team"
                                 >
@@ -255,7 +254,7 @@ function Dashboard() {
                         <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2 pb-4">
                             {/* Mobile Team Switcher - Above Sign Out */}
                             <button
-                                onClick={() => { navigate('/team-picker'); setIsMobileMenuOpen(false); }}
+                                onClick={() => { navigate('/onboarding'); setIsMobileMenuOpen(false); }}
                                 className="w-full flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl transition-all"
                             >
                                 <div className="flex-1 min-w-0 text-left">
@@ -383,7 +382,7 @@ function App() {
         <Routes>
             {/* Public routes */}
             <Route path="/login" element={
-                user ? <Navigate to="/teams" replace /> : <LoginPage />
+                user ? <Navigate to="/onboarding" replace /> : <LoginPage />
             } />
 
             <Route path="/auth/callback" element={
@@ -427,12 +426,10 @@ function App() {
                 <JoinTeam />
             } />
 
-            <Route path="/teams" element={
-                user ? <TeamPicker /> : <Navigate to="/login" replace />
-            } />
+            <Route path="/teams" element={<Navigate to="/onboarding" replace />} />
 
-            {/* Legacy route - redirect to /teams */}
-            <Route path="/team-picker" element={<Navigate to="/teams" replace />} />
+            {/* Legacy route - redirect to /onboarding */}
+            <Route path="/team-picker" element={<Navigate to="/onboarding" replace />} />
 
             {/* Main app - require auth and team */}
             <Route path="/*" element={

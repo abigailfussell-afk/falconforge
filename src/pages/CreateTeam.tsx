@@ -52,7 +52,7 @@ export default function CreateTeam() {
                         </p>
                         <div className="space-y-3">
                             <button
-                                onClick={() => navigate('/teams')}
+                                onClick={() => navigate('/onboarding')}
                                 className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                             >
                                 <ArrowLeft size={18} />
@@ -94,7 +94,7 @@ export default function CreateTeam() {
         if (currentStep === 'details') {
             setCurrentStep('attestation');
         } else {
-            navigate('/teams');
+            navigate('/onboarding');
         }
     };
 
