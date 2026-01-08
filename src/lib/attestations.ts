@@ -16,22 +16,22 @@ export const ATTESTATION_VERSIONS: Record<AttestationType, string> = {
     coppa_responsibility: '1.0',
     billing_acknowledgement: '1.0',
     age_13_plus: '1.0',
+    privacy_and_guidelines: '1.0',  // New combined type
+    coach_terms: '1.0',              // New combined type
 };
+
+// Attestations required during signup (for all users 13+)
+export const SIGNUP_REQUIRED_ATTESTATIONS: AttestationType[] = [
+    'privacy_and_guidelines',
+];
 
 // Attestations required for coaches creating a team
 export const COACH_REQUIRED_ATTESTATIONS: AttestationType[] = [
-    'age_18_plus',
-    'terms',
-    'billing_acknowledgement',
-    'coppa_responsibility',
+    'coach_terms',
 ];
 
-// Attestations required for non-coaches joining a team
-export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [
-    'privacy',
-    'community_guidelines',
-    'age_13_plus',
-];
+// Attestations required for non-coaches joining a team (none - collected at signup now)
+export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [];
 
 /**
  * Check which attestations a user is missing

@@ -30,7 +30,6 @@ export interface Team {
   id: string;
   name: string;              // e.g., "Falcon Force #12345"
   teamNumber: string | null; // FTC team number
-  inviteCode: string;        // For joining
   ownerId: string;           // Coach who created it
   createdAt: number;
 }
@@ -46,7 +45,6 @@ export interface TeamMember {
   role: 'coach' | 'assistant_coach' | 'mentor' | 'student';
   status: 'pending' | 'approved' | 'removed';
   isBillingActive: boolean;
-  age13Plus: boolean | null;
   // User display info (populated from Supabase users table)
   fullName: string | null;
   email: string;
@@ -67,6 +65,11 @@ export interface Invite {
 }
 
 /**
+ * AgeClassification - User's age range for authorization
+ */
+export type AgeClassification = 'under_13' | '13_to_17' | '18_plus';
+
+/**
  * AttestationType - Types of legal acknowledgements
  */
 export type AttestationType =
@@ -76,7 +79,9 @@ export type AttestationType =
   | 'age_18_plus'
   | 'coppa_responsibility'
   | 'billing_acknowledgement'
-  | 'age_13_plus';
+  | 'age_13_plus'
+  | 'privacy_and_guidelines'  // Combined privacy + community guidelines (signup)
+  | 'coach_terms';            // Combined terms + billing + COPPA (create team)
 
 /**
  * UserAttestation - Record of user's legal acknowledgements

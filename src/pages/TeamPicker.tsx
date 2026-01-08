@@ -10,7 +10,7 @@ interface TeamPickerProps {
 
 const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
     const navigate = useNavigate();
-    const { user, signOut, isConfigured } = useAuth();
+    const { user, signOut, isConfigured, ageClassification } = useAuth();
     const { teams, setCurrentTeam, currentTeamId } = useAppStore();
     const [showJoinTeam, setShowJoinTeam] = useState(false);
     const [inviteCode, setInviteCode] = useState('');
@@ -147,13 +147,15 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                 <div className="p-4 border-t border-slate-700/50 space-y-3">
                     {!showJoinTeam ? (
                         <>
-                            <button
-                                onClick={handleCreateTeam}
-                                className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
-                            >
-                                <Plus size={20} />
-                                Create a Team
-                            </button>
+                            {ageClassification === '18_plus' && (
+                                <button
+                                    onClick={handleCreateTeam}
+                                    className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
+                                >
+                                    <Plus size={20} />
+                                    Create a Team
+                                </button>
+                            )}
                             <button
                                 onClick={() => navigate('/join')}
                                 className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors"

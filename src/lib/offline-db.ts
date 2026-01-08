@@ -16,7 +16,6 @@ export interface LocalTeam {
     id: string;
     name: string;
     teamNumber: string | null;
-    inviteCode: string;
     ownerId: string;
     createdAt: number;
     syncStatus: 'synced' | 'pending' | 'conflict';

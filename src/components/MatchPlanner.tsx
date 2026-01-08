@@ -11,10 +11,12 @@ const MatchPlanner: React.FC = () => {
   // Simple history stack for undo/redo
   const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentSeasonId } = useAppStore();
   const currentSeason = getCurrentSeason();
-  // Construct the proper image URL with BASE_URL for local assets, or use full URL for external images
-  const customFieldImage = currentSeason?.fieldImageUrl;
-  const fieldImageUrl = customFieldImage
-    ? (customFieldImage.startsWith('http') ? customFieldImage : `${import.meta.env.BASE_URL}${customFieldImage}`)
+  // Field image: can be Base64 data URL, full URL, or local file path
+  const customFieldImage = currentSeason?.fieldImageData;
+  const fieldImageSrc = customFieldImage
+    ? (customFieldImage.startsWith('data:') || customFieldImage.startsWith('http')
+      ? customFieldImage
+      : `${import.meta.env.BASE_URL}${customFieldImage}`)
     : `${import.meta.env.BASE_URL}${FIELD_IMAGE_URL}`;
   // Filter match plans by current season
   const matchPlans = allMatchPlans.filter(p => !p.seasonId || p.seasonId === currentSeasonId);
@@ -194,7 +196,7 @@ const MatchPlanner: React.FC = () => {
         <div className="relative flex-1 bg-slate-900 overflow-hidden cursor-crosshair">
           {/* Background Field Image */}
           <img
-            src={fieldImageUrl}
+            src={fieldImageSrc}
             className="absolute inset-0 w-full h-full object-contain opacity-50 pointer-events-none select-none"
             alt="Field"
           />

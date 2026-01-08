@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Users, Layers, UserPlus, Check, Calendar, AlertTriangle, Search, WifiOff, X, AtSign, User, Save, Edit3 } from 'lucide-react';
+import { Trash2, Plus, Users, Layers, UserPlus, Check, Calendar, AlertTriangle, Search, WifiOff, X, AtSign, User, Save, Edit3, Upload } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -43,8 +43,59 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
     const [newSeasonName, setNewSeasonName] = useState('');
     const [editingSeasonId, setEditingSeasonId] = useState<string | null>(null);
     const [editSeasonName, setEditSeasonName] = useState('');
-    const [editFieldImageUrl, setEditFieldImageUrl] = useState('');
+    const [editFieldImageData, setEditFieldImageData] = useState('');
     const [deleteConfirmSeasonId, setDeleteConfirmSeasonId] = useState<string | null>(null);
+    const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+
+    // Handle file upload for season field image
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, seasonId: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImageUploadError(null);
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setImageUploadError('Please select an image file');
+            return;
+        }
+
+        // Validate file size (max 500KB)
+        if (file.size > 500 * 1024) {
+            setImageUploadError('Image must be less than 500KB');
+            return;
+        }
+
+        // Create image to validate dimensions
+        const img = document.createElement('img');
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+
+            // Validate dimensions (max 1200x800)
+            if (img.width > 1200 || img.height > 800) {
+                setImageUploadError('Image must be max 1200×800 pixels');
+                return;
+            }
+
+            // Convert to Base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result as string;
+                setEditFieldImageData(base64);
+                updateSeason(seasonId, { fieldImageData: base64 });
+            };
+            reader.readAsDataURL(file);
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            setImageUploadError('Failed to load image');
+        };
+
+        img.src = objectUrl;
+    };
 
     // Profile editing state
     const { user, updateProfile, isConfigured } = useAuth();
@@ -119,7 +170,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
             role: 'student',
             status: 'pending',
             isBillingActive: false,
-            age13Plus: null,
             fullName: user.full_name,
             email: user.email,
             avatarUrl: null,
@@ -142,7 +192,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                 role: 'student',
                 status: 'approved',
                 isBillingActive: false,
-                age13Plus: null,
                 fullName: `${firstName.trim()} ${lastInitial.trim().toUpperCase()}.`,
                 email: `${firstName.toLowerCase()}@demo.local`,
                 avatarUrl: null,
@@ -634,7 +683,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                                             } else {
                                                 setEditingSeasonId(season.id);
                                                 setEditSeasonName(season.name);
-                                                setEditFieldImageUrl(season.fieldImageUrl || '');
+                                                setEditFieldImageData(season.fieldImageData || '');
+                                                setImageUploadError(null);
                                             }
                                         }}
                                         className={`text-xs px-3 py-1.5 rounded-full transition ${editingSeasonId === season.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
@@ -666,16 +716,51 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Field Image URL (for Match Planner)</label>
+                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Field Image (for Match Planner)</label>
+
+                                        {/* Image Preview */}
+                                        {editFieldImageData && (
+                                            <div className="mb-2 relative">
+                                                <img
+                                                    src={editFieldImageData}
+                                                    alt="Field preview"
+                                                    className="w-full max-h-40 object-contain rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-900"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        setEditFieldImageData('');
+                                                        updateSeason(season.id, { fieldImageData: '' });
+                                                    }}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                    title="Remove image"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Upload Button */}
                                         <input
-                                            type="text"
-                                            value={editFieldImageUrl}
-                                            onChange={(e) => setEditFieldImageUrl(e.target.value)}
-                                            onBlur={() => updateSeason(season.id, { fieldImageUrl: editFieldImageUrl })}
-                                            placeholder="https://example.com/field.png (1200x800 recommended)"
-                                            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => handleImageUpload(e, season.id)}
+                                            className="hidden"
+                                            id={`field-image-${season.id}`}
                                         />
-                                        <p className="text-[10px] text-slate-400 mt-1">Recommended dimensions: 1200×800 pixels (3:2 ratio)</p>
+                                        <label
+                                            htmlFor={`field-image-${season.id}`}
+                                            className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition"
+                                        >
+                                            <Upload size={18} />
+                                            <span className="text-sm font-medium">{editFieldImageData ? 'Replace Image' : 'Upload Field Image'}</span>
+                                        </label>
+
+                                        {/* Error Message */}
+                                        {imageUploadError && (
+                                            <p className="text-xs text-red-500 mt-1">{imageUploadError}</p>
+                                        )}
+
+                                        <p className="text-[10px] text-slate-400 mt-1">Max: 1200×800 pixels, 500KB. Recommended: 3:2 ratio.</p>
                                     </div>
                                 </div>
                             )}

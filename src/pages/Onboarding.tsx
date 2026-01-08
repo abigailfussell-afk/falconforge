@@ -12,7 +12,7 @@ interface PendingTeam {
 
 export default function Onboarding() {
     const navigate = useNavigate();
-    const { user, signOut } = useAuth();
+    const { user, signOut, ageClassification } = useAuth();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -177,18 +177,20 @@ export default function Onboarding() {
                             {pendingTeams.length > 0 ? 'Get Started Another Way' : 'Get Started'}
                         </h2>
 
-                        <button
-                            onClick={() => navigate('/create-team')}
-                            className="w-full flex items-center gap-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-5 rounded-xl transition-all shadow-lg shadow-orange-500/20"
-                        >
-                            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                                <Plus size={22} />
-                            </div>
-                            <div className="text-left">
-                                <p className="font-semibold">Create a Team</p>
-                                <p className="text-sm text-orange-100/80">For coaches starting a new team</p>
-                            </div>
-                        </button>
+                        {ageClassification === '18_plus' && (
+                            <button
+                                onClick={() => navigate('/create-team')}
+                                className="w-full flex items-center gap-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-5 rounded-xl transition-all shadow-lg shadow-orange-500/20"
+                            >
+                                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <Plus size={22} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-semibold">Create a Team</p>
+                                    <p className="text-sm text-orange-100/80">For coaches starting a new team</p>
+                                </div>
+                            </button>
+                        )}
 
                         <button
                             onClick={() => navigate('/join')}

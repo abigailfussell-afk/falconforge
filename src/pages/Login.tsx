@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react'; // Removed Bot, added nothing from the instruction's import list that was relevant to LoginPage
+import { Mail, Lock, User, ArrowRight, Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type { AgeClassification } from '../types';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
+type SignupStep = 1 | 2;
 
 export default function LoginPage() {
     const { signInWithEmail, signUpWithEmail, resetPassword, isConfigured } = useAuth();
     const [mode, setMode] = useState<AuthMode>('login');
+    const [signupStep, setSignupStep] = useState<SignupStep>(1);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -14,7 +18,12 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
 
-    const handleEmailAuth = async (e: React.FormEvent) => {
+    // Step 2 state
+    const [ageSelection, setAgeSelection] = useState<AgeClassification | null>(null);
+    const [privacyAccepted, setPrivacyAccepted] = useState(false);
+
+    // Step 1: Just validate and move to step 2 (no account creation)
+    const handleStep1Submit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
@@ -25,12 +34,26 @@ export default function LoginPage() {
                 const { error } = await signInWithEmail(email, password);
                 if (error) setError(error.message);
             } else if (mode === 'signup') {
-                const { error } = await signUpWithEmail(email, password, fullName);
-                if (error) {
-                    setError(error.message);
-                } else {
-                    setMessage('Check your email for a confirmation link!');
+                // Validate inputs locally
+                if (!fullName.trim()) {
+                    setError('Please enter your full name');
+                    setIsLoading(false);
+                    return;
                 }
+                if (!email.trim() || !email.includes('@')) {
+                    setError('Please enter a valid email address');
+                    setIsLoading(false);
+                    return;
+                }
+                if (password.length < 6) {
+                    setError('Password must be at least 6 characters');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Move to step 2 (no account created yet!)
+                // Duplicate email check happens at final signup in Step 2
+                setSignupStep(2);
             } else if (mode === 'forgot') {
                 const { error } = await resetPassword(email);
                 if (error) {
@@ -44,6 +67,89 @@ export default function LoginPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Step 2: Create the account with all information
+    const handleStep2Submit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!ageSelection) {
+            setError('Please select your age range');
+            return;
+        }
+
+        if (ageSelection === 'under_13') {
+            setError('Users under 13 cannot create an account directly. Please have your parent or guardian contact your team coach to be added to a team.');
+            return;
+        }
+
+        if (!privacyAccepted) {
+            setError('Please accept the Privacy Policy and Community Guidelines');
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            // NOW create the account with Supabase Auth
+            const { error: signupError, user } = await signUpWithEmail(email.trim(), password, fullName.trim());
+
+            if (signupError) {
+                // Handle duplicate email error specifically
+                if (signupError.message.toLowerCase().includes('already registered') ||
+                    signupError.message.toLowerCase().includes('already exists') ||
+                    signupError.message.toLowerCase().includes('user already')) {
+                    setError('An account with this email already exists. Please sign in instead.');
+                } else {
+                    setError(signupError.message);
+                }
+                setIsLoading(false);
+                return;
+            }
+
+            // Check for duplicate email - Supabase returns empty identities for existing email
+            // This is a security feature to prevent email enumeration
+            if (!user || !user.identities || user.identities.length === 0) {
+                setError('An account with this email already exists. Please sign in instead.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Note: Age classification and attestations will be recorded after email verification
+            // when the user signs in for the first time. For now, we store in localStorage
+            // so we can prompt them to complete profile after verification.
+            localStorage.setItem('pending_age_classification', ageSelection);
+            localStorage.setItem('pending_privacy_attestation', 'true');
+
+            // Success! Show email verification message
+            setMessage('Account created! Please check your email to verify your account, then sign in.');
+            setSignupStep(1);
+            setMode('login');
+            // Reset signup form
+            setFullName('');
+            setPassword('');
+            setAgeSelection(null);
+            setPrivacyAccepted(false);
+        } catch (err) {
+            setError('An unexpected error occurred');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleModeChange = (newMode: AuthMode) => {
+        setMode(newMode);
+        setSignupStep(1);
+        setError(null);
+        setMessage(null);
+        setAgeSelection(null);
+        setPrivacyAccepted(false);
+    };
+
+    const handleBackToStep1 = () => {
+        setSignupStep(1);
+        setError(null);
     };
 
     // Supabase must be configured
@@ -95,9 +201,18 @@ export default function LoginPage() {
                     <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
                     <p className="text-slate-400">
                         {mode === 'login' && 'Sign in to your account'}
-                        {mode === 'signup' && 'Create your account'}
+                        {mode === 'signup' && signupStep === 1 && 'Create your account'}
+                        {mode === 'signup' && signupStep === 2 && 'Complete your profile'}
                         {mode === 'forgot' && 'Reset your password'}
                     </p>
+
+                    {/* Step indicator for signup - simple dashes */}
+                    {mode === 'signup' && (
+                        <div className="flex items-center justify-center gap-2 mt-3">
+                            <div className={`h-1 w-12 rounded-full ${signupStep >= 1 ? 'bg-orange-500' : 'bg-slate-700'}`} />
+                            <div className={`h-1 w-12 rounded-full ${signupStep >= 2 ? 'bg-orange-500' : 'bg-slate-700'}`} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Auth Card */}
@@ -114,119 +229,229 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {/* SSO Buttons - Hidden until implemented */}
-
-                    {/* Email Form */}
-                    <form onSubmit={handleEmailAuth} className="space-y-4">
-                        {mode === 'signup' && (
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
-                                <div className="relative">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        value={fullName}
-                                        onChange={(e) => setFullName(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                        placeholder="John Smith"
-                                        required
-                                    />
+                    {/* STEP 1: Login / Signup credentials / Forgot */}
+                    {(mode !== 'signup' || signupStep === 1) && (
+                        <form onSubmit={handleStep1Submit} className="space-y-4">
+                            {mode === 'signup' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                            placeholder="John Smith"
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                    placeholder="you@team12345.org"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {mode !== 'forgot' && (
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                        placeholder="••••••••"
-                                        required
-                                        minLength={6}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
-                        >
-                            {isLoading ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <>
-                                    {mode === 'login' && 'Sign In'}
-                                    {mode === 'signup' && 'Create Account'}
-                                    {mode === 'forgot' && 'Send Reset Link'}
-                                    <ArrowRight className="w-4 h-4" />
-                                </>
                             )}
-                        </button>
-                    </form>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        placeholder="you@team12345.org"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {mode !== 'forgot' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                            placeholder="••••••••"
+                                            required
+                                            minLength={6}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                            >
+                                {isLoading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        {mode === 'login' && 'Sign In'}
+                                        {mode === 'signup' && 'Continue'}
+                                        {mode === 'forgot' && 'Send Reset Link'}
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    )}
+
+                    {/* STEP 2: Age + Privacy/Guidelines */}
+                    {mode === 'signup' && signupStep === 2 && (
+                        <form onSubmit={handleStep2Submit} className="space-y-5">
+                            {/* Age Selection */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-3">How old are you?</label>
+                                <div className="space-y-2">
+                                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '18_plus' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                                        <input
+                                            type="radio"
+                                            name="age"
+                                            value="18_plus"
+                                            checked={ageSelection === '18_plus'}
+                                            onChange={() => setAgeSelection('18_plus')}
+                                            className="w-4 h-4 text-orange-500"
+                                        />
+                                        <span className="text-slate-200">I am 18 or older</span>
+                                    </label>
+                                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '13_to_17' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                                        <input
+                                            type="radio"
+                                            name="age"
+                                            value="13_to_17"
+                                            checked={ageSelection === '13_to_17'}
+                                            onChange={() => setAgeSelection('13_to_17')}
+                                            className="w-4 h-4 text-orange-500"
+                                        />
+                                        <span className="text-slate-200">I am 13-17 years old</span>
+                                    </label>
+                                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === 'under_13' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                                        <input
+                                            type="radio"
+                                            name="age"
+                                            value="under_13"
+                                            checked={ageSelection === 'under_13'}
+                                            onChange={() => setAgeSelection('under_13')}
+                                            className="w-4 h-4 text-amber-500"
+                                        />
+                                        <span className="text-slate-200">I am under 13</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* COPPA Warning for under 13 */}
+                            {ageSelection === 'under_13' && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                                    <div className="flex gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-amber-200 text-sm font-medium">Parental Consent Required</p>
+                                            <p className="text-amber-300/80 text-xs mt-1">
+                                                Users under 13 cannot create an account directly due to COPPA regulations.
+                                                Please have your parent or guardian contact your team coach to be added to a team.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Privacy/Guidelines acceptance */}
+                            {ageSelection !== 'under_13' && (
+                                <div>
+                                    <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition ${privacyAccepted ? 'border-green-500 bg-green-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={privacyAccepted}
+                                            onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                                            className="w-5 h-5 mt-0.5 text-green-500 rounded"
+                                        />
+                                        <div>
+                                            <span className="text-slate-200 text-sm">
+                                                I have read and agree to the{' '}
+                                                <Link to="/legal/privacy" target="_blank" className="text-orange-400 hover:underline">Privacy Policy</Link>
+                                                {' '}and{' '}
+                                                <Link to="/legal/community" target="_blank" className="text-orange-400 hover:underline">Community Guidelines</Link>
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleBackToStep1}
+                                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    Back
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isLoading || ageSelection === 'under_13' || !privacyAccepted}
+                                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                                >
+                                    {isLoading ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            Create Account
+                                            <ArrowRight className="w-4 h-4" />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    )}
 
                     {/* Mode Switchers */}
-                    <div className="mt-6 text-center text-sm">
-                        {mode === 'login' && (
-                            <>
-                                <button
-                                    onClick={() => setMode('forgot')}
-                                    className="text-slate-400 hover:text-orange-400 transition-colors"
-                                >
-                                    Forgot password?
-                                </button>
-                                <p className="mt-4 text-slate-400">
-                                    Don't have an account?{' '}
+                    {(mode !== 'signup' || signupStep === 1) && (
+                        <div className="mt-6 text-center text-sm">
+                            {mode === 'login' && (
+                                <>
                                     <button
-                                        onClick={() => setMode('signup')}
+                                        onClick={() => handleModeChange('forgot')}
+                                        className="text-slate-400 hover:text-orange-400 transition-colors"
+                                    >
+                                        Forgot password?
+                                    </button>
+                                    <p className="mt-4 text-slate-400">
+                                        Don't have an account?{' '}
+                                        <button
+                                            onClick={() => handleModeChange('signup')}
+                                            className="text-orange-400 hover:text-orange-300 font-medium"
+                                        >
+                                            Sign up
+                                        </button>
+                                    </p>
+                                </>
+                            )}
+                            {mode === 'signup' && (
+                                <p className="text-slate-400">
+                                    Already have an account?{' '}
+                                    <button
+                                        onClick={() => handleModeChange('login')}
                                         className="text-orange-400 hover:text-orange-300 font-medium"
                                     >
-                                        Sign up
+                                        Sign in
                                     </button>
                                 </p>
-                            </>
-                        )}
-                        {mode === 'signup' && (
-                            <p className="text-slate-400">
-                                Already have an account?{' '}
+                            )}
+                            {mode === 'forgot' && (
                                 <button
-                                    onClick={() => setMode('login')}
+                                    onClick={() => handleModeChange('login')}
                                     className="text-orange-400 hover:text-orange-300 font-medium"
                                 >
-                                    Sign in
+                                    Back to sign in
                                 </button>
-                            </p>
-                        )}
-                        {mode === 'forgot' && (
-                            <button
-                                onClick={() => setMode('login')}
-                                className="text-orange-400 hover:text-orange-300 font-medium"
-                            >
-                                Back to sign in
-                            </button>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

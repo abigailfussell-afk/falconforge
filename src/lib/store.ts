@@ -80,7 +80,7 @@ export interface PortfolioEntry {
 export interface Season {
     id: string;
     name: string;
-    fieldImageUrl: string;
+    fieldImageData: string;  // Base64 encoded image data for offline support
     teamId?: string;  // Scoped to Team
     createdAt: number;
 }
@@ -92,7 +92,7 @@ export type { Team, TeamMember, SubTeam };
 const DEFAULT_SEASON: Season = {
     id: 'season-2025-2026',
     name: '2025-2026 Decode',
-    fieldImageUrl: '',
+    fieldImageData: '',
     createdAt: Date.now(),
 };
 
@@ -169,7 +169,7 @@ interface AppState {
     deletePortfolioEntry: (id: string) => void;
 
     // Season actions
-    addSeason: (name: string, fieldImageUrl?: string) => void;
+    addSeason: (name: string, fieldImageData?: string) => void;
     updateSeason: (id: string, updates: Partial<Season>) => void;
     deleteSeason: (id: string) => void;
     setCurrentSeason: (id: string | null) => void;
@@ -398,11 +398,11 @@ export const useAppStore = create<AppState>()(
             },
 
             // Seasons
-            addSeason: (name, fieldImageUrl = '') => {
+            addSeason: (name, fieldImageData = '') => {
                 const season: Season = {
                     id: generateId(),
                     name,
-                    fieldImageUrl,
+                    fieldImageData,
                     teamId: get().currentTeamId || undefined,
                     createdAt: Date.now(),
                 };
