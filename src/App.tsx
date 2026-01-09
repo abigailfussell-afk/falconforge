@@ -39,7 +39,8 @@ function Dashboard() {
         currentSeasonId,
         setCurrentSeason,
         currentTeamId,
-        teams
+        teams,
+        fetchTeamData
     } = useAppStore();
     const navigate = useNavigate();
 
@@ -62,6 +63,13 @@ function Dashboard() {
         // Use window.location for a clean redirect to ensure auth state is cleared
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };
+
+    // Fetch team data when team changes
+    useEffect(() => {
+        if (currentTeamId) {
+            fetchTeamData(currentTeamId);
+        }
+    }, [currentTeamId, fetchTeamData]);
 
     const NavItem = ({ id, label, icon: Icon }: { id: string, label: string, icon: any }) => (
         <button

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { db, generateId, queueForSync } from './offline-db';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import type { Team, TeamMember, SubTeam } from '../types';
 
@@ -127,6 +128,7 @@ interface AppState {
     // UI state
     theme: 'light' | 'dark';
     geminiApiKey: string | null;
+    isLoading: boolean;
 
     // Actions
     setTheme: (theme: 'light' | 'dark') => void;
@@ -177,6 +179,8 @@ interface AppState {
     getCurrentSeason: () => Season | null;
 
     // Data management
+    setIsLoading: (isLoading: boolean) => void;
+    fetchTeamData: (teamId: string) => Promise<void>;
     initializeStore: () => Promise<void>;
     resetToDefaults: () => void;
 }
@@ -186,6 +190,7 @@ export const useAppStore = create<AppState>()(
         (set, get) => ({
             // Initial state
             currentTeamId: null,
+            isLoading: false,
             teams: [],
             teamMembers: [],
             tasks: [],
@@ -215,6 +220,159 @@ export const useAppStore = create<AppState>()(
             setCurrentTeam: (teamId) => set({ currentTeamId: teamId }),
             setTeams: (teams) => set({ teams }),
             setTeamMembers: (members) => set({ teamMembers: members }),
+
+            // Data management
+            setIsLoading: (isLoading) => set({ isLoading }), // Add this temporarily to AppState definition if needed or just use consistent naming
+
+            fetchTeamData: async (teamId) => {
+                // Ensure Supabase is available and not null for TS
+                if (!teamId || !isSupabaseConfigured() || !supabase) return;
+
+                // set({ isLoading: true }); // Optional: could track loading state
+
+                try {
+                    // 1. Fetch Team Members
+                    const { data: members, error: membersError } = await supabase
+                        .from('team_members')
+                        .select('*')
+                        .eq('team_id', teamId)
+                        .eq('status', 'approved');
+
+                    if (!membersError && members) {
+                        set({
+                            teamMembers: members.map((m: any) => ({
+                                id: m.id,
+                                teamId: m.team_id,
+                                userId: m.user_id,
+                                role: m.role as any,
+                                status: m.status as any,
+                                joinedAt: new Date(m.joined_at).getTime(),
+                                fullName: m.full_name,
+                                email: m.email,
+                                avatarUrl: m.avatar_url,
+                                isBillingActive: m.is_billing_active
+                            }))
+                        });
+                    }
+
+                    // 2. Fetch SubTeams
+                    const { data: subTeams, error: subTeamsError } = await supabase
+                        .from('sub_teams')
+                        .select('*')
+                        .eq('team_id', teamId);
+
+                    if (!subTeamsError && subTeams) {
+                        set({
+                            subTeams: subTeams.map((st: any) => ({
+                                id: st.id,
+                                name: st.name,
+                                memberIds: st.member_ids || [], // Ensure snake_case mapping
+                                seasonId: st.season_id
+                            }))
+                        });
+                    }
+
+                    // 3. Fetch Seasons
+                    const { data: seasons, error: seasonsError } = await supabase
+                        .from('seasons')
+                        .select('*')
+                        .eq('team_id', teamId);
+
+                    if (!seasonsError && seasons && seasons.length > 0) {
+                        set({
+                            seasons: seasons.map((s: any) => ({
+                                id: s.id,
+                                name: s.name,
+                                fieldImageData: s.field_image_url || '',
+                                teamId: s.team_id,
+                                createdAt: new Date(s.created_at).getTime()
+                            }))
+                        });
+                    }
+
+                    // 4. Fetch Tasks
+                    const { data: tasks, error: tasksError } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .eq('team_id', teamId);
+
+                    if (!tasksError && tasks) {
+                        set({
+                            tasks: tasks.map((t: any) => ({
+                                id: t.id,
+                                title: t.title,
+                                description: t.description || '',
+                                status: t.status as any,
+                                type: t.type as any,
+                                assignedTo: t.assigned_to || '',
+                                department: t.sub_team_id || '',
+                                tags: t.tags || [],
+                                checklist: (t.checklist as any) || [],
+                                timeline: (t.timeline as any) || [],
+                                createdAt: new Date(t.created_at).getTime(),
+                                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
+                                seasonId: t.season_id
+                            }))
+                        });
+                    }
+
+                    // 5. Fetch Scouting Reports
+                    const { data: reports, error: reportsError } = await supabase
+                        .from('scouting_reports')
+                        .select('*')
+                        .eq('team_id', teamId);
+
+                    if (!reportsError && reports) {
+                        set({
+                            scoutingReports: reports.map((r: any) => ({
+                                ...r.data as any, // Spread the JSON data content
+                                id: r.id, // Ensure ID is from DB
+                                seasonId: r.season_id
+                            }))
+                        });
+                    }
+
+                    // 6. Fetch Match Plans
+                    const { data: plans, error: plansError } = await supabase
+                        .from('match_plans')
+                        .select('*')
+                        .eq('team_id', teamId);
+
+                    if (!plansError && plans) {
+                        set({
+                            matchPlans: plans.map((p: any) => ({
+                                id: p.id,
+                                title: `Match ${p.match_number || '?'}`,
+                                drawingData: p.drawing_data,
+                                notes: p.notes || '',
+                                allianceTeam: p.alliance_team || '',
+                                partnerAutonomous: false, // Legacy default
+                                partnerPark: false, // Legacy default
+                                updatedAt: new Date(p.updated_at).getTime(),
+                                seasonId: p.season_id
+                            }))
+                        });
+                    }
+
+                    // 7. Fetch Checklist (assume single list for now)
+                    const { data: checklists, error: checklistError } = await supabase
+                        .from('checklists')
+                        .select('*')
+                        .eq('team_id', teamId)
+                        .limit(1);
+
+                    if (!checklistError && checklists && checklists.length > 0) {
+                        set({
+                            checklist: ((checklists[0] as any).items as any) || []
+                        });
+                    }
+
+                } catch (err) {
+                    console.error('Error fetching team data:', err);
+                } finally {
+                    // set({ isLoading: false });
+                }
+            },
 
             // Tasks
             addTask: (taskData) => {

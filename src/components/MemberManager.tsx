@@ -10,8 +10,7 @@ interface PendingMember {
     full_name: string | null;
     email: string;
     status: 'pending' | 'approved' | 'rejected';
-    age_13_plus: boolean | null;
-    created_at: string;
+    joined_at: string;
 }
 
 interface MemberManagerProps {
@@ -45,12 +44,11 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                     full_name,
                     email,
                     status,
-                    age_13_plus,
-                    created_at
+                    joined_at
                 `)
                 .eq('team_id', teamId)
                 .eq('status', 'pending')
-                .order('created_at', { ascending: false });
+                .order('joined_at', { ascending: false });
 
             if (fetchError) throw fetchError;
             setPendingMembers((data as PendingMember[]) || []);
@@ -260,11 +258,6 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                         {getDisplayName(member)}
                                     </p>
                                     <p className="text-xs text-slate-400 truncate">{member.email}</p>
-                                    {member.age_13_plus !== null && (
-                                        <span className={`text-xs ${member.age_13_plus ? 'text-green-600' : 'text-amber-600'}`}>
-                                            {member.age_13_plus ? 'Age 13+' : 'Under 13'}
-                                        </span>
-                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button

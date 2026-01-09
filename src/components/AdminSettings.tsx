@@ -37,6 +37,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
     // Season Manager state
     const seasons = useAppStore((state) => state.seasons);
     const currentSeasonId = useAppStore((state) => state.currentSeasonId);
+    const currentTeamId = useAppStore((state) => state.currentTeamId);
     const addSeason = useAppStore((state) => state.addSeason);
     const updateSeason = useAppStore((state) => state.updateSeason);
     const deleteSeason = useAppStore((state) => state.deleteSeason);
@@ -162,7 +163,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
 
     // Add a user from search results to the team roster
     const addUserFromSearch = (user: SupabaseUser) => {
-        const currentTeamId = useAppStore.getState().currentTeamId;
         const newTeamMember: TeamMember = {
             id: `tm-${Date.now()}`,
             teamId: currentTeamId || 'demo-team-1',
@@ -184,7 +184,6 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
     // Manual member entry (creates a demo TeamMember)
     const addMemberManually = () => {
         if (firstName.trim() && lastInitial.trim().length === 1) {
-            const currentTeamId = useAppStore.getState().currentTeamId;
             const newTeamMember: TeamMember = {
                 id: `tm-${Date.now()}`,
                 teamId: currentTeamId || 'demo-team-1',
@@ -347,7 +346,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
             {/* Invite Links Section - only show for coaches when Supabase is configured */}
             {isConfigured && user && (
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
-                    <InviteManager teamId={useAppStore.getState().currentTeamId || ''} />
+                    <InviteManager teamId={currentTeamId || ''} />
                 </div>
             )}
 
@@ -359,7 +358,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white">Member Management</h3>
                     </div>
                     <MemberManager
-                        teamId={useAppStore.getState().currentTeamId || ''}
+                        teamId={currentTeamId || ''}
                         teamMembers={teamMembers}
                         onMembersChange={() => {
                             // Refresh team members from store

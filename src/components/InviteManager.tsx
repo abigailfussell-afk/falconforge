@@ -26,21 +26,39 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
 
     // Fetch active invites for this team
     const fetchInvites = async () => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabase || !isSupabaseConfigured()) {
+            setIsLoading(false);
+            return;
+        }
+
+        if (!teamId) {
+            console.log('InviteManager: No teamId provided');
+            setIsLoading(false);
+            return;
+        }
 
         setIsLoading(true);
         setError(null);
 
         try {
+            console.log('InviteManager: Fetching invites for team', teamId);
+            // Explicitly select columns and remove the server-side date filter for now to be safe
+            // We can re-enable strict filtering if this works
             const { data, error: fetchError } = await supabase
                 .from('invites')
-                .select('*')
+                .select('id, team_id, code, created_by, created_at, expires_at, use_count, max_uses')
                 .eq('team_id', teamId)
-                .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false });
 
             if (fetchError) throw fetchError;
-            setInvites(data || []);
+
+            // Client-side filter for expiration
+            const validInvites = (data || []).filter((inv: any) => {
+                if (!inv.expires_at) return true;
+                return new Date(inv.expires_at) > new Date();
+            });
+
+            setInvites(validInvites);
         } catch (err: any) {
             console.error('Error fetching invites:', err);
             setError('Failed to load invites');
