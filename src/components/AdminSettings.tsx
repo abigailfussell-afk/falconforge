@@ -193,33 +193,27 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, setTeamMembe
         })));
     };
 
+    // Use store's sub-team actions to ensure sync
+    const storeAddSubTeam = useAppStore((state) => state.addSubTeam);
+    const storeRemoveSubTeam = useAppStore((state) => state.removeSubTeam);
+    const storeToggleMemberInSubTeam = useAppStore((state) => state.toggleMemberInSubTeam);
+
     const addSubTeam = () => {
         if (newSubTeamName.trim()) {
-            const newSubTeam: SubTeam = {
-                id: `subteam-${Date.now()}`,
-                name: newSubTeamName.trim(),
-                memberIds: []
-            };
-            setSubTeams([...subTeams, newSubTeam]);
+            // Use store's function which includes queueForSync
+            storeAddSubTeam(newSubTeamName.trim());
             setNewSubTeamName('');
         }
     };
 
     const removeSubTeam = (id: string) => {
-        setSubTeams(subTeams.filter(t => t.id !== id));
+        // Use store's function which includes queueForSync
+        storeRemoveSubTeam(id);
     };
 
     const toggleMemberInSubTeam = (subTeamId: string, teamMemberId: string) => {
-        setSubTeams(subTeams.map(t => {
-            if (t.id !== subTeamId) return t;
-            const isMember = t.memberIds.includes(teamMemberId);
-            return {
-                ...t,
-                memberIds: isMember
-                    ? t.memberIds.filter(id => id !== teamMemberId)
-                    : [...t.memberIds, teamMemberId]
-            };
-        }));
+        // Use store's function which includes queueForSync
+        storeToggleMemberInSubTeam(subTeamId, teamMemberId);
     };
 
     // Helper to get display name for a TeamMember

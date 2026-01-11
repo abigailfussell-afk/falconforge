@@ -140,9 +140,10 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
     switch (operation) {
         case 'create':
+            // Use upsert to handle cases where record already exists (409 conflict)
             const { error: createError } = await supabase
                 .from(tableName)
-                .insert(transformedData);
+                .upsert(transformedData, { onConflict: 'id' });
             if (createError) throw createError;
             break;
 
@@ -234,6 +235,16 @@ function transformToSupabaseSchema(tableName: string, data: any): any {
                 is_template: data.isTemplate || false,
             };
 
+        case 'sub_teams':
+        case 'subTeams':
+            return {
+                id: data.id,
+                team_id: data.teamId,
+                name: data.name,
+                member_ids: data.memberIds || [],
+                season_id: data.seasonId || null,
+            };
+
         case 'portfolio_entries':
         case 'portfolioHistory':
             return {
@@ -291,6 +302,7 @@ async function pullChangesFromServer(): Promise<void> {
 
     const timestamps = getSyncTimestamps();
     const entities = [
+        { table: 'sub_teams', localTable: 'subTeams' },
         { table: 'tasks', localTable: 'tasks' },
         { table: 'scouting_reports', localTable: 'scoutingReports' },
         { table: 'match_plans', localTable: 'matchPlans' },

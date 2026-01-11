@@ -477,31 +477,55 @@ export const useAppStore = create<AppState>()(
 
             // SubTeams (renamed from Teams)
             addSubTeam: (name) => {
+                const state = get();
                 const subTeam: SubTeam = {
                     id: generateId(),
                     name,
                     memberIds: [],
-                    seasonId: get().currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId || undefined,
                 };
-                set((state) => ({ subTeams: [...state.subTeams, subTeam] }));
+                set((s) => ({ subTeams: [...s.subTeams, subTeam] }));
+
+                // Queue for sync with team_id included
+                queueForSync('sub_teams', subTeam.id, 'create', {
+                    ...subTeam,
+                    teamId: state.currentTeamId,
+                });
             },
 
             removeSubTeam: (id) => {
                 set((state) => ({
                     subTeams: state.subTeams.filter((t) => t.id !== id),
                 }));
+                queueForSync('sub_teams', id, 'delete', null);
             },
 
             toggleMemberInSubTeam: (subTeamId, teamMemberId) => {
+                let updatedSubTeam: SubTeam | null = null;
+
                 set((state) => ({
                     subTeams: state.subTeams.map((t) => {
                         if (t.id !== subTeamId) return t;
                         const memberIds = t.memberIds.includes(teamMemberId)
                             ? t.memberIds.filter((id) => id !== teamMemberId)
                             : [...t.memberIds, teamMemberId];
-                        return { ...t, memberIds };
+                        updatedSubTeam = { ...t, memberIds };
+                        return updatedSubTeam;
                     }),
                 }));
+
+                // Queue update for sync
+                if (updatedSubTeam !== null) {
+                    const state = get();
+                    const subTeamToSync = updatedSubTeam as SubTeam;
+                    queueForSync('sub_teams', subTeamId, 'update', {
+                        id: subTeamToSync.id,
+                        name: subTeamToSync.name,
+                        memberIds: subTeamToSync.memberIds,
+                        seasonId: subTeamToSync.seasonId,
+                        teamId: state.currentTeamId,
+                    });
+                }
             },
 
             setSubTeams: (subTeams) => set({ subTeams }),
