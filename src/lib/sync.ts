@@ -323,7 +323,8 @@ async function pullChangesFromServer(): Promise<void> {
                 .eq('team_id', currentTeamId);
 
             // Only fetch updated records if we have a last sync time
-            if (lastSyncDate && table !== 'checklists' && table !== 'scouting_reports' && table !== 'portfolio_entries') {
+            // Note: sub_teams, checklists, scouting_reports don't have updated_at column
+            if (lastSyncDate && table !== 'sub_teams' && table !== 'checklists' && table !== 'scouting_reports' && table !== 'portfolio_entries') {
                 // Only tables with updated_at can use this optimization
                 query = query.gte('updated_at', lastSyncDate);
             }

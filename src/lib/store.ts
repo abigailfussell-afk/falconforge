@@ -450,8 +450,11 @@ export const useAppStore = create<AppState>()(
 
                 set((state) => ({ tasks: [...state.tasks, task] }));
 
-                // Queue for sync
-                queueForSync('tasks', task.id, 'create', task);
+                // Queue for sync with teamId included
+                queueForSync('tasks', task.id, 'create', {
+                    ...task,
+                    teamId: get().currentTeamId,
+                });
             },
 
             updateTask: (id, updates) => {
@@ -463,7 +466,11 @@ export const useAppStore = create<AppState>()(
 
                 const task = get().tasks.find(t => t.id === id);
                 if (task) {
-                    queueForSync('tasks', id, 'update', { ...task, ...updates });
+                    queueForSync('tasks', id, 'update', {
+                        ...task,
+                        ...updates,
+                        teamId: get().currentTeamId,
+                    });
                 }
             },
 
@@ -532,22 +539,26 @@ export const useAppStore = create<AppState>()(
 
             // Scouting
             addScoutingReport: (reportData) => {
+                const state = get();
                 const report: ScoutingReport = {
                     ...reportData,
                     id: generateId(),
-                    seasonId: get().currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId || undefined,
                 };
-                set((state) => ({
-                    scoutingReports: [...state.scoutingReports, report],
+                set((s) => ({
+                    scoutingReports: [...s.scoutingReports, report],
                 }));
-                queueForSync('scoutingReports', report.id, 'create', report);
+                queueForSync('scouting_reports', report.id, 'create', {
+                    ...report,
+                    teamId: state.currentTeamId,
+                });
             },
 
             deleteScoutingReport: (id) => {
                 set((state) => ({
                     scoutingReports: state.scoutingReports.filter((r) => r.id !== id),
                 }));
-                queueForSync('scoutingReports', id, 'delete', null);
+                queueForSync('scouting_reports', id, 'delete', null);
             },
 
             // Checklist
@@ -591,21 +602,25 @@ export const useAppStore = create<AppState>()(
 
             // Match Plans
             addMatchPlan: (planData) => {
+                const state = get();
                 const plan: MatchPlan = {
                     ...planData,
                     id: generateId(),
                     updatedAt: Date.now(),
-                    seasonId: get().currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId || undefined,
                 };
-                set((state) => ({ matchPlans: [...state.matchPlans, plan] }));
-                queueForSync('matchPlans', plan.id, 'create', plan);
+                set((s) => ({ matchPlans: [...s.matchPlans, plan] }));
+                queueForSync('match_plans', plan.id, 'create', {
+                    ...plan,
+                    teamId: state.currentTeamId,
+                });
             },
 
             deleteMatchPlan: (id) => {
                 set((state) => ({
                     matchPlans: state.matchPlans.filter((p) => p.id !== id),
                 }));
-                queueForSync('matchPlans', id, 'delete', null);
+                queueForSync('match_plans', id, 'delete', null);
             },
 
             updateMatchPlan: (id, updates) => {
@@ -616,7 +631,11 @@ export const useAppStore = create<AppState>()(
                 }));
                 const plan = get().matchPlans.find(p => p.id === id);
                 if (plan) {
-                    queueForSync('matchPlans', id, 'update', { ...plan, ...updates });
+                    queueForSync('match_plans', id, 'update', {
+                        ...plan,
+                        ...updates,
+                        teamId: get().currentTeamId,
+                    });
                 }
             },
 
