@@ -94,7 +94,7 @@ export default function Onboarding() {
             try {
                 const { data: seasonsData, error } = await supabase
                     .from('seasons')
-                    .select('id, team_id, name, field_image_url, created_at')
+                    .select('id, team_id, name, field_image_data, created_at')
                     .eq('team_id', teamId) as { data: any[] | null; error: any };
 
                 if (!error && seasonsData && seasonsData.length > 0) {
@@ -102,7 +102,7 @@ export default function Onboarding() {
                     const seasons = seasonsData.map(s => ({
                         id: s.id,
                         name: s.name,
-                        fieldImageData: s.field_image_url || '',
+                        fieldImageData: s.field_image_data || '',
                         teamId: s.team_id,
                         createdAt: new Date(s.created_at).getTime(),
                     }));

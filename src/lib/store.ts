@@ -228,149 +228,207 @@ export const useAppStore = create<AppState>()(
                 // Ensure Supabase is available and not null for TS
                 if (!teamId || !isSupabaseConfigured() || !supabase) return;
 
-                // set({ isLoading: true }); // Optional: could track loading state
+                set({ isLoading: true });
 
                 try {
-                    // 1. Fetch Team Members
-                    const { data: members, error: membersError } = await supabase
-                        .from('team_members')
-                        .select('*')
-                        .eq('team_id', teamId)
-                        .eq('status', 'approved');
+                    // 1. Fetch Team Members (required - should always exist)
+                    try {
+                        const { data: members, error: membersError } = await supabase
+                            .from('team_members')
+                            .select('*')
+                            .eq('team_id', teamId)
+                            .eq('status', 'approved');
 
-                    if (!membersError && members) {
-                        set({
-                            teamMembers: members.map((m: any) => ({
-                                id: m.id,
-                                teamId: m.team_id,
-                                userId: m.user_id,
-                                role: m.role as any,
-                                status: m.status as any,
-                                joinedAt: new Date(m.joined_at).getTime(),
-                                fullName: m.full_name,
-                                email: m.email,
-                                avatarUrl: m.avatar_url,
-                                isBillingActive: m.is_billing_active
-                            }))
-                        });
+                        if (!membersError && members) {
+                            set({
+                                teamMembers: members.map((m: any) => ({
+                                    id: m.id,
+                                    teamId: m.team_id,
+                                    userId: m.user_id,
+                                    role: m.role as any,
+                                    status: m.status as any,
+                                    joinedAt: new Date(m.joined_at).getTime(),
+                                    fullName: m.full_name,
+                                    email: m.email,
+                                    avatarUrl: m.avatar_url,
+                                    isBillingActive: m.is_billing_active
+                                }))
+                            });
+                        } else if (membersError) {
+                            console.warn('Failed to fetch team_members:', membersError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching team_members:', err);
                     }
 
                     // 2. Fetch SubTeams
-                    const { data: subTeams, error: subTeamsError } = await supabase
-                        .from('sub_teams')
-                        .select('*')
-                        .eq('team_id', teamId);
+                    try {
+                        const { data: subTeams, error: subTeamsError } = await supabase
+                            .from('sub_teams')
+                            .select('*')
+                            .eq('team_id', teamId);
 
-                    if (!subTeamsError && subTeams) {
-                        set({
-                            subTeams: subTeams.map((st: any) => ({
-                                id: st.id,
-                                name: st.name,
-                                memberIds: st.member_ids || [], // Ensure snake_case mapping
-                                seasonId: st.season_id
-                            }))
-                        });
+                        if (!subTeamsError && subTeams) {
+                            set({
+                                subTeams: subTeams.map((st: any) => ({
+                                    id: st.id,
+                                    name: st.name,
+                                    memberIds: st.member_ids || [],
+                                    seasonId: st.season_id
+                                }))
+                            });
+                        } else if (subTeamsError) {
+                            console.warn('Failed to fetch sub_teams:', subTeamsError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching sub_teams:', err);
                     }
 
                     // 3. Fetch Seasons
-                    const { data: seasons, error: seasonsError } = await supabase
-                        .from('seasons')
-                        .select('*')
-                        .eq('team_id', teamId);
+                    try {
+                        const { data: seasons, error: seasonsError } = await supabase
+                            .from('seasons')
+                            .select('*')
+                            .eq('team_id', teamId);
 
-                    if (!seasonsError && seasons && seasons.length > 0) {
-                        set({
-                            seasons: seasons.map((s: any) => ({
-                                id: s.id,
-                                name: s.name,
-                                fieldImageData: s.field_image_url || '',
-                                teamId: s.team_id,
-                                createdAt: new Date(s.created_at).getTime()
-                            }))
-                        });
+                        if (!seasonsError && seasons && seasons.length > 0) {
+                            set({
+                                seasons: seasons.map((s: any) => ({
+                                    id: s.id,
+                                    name: s.name,
+                                    fieldImageData: s.field_image_data || '', // Fixed: was field_image_url
+                                    teamId: s.team_id,
+                                    createdAt: new Date(s.created_at).getTime()
+                                }))
+                            });
+                        } else if (seasonsError) {
+                            console.warn('Failed to fetch seasons:', seasonsError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching seasons:', err);
                     }
 
-                    // 4. Fetch Tasks
-                    const { data: tasks, error: tasksError } = await supabase
-                        .from('tasks')
-                        .select('*')
-                        .eq('team_id', teamId);
+                    // 4. Fetch Tasks (may not exist if migration not run)
+                    try {
+                        const { data: tasks, error: tasksError } = await supabase
+                            .from('tasks')
+                            .select('*')
+                            .eq('team_id', teamId);
 
-                    if (!tasksError && tasks) {
-                        set({
-                            tasks: tasks.map((t: any) => ({
-                                id: t.id,
-                                title: t.title,
-                                description: t.description || '',
-                                status: t.status as any,
-                                type: t.type as any,
-                                assignedTo: t.assigned_to || '',
-                                department: t.sub_team_id || '',
-                                tags: t.tags || [],
-                                checklist: (t.checklist as any) || [],
-                                timeline: (t.timeline as any) || [],
-                                createdAt: new Date(t.created_at).getTime(),
-                                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-                                seasonId: t.season_id
-                            }))
-                        });
+                        if (!tasksError && tasks) {
+                            set({
+                                tasks: tasks.map((t: any) => ({
+                                    id: t.id,
+                                    title: t.title,
+                                    description: t.description || '',
+                                    status: t.status as any,
+                                    type: t.type as any,
+                                    assignedTo: t.assigned_to || '',
+                                    department: t.sub_team_id || '',
+                                    tags: t.tags || [],
+                                    checklist: (t.checklist as any) || [],
+                                    timeline: (t.timeline as any) || [],
+                                    createdAt: new Date(t.created_at).getTime(),
+                                    dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
+                                    seasonId: t.season_id
+                                }))
+                            });
+                        } else if (tasksError) {
+                            // Table may not exist yet - this is expected before migration
+                            console.warn('Failed to fetch tasks (table may not exist yet):', tasksError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching tasks:', err);
                     }
 
-                    // 5. Fetch Scouting Reports
-                    const { data: reports, error: reportsError } = await supabase
-                        .from('scouting_reports')
-                        .select('*')
-                        .eq('team_id', teamId);
+                    // 5. Fetch Scouting Reports (may not exist if migration not run)
+                    try {
+                        const { data: reports, error: reportsError } = await supabase
+                            .from('scouting_reports')
+                            .select('*')
+                            .eq('team_id', teamId);
 
-                    if (!reportsError && reports) {
-                        set({
-                            scoutingReports: reports.map((r: any) => ({
-                                ...r.data as any, // Spread the JSON data content
-                                id: r.id, // Ensure ID is from DB
-                                seasonId: r.season_id
-                            }))
-                        });
+                        if (!reportsError && reports) {
+                            set({
+                                scoutingReports: reports.map((r: any) => ({
+                                    id: r.id,
+                                    teamNumber: r.opponent_team_number,
+                                    matchNumber: r.match_number,
+                                    // Spread the data JSONB field for scouting details
+                                    hasAutonomous: r.data?.hasAutonomous ?? false,
+                                    autoScore: r.data?.autoScore ?? 0,
+                                    intakeType: r.data?.intakeType ?? 'No Intake',
+                                    autoAim: r.data?.autoAim ?? false,
+                                    farShooting: r.data?.farShooting ?? false,
+                                    shotsTaken: r.data?.shotsTaken ?? 0,
+                                    shotsMissed: r.data?.shotsMissed ?? 0,
+                                    parking: r.data?.parking ?? 'No Park',
+                                    rating: r.data?.rating ?? 0,
+                                    endGameNotes: r.data?.endGameNotes ?? '',
+                                    seasonId: r.season_id
+                                }))
+                            });
+                        } else if (reportsError) {
+                            console.warn('Failed to fetch scouting_reports (table may not exist yet):', reportsError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching scouting_reports:', err);
                     }
 
-                    // 6. Fetch Match Plans
-                    const { data: plans, error: plansError } = await supabase
-                        .from('match_plans')
-                        .select('*')
-                        .eq('team_id', teamId);
+                    // 6. Fetch Match Plans (may not exist if migration not run)
+                    try {
+                        const { data: plans, error: plansError } = await supabase
+                            .from('match_plans')
+                            .select('*')
+                            .eq('team_id', teamId);
 
-                    if (!plansError && plans) {
-                        set({
-                            matchPlans: plans.map((p: any) => ({
-                                id: p.id,
-                                title: `Match ${p.match_number || '?'}`,
-                                drawingData: p.drawing_data,
-                                notes: p.notes || '',
-                                allianceTeam: p.alliance_team || '',
-                                partnerAutonomous: false, // Legacy default
-                                partnerPark: false, // Legacy default
-                                updatedAt: new Date(p.updated_at).getTime(),
-                                seasonId: p.season_id
-                            }))
-                        });
+                        if (!plansError && plans) {
+                            set({
+                                matchPlans: plans.map((p: any) => ({
+                                    id: p.id,
+                                    title: p.title || `Match ${p.match_number || '?'}`,
+                                    drawingData: p.drawing_data,
+                                    notes: p.notes || '',
+                                    allianceTeam: p.alliance_team || '',
+                                    partnerAutonomous: false,
+                                    partnerPark: false,
+                                    updatedAt: new Date(p.updated_at).getTime(),
+                                    seasonId: p.season_id
+                                }))
+                            });
+                        } else if (plansError) {
+                            console.warn('Failed to fetch match_plans (table may not exist yet):', plansError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching match_plans:', err);
                     }
 
-                    // 7. Fetch Checklist (assume single list for now)
-                    const { data: checklists, error: checklistError } = await supabase
-                        .from('checklists')
-                        .select('*')
-                        .eq('team_id', teamId)
-                        .limit(1);
+                    // 7. Fetch Checklist (may not exist if migration not run)
+                    try {
+                        const { data: checklists, error: checklistError } = await supabase
+                            .from('checklists')
+                            .select('*')
+                            .eq('team_id', teamId)
+                            .limit(1);
 
-                    if (!checklistError && checklists && checklists.length > 0) {
-                        set({
-                            checklist: ((checklists[0] as any).items as any) || []
-                        });
+                        if (!checklistError && checklists && checklists.length > 0) {
+                            const items = (checklists[0] as any).items;
+                            if (Array.isArray(items)) {
+                                set({ checklist: items });
+                            }
+                        } else if (checklistError) {
+                            console.warn('Failed to fetch checklists (table may not exist yet):', checklistError.message);
+                        }
+                    } catch (err) {
+                        console.warn('Error fetching checklists:', err);
                     }
+
+                    // Note: Portfolio entries are intentionally local-only (not synced to Supabase)
 
                 } catch (err) {
                     console.error('Error fetching team data:', err);
                 } finally {
-                    // set({ isLoading: false });
+                    set({ isLoading: false });
                 }
             },
 

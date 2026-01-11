@@ -171,19 +171,19 @@ export interface Database {
                     id: string
                     team_id: string
                     name: string
-                    field_image_url: string | null
+                    field_image_data: string | null
                     created_at: string
                 }
                 Insert: {
                     id?: string
                     team_id: string
                     name: string
-                    field_image_url?: string | null
+                    field_image_data?: string | null
                     created_at?: string
                 }
                 Update: {
                     name?: string
-                    field_image_url?: string | null
+                    field_image_data?: string | null
                 }
             }
             tasks: {
