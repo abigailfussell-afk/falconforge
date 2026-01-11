@@ -3,15 +3,16 @@ import { Task, TaskStatus, TaskType, SubTeam, TeamMember, TimelineEvent } from '
 import { STATUS_COLUMNS } from '../constants';
 import { Plus, Calendar as CalendarIcon, List, Layout, Clock, Send, Trash2, ChevronDown, ChevronRight, X, Archive, RotateCcw } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
+import { useAppStore } from '../lib/store';
 
 interface SprintPlanningProps {
     tasks: Task[];
-    setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+    setTasks: React.Dispatch<React.SetStateAction<Task[]>>; // Kept for backward compat but now unused
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
 }
 
-const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMembers, subTeams }) => {
+const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, subTeams }) => {
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isNewTask, setIsNewTask] = useState(false);
@@ -21,6 +22,11 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMe
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const newChecklistRef = useRef<HTMLInputElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
+
+    // Use store's sync-enabled functions
+    const storeAddTask = useAppStore((state) => state.addTask);
+    const storeUpdateTask = useAppStore((state) => state.updateTask);
+    const storeDeleteTask = useAppStore((state) => state.deleteTask);
 
     // Get current logged-in user for comments
     const { currentUser, displayName, initials: userInitials } = useCurrentUser();
@@ -97,6 +103,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMe
         const originalTask = tasks.find(t => t.id === activeTask.id);
         let updatedTask = { ...activeTask };
 
+        // Add status change timeline event
         if (!isNewTask && originalTask && originalTask.status !== activeTask.status) {
             const statusEvent: TimelineEvent = {
                 id: Date.now().toString(),
@@ -109,9 +116,21 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMe
         }
 
         if (isNewTask) {
-            setTasks([...tasks, updatedTask]);
+            // Use store's addTask which includes sync
+            storeAddTask({
+                title: updatedTask.title,
+                description: updatedTask.description,
+                status: updatedTask.status as any,
+                type: updatedTask.type,
+                assignedTo: updatedTask.assignedTo,
+                department: updatedTask.department,
+                tags: updatedTask.tags,
+                checklist: updatedTask.checklist,
+                dueDate: updatedTask.dueDate,
+            });
         } else {
-            setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+            // Use store's updateTask which includes sync
+            storeUpdateTask(updatedTask.id, updatedTask as any);
         }
         setIsModalOpen(false);
     };
@@ -130,47 +149,50 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, setTasks, teamMe
             timeline: [comment, ...activeTask.timeline]
         };
         setActiveTask(updatedTask);
-        // Save comment immediately
-        if (isNewTask) {
-            setTasks([...tasks.filter(t => t.id !== activeTask.id), updatedTask]);
-        } else {
-            setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+        // Save comment immediately via store
+        if (!isNewTask) {
+            storeUpdateTask(updatedTask.id, { timeline: updatedTask.timeline });
         }
         setNewComment('');
     };
 
     const deleteComment = (commentId: string) => {
         if (!activeTask) return;
+        const updatedTimeline = activeTask.timeline.filter(t => t.id !== commentId);
         const updatedTask = {
             ...activeTask,
-            timeline: activeTask.timeline.filter(t => t.id !== commentId)
+            timeline: updatedTimeline
         };
         setActiveTask(updatedTask);
-        // Save deletion immediately
+        // Save deletion immediately via store
         if (!isNewTask) {
-            setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+            storeUpdateTask(updatedTask.id, { timeline: updatedTimeline });
         }
     };
 
     const deleteTask = (id: string) => {
-        setTasks(tasks.filter(t => t.id !== id));
+        // Use store's deleteTask which includes sync
+        storeDeleteTask(id);
         setDeleteConfirmId(null);
         setIsModalOpen(false);
     };
 
     const archiveTask = () => {
         if (!activeTask) return;
-        const archivedTask = {
-            ...activeTask,
-            status: TaskStatus.Archived as TaskStatus,
+        // Use store's updateTask which includes sync
+        storeUpdateTask(activeTask.id, {
+            status: TaskStatus.Archived as any,
             archivedAt: Date.now()
-        };
-        setTasks(tasks.map(t => t.id === archivedTask.id ? archivedTask : t));
+        });
         setIsModalOpen(false);
     };
 
     const restoreTask = (id: string) => {
-        setTasks(tasks.map(t => t.id === id ? { ...t, status: TaskStatus.Done as TaskStatus, archivedAt: undefined } : t));
+        // Use store's updateTask which includes sync
+        storeUpdateTask(id, {
+            status: TaskStatus.Done as any,
+            archivedAt: undefined
+        });
     };
 
 

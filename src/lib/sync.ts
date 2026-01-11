@@ -227,11 +227,11 @@ function transformToSupabaseSchema(tableName: string, data: any): any {
 
         case 'checklists':
             return {
-                id: data.id,
+                id: data.teamId || data.id, // Use teamId as the row ID for blob sync
                 team_id: data.teamId,
-                season_id: data.seasonId,
+                season_id: data.seasonId || null,
                 name: data.name || 'Pre-Match Checklist',
-                items: data.items || data.checklist,
+                items: data.items || data.checklist || [],
                 is_template: data.isTemplate || false,
             };
 

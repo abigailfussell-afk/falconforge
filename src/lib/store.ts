@@ -21,7 +21,7 @@ export interface Task {
     id: string;
     title: string;
     description: string;
-    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done';
+    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done' | 'Archived';
     type: 'Feature' | 'Bug';
     assignedTo: string;  // TeamMember ID
     department: string;  // SubTeam ID
@@ -31,6 +31,7 @@ export interface Task {
     createdAt: number;
     dueDate?: number;
     seasonId?: string;
+    archivedAt?: number;
 }
 
 export interface ScoutingReport {
@@ -160,6 +161,7 @@ interface AppState {
     addChecklistItem: (text: string) => void;
     deleteChecklistItem: (id: string) => void;
     updateChecklistAssignment: (id: string, assignedTo: string) => void;
+    moveChecklistItem: (id: string, direction: 'up' | 'down') => void;
 
     // Match Plan actions
     addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt'>) => void;
@@ -563,41 +565,94 @@ export const useAppStore = create<AppState>()(
 
             // Checklist
             toggleChecklistItem: (id) => {
-                set((state) => ({
-                    checklist: state.checklist.map((item) =>
-                        item.id === id ? { ...item, checked: !item.checked } : item
-                    ),
-                }));
+                const state = get();
+                const newChecklist = state.checklist.map((item) =>
+                    item.id === id ? { ...item, checked: !item.checked } : item
+                );
+                set({ checklist: newChecklist });
+                // Sync entire checklist as blob
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: newChecklist,
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
             },
 
             resetChecklist: () => {
                 set((state) => ({
                     checklist: state.checklist.map((item) => ({ ...item, checked: false })),
                 }));
+                // Sync entire checklist as blob
+                const state = get();
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: state.checklist.map((item) => ({ ...item, checked: false })),
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
             },
 
             addChecklistItem: (text) => {
+                const state = get();
                 const item: ChecklistItem = {
                     id: generateId(),
                     text,
                     checked: false,
-                    seasonId: get().currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId || undefined,
                 };
-                set((state) => ({ checklist: [...state.checklist, item] }));
+                const newChecklist = [...state.checklist, item];
+                set({ checklist: newChecklist });
+                // Sync entire checklist as blob
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: newChecklist,
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
             },
 
             deleteChecklistItem: (id) => {
-                set((state) => ({
-                    checklist: state.checklist.filter((item) => item.id !== id),
-                }));
+                const state = get();
+                const newChecklist = state.checklist.filter((item) => item.id !== id);
+                set({ checklist: newChecklist });
+                // Sync entire checklist as blob
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: newChecklist,
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
             },
 
             updateChecklistAssignment: (id, assignedTo) => {
-                set((state) => ({
-                    checklist: state.checklist.map((item) =>
-                        item.id === id ? { ...item, assignedTo } : item
-                    ),
-                }));
+                const state = get();
+                const newChecklist = state.checklist.map((item) =>
+                    item.id === id ? { ...item, assignedTo } : item
+                );
+                set({ checklist: newChecklist });
+                // Sync entire checklist as blob
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: newChecklist,
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
+            },
+
+            moveChecklistItem: (id, direction) => {
+                const state = get();
+                const index = state.checklist.findIndex(item => item.id === id);
+                if (index === -1) return;
+                if (direction === 'up' && index === 0) return;
+                if (direction === 'down' && index === state.checklist.length - 1) return;
+
+                const newChecklist = [...state.checklist];
+                const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                [newChecklist[index], newChecklist[targetIndex]] = [newChecklist[targetIndex], newChecklist[index]];
+
+                set({ checklist: newChecklist });
+                // Sync entire checklist as blob
+                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
+                    items: newChecklist,
+                    teamId: state.currentTeamId,
+                    seasonId: state.currentSeasonId,
+                });
             },
 
             // Match Plans

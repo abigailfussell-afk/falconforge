@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { ChecklistItem } from '../types';
-import { DEFAULT_CHECKLIST } from '../constants';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../lib/store';
 
 const PreMatchChecklist: React.FC = () => {
-    const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
     const [isEditingChecklist, setIsEditingChecklist] = useState(false);
     const [newChecklistItem, setNewChecklistItem] = useState('');
+
+    // Get checklist and actions from the store (sync-enabled)
+    const checklist = useAppStore((state) => state.checklist);
+    const toggleChecklistItem = useAppStore((state) => state.toggleChecklistItem);
+    const resetChecklist = useAppStore((state) => state.resetChecklist);
+    const addChecklistItem = useAppStore((state) => state.addChecklistItem);
+    const deleteChecklistItem = useAppStore((state) => state.deleteChecklistItem);
+    const updateChecklistAssignment = useAppStore((state) => state.updateChecklistAssignment);
+    const moveChecklistItem = useAppStore((state) => state.moveChecklistItem);
 
     // Get teamMembers and subTeams from the store
     const teamMembers = useAppStore((state) => state.teamMembers);
@@ -23,40 +29,26 @@ const PreMatchChecklist: React.FC = () => {
 
     const toggleCheck = (id: string) => {
         if (isEditingChecklist) return;
-        setChecklist(checklist.map(item =>
-            item.id === id ? { ...item, checked: !item.checked } : item
-        ));
+        toggleChecklistItem(id);
     };
 
-    const resetChecklist = () => {
-        setChecklist(checklist.map(item => ({ ...item, checked: false })));
-    };
-
-    const addChecklistItem = () => {
+    const handleAddChecklistItem = () => {
         if (newChecklistItem.trim()) {
-            setChecklist([...checklist, { id: Date.now().toString(), text: newChecklistItem.trim(), checked: false }]);
+            addChecklistItem(newChecklistItem.trim());
             setNewChecklistItem('');
         }
-    }
+    };
 
-    const deleteChecklistItem = (id: string) => {
-        setChecklist(checklist.filter(i => i.id !== id));
-    }
+    const handleDeleteChecklistItem = (id: string) => {
+        deleteChecklistItem(id);
+    };
 
     const updateAssignment = (id: string, assignee: string) => {
-        setChecklist(checklist.map(item => item.id === id ? { ...item, assignedTo: assignee } : item));
+        updateChecklistAssignment(id, assignee);
     };
 
     const moveItem = (id: string, direction: 'up' | 'down') => {
-        const index = checklist.findIndex(item => item.id === id);
-        if (index === -1) return;
-        if (direction === 'up' && index === 0) return;
-        if (direction === 'down' && index === checklist.length - 1) return;
-
-        const newList = [...checklist];
-        const targetIndex = direction === 'up' ? index - 1 : index + 1;
-        [newList[index], newList[targetIndex]] = [newList[targetIndex], newList[index]];
-        setChecklist(newList);
+        moveChecklistItem(id, direction);
     };
 
     // Get the display value for assignment (could be subTeam name or member name)
@@ -159,7 +151,7 @@ const PreMatchChecklist: React.FC = () => {
                                         >
                                             <ChevronDown size={18} />
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteChecklistItem(item.id); }} className="text-red-500 hover:text-red-700 p-1.5 ml-1">
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteChecklistItem(item.id); }} className="text-red-500 hover:text-red-700 p-1.5 ml-1">
                                             <Trash2 size={18} />
                                         </button>
                                     </div>
@@ -173,11 +165,11 @@ const PreMatchChecklist: React.FC = () => {
                                 type="text"
                                 value={newChecklistItem}
                                 onChange={(e) => setNewChecklistItem(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addChecklistItem()}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
                                 placeholder="Add new item..."
                                 className="flex-1 border rounded px-3 py-2 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                             />
-                            <button onClick={addChecklistItem} className="bg-orange-600 text-white px-4 py-2 rounded font-bold">Add</button>
+                            <button onClick={handleAddChecklistItem} className="bg-orange-600 text-white px-4 py-2 rounded font-bold">Add</button>
                         </div>
                     )}
                 </div>
