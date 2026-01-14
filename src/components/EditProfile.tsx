@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User, Save, Edit3, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
