@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, RefreshCw, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { useCurrentUser } from '../lib/user-context';
 
 interface Invite {
     id: string;
@@ -24,6 +25,8 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const { isOffline } = useCurrentUser();
+
     // Fetch active invites for this team
     const fetchInvites = async () => {
         if (!supabase || !isSupabaseConfigured()) {
@@ -37,18 +40,31 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             return;
         }
 
+        if (isOffline) {
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
 
         try {
             console.log('InviteManager: Fetching invites for team', teamId);
+
+            // Create a timeout promise
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out')), 10000)
+            );
+
             // Explicitly select columns and remove the server-side date filter for now to be safe
-            // We can re-enable strict filtering if this works
-            const { data, error: fetchError } = await supabase
+            const fetchPromise = supabase
                 .from('invites')
                 .select('id, team_id, code, created_by, created_at, expires_at, use_count, max_uses')
                 .eq('team_id', teamId)
                 .order('created_at', { ascending: false });
+
+            // Race the fetch against the timeout
+            const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
             if (fetchError) throw fetchError;
 
@@ -61,7 +77,12 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             setInvites(validInvites);
         } catch (err: any) {
             console.error('Error fetching invites:', err);
-            setError('Failed to load invites');
+            // Only set error if it's not a timeout or if we want to show it
+            if (err.message === 'Request timed out') {
+                setError('Request timed out. Please check your connection.');
+            } else {
+                setError('Failed to load invites');
+            }
         } finally {
             setIsLoading(false);
         }

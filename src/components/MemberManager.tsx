@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, UserCheck, UserX, Crown, GraduationCap, DollarSign, Shield, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember } from '../types';
+import { useCurrentUser } from '../lib/user-context';
 
 interface PendingMember {
     id: string;
@@ -26,16 +27,27 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+    const { isOffline } = useCurrentUser();
 
     // Fetch pending members for this team
     const fetchPendingMembers = async () => {
         if (!supabase || !isSupabaseConfigured()) return;
 
+        if (isOffline) {
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
 
         try {
-            const { data, error: fetchError } = await supabase
+            // Create a timeout promise
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out')), 10000)
+            );
+
+            const fetchPromise = supabase
                 .from('team_members')
                 .select(`
                     id,
@@ -50,11 +62,18 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                 .eq('status', 'pending')
                 .order('joined_at', { ascending: false });
 
+            // Race the fetch against the timeout
+            const { data, error: fetchError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
             if (fetchError) throw fetchError;
             setPendingMembers((data as PendingMember[]) || []);
         } catch (err: any) {
             console.error('Error fetching pending members:', err);
-            setError('Failed to load pending members');
+            if (err.message === 'Request timed out') {
+                setError('Request timed out');
+            } else {
+                setError('Failed to load pending members');
+            }
         } finally {
             setIsLoading(false);
         }
