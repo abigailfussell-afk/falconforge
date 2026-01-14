@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Test the mocked functions from setup.ts
 // The actual generateId is mocked to return predictable test IDs
