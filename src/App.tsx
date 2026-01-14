@@ -224,7 +224,7 @@ function Dashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <SyncStatusIndicator variant="icon" />
-                    <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="text-slate-600 dark:text-slate-300">
+                    <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="p-2 text-slate-600 dark:text-slate-300">
                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                     </button>
                     <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600 dark:text-slate-300">

@@ -138,13 +138,28 @@ h6 {
   z-index: 9999;
 }
 
-/* Touch-friendly tap targets */
+/* Touch-friendly tap targets - only for primary action buttons, not text links */
 @media (pointer: coarse) {
 
-  button,
+  /* Buttons with backgrounds are primary actions - apply touch targets */
+  button[class*="bg-"],
+  button[class*="border-"],
+  a[class*="bg-"],
+  a[class*="border-"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Icon buttons with padding (like hamburger menu, theme toggle) need touch targets */
+  button[class*="p-"],
+  a[class*="p-"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Form inputs always need touch-friendly targets */
   input[type="checkbox"],
-  input[type="radio"],
-  a {
+  input[type="radio"] {
     min-height: 44px;
     min-width: 44px;
   }

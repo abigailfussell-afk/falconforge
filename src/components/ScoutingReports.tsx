@@ -286,17 +286,17 @@ const ScoutingReports: React.FC = () => {
                                     <div>
                                         <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Shots Taken</label>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => adjustCount('shotsTaken', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded"><Minus size={14} /></button>
+                                            <button onClick={() => adjustCount('shotsTaken', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><Minus size={14} /></button>
                                             <span className="flex-1 text-center font-mono font-bold text-lg dark:text-white">{newScout.shotsTaken}</span>
-                                            <button onClick={() => adjustCount('shotsTaken', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded"><PlusIcon size={14} /></button>
+                                            <button onClick={() => adjustCount('shotsTaken', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><PlusIcon size={14} /></button>
                                         </div>
                                     </div>
                                     <div>
                                         <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Shots Missed</label>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => adjustCount('shotsMissed', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded"><Minus size={14} /></button>
+                                            <button onClick={() => adjustCount('shotsMissed', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><Minus size={14} /></button>
                                             <span className="flex-1 text-center font-mono font-bold text-lg dark:text-white">{newScout.shotsMissed}</span>
-                                            <button onClick={() => adjustCount('shotsMissed', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded"><PlusIcon size={14} /></button>
+                                            <button onClick={() => adjustCount('shotsMissed', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><PlusIcon size={14} /></button>
                                         </div>
                                     </div>
                                 </div>

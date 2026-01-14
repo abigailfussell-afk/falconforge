@@ -497,7 +497,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Checklist</label>
                                 <div className="space-y-2">
                                     {activeTask.checklist.map((item, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
+                                        <div key={idx} className="flex items-center gap-2 group">
                                             <input
                                                 type="checkbox"
                                                 checked={item.completed}
@@ -506,7 +506,8 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                                     newChecklist[idx].completed = e.target.checked;
                                                     setActiveTask({ ...activeTask, checklist: newChecklist });
                                                 }}
-                                                className="rounded text-orange-600 focus:ring-orange-500"
+                                                className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500 cursor-pointer mt-0.5"
+                                                style={{ minWidth: '20px', minHeight: '20px' }}
                                             />
                                             <input
                                                 ref={idx === activeTask.checklist.length - 1 ? newChecklistRef : null}
@@ -525,9 +526,10 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                                     const newChecklist = activeTask.checklist.filter((_, i) => i !== idx);
                                                     setActiveTask({ ...activeTask, checklist: newChecklist });
                                                 }}
-                                                className="text-slate-400 hover:text-red-500 border border-slate-300 dark:border-slate-600 hover:border-red-400 rounded p-1 transition-colors"
+                                                className="text-slate-400 hover:text-red-500 border border-slate-300 dark:border-slate-600 hover:border-red-400 rounded p-1 transition-colors flex items-center justify-center h-8 w-8"
+                                                title="Delete item"
                                             >
-                                                <X size={14} />
+                                                <Trash2 size={14} />
                                             </button>
                                         </div>
                                     ))}
@@ -538,9 +540,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                                 newChecklistRef.current?.focus();
                                             }, 50);
                                         }}
-                                        className="text-sm text-orange-600 dark:text-orange-400 font-medium hover:underline"
+                                        className="text-sm text-orange-600 dark:text-orange-400 font-medium hover:underline flex items-center gap-1"
                                     >
-                                        + Add Checklist Item
+                                        <Plus size={14} /> Add Checklist Item
                                     </button>
                                 </div>
                             </div>
@@ -548,7 +550,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                             <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
                                 <h3 className="font-bold text-slate-800 dark:text-white mb-4">Activity & Comments</h3>
 
-                                <div className="flex gap-2 mb-6">
+                                <div className="flex items-center gap-2 mb-6">
                                     <input
                                         type="text"
                                         value={newComment}
@@ -557,7 +559,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                         className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                                         onKeyDown={(e) => e.key === 'Enter' && addComment()}
                                     />
-                                    <button onClick={addComment} className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700">
+                                    <button onClick={addComment} className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 flex items-center justify-center">
                                         <Send size={18} />
                                     </button>
                                 </div>
@@ -601,9 +603,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                                         {event.content}
                                                     </div>
                                                     {event.type === 'comment' && (
-                                                        <div className="flex justify-end mt-1">
-                                                            <button onClick={() => deleteComment(event.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1">
-                                                                <Trash2 size={10} /> Delete
+                                                        <div className="flex justify-end mt-2">
+                                                            <button onClick={() => deleteComment(event.id)} className="text-xs text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded inline-flex items-center gap-1 transition-colors">
+                                                                <Trash2 size={12} /> Delete
                                                             </button>
                                                         </div>
                                                     )}
