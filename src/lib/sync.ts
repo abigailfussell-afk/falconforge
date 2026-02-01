@@ -5,16 +5,6 @@ import { useAppStore } from './store';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
-// Timeout wrapper for async operations (default 30 seconds)
-function withTimeout<T>(promise: Promise<T>, ms: number = 30000, operation: string = 'Operation'): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error(`${operation} timed out after ${ms / 1000}s`)), ms)
-        ),
-    ]);
-}
-
 interface UseSyncResult {
     isOnline: boolean;
     syncStatus: SyncStatus;
@@ -152,32 +142,28 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     switch (operation) {
         case 'create': {
             // Use upsert to handle cases where record already exists (409 conflict)
-            const result = await withTimeout(
-                Promise.resolve(supabase.from(tableName).upsert(transformedData, { onConflict: 'id' })),
-                15000,
-                `Create ${tableName}`
-            ) as { error: Error | null };
-            if (result.error) throw result.error;
+            const { error } = await supabase
+                .from(tableName)
+                .upsert(transformedData, { onConflict: 'id' });
+            if (error) throw error;
             break;
         }
 
         case 'update': {
-            const result = await withTimeout(
-                Promise.resolve((supabase.from(tableName) as any).update(transformedData).eq('id', recordId)),
-                15000,
-                `Update ${tableName}`
-            ) as { error: Error | null };
-            if (result.error) throw result.error;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase.from(tableName) as any)
+                .update(transformedData)
+                .eq('id', recordId);
+            if (error) throw error;
             break;
         }
 
         case 'delete': {
-            const result = await withTimeout(
-                Promise.resolve(supabase.from(tableName).delete().eq('id', recordId)),
-                15000,
-                `Delete ${tableName}`
-            ) as { error: Error | null };
-            if (result.error) throw result.error;
+            const { error } = await supabase
+                .from(tableName)
+                .delete()
+                .eq('id', recordId);
+            if (error) throw error;
             break;
         }
     }
@@ -317,8 +303,6 @@ async function pullChangesFromServer(): Promise<void> {
     }
 
     if (!currentTeamId) return;
-
-    const timestamps = getSyncTimestamps();
     const entities = [
         { table: 'sub_teams', localTable: 'subTeams' },
         { table: 'tasks', localTable: 'tasks' },
@@ -331,8 +315,6 @@ async function pullChangesFromServer(): Promise<void> {
     for (const { table, localTable } of entities) {
         try {
             const entityKey = `${currentTeamId}:${table}`;
-            const lastSync = timestamps[entityKey] || 0;
-            const lastSyncDate = lastSync > 0 ? new Date(lastSync).toISOString() : null;
 
             // Build query
             let query = supabase
@@ -340,12 +322,11 @@ async function pullChangesFromServer(): Promise<void> {
                 .select('*')
                 .eq('team_id', currentTeamId);
 
-            // Only fetch updated records if we have a last sync time
-            // Note: sub_teams, checklists, scouting_reports don't have updated_at column
-            if (lastSyncDate && table !== 'sub_teams' && table !== 'checklists' && table !== 'scouting_reports' && table !== 'portfolio_entries') {
-                // Only tables with updated_at can use this optimization
-                query = query.gte('updated_at', lastSyncDate);
-            }
+            // Note: We intentionally fetch ALL records for the team on each sync
+            // to ensure cross-client synchronization works correctly. 
+            // Timestamp-based filtering was causing issues where new records from 
+            // other clients were missed because their updated_at was before THIS 
+            // client's last sync time.
 
             // Execute the query directly - Supabase queries are thenable and work with await
             const { data, error } = await query;
