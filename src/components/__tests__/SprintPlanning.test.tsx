@@ -229,12 +229,12 @@ describe('SprintPlanning', () => {
                 />
             );
 
-            // Look for Feature or Bug badges
-            const featureBadge = screen.queryByText(/feature/i);
-            const bugBadge = screen.queryByText(/bug/i);
+            // Look for Feature or Bug badges (use queryAllByText since there may be multiple)
+            const featureBadges = screen.queryAllByText(/feature/i);
+            const bugBadges = screen.queryAllByText(/bug/i);
 
-            // At least task types should be distinguishable
-            expect(featureBadge || bugBadge).toBeDefined();
+            // At least one task type badge should exist
+            expect(featureBadges.length + bugBadges.length).toBeGreaterThan(0);
         });
 
         it('displays assignee information', () => {

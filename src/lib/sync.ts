@@ -1,8 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
 import { supabase } from './supabase';
+import { useAppStore } from './store';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
+
+// Timeout wrapper for async operations (default 30 seconds)
+function withTimeout<T>(promise: Promise<T>, ms: number = 30000, operation: string = 'Operation'): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${operation} timed out after ${ms / 1000}s`)), ms)
+        ),
+    ]);
+}
 
 interface UseSyncResult {
     isOnline: boolean;
@@ -139,29 +150,36 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     const transformedData = transformToSupabaseSchema(tableName, data);
 
     switch (operation) {
-        case 'create':
+        case 'create': {
             // Use upsert to handle cases where record already exists (409 conflict)
-            const { error: createError } = await supabase
-                .from(tableName)
-                .upsert(transformedData, { onConflict: 'id' });
-            if (createError) throw createError;
+            const result = await withTimeout(
+                Promise.resolve(supabase.from(tableName).upsert(transformedData, { onConflict: 'id' })),
+                15000,
+                `Create ${tableName}`
+            ) as { error: Error | null };
+            if (result.error) throw result.error;
             break;
+        }
 
-        case 'update':
-            const { error: updateError } = await (supabase
-                .from(tableName) as any)
-                .update(transformedData)
-                .eq('id', recordId);
-            if (updateError) throw updateError;
+        case 'update': {
+            const result = await withTimeout(
+                Promise.resolve((supabase.from(tableName) as any).update(transformedData).eq('id', recordId)),
+                15000,
+                `Update ${tableName}`
+            ) as { error: Error | null };
+            if (result.error) throw result.error;
             break;
+        }
 
-        case 'delete':
-            const { error: deleteError } = await supabase
-                .from(tableName)
-                .delete()
-                .eq('id', recordId);
-            if (deleteError) throw deleteError;
+        case 'delete': {
+            const result = await withTimeout(
+                Promise.resolve(supabase.from(tableName).delete().eq('id', recordId)),
+                15000,
+                `Delete ${tableName}`
+            ) as { error: Error | null };
+            if (result.error) throw result.error;
             break;
+        }
     }
 }
 
@@ -329,6 +347,7 @@ async function pullChangesFromServer(): Promise<void> {
                 query = query.gte('updated_at', lastSyncDate);
             }
 
+            // Execute the query directly - Supabase queries are thenable and work with await
             const { data, error } = await query;
 
             if (error) {
@@ -338,8 +357,8 @@ async function pullChangesFromServer(): Promise<void> {
             }
 
             if (data && data.length > 0) {
-                // Update IndexedDB with fetched data
-                await updateLocalDatabase(localTable, data);
+                // Update store with fetched data
+                updateLocalDatabase(localTable, data);
             }
 
             // Update sync timestamp
@@ -354,15 +373,88 @@ async function pullChangesFromServer(): Promise<void> {
 }
 
 /**
- * Update IndexedDB with data from server
- * Uses last-write-wins strategy for simplicity
+ * Update the Zustand store with data from Supabase
+ * Transforms snake_case from Supabase to camelCase for local use
  */
-async function updateLocalDatabase(tableName: string, records: any[]): Promise<void> {
-    // For now, just log that we received updates
-    // Full implementation would merge with local IndexedDB
-    // The store's fetchTeamData already populates the store from Supabase
-    // This function is for keeping IndexedDB in sync for offline use
-    console.log(`Received ${records.length} records for ${tableName}`);
+function updateLocalDatabase(tableName: string, records: any[]): void {
+    if (!records || records.length === 0) return;
+
+    // Get the store state directly using the imported useAppStore
+    const store = useAppStore.getState();
+
+    console.log(`Updating store with ${records.length} records for ${tableName}`);
+
+    switch (tableName) {
+        case 'tasks':
+            store.setTasks(records.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                description: t.description || '',
+                status: t.status,
+                type: t.type,
+                assignedTo: t.assigned_to || '',
+                department: t.sub_team_id || '',
+                tags: t.tags || [],
+                checklist: t.checklist || [],
+                timeline: t.timeline || [],
+                createdAt: new Date(t.created_at).getTime(),
+                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
+                seasonId: t.season_id
+            })));
+            break;
+
+        case 'scoutingReports':
+            store.setScoutingReports(records.map((r: any) => ({
+                id: r.id,
+                teamNumber: r.opponent_team_number,
+                matchNumber: r.match_number,
+                hasAutonomous: r.data?.hasAutonomous ?? false,
+                autoScore: r.data?.autoScore ?? 0,
+                intakeType: r.data?.intakeType ?? 'No Intake',
+                autoAim: r.data?.autoAim ?? false,
+                farShooting: r.data?.farShooting ?? false,
+                shotsTaken: r.data?.shotsTaken ?? 0,
+                shotsMissed: r.data?.shotsMissed ?? 0,
+                parking: r.data?.parking ?? 'No Park',
+                rating: r.data?.rating ?? 0,
+                endGameNotes: r.data?.endGameNotes ?? '',
+                seasonId: r.season_id
+            })));
+            break;
+
+        case 'matchPlans':
+            store.setMatchPlans(records.map((p: any) => ({
+                id: p.id,
+                title: p.title || `Match ${p.match_number || '?'}`,
+                drawingData: p.drawing_data,
+                notes: p.notes || '',
+                allianceTeam: p.alliance_team || '',
+                partnerAutonomous: false,
+                partnerPark: false,
+                updatedAt: new Date(p.updated_at).getTime(),
+                seasonId: p.season_id
+            })));
+            break;
+
+        case 'checklists':
+            // Checklists are stored as a single blob per team
+            if (records[0]?.items && Array.isArray(records[0].items)) {
+                store.setChecklist(records[0].items);
+            }
+            break;
+
+        case 'subTeams':
+            store.setSubTeams(records.map((st: any) => ({
+                id: st.id,
+                name: st.name,
+                memberIds: st.member_ids || [],
+                seasonId: st.season_id
+            })));
+            break;
+
+        default:
+            console.log(`No handler for table: ${tableName}`);
+    }
 }
 
 // Hook to detect if user is offline

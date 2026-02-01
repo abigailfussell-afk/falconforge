@@ -144,6 +144,7 @@ interface AppState {
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'timeline'>) => void;
     updateTask: (id: string, updates: Partial<Task>) => void;
     deleteTask: (id: string) => void;
+    setTasks: (tasks: Task[]) => void;
 
     // SubTeam actions (renamed from Team actions)
     addSubTeam: (name: string) => void;
@@ -154,6 +155,7 @@ interface AppState {
     // Scouting actions
     addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
     deleteScoutingReport: (id: string) => void;
+    setScoutingReports: (reports: ScoutingReport[]) => void;
 
     // Checklist actions
     toggleChecklistItem: (id: string) => void;
@@ -162,11 +164,13 @@ interface AppState {
     deleteChecklistItem: (id: string) => void;
     updateChecklistAssignment: (id: string, assignedTo: string) => void;
     moveChecklistItem: (id: string, direction: 'up' | 'down') => void;
+    setChecklist: (items: ChecklistItem[]) => void;
 
     // Match Plan actions
     addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt'>) => void;
     deleteMatchPlan: (id: string) => void;
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
+    setMatchPlans: (plans: MatchPlan[]) => void;
 
     // Portfolio History actions
     addPortfolioEntry: (content: string, taskCount: number) => void;
@@ -484,6 +488,8 @@ export const useAppStore = create<AppState>()(
                 queueForSync('tasks', id, 'delete', null);
             },
 
+            setTasks: (tasks) => set({ tasks }),
+
             // SubTeams (renamed from Teams)
             addSubTeam: (name) => {
                 const state = get();
@@ -562,6 +568,8 @@ export const useAppStore = create<AppState>()(
                 }));
                 queueForSync('scouting_reports', id, 'delete', null);
             },
+
+            setScoutingReports: (scoutingReports) => set({ scoutingReports }),
 
             // Checklist
             toggleChecklistItem: (id) => {
@@ -655,6 +663,8 @@ export const useAppStore = create<AppState>()(
                 });
             },
 
+            setChecklist: (checklist) => set({ checklist }),
+
             // Match Plans
             addMatchPlan: (planData) => {
                 const state = get();
@@ -693,6 +703,8 @@ export const useAppStore = create<AppState>()(
                     });
                 }
             },
+
+            setMatchPlans: (matchPlans) => set({ matchPlans }),
 
             // Portfolio History
             addPortfolioEntry: (content, taskCount) => {

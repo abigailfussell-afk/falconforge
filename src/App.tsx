@@ -63,6 +63,14 @@ function Dashboard() {
         await signOut();
         // Clear all local storage to remove persisted state
         localStorage.removeItem('falconforge-storage');
+        localStorage.removeItem('falconforge-sync-timestamps');
+        // Clear IndexedDB to prevent stale data on re-login
+        try {
+            const { db } = await import('./lib/offline-db');
+            await db.delete();
+        } catch (e) {
+            console.warn('Failed to clear IndexedDB:', e);
+        }
         useAppStore.getState().resetToDefaults();
         // Use window.location for a clean redirect to ensure auth state is cleared
         window.location.href = `${import.meta.env.BASE_URL}#/login`;

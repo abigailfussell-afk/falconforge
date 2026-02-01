@@ -53,6 +53,15 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
 
     const handleSignOut = async () => {
         await signOut();
+        // Clear local storage and IndexedDB
+        localStorage.removeItem('falconforge-storage');
+        localStorage.removeItem('falconforge-sync-timestamps');
+        try {
+            const { db } = await import('../lib/offline-db');
+            await db.delete();
+        } catch (e) {
+            console.warn('Failed to clear IndexedDB:', e);
+        }
         // Use window.location for a clean redirect to ensure auth state is cleared
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };

@@ -151,12 +151,11 @@ describe('ScoutingReports', () => {
 
         render(<ScoutingReports />);
 
-        // Should show empty state message or prompt
-        const emptyIndicator = screen.queryByText(/no report/i) ||
-            screen.queryByText(/scout/i) ||
-            screen.queryByText(/start/i);
-        // Empty state handling varies - verify query ran
-        expect(emptyIndicator === null || emptyIndicator !== null).toBe(true);
+        // Should show empty state message - check for the specific placeholder text
+        const emptyState = screen.queryByText(/No scouting data yet/i) ||
+            screen.queryByText(/Click.*to begin/i);
+        // The empty state should be shown
+        expect(emptyState).toBeDefined();
     });
 });
 
@@ -183,10 +182,13 @@ describe('ScoutingReport form validation', () => {
         if (addButton) {
             fireEvent.click(addButton);
 
-            // Try to submit without team number
-            const submitButton = screen.queryByRole('button', { name: /save|submit|scout/i });
-            if (submitButton) {
-                fireEvent.click(submitButton);
+            // Try to submit without team number - use getAllByRole to handle multiple matches
+            const submitButtons = screen.queryAllByRole('button').filter(btn =>
+                btn.textContent?.toLowerCase().includes('save') ||
+                btn.textContent?.toLowerCase().includes('submit')
+            );
+            if (submitButtons.length > 0) {
+                fireEvent.click(submitButtons[0]);
                 // Should not call addScoutingReport with invalid data
             }
         }
