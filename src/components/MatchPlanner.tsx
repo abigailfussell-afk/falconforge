@@ -1,8 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { FIELD_IMAGE_URL } from '../constants';
-import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X } from 'lucide-react';
+import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
+
+// Fixed viewBox dimensions for consistent coordinate storage
+const VIEWBOX_WIDTH = 600;
+const VIEWBOX_HEIGHT = 600;
 
 const MatchPlanner: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -33,9 +37,11 @@ const MatchPlanner: React.FC = () => {
   // UI State
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
   const [planTitle, setPlanTitle] = useState('');
 
   const handleSave = () => {
+    setSaveStatus('saving');
     addMatchPlan({
       title: planTitle || `Match Plan ${new Date().toLocaleString()}`,
       drawingData: paths,
@@ -44,9 +50,13 @@ const MatchPlanner: React.FC = () => {
       partnerAutonomous: autonomous,
       partnerPark: parked
     });
-    setIsSaveModalOpen(false);
-    setPlanTitle('');
-    alert('Plan saved!');
+    setSaveStatus('success');
+    // Show success message briefly, then close modal
+    setTimeout(() => {
+      setIsSaveModalOpen(false);
+      setPlanTitle('');
+      setSaveStatus('idle');
+    }, 1500);
   };
 
   const handleLoad = (plan: MatchPlan) => {
@@ -82,25 +92,41 @@ const MatchPlanner: React.FC = () => {
 
   }, [isDrawingEnabled]);
 
+  // Convert client coordinates to viewBox coordinates
+  const getViewBoxCoords = (e: React.PointerEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+
+    const point = svg.createSVGPoint();
+    point.x = e.clientX;
+    point.y = e.clientY;
+    const svgPoint = point.matrixTransform(ctm.inverse());
+    return { x: svgPoint.x, y: svgPoint.y };
+  };
+
   // Handle Drawing events cleanly
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!isDrawingEnabled) return;
     const svg = svgRef.current;
     if (!svg) return;
 
-    const point = svg.createSVGPoint();
-    point.x = e.nativeEvent.offsetX;
-    point.y = e.nativeEvent.offsetY;
+    const coords = getViewBoxCoords(e);
+    if (!coords) return;
 
-    setCurrentPath(`M ${point.x} ${point.y}`);
+    setCurrentPath(`M ${coords.x} ${coords.y}`);
     (svg as any).setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDrawingEnabled || !currentPath) return;
 
-    // Add point to path
-    setCurrentPath(prev => `${prev} L ${e.nativeEvent.offsetX} ${e.nativeEvent.offsetY}`);
+    const coords = getViewBoxCoords(e);
+    if (!coords) return;
+
+    // Add point to path using viewBox coordinates
+    setCurrentPath(prev => `${prev} L ${coords.x} ${coords.y}`);
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -204,6 +230,8 @@ const MatchPlanner: React.FC = () => {
           <svg
             ref={svgRef}
             className="absolute inset-0 w-full h-full z-10 touch-none"
+            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+            preserveAspectRatio="xMidYMid meet"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -295,20 +323,29 @@ const MatchPlanner: React.FC = () => {
       {isSaveModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Save Match Plan</h3>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Plan Name (e.g. Match 1)"
-              value={planTitle}
-              onChange={(e) => setPlanTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-              className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded mb-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setIsSaveModalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300">Cancel</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
-            </div>
+            {saveStatus === 'success' ? (
+              <div className="flex flex-col items-center py-4">
+                <CheckCircle className="w-16 h-16 text-green-500 mb-3" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Plan Saved!</h3>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Save Match Plan</h3>
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Plan Name (e.g. Match 1)"
+                  value={planTitle}
+                  onChange={(e) => setPlanTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                  className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded mb-4 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setIsSaveModalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300">Cancel</button>
+                  <button onClick={handleSave} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
