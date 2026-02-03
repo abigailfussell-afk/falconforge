@@ -18,14 +18,22 @@ npm run build
 - [ ] Build completes without errors
 - [ ] No TypeScript errors
 
-### 2. Test Check
+### 2. Unit Test Check
 ```powershell
 npm run test:run
 ```
 - [ ] All unit/component tests pass
 - [ ] If you modified tested components, update their tests
 
-### 3. Critical Flow Verification
+### 3. Integration Test Check (for sync/data changes)
+```powershell
+npm run test:integration
+```
+- [ ] All integration tests pass
+- [ ] If you modified store actions that sync, verify queue tests pass
+- [ ] If you modified data transformations, verify transform tests pass
+
+### 4. Critical Flow Verification
 
 For changes affecting these areas, perform browser verification:
 

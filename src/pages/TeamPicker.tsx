@@ -72,7 +72,7 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4" data-testid="team-picker">
             {/* Header - Matches Login page styling */}
             <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 mb-4 p-2">
@@ -121,6 +121,7 @@ const TeamPicker: React.FC<TeamPickerProps> = ({ onTeamSelected }) => {
                         <button
                             key={team.id}
                             onClick={() => handleSelectTeam(team.id)}
+                            data-testid="team-option"
                             className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${currentTeamId === team.id
                                 ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
                                 : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'

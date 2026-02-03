@@ -257,6 +257,7 @@ export default function LoginPage() {
                                         className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                         placeholder="you@team12345.org"
                                         required
+                                        data-testid="email-input"
                                     />
                                 </div>
                             </div>
@@ -274,6 +275,7 @@ export default function LoginPage() {
                                             placeholder="••••••••"
                                             required
                                             minLength={6}
+                                            data-testid="password-input"
                                         />
                                     </div>
                                 </div>
@@ -283,9 +285,10 @@ export default function LoginPage() {
                                 type="submit"
                                 disabled={isLoading}
                                 className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                                data-testid={mode === 'login' ? 'sign-in-button' : mode === 'signup' ? 'continue-button' : 'reset-button'}
                             >
                                 {isLoading ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <Loader2 className="w-5 h-5 animate-spin" data-testid="loading-spinner" />
                                 ) : (
                                     <>
                                         {mode === 'login' && 'Sign In'}
