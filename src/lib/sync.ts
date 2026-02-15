@@ -5,6 +5,22 @@ import { useAppStore } from './store';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
+// Timeout constants
+const PER_QUERY_TIMEOUT_MS = 10_000;  // 10s per Supabase query
+const OVERALL_SYNC_TIMEOUT_MS = 30_000; // 30s for entire sync operation
+
+/**
+ * Race a promise against a timeout. Rejects with a descriptive error if timeout fires first.
+ */
+export function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+        Promise.resolve(promise),
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout: ${label} after ${ms}ms`)), ms)
+        ),
+    ]);
+}
+
 interface UseSyncResult {
     isOnline: boolean;
     syncStatus: SyncStatus;
@@ -68,7 +84,8 @@ export function useSync(): UseSyncResult {
 
     const sync = useCallback(async () => {
         if (syncingRef.current) return;
-        if (!isOnline || !supabase) {
+        // FIX: Read navigator.onLine directly to avoid stale closure
+        if (!navigator.onLine || !supabase) {
             setSyncStatus('offline');
             return;
         }
@@ -78,33 +95,40 @@ export function useSync(): UseSyncResult {
         setError(null);
 
         try {
-            // Get all pending sync items
-            const queueItems = await db.syncQueue.toArray();
+            // Overall sync timeout to prevent hanging forever
+            await withTimeout(
+                (async () => {
+                    // Get all pending sync items
+                    const queueItems = await db.syncQueue.toArray();
 
-            for (const item of queueItems) {
-                try {
-                    await processSyncItem(item);
-                    // Remove from queue on success
-                    await db.syncQueue.delete(item.id);
-                } catch (err) {
-                    // Update retry count
-                    const newRetryCount = (item.retryCount || 0) + 1;
+                    for (const item of queueItems) {
+                        try {
+                            await processSyncItem(item);
+                            // Remove from queue on success
+                            await db.syncQueue.delete(item.id);
+                        } catch (err) {
+                            // Update retry count
+                            const newRetryCount = (item.retryCount || 0) + 1;
 
-                    // If too many retries, log error and remove from queue to prevent stuck state
-                    if (newRetryCount >= 5) {
-                        console.error(`Sync item ${item.id} failed after 5 retries. Removing from queue.`, err);
-                        await db.syncQueue.delete(item.id);
-                    } else {
-                        await db.syncQueue.update(item.id, {
-                            retryCount: newRetryCount,
-                            lastError: err instanceof Error ? err.message : 'Unknown error',
-                        });
+                            // If too many retries, log error and remove from queue to prevent stuck state
+                            if (newRetryCount >= 5) {
+                                console.error(`Sync item ${item.id} failed after 5 retries. Removing from queue.`, err);
+                                await db.syncQueue.delete(item.id);
+                            } else {
+                                await db.syncQueue.update(item.id, {
+                                    retryCount: newRetryCount,
+                                    lastError: err instanceof Error ? err.message : 'Unknown error',
+                                });
+                            }
+                        }
                     }
-                }
-            }
 
-            // Pull latest changes from server
-            await pullChangesFromServer();
+                    // Pull latest changes from server
+                    await pullChangesFromServer();
+                })(),
+                OVERALL_SYNC_TIMEOUT_MS,
+                'Overall sync'
+            );
 
             setLastSyncTime(new Date());
             setSyncStatus('idle');
@@ -119,7 +143,8 @@ export function useSync(): UseSyncResult {
         } finally {
             syncingRef.current = false;
         }
-    }, [isOnline]);
+        // FIX: No deps on isOnline - we read navigator.onLine directly
+    }, []);
 
     return {
         isOnline,
@@ -142,28 +167,33 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     switch (operation) {
         case 'create': {
             // Use upsert to handle cases where record already exists (409 conflict)
-            const { error } = await supabase
-                .from(tableName)
-                .upsert(transformedData, { onConflict: 'id' });
-            if (error) throw error;
+            // Wrap in async IIFE to convert Supabase thenable to a real Promise
+            const result: any = await withTimeout(
+                (async () => supabase.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                PER_QUERY_TIMEOUT_MS,
+                `upsert ${tableName}`
+            );
+            if (result.error) throw result.error;
             break;
         }
 
         case 'update': {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase.from(tableName) as any)
-                .update(transformedData)
-                .eq('id', recordId);
-            if (error) throw error;
+            const result: any = await withTimeout(
+                (async () => (supabase.from(tableName) as any).update(transformedData).eq('id', recordId))(),
+                PER_QUERY_TIMEOUT_MS,
+                `update ${tableName}`
+            );
+            if (result.error) throw result.error;
             break;
         }
 
         case 'delete': {
-            const { error } = await supabase
-                .from(tableName)
-                .delete()
-                .eq('id', recordId);
-            if (error) throw error;
+            const result: any = await withTimeout(
+                (async () => supabase.from(tableName).delete().eq('id', recordId))(),
+                PER_QUERY_TIMEOUT_MS,
+                `delete ${tableName}`
+            );
+            if (result.error) throw result.error;
             break;
         }
     }
@@ -173,7 +203,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
  * Transform local store data to Supabase schema format
  * Converts camelCase to snake_case and restructures as needed
  */
-function transformToSupabaseSchema(tableName: string, data: any): any {
+export function transformToSupabaseSchema(tableName: string, data: any): any {
     if (!data) return data;
 
     switch (tableName) {
@@ -316,31 +346,32 @@ async function pullChangesFromServer(): Promise<void> {
         try {
             const entityKey = `${currentTeamId}:${table}`;
 
-            // Build query
-            let query = supabase
+            // Build query with per-query timeout to prevent hanging
+            const query = supabase
                 .from(table)
                 .select('*')
                 .eq('team_id', currentTeamId);
 
             // Note: We intentionally fetch ALL records for the team on each sync
-            // to ensure cross-client synchronization works correctly. 
-            // Timestamp-based filtering was causing issues where new records from 
-            // other clients were missed because their updated_at was before THIS 
-            // client's last sync time.
+            // to ensure cross-client synchronization works correctly.
+            // Wrap in async IIFE to convert Supabase thenable to a real Promise.
+            // Supabase's PostgrestFilterBuilder.then() returns itself, which causes
+            // Promise.resolve() to infinitely try to unwrap the thenable.
+            const result: any = await withTimeout(
+                (async () => await query)(),
+                PER_QUERY_TIMEOUT_MS,
+                `pull ${table}`
+            );
 
-            // Execute the query directly - Supabase queries are thenable and work with await
-            const { data, error } = await query;
-
-            if (error) {
+            if (result.error) {
                 // Table may not exist yet - this is expected
-                console.warn(`Pull sync for ${table} failed (table may not exist):`, error.message);
+                console.warn(`Pull sync for ${table} failed (table may not exist):`, result.error.message);
                 continue;
             }
 
-            if (data && data.length > 0) {
-                // Update store with fetched data
-                updateLocalDatabase(localTable, data);
-            }
+            // FIX: Always update local state, even with empty results.
+            // This ensures deletions from other clients are propagated.
+            updateLocalDatabase(localTable, result.data || []);
 
             // Update sync timestamp
             setSyncTimestamp(entityKey, Date.now());
@@ -357,8 +388,8 @@ async function pullChangesFromServer(): Promise<void> {
  * Update the Zustand store with data from Supabase
  * Transforms snake_case from Supabase to camelCase for local use
  */
-function updateLocalDatabase(tableName: string, records: any[]): void {
-    if (!records || records.length === 0) return;
+export function updateLocalDatabase(tableName: string, records: any[]): void {
+    if (!records) return;
 
     // Get the store state directly using the imported useAppStore
     const store = useAppStore.getState();

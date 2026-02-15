@@ -60,18 +60,19 @@ function Dashboard() {
     }));
 
     const handleSignOut = async () => {
+        // Reset store state first (prevents sync actions from queueing during teardown)
+        useAppStore.getState().resetToDefaults();
         await signOut();
         // Clear all local storage to remove persisted state
         localStorage.removeItem('falconforge-storage');
         localStorage.removeItem('falconforge-sync-timestamps');
-        // Clear IndexedDB to prevent stale data on re-login
+        // Clear IndexedDB tables (NOT db.delete() which destroys the Dexie instance)
         try {
-            const { db } = await import('./lib/offline-db');
-            await db.delete();
+            const { clearLocalDatabase } = await import('./lib/offline-db');
+            await clearLocalDatabase();
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }
-        useAppStore.getState().resetToDefaults();
         // Use window.location for a clean redirect to ensure auth state is cleared
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };

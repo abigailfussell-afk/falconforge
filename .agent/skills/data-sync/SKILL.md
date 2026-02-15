@@ -244,6 +244,99 @@ Compare local entity with Supabase table schema to ensure fields map correctly.
 - Click sync → verify doesn't hang
 - Refresh → verify data persists
 
+## Critical Safety Rules (MUST FOLLOW)
+
+These rules prevent recurring data sync bugs. **Violating any of these will cause data staleness, UI freezes, or broken sign out.**
+
+### 1. Always Use `withTimeout()` for Supabase Calls
+
+Every Supabase query in sync code MUST be wrapped with `withTimeout()` (exported from `sync.ts`):
+
+```typescript
+import { withTimeout } from './sync';
+
+const result: any = await withTimeout(
+    supabase.from('tasks').select('*').eq('team_id', teamId),
+    10_000,  // 10s per-query timeout
+    'pull tasks'
+);
+```
+
+The overall sync operation has a 30-second timeout. Individual queries have 10-second timeouts.
+
+### 2. Never Use `db.delete()` for Sign Out
+
+`db.delete()` destroys the Dexie database instance permanently. Use `clearLocalDatabase()` instead:
+
+```typescript
+// ❌ WRONG - breaks subsequent IndexedDB operations
+await db.delete();
+
+// ✅ CORRECT - clears tables but keeps Dexie instance alive
+import { clearLocalDatabase } from './offline-db';
+await clearLocalDatabase();
+```
+
+### 3. Sign Out Must Call `resetToDefaults()` First
+
+The store's `resetToDefaults()` must be called BEFORE `signOut()` to prevent the sync queue from receiving new items during teardown:
+
+```typescript
+const handleSignOut = async () => {
+    useAppStore.getState().resetToDefaults();  // 1. Stop sync
+    await signOut();                            // 2. Auth logout
+    localStorage.clear();                      // 3. Clear storage
+    await clearLocalDatabase();                // 4. Clear IndexedDB
+    window.location.href = '...login';         // 5. Redirect
+};
+```
+
+### 4. `resetToDefaults()` Must Clear ALL State
+
+When modifying `resetToDefaults()`, ensure it clears:
+- `currentTeamId`, `teams` (prevents stale team context)
+- `seasons`, `currentSeasonId` (prevents stale season data)
+- `portfolioHistory` (prevents stale portfolio)
+- `isLoading` (prevents stuck loading states)
+
+### 5. Empty Results from Server ARE Valid
+
+`pullChangesFromServer()` MUST update local state even when the server returns empty results. This is how cross-client deletions propagate:
+
+```typescript
+// ❌ WRONG - deletions from other clients are never reflected
+if (data && data.length > 0) {
+    updateLocalDatabase(localTable, data);
+}
+
+// ✅ CORRECT - empty results clear local data (deletion propagation)
+updateLocalDatabase(localTable, data || []);
+```
+
+### 6. Avoid Stale Closures in `useCallback`
+
+Don't capture mutable state like `isOnline` in `useCallback` dependencies. Read `navigator.onLine` directly:
+
+```typescript
+// ❌ WRONG - isOnline becomes stale
+const sync = useCallback(async () => {
+    if (!isOnline) return;
+}, [isOnline]);
+
+// ✅ CORRECT - reads current value
+const sync = useCallback(async () => {
+    if (!navigator.onLine) return;
+}, []);
+```
+
+### 7. Loading Screens Must Have Timeouts
+
+Any screen that shows "Loading..." while waiting for Supabase MUST have a safety timeout:
+
+```typescript
+const loadTimeout = setTimeout(() => setIsLoading(false), 8000);
+```
+
 ## When to Create New Sync-Enabled Entities
 
 1. Add interface to `offline-db.ts`
@@ -255,3 +348,4 @@ Compare local entity with Supabase table schema to ensure fields map correctly.
 5. Add entity pull in `pullChangesFromServer()`
 6. Create corresponding Supabase table (migration)
 7. **Write integration tests for the new sync flow**
+

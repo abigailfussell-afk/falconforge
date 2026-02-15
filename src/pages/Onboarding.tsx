@@ -24,7 +24,14 @@ export default function Onboarding() {
     }, [user]);
 
     const loadTeams = async () => {
+        // Safety timeout: don't let loading screen hang forever
+        const loadTimeout = setTimeout(() => {
+            console.warn('loadTeams timed out after 8 seconds');
+            setIsLoading(false);
+        }, 8000);
+
         if (!supabase || !user) {
+            clearTimeout(loadTimeout);
             setIsLoading(false);
             return;
         }
@@ -47,6 +54,7 @@ export default function Onboarding() {
 
             if (error) {
                 console.error('Error loading teams:', error);
+                clearTimeout(loadTimeout);
                 setIsLoading(false);
                 return;
             }
@@ -82,6 +90,7 @@ export default function Onboarding() {
         } catch (err) {
             console.error('Exception loading teams:', err);
         } finally {
+            clearTimeout(loadTimeout);
             setIsLoading(false);
         }
     };
@@ -118,13 +127,15 @@ export default function Onboarding() {
     };
 
     const handleSignOut = async () => {
+        // Reset store state first (prevents sync queue from getting new items)
+        useAppStore.getState().resetToDefaults();
         await signOut();
-        // Clear local storage and IndexedDB
+        // Clear local storage and IndexedDB tables (NOT db.delete())
         localStorage.removeItem('falconforge-storage');
         localStorage.removeItem('falconforge-sync-timestamps');
         try {
-            const { db } = await import('../lib/offline-db');
-            await db.delete();
+            const { clearLocalDatabase } = await import('../lib/offline-db');
+            await clearLocalDatabase();
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }

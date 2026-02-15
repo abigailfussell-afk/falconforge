@@ -832,12 +832,18 @@ export const useAppStore = create<AppState>()(
 
             resetToDefaults: () => {
                 set({
+                    currentTeamId: null,
+                    teams: [],
                     tasks: [],
                     subTeams: DEFAULT_SUBTEAMS,
                     scoutingReports: [],
                     checklist: DEFAULT_CHECKLIST_ITEMS,
                     matchPlans: [],
                     teamMembers: [],
+                    portfolioHistory: [],
+                    seasons: [DEFAULT_SEASON],
+                    currentSeasonId: DEFAULT_SEASON.id,
+                    isLoading: false,
                 });
             },
         }),

@@ -183,4 +183,54 @@ describe('AppStore', () => {
             expect(useAppStore.getState().scoutingReports).toHaveLength(0);
         });
     });
+
+    describe('resetToDefaults', () => {
+        it('should clear ALL stateful fields including currentTeamId, teams, and seasons', () => {
+            const store = useAppStore.getState();
+
+            // Set up dirty state — simulate a logged-in user with data
+            useAppStore.setState({
+                currentTeamId: 'team-123',
+                teams: [{ id: 'team-123', name: 'Dirty Team', teamNumber: '999', ownerId: 'owner-1', createdAt: 1000 }],
+                tasks: [
+                    {
+                        id: 'task-1', title: 'Dirty', description: '', status: 'To Do' as const,
+                        type: 'Feature' as const, assignedTo: '', department: '', tags: [],
+                        checklist: [], timeline: [], createdAt: 1000,
+                    },
+                ],
+                scoutingReports: [
+                    {
+                        id: 'sr-1', teamNumber: '12345', matchNumber: 1, hasAutonomous: false,
+                        autoScore: 0, intakeType: 'No Intake' as const, autoAim: false,
+                        farShooting: false, shotsTaken: 0, shotsMissed: 0,
+                        parking: 'No Park' as const, rating: 1, endGameNotes: '',
+                    },
+                ],
+                checklist: [{ id: 'cl-1', text: 'Dirty item', checked: true }],
+                matchPlans: [{ id: 'mp-1', title: 'Plan 1', notes: 'Dirty', drawingData: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1000 }],
+                isLoading: true,
+            });
+
+            // Verify dirty state is in place
+            expect(useAppStore.getState().currentTeamId).toBe('team-123');
+            expect(useAppStore.getState().teams).toHaveLength(1);
+            expect(useAppStore.getState().tasks).toHaveLength(1);
+            expect(useAppStore.getState().isLoading).toBe(true);
+
+            // Reset
+            store.resetToDefaults();
+
+            // Verify ALL fields are cleared
+            const state = useAppStore.getState();
+            expect(state.currentTeamId).toBeNull();
+            expect(state.teams).toHaveLength(0);
+            expect(state.tasks).toHaveLength(0);
+            expect(state.scoutingReports).toHaveLength(0);
+            expect(state.matchPlans).toHaveLength(0);
+            expect(state.isLoading).toBe(false);
+            // Seasons should be reset to default (1 default season)
+            expect(state.seasons).toHaveLength(1);
+        });
+    });
 });
