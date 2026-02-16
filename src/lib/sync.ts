@@ -178,12 +178,23 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
         }
 
         case 'update': {
-            const result: any = await withTimeout(
-                (async () => (supabase.from(tableName) as any).update(transformedData).eq('id', recordId))(),
-                PER_QUERY_TIMEOUT_MS,
-                `update ${tableName}`
-            );
-            if (result.error) throw result.error;
+            // Checklists use blob sync (single row per team) and may not exist yet,
+            // so use upsert to create-or-update. Other entities use normal update.
+            if (tableName === 'checklists') {
+                const result: any = await withTimeout(
+                    (async () => supabase.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                    PER_QUERY_TIMEOUT_MS,
+                    `upsert ${tableName}`
+                );
+                if (result.error) throw result.error;
+            } else {
+                const result: any = await withTimeout(
+                    (async () => (supabase.from(tableName) as any).update(transformedData).eq('id', recordId))(),
+                    PER_QUERY_TIMEOUT_MS,
+                    `update ${tableName}`
+                );
+                if (result.error) throw result.error;
+            }
             break;
         }
 
@@ -346,6 +357,20 @@ async function pullChangesFromServer(): Promise<void> {
         try {
             const entityKey = `${currentTeamId}:${table}`;
 
+            // Checklists are blob-synced (entire array per team). If there are
+            // pending local changes still in the queue, skip the pull to avoid
+            // overwriting newer local state with stale server data.
+            if (table === 'checklists') {
+                const pendingChecklistItems = await db.syncQueue
+                    .where('tableName')
+                    .equals('checklists')
+                    .count();
+                if (pendingChecklistItems > 0) {
+                    console.log(`Skipping pull for checklists - ${pendingChecklistItems} pending local changes`);
+                    continue;
+                }
+            }
+
             // Build query with per-query timeout to prevent hanging
             const query = supabase
                 .from(table)
@@ -450,8 +475,11 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
 
         case 'checklists':
             // Checklists are stored as a single blob per team
-            if (records[0]?.items && Array.isArray(records[0].items)) {
+            if (records.length > 0 && records[0]?.items && Array.isArray(records[0].items)) {
                 store.setChecklist(records[0].items);
+            } else if (records.length === 0) {
+                // Empty results = checklist was cleared/deleted on another client
+                store.setChecklist([]);
             }
             break;
 
