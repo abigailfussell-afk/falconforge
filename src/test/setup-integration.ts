@@ -33,13 +33,6 @@ vi.mock('@/lib/supabase', () => ({
 // Clear IndexedDB tables before each test
 beforeEach(async () => {
     await db.syncQueue.clear();
-    await db.tasks.clear();
-    await db.checklists.clear();
-    await db.scoutingReports.clear();
-    await db.matchPlans.clear();
-    await db.teams.clear();
-    await db.teamMembers.clear();
-    await db.subTeams.clear();
 });
 
 // Cleanup after each test

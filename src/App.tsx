@@ -492,11 +492,6 @@ function App() {
                 <JoinTeam />
             } />
 
-            <Route path="/teams" element={<Navigate to="/onboarding" replace />} />
-
-            {/* Legacy route - redirect to /onboarding */}
-            <Route path="/team-picker" element={<Navigate to="/onboarding" replace />} />
-
             {/* Main app - require auth and team */}
             <Route path="/*" element={
                 user ? <Dashboard /> : <Navigate to="/login" replace />

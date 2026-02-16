@@ -132,29 +132,3 @@ export async function recordAttestations(
     return { success: true };
 }
 
-/**
- * Check if a user has a specific attestation (current version)
- */
-export async function hasAttestation(
-    userId: string,
-    attestationType: AttestationType
-): Promise<boolean> {
-    const missing = await getMissingAttestations(userId, [attestationType]);
-    return missing.length === 0;
-}
-
-/**
- * Check if user has all coach attestations
- */
-export async function hasCoachAttestations(userId: string): Promise<boolean> {
-    const missing = await getMissingAttestations(userId, COACH_REQUIRED_ATTESTATIONS);
-    return missing.length === 0;
-}
-
-/**
- * Check if user has all member attestations
- */
-export async function hasMemberAttestations(userId: string): Promise<boolean> {
-    const missing = await getMissingAttestations(userId, MEMBER_REQUIRED_ATTESTATIONS);
-    return missing.length === 0;
-}

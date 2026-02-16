@@ -377,19 +377,3 @@ export interface Database {
         Enums: {}
     }
 }
-
-// Helper types for easier usage
-export type User = Database['public']['Tables']['users']['Row']
-export type Team = Database['public']['Tables']['teams']['Row']
-export type Subscription = Database['public']['Tables']['subscriptions']['Row']
-export type TeamMember = Database['public']['Tables']['team_members']['Row']
-export type SubTeam = Database['public']['Tables']['sub_teams']['Row']
-export type SubTeamMember = Database['public']['Tables']['sub_team_members']['Row']
-export type Season = Database['public']['Tables']['seasons']['Row']
-export type Task = Database['public']['Tables']['tasks']['Row']
-export type Checklist = Database['public']['Tables']['checklists']['Row']
-export type ScoutingReport = Database['public']['Tables']['scouting_reports']['Row']
-export type MatchPlan = Database['public']['Tables']['match_plans']['Row']
-export type Invite = Database['public']['Tables']['invites']['Row']
-export type UserAttestation = Database['public']['Tables']['user_attestations']['Row']
-

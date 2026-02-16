@@ -468,23 +468,3 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
             console.log(`No handler for table: ${tableName}`);
     }
 }
-
-// Hook to detect if user is offline
-export function useOnlineStatus(): boolean {
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-    useEffect(() => {
-        const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    return isOnline;
-}

@@ -291,15 +291,4 @@ export function useAuth() {
     return context;
 }
 
-// Hook to require authentication - now always requires real auth
-export function useRequireAuth() {
-    const auth = useAuth();
-
-    // Supabase must be configured for the app to work
-    if (!auth.isConfigured) {
-        throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
-    }
-
-    return auth;
-}
 

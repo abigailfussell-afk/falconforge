@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { db, generateId, queueForSync } from './offline-db';
+import { generateId, queueForSync } from './offline-db';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import type { Team, TeamMember, SubTeam } from '../types';
@@ -228,7 +228,7 @@ export const useAppStore = create<AppState>()(
             setTeamMembers: (members) => set({ teamMembers: members }),
 
             // Data management
-            setIsLoading: (isLoading) => set({ isLoading }), // Add this temporarily to AppState definition if needed or just use consistent naming
+            setIsLoading: (isLoading) => set({ isLoading }),
 
             fetchTeamData: async (teamId) => {
                 // Ensure Supabase is available and not null for TS
@@ -785,49 +785,9 @@ export const useAppStore = create<AppState>()(
 
             // Data management
             initializeStore: async () => {
-                // Load data from IndexedDB if available
-                try {
-                    const tasks = await db.tasks.toArray();
-                    if (tasks.length > 0) {
-                        set({
-                            tasks: tasks.map(t => ({
-                                id: t.id,
-                                title: t.title,
-                                description: t.description || '',
-                                status: t.status as "Backlog" | "To Do" | "In Progress" | "Testing" | "Done",
-                                type: t.type as "Feature" | "Bug",
-                                assignedTo: t.assignedTo || '',
-                                department: t.teamId || '',
-                                tags: t.tags,
-                                checklist: t.checklist,
-                                timeline: Array.isArray(t.timeline) ? t.timeline.map((tl: any) => ({
-                                    ...tl,
-                                    type: tl.type as "comment" | "history"
-                                })) : [],
-                                createdAt: t.createdAt,
-                                dueDate: t.dueDate,
-                            })),
-                        });
-                    }
-
-                    const matchPlans = await db.matchPlans.toArray();
-                    if (matchPlans.length > 0) {
-                        set({
-                            matchPlans: matchPlans.map(p => ({
-                                id: p.id,
-                                title: (p as any).title || `Match ${p.matchNumber || '?'}`, // Fallback for backward compat
-                                drawingData: p.drawingData,
-                                notes: p.notes || '',
-                                allianceTeam: p.allianceTeam || '',
-                                partnerAutonomous: (p as any).partnerAutonomous || false,
-                                partnerPark: (p as any).partnerPark || false,
-                                updatedAt: p.updatedAt
-                            })),
-                        });
-                    }
-                } catch (err) {
-                    console.warn('Failed to load from IndexedDB:', err);
-                }
+                // Data is loaded from localStorage (Zustand persist) and pulled from
+                // Supabase via fetchTeamData when a team is selected.
+                // No IndexedDB initialization needed.
             },
 
             resetToDefaults: () => {

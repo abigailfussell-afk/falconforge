@@ -10,12 +10,10 @@ const getAI = (providedKey?: string) => {
 };
 
 export const generatePortfolioSummary = async (tasks: Task[], apiKey?: string): Promise<string> => {
-  console.log("Generating Portfolio Summary. Supabase available:", !!supabase, "Manual API Key provided:", !!apiKey);
 
   // Try secure proxy first if Supabase is available and NO manual key is provided
   if (supabase && !apiKey) {
     try {
-      console.log("[Portfolio] Using Direct Fetch for Proxy...");
       const functionUrl = `${supabaseUrl}/functions/v1/gemini-proxy`;
 
       const response = await fetch(functionUrl, {
@@ -35,7 +33,6 @@ export const generatePortfolioSummary = async (tasks: Task[], apiKey?: string): 
       }
 
       const data = await response.json();
-      console.log("[Portfolio] Proxy Success! Received result.");
       return data.result;
     } catch (e: any) {
       console.error("[Portfolio] Secure proxy FETCH FAILED:", e.message || e);
@@ -80,7 +77,6 @@ export const generatePortfolioSummary = async (tasks: Task[], apiKey?: string): 
 export const generateInterviewQuestions = async (contextText: string, studyGuide?: string, apiKey?: string): Promise<Flashcard[]> => {
   if (supabase && !apiKey) {
     try {
-      console.log("[Questions] Using Direct Fetch for Proxy...");
       const functionUrl = `${supabaseUrl}/functions/v1/gemini-proxy`;
 
       const response = await fetch(functionUrl, {
@@ -98,7 +94,7 @@ export const generateInterviewQuestions = async (contextText: string, studyGuide
       }
 
       const data = await response.json();
-      console.log("[Questions] Proxy Success!");
+
 
       // Robust JSON extraction
       let jsonStr = data.result;
@@ -146,7 +142,6 @@ export const generateInterviewQuestions = async (contextText: string, studyGuide
 export const summarizeMeeting = async (notes: string, apiKey?: string): Promise<string> => {
   if (supabase && !apiKey) {
     try {
-      console.log("[Summarize] Using Direct Fetch for Proxy...");
       const functionUrl = `${supabaseUrl}/functions/v1/gemini-proxy`;
 
       const response = await fetch(functionUrl, {
@@ -164,7 +159,6 @@ export const summarizeMeeting = async (notes: string, apiKey?: string): Promise<
       }
 
       const data = await response.json();
-      console.log("[Summarize] Proxy Success!");
       return data.result;
     } catch (e: any) {
       console.error("[Summarize] Secure proxy FETCH FAILED:", e.message || e);

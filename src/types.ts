@@ -52,17 +52,6 @@ export interface TeamMember {
   joinedAt: number;
 }
 
-/**
- * Invite - Team invite link for joining
- */
-export interface Invite {
-  id: string;
-  teamId: string;
-  code: string;
-  createdBy: string;
-  expiresAt: number | null;
-  createdAt: number;
-}
 
 /**
  * AgeClassification - User's age range for authorization
@@ -83,16 +72,6 @@ export type AttestationType =
   | 'privacy_and_guidelines'  // Combined privacy + community guidelines (signup)
   | 'coach_terms';            // Combined terms + billing + COPPA (create team)
 
-/**
- * UserAttestation - Record of user's legal acknowledgements
- */
-export interface UserAttestation {
-  id: string;
-  userId: string;
-  attestationType: AttestationType;
-  version: string;
-  attestedAt: number;
-}
 
 /**
  * SubTeam - Working groups within a Team (scoped to Season)
@@ -106,16 +85,6 @@ export interface SubTeam {
   seasonId?: string;    // Scoped to a specific Season
 }
 
-/**
- * SubTeamMember - Junction table: TeamMember assigned to a SubTeam
- * One TeamMember can be assigned to multiple SubTeams.
- */
-export interface SubTeamMember {
-  id: string;
-  subTeamId: string;
-  teamMemberId: string;
-  createdAt: number;
-}
 
 // ============================================
 // OTHER ENTITIES (unchanged names)
