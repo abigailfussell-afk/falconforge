@@ -143,6 +143,12 @@ All interactive elements should have a `data-testid` for testing:
 3. **Usage**: Import the utility from `src/lib/` into your components rather than defining it inline.
 4. **Testing**: Write dedicated unit tests for these shared utilities in `src/lib/__tests__/`.
 
+## Component Decomposition
+
+1. **File Size Limit**: Try to keep components under 300 lines of code. If a component grows larger, extract sub-views, complex logic, or repeatable elements into separate files.
+2. **Structure**: Place decomposed components in the same `src/components/` directory. If they are specific to a complex view and not reused, you can group them (e.g., `SprintBoard.tsx`, `SprintList.tsx`, `SprintCalendar.tsx` for `SprintPlanning.tsx`).
+3. **Props**: Pass necessary state and handler functions down as props. Be careful not to prop-drill excessively; if multiple levels are needed, consider accessing the globally available Zustand `useAppStore` in the child component.
+
 ## Styling
 
 - **Framework**: Vanilla CSS via Tailwind utility classes (already configured)

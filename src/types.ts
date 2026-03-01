@@ -141,3 +141,11 @@ export interface Flashcard {
   question: string;
   answer: string;
 }
+
+export interface Season {
+  id: string;
+  name: string;
+  fieldImageData: string;  // Base64 encoded image data for offline support
+  teamId?: string;  // Scoped to Team
+  createdAt: number;
+}

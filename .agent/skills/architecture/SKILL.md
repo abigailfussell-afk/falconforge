@@ -184,9 +184,9 @@ Key test files:
 ## Component Size Limits & Splitting
 
 1. **Maximum Component Size:** ~300 lines limit for UI components.
-2. **Maximum Store Size:** ~400 lines limit before splitting into domain-specific Zustand slices.
+2. **Maximum Store Size:** ~400 lines limit before splitting into domain-specific Zustand slices. (The main `store.ts` file now combines domain-specific slices exported from `src/lib/slices/`).
 3. **When to Split Components:** If rendering multiple inline sub-views or managing distinct domain objects.
-4. **Where to Move Sub-components:** Flat `src/components/` is usually fine, or encapsulate in a subdirectory if 3+ related sub-components exist.
+4. **Where to Move Sub-components:** Placed in the same `src/components/` directory. If they are specific to a complex view and not reused, you can group them (e.g., `SprintBoard.tsx`, `SprintList.tsx`, `SprintCalendar.tsx` for `SprintPlanning.tsx`).
 *Consult `.agent/skills/component-decomposition/SKILL.md` for specific instructions.*
 
 ## When to Add New Skills

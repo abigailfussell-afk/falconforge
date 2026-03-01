@@ -3,7 +3,10 @@ import { persist } from 'zustand/middleware';
 import { generateId, queueForSync } from './offline-db';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
-import type { Team, TeamMember, SubTeam } from '../types';
+import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
+import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
+import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
+import type { Team, TeamMember, SubTeam, Season } from '../types';
 
 /**
  * Main application store using Zustand
@@ -79,16 +82,8 @@ export interface PortfolioEntry {
     seasonId?: string;
 }
 
-export interface Season {
-    id: string;
-    name: string;
-    fieldImageData: string;  // Base64 encoded image data for offline support
-    teamId?: string;  // Scoped to Team
-    createdAt: number;
-}
-
 // Re-export types from types.ts for convenience
-export type { Team, TeamMember, SubTeam };
+export type { Team, TeamMember, SubTeam, Season };
 
 // Default season for migration
 const DEFAULT_SEASON: Season = {
@@ -110,7 +105,7 @@ const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
     { id: '8', text: 'Reset servo positions', checked: false },
 ];
 
-interface AppState {
+interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     // Team context (top-level organization)
     currentTeamId: string | null;
     teams: Team[];  // Teams the user belongs to
@@ -140,18 +135,6 @@ interface AppState {
     setTeams: (teams: Team[]) => void;
     setTeamMembers: (members: TeamMember[]) => void;
 
-    // Task actions
-    addTask: (task: Omit<Task, 'id' | 'createdAt' | 'timeline'>) => void;
-    updateTask: (id: string, updates: Partial<Task>) => void;
-    deleteTask: (id: string) => void;
-    setTasks: (tasks: Task[]) => void;
-
-    // SubTeam actions (renamed from Team actions)
-    addSubTeam: (name: string) => void;
-    removeSubTeam: (id: string) => void;
-    toggleMemberInSubTeam: (subTeamId: string, teamMemberId: string) => void;
-    setSubTeams: (subTeams: SubTeam[]) => void;
-
     // Scouting actions
     addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
     deleteScoutingReport: (id: string) => void;
@@ -176,14 +159,6 @@ interface AppState {
     addPortfolioEntry: (content: string, taskCount: number) => void;
     deletePortfolioEntry: (id: string) => void;
 
-    // Season actions
-    addSeason: (name: string, fieldImageData?: string) => void;
-    updateSeason: (id: string, updates: Partial<Season>) => void;
-    deleteSeason: (id: string) => void;
-    setCurrentSeason: (id: string | null) => void;
-    setSeasons: (seasons: Season[]) => void;
-    getCurrentSeason: () => Season | null;
-
     // Data management
     setIsLoading: (isLoading: boolean) => void;
     fetchTeamData: (teamId: string) => Promise<void>;
@@ -195,18 +170,18 @@ export const useAppStore = create<AppState>()(
     persist(
         (set, get) => ({
             // Initial state
+            ...createTaskSlice(set, get),
+            ...createSubTeamSlice(set, get),
+            ...createSeasonSlice(set, get),
+
             currentTeamId: null,
             isLoading: false,
             teams: [],
             teamMembers: [],
-            tasks: [],
-            subTeams: DEFAULT_SUBTEAMS,
             scoutingReports: [],
             checklist: DEFAULT_CHECKLIST_ITEMS,
             matchPlans: [],
             portfolioHistory: [],
-            seasons: [DEFAULT_SEASON],
-            currentSeasonId: DEFAULT_SEASON.id,
             theme: 'dark',
             geminiApiKey: null,
 
@@ -438,112 +413,9 @@ export const useAppStore = create<AppState>()(
                 }
             },
 
-            // Tasks
-            addTask: (taskData) => {
-                const task: Task = {
-                    ...taskData,
-                    id: generateId(),
-                    createdAt: Date.now(),
-                    seasonId: get().currentSeasonId || undefined,
-                    timeline: [{
-                        id: generateId(),
-                        type: 'history',
-                        authorId: 'System',
-                        content: 'Task created',
-                        timestamp: Date.now(),
-                    }],
-                };
 
-                set((state) => ({ tasks: [...state.tasks, task] }));
 
-                // Queue for sync with teamId included
-                queueForSync('tasks', task.id, 'create', {
-                    ...task,
-                    teamId: get().currentTeamId,
-                });
-            },
 
-            updateTask: (id, updates) => {
-                set((state) => ({
-                    tasks: state.tasks.map((t) =>
-                        t.id === id ? { ...t, ...updates } : t
-                    ),
-                }));
-
-                const task = get().tasks.find(t => t.id === id);
-                if (task) {
-                    queueForSync('tasks', id, 'update', {
-                        ...task,
-                        ...updates,
-                        teamId: get().currentTeamId,
-                    });
-                }
-            },
-
-            deleteTask: (id) => {
-                set((state) => ({
-                    tasks: state.tasks.filter((t) => t.id !== id),
-                }));
-
-                queueForSync('tasks', id, 'delete', null);
-            },
-
-            setTasks: (tasks) => set({ tasks }),
-
-            // SubTeams (renamed from Teams)
-            addSubTeam: (name) => {
-                const state = get();
-                const subTeam: SubTeam = {
-                    id: generateId(),
-                    name,
-                    memberIds: [],
-                    seasonId: state.currentSeasonId || undefined,
-                };
-                set((s) => ({ subTeams: [...s.subTeams, subTeam] }));
-
-                // Queue for sync with team_id included
-                queueForSync('sub_teams', subTeam.id, 'create', {
-                    ...subTeam,
-                    teamId: state.currentTeamId,
-                });
-            },
-
-            removeSubTeam: (id) => {
-                set((state) => ({
-                    subTeams: state.subTeams.filter((t) => t.id !== id),
-                }));
-                queueForSync('sub_teams', id, 'delete', null);
-            },
-
-            toggleMemberInSubTeam: (subTeamId, teamMemberId) => {
-                let updatedSubTeam: SubTeam | null = null;
-
-                set((state) => ({
-                    subTeams: state.subTeams.map((t) => {
-                        if (t.id !== subTeamId) return t;
-                        const memberIds = t.memberIds.includes(teamMemberId)
-                            ? t.memberIds.filter((id) => id !== teamMemberId)
-                            : [...t.memberIds, teamMemberId];
-                        updatedSubTeam = { ...t, memberIds };
-                        return updatedSubTeam;
-                    }),
-                }));
-
-                // Queue update for sync
-                if (updatedSubTeam !== null) {
-                    const state = get();
-                    const subTeamToSync = updatedSubTeam as SubTeam;
-                    queueForSync('sub_teams', subTeamId, 'update', {
-                        id: subTeamToSync.id,
-                        name: subTeamToSync.name,
-                        memberIds: subTeamToSync.memberIds,
-                        seasonId: subTeamToSync.seasonId,
-                        teamId: state.currentTeamId,
-                    });
-                }
-            },
-
-            setSubTeams: (subTeams) => set({ subTeams }),
 
             // Scouting
             addScoutingReport: (reportData) => {
@@ -724,64 +596,7 @@ export const useAppStore = create<AppState>()(
                 }));
             },
 
-            // Seasons
-            addSeason: (name, fieldImageData = '') => {
-                const season: Season = {
-                    id: generateId(),
-                    name,
-                    fieldImageData,
-                    teamId: get().currentTeamId || undefined,
-                    createdAt: Date.now(),
-                };
-                set((state) => ({
-                    seasons: [...state.seasons, season],
-                    currentSeasonId: season.id, // Auto-switch to new season
-                }));
-            },
 
-            updateSeason: (id, updates) => {
-                set((state) => ({
-                    seasons: state.seasons.map((s) =>
-                        s.id === id ? { ...s, ...updates } : s
-                    ),
-                }));
-            },
-
-            deleteSeason: (id) => {
-                const state = get();
-                // Don't allow deleting the last season
-                if (state.seasons.length <= 1) return;
-
-                // Delete all data associated with this season
-                set((s) => ({
-                    seasons: s.seasons.filter((season) => season.id !== id),
-                    tasks: s.tasks.filter((t) => t.seasonId !== id),
-                    subTeams: s.subTeams.filter((t) => t.seasonId !== id),
-                    scoutingReports: s.scoutingReports.filter((r) => r.seasonId !== id),
-                    checklist: s.checklist.filter((c) => c.seasonId !== id),
-                    matchPlans: s.matchPlans.filter((p) => p.seasonId !== id),
-                    portfolioHistory: s.portfolioHistory.filter((p) => p.seasonId !== id),
-                    // Switch to another season if this was the current one
-                    currentSeasonId: s.currentSeasonId === id
-                        ? s.seasons.find((season) => season.id !== id)?.id || null
-                        : s.currentSeasonId,
-                }));
-            },
-
-            setCurrentSeason: (id) => set({ currentSeasonId: id }),
-            setSeasons: (seasons) => {
-                const currentSeasonId = get().currentSeasonId;
-                // If current season is not in the new list, switch to the first one
-                const newCurrentId = seasons.find(s => s.id === currentSeasonId)
-                    ? currentSeasonId
-                    : seasons[0]?.id || null;
-                set({ seasons, currentSeasonId: newCurrentId });
-            },
-
-            getCurrentSeason: () => {
-                const state = get();
-                return state.seasons.find((s) => s.id === state.currentSeasonId) || null;
-            },
 
             // Data management
             initializeStore: async () => {
@@ -794,16 +609,18 @@ export const useAppStore = create<AppState>()(
                 set({
                     currentTeamId: null,
                     teams: [],
-                    tasks: [],
-                    subTeams: DEFAULT_SUBTEAMS,
                     scoutingReports: [],
                     checklist: DEFAULT_CHECKLIST_ITEMS,
                     matchPlans: [],
                     teamMembers: [],
                     portfolioHistory: [],
+                    isLoading: false,
+
+                    // Reset slices to initial values
+                    tasks: [],
+                    subTeams: DEFAULT_SUBTEAMS,
                     seasons: [DEFAULT_SEASON],
                     currentSeasonId: DEFAULT_SEASON.id,
-                    isLoading: false,
                 });
             },
         }),

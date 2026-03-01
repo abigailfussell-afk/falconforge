@@ -1,9 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task, TaskStatus, TaskType, SubTeam, TeamMember, TimelineEvent } from '../types';
 import { STATUS_COLUMNS } from '../constants';
-import { Plus, Calendar as CalendarIcon, List, Layout, Clock, Send, Trash2, ChevronDown, ChevronRight, X, Archive, RotateCcw } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, List, Layout, Send, Trash2, X, Archive } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
 import { useAppStore } from '../lib/store';
+import SprintBoard from './SprintBoard';
+import SprintList from './SprintList';
+import SprintCalendar from './SprintCalendar';
+import SprintArchived from './SprintArchived';
+
 
 interface SprintPlanningProps {
     tasks: Task[];
@@ -205,177 +210,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
         }));
     }
 
-    // Views Components
-    const BoardView = () => (
-        <div className="flex flex-col md:flex-row gap-4 h-full md:pb-4 overflow-y-auto md:overflow-x-auto">
-            {STATUS_COLUMNS.map(status => {
-                const isCollapsed = collapsedColumns[status];
-                return (
-                    <div
-                        key={status}
-                        className={`bg-slate-100 dark:bg-slate-800 rounded-xl flex flex-col flex-shrink-0 transition-all ${isCollapsed ? 'md:w-12 h-auto' : 'md:w-[280px] md:h-full'}`}
-                    >
-                        <div
-                            className="p-3 font-semibold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center cursor-pointer md:cursor-default"
-                            onClick={() => { if (window.innerWidth < 768) toggleColumn(status); }}
-                        >
-                            <div className="flex items-center gap-2">
-                                {/* Mobile chevron */}
-                                <span className="md:hidden">
-                                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                                </span>
-                                <span className={isCollapsed ? "md:hidden" : ""}>{status}</span>
-                            </div>
-                            <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-2 py-1 rounded-full">
-                                {tasks.filter(t => t.status === status).length}
-                            </span>
-                        </div>
 
-                        <div className={`flex-1 overflow-y-auto p-2 space-y-2 transition-all ${isCollapsed ? 'hidden' : 'block'} min-h-[50px] md:min-h-0`}>
-                            {tasks.filter(t => t.status === status).map(task => (
-                                <div
-                                    key={task.id}
-                                    onClick={() => openTask(task)}
-                                    className="bg-white dark:bg-slate-700 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600 cursor-pointer hover:shadow-md transition group relative"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
-                                            {task.type}
-                                        </span>
-                                        <div className="text-xs text-slate-400 dark:text-slate-500">{new Date(task.createdAt).toLocaleDateString()}</div>
-                                    </div>
-                                    <h4 className="font-medium text-slate-800 dark:text-slate-200 mb-1">{task.title || 'Untitled'}</h4>
-                                    <div className="flex items-center gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
-                                        <span className="bg-slate-100 dark:bg-slate-600 px-1.5 py-0.5 rounded">{getSubTeamName(task.department)}</span>
-                                        {task.dueDate && <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400"><Clock size={10} />{new Date(task.dueDate).toLocaleDateString()}</span>}
-                                        <div className="flex-1"></div>
-                                        {task.assignedTo && (
-                                            <div className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-[10px] border border-orange-200 dark:border-orange-800">
-                                                {getInitials(task.assignedTo)}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    );
-
-    const ListView = () => (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-[600px]">
-                <thead className="bg-slate-50 dark:bg-slate-700 text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
-                    <tr>
-                        <th className="p-4">Title</th>
-                        <th className="p-4">Type</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4">Assigned</th>
-                        <th className="p-4">Due Date</th>
-                        <th className="p-4">Created</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {tasks.map(task => (
-                        <tr key={task.id} onClick={() => openTask(task)} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition">
-                            <td className="p-4 font-medium text-slate-900 dark:text-white">{task.title || 'Untitled'}</td>
-                            <td className="p-4"><span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{task.type}</span></td>
-                            <td className="p-4">{task.status}</td>
-                            <td className="p-4">{getMemberName(task.assignedTo)}</td>
-                            <td className="p-4">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}</td>
-                            <td className="p-4 text-slate-400">{new Date(task.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-
-    const CalendarView = () => {
-        const tasksByDate = tasks
-            .filter(t => t.dueDate)
-            .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0));
-
-        return (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 overflow-y-auto">
-                <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Upcoming Deadlines</h3>
-                {tasksByDate.length === 0 ? (
-                    <div className="text-center text-slate-400 py-10">No tasks with due dates found.</div>
-                ) : (
-                    <div className="space-y-6">
-                        {tasksByDate.map(task => (
-                            <div key={task.id} onClick={() => openTask(task)} className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition">
-                                <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 p-3 rounded-lg flex flex-col items-center min-w-[60px]">
-                                    <span className="text-xs uppercase font-bold">{new Date(task.dueDate!).toLocaleString('default', { month: 'short' })}</span>
-                                    <span className="text-xl font-bold">{new Date(task.dueDate!).getDate()}</span>
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold text-slate-800 dark:text-white">{task.title}</h4>
-                                    <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                        <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{task.status}</span>
-                                        <span>•</span>
-                                        <span>{getMemberName(task.assignedTo)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const ArchivedView = () => {
-        const archivedTasks = tasks
-            .filter(t => t.status === TaskStatus.Archived)
-            .sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
-
-        return (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 overflow-y-auto">
-                <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center gap-2">
-                    <Archive size={20} className="text-slate-500" />
-                    Archived Tasks
-                </h3>
-                {archivedTasks.length === 0 ? (
-                    <div className="text-center text-slate-400 py-10">No archived tasks yet. Complete tasks and archive them when done.</div>
-                ) : (
-                    <div className="space-y-3">
-                        {archivedTasks.map(task => (
-                            <div
-                                key={task.id}
-                                className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-700/30 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
-                                onClick={() => openTask(task)}
-                            >
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-medium text-slate-800 dark:text-white truncate">{task.title}</h4>
-                                    <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                        <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{getSubTeamName(task.department)}</span>
-                                        <span>•</span>
-                                        <span>{getMemberName(task.assignedTo)}</span>
-                                        {task.archivedAt && (
-                                            <>
-                                                <span>•</span>
-                                                <span>Archived {new Date(task.archivedAt).toLocaleDateString()}</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); restoreTask(task.id); }}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition"
-                                >
-                                    <RotateCcw size={14} />
-                                    Restore
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     return (
         <div className="h-full flex flex-col">
@@ -400,10 +235,39 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
             </div>
 
             <div className="flex-1 overflow-hidden md:px-4">
-                {view === 'board' && <BoardView />}
-                {view === 'list' && <ListView />}
-                {view === 'calendar' && <CalendarView />}
-                {view === 'archived' && <ArchivedView />}
+                {view === 'board' && (
+                    <SprintBoard
+                        tasks={tasks}
+                        collapsedColumns={collapsedColumns}
+                        toggleColumn={toggleColumn}
+                        openTask={openTask}
+                        getSubTeamName={getSubTeamName}
+                        getInitials={getInitials}
+                    />
+                )}
+                {view === 'list' && (
+                    <SprintList
+                        tasks={tasks}
+                        openTask={openTask}
+                        getMemberName={getMemberName}
+                    />
+                )}
+                {view === 'calendar' && (
+                    <SprintCalendar
+                        tasks={tasks}
+                        openTask={openTask}
+                        getMemberName={getMemberName}
+                    />
+                )}
+                {view === 'archived' && (
+                    <SprintArchived
+                        tasks={tasks}
+                        openTask={openTask}
+                        getSubTeamName={getSubTeamName}
+                        getMemberName={getMemberName}
+                        restoreTask={restoreTask}
+                    />
+                )}
             </div>
 
             {isModalOpen && activeTask && (

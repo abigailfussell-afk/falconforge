@@ -122,6 +122,7 @@ it('calls store action when button is clicked', () => {
 });
 ```
 
+
 ### Pattern 3: Testing Conditional Rendering (Role-Based)
 
 ```typescript
@@ -135,6 +136,29 @@ it('hides admin section for non-coach users', () => {
     
     render(<MyComponent />);
     expect(screen.queryByText('Admin Settings')).toBeNull();
+});
+```
+
+### Pattern 4: State Updates (`act` Warning)
+
+React Testing Library automatically wraps user events (`fireEvent`, `userEvent`) and `render` in `act()`, so you rarely need to use it explicitly. However, if a state update happens asynchronously (like after a resolved promise), you might see an `act(...)` warning.
+
+1. **Wait for element**: The easiest way to fix `act` warnings is to wait for the UI to update with `findBy*` or `waitFor`:
+```typescript
+// ✅ Good: waitFor implicitly handles act
+await waitFor(() => {
+    expect(screen.getByText('Success')).toBeInTheDocument();
+});
+
+// ✅ Good: findBy implicitly waits and handles act
+const message = await screen.findByText('Success');
+```
+2. **Async hooks**: If testing custom hooks that update state, wrap the call in `act`:
+```typescript
+import { act } from '@testing-library/react';
+
+act(() => {
+    result.current.someFunctionThatUpdatesState();
 });
 ```
 
