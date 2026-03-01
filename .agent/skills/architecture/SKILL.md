@@ -164,6 +164,23 @@ erDiagram
 ### Sequential Data Loading
 The `fetchTeamData` function in `store.ts` loads tables sequentially rather than in parallel. While technically slower, it prevents Supabase's JS client from stumbling over itself when many requests are fired off instantaneously upon connection restoration.
 
+## Test Infrastructure
+
+All tests use **Vitest** + **Testing Library** (no E2E/Playwright). Tests are mandatory — all code changes must pass before being considered complete.
+
+| Type | Location | Command |
+|------|----------|---------|
+| Unit/Component | `src/**/__tests__/*.test.ts(x)` | `npm run test:run` |
+| Integration | `src/**/__tests__/*.integration.test.ts` | `npm run test:integration` |
+| All | — | `npm run test:all` |
+
+Key test files:
+- `src/lib/__tests__/store.test.ts` — Store actions (tasks, checklist, scouting, etc.)
+- `src/components/__tests__/Dashboard.test.tsx` — Navigation, role-based rendering, sign-out
+- `src/components/__tests__/SyncStatusIndicator.test.tsx` — All sync states
+- `src/lib/__tests__/store-sync.integration.test.ts` — Store → sync queue
+- `src/lib/__tests__/data-transform.integration.test.ts` — camelCase ↔ snake_case
+
 ## When to Add New Skills
 
 Consider creating a new skill when:

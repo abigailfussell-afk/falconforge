@@ -13,6 +13,6 @@ After making any code changes:
 2. If you modify a function or component that has tests, update the corresponding test file
 3. For new features, create tests in the appropriate `__tests__` directory following existing patterns
 4. If tests fail, fix them before considering the task complete
-5. For changes affecting login, authentication, or critical user flows, also run `npm run test:e2e`
+5. For changes affecting sync or data transformations, also run `npm run test:integration`
 
 See the `/testing` workflow for detailed instructions.

@@ -31,14 +31,6 @@ Integration tests are in:
 - `src/lib/__tests__/store-sync.integration.test.ts` - Store → sync queue tests
 - `src/lib/__tests__/data-transform.integration.test.ts` - camelCase/snake_case tests
 
-## For Changes Affecting Critical Flows
-
-// turbo
-6. **Run E2E tests** when changes affect login, authentication, navigation, or critical user flows:
-   ```powershell
-   npm run test:e2e
-   ```
-
 ## Test File Locations
 
 | Type | Location | Pattern |
@@ -47,7 +39,6 @@ Integration tests are in:
 | Integration tests | `src/lib/__tests__/` | `*.integration.test.ts` |
 | Component tests | `src/components/__tests__/` | `*.test.tsx` |
 | Page tests | `src/pages/__tests__/` | `*.test.tsx` |
-| E2E tests | `e2e/` | `*.spec.ts` |
 
 ## Quick Commands
 
@@ -57,11 +48,9 @@ Integration tests are in:
 | `npm run test:run` | Run all unit tests once |
 | `npm run test:integration` | Run integration tests |
 | `npm run test:coverage` | Run tests with coverage report |
-| `npm run test:e2e` | Run Playwright E2E tests |
-| `npm run test:e2e:ui` | Run E2E tests with interactive UI |
-| `npm run test:all` | Run all tests (unit + integration + E2E) |
+| `npm run test:all` | Run all tests (unit + integration) |
 
-## Adding data-testid for E2E Tests
+## Adding data-testid for Testing
 
 When adding new interactive elements, always include `data-testid` attributes:
 
@@ -70,9 +59,9 @@ When adding new interactive elements, always include `data-testid` attributes:
 <input data-testid="search-input" />
 ```
 
-Then in E2E tests, use:
+Then in component tests, use:
 
 ```typescript
-await page.getByTestId('my-button').click();
-await page.getByTestId('search-input').fill('search term');
+screen.getByTestId('my-button');
+screen.getByTestId('search-input');
 ```

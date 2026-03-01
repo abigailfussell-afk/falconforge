@@ -17,28 +17,28 @@
     - generic [ref=e24]:
       - generic [ref=e26]:
         - heading "Welcome back, Kevin! 👋" [level=1] [ref=e27]
-        - paragraph [ref=e28]: Your robotics Command Center is ready. You have 2 open tasks for this sprint.
+        - paragraph [ref=e28]: Your robotics Command Center is ready. You have 0 open tasks for this sprint.
       - generic [ref=e31]:
         - generic [ref=e32] [cursor=pointer]:
           - generic [ref=e33]:
             - img [ref=e35]
             - generic [ref=e38]: Sprint Progress
-          - generic [ref=e39]: 1 / 3
+          - generic [ref=e39]: 0 / 0
         - generic [ref=e40] [cursor=pointer]:
           - generic [ref=e41]:
             - img [ref=e43]
             - generic [ref=e48]: Backlog Items
-          - generic [ref=e49]: "1"
+          - generic [ref=e49]: "0"
         - generic [ref=e50] [cursor=pointer]:
           - generic [ref=e51]:
             - img [ref=e53]
             - generic [ref=e57]: Scouting Reports
-          - generic [ref=e58]: "3"
+          - generic [ref=e58]: "0"
         - generic [ref=e59] [cursor=pointer]:
           - generic [ref=e60]:
             - img [ref=e62]
             - generic [ref=e64]: Match Plans
-          - generic [ref=e65]: "5"
+          - generic [ref=e65]: "0"
       - generic [ref=e66]:
         - generic [ref=e67]:
           - heading "Quick Actions" [level=2] [ref=e68]:
@@ -87,20 +87,7 @@
             - text: Recent Activity
           - generic [ref=e144]:
             - generic [ref=e145]:
-              - generic [ref=e148] [cursor=pointer]:
-                - paragraph [ref=e149]: "Scouting: Team 1234"
-                - paragraph [ref=e150]: 3/1/2026
-              - generic [ref=e153] [cursor=pointer]:
-                - paragraph [ref=e154]: "Scouting: Team 20676"
-                - paragraph [ref=e155]: 3/1/2026
-              - generic [ref=e158] [cursor=pointer]:
-                - paragraph [ref=e159]: "Scouting: Team 5556"
-                - paragraph [ref=e160]: 3/1/2026
-              - generic [ref=e163] [cursor=pointer]:
-                - paragraph [ref=e164]: "Match Plan: Match 3"
-                - paragraph [ref=e165]: 2/15/2026
-              - generic [ref=e168] [cursor=pointer]:
-                - paragraph [ref=e169]: "Match Plan: Test 4"
-                - paragraph [ref=e170]: 2/15/2026
-            - button "View all project updates" [ref=e172] [cursor=pointer]
+              - img [ref=e146]
+              - paragraph [ref=e149]: No activity yet. Start by adding a task or scouting report!
+            - button "View all project updates" [ref=e151] [cursor=pointer]
 ```

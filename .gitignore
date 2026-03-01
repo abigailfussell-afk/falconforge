@@ -34,3 +34,9 @@ dev-dist/
 
 # Supabase
 .supabase/
+
+# Playwright / E2E
+playwright-report/
+playwright/.auth/
+test-results/
+playwright_output*.txt

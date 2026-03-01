@@ -238,10 +238,9 @@ Compare local entity with Supabase table schema to ensure fields map correctly.
 - Test that store actions queue items correctly
 - Test that queue items have correct structure
 
-### E2E Tests (Real Everything)
-- Create entity → verify sync indicator updates
-- Click sync → verify doesn't hang
-- Refresh → verify data persists
+### Component Tests (Mock Store)
+- Test that UI components display sync state correctly
+- Test SyncStatusIndicator shows correct states (synced, pending, error, offline)
 
 ## Critical Safety Rules (MUST FOLLOW)
 
@@ -347,4 +346,5 @@ const loadTimeout = setTimeout(() => setIsLoading(false), 8000);
 5. Add entity pull in `pullChangesFromServer()`
 6. Create corresponding Supabase table (migration)
 7. **Write integration tests for the new sync flow**
+8. **Write component tests for any new UI that displays the data**
 

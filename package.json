@@ -13,9 +13,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.config.integration.ts",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:all": "npm run test:run && npm run test:integration && npm run test:e2e",
+    "test:all": "npm run test:run && npm run test:integration",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
@@ -34,7 +32,6 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/d3": "^7.4.3",

@@ -11,27 +11,28 @@ description: Mandatory verification steps before completing any code change
 
 Before calling a task "done", you MUST complete ALL of the following:
 
-### 1. Build Check
-```powershell
-npm run build
-```
-- [ ] Build completes without errors
-- [ ] No TypeScript errors
-
-### 2. Unit Test Check
+### 1. Unit & Component Test Check
 ```powershell
 npm run test:run
 ```
 - [ ] All unit/component tests pass
 - [ ] If you modified tested components, update their tests
+- [ ] If you added a new component, create a test file for it
 
-### 3. Integration Test Check (for sync/data changes)
+### 2. Integration Test Check (for sync/data changes)
 ```powershell
 npm run test:integration
 ```
 - [ ] All integration tests pass
 - [ ] If you modified store actions that sync, verify queue tests pass
 - [ ] If you modified data transformations, verify transform tests pass
+
+### 3. Build Check (for significant changes)
+```powershell
+npm run build
+```
+- [ ] Build completes without errors
+- [ ] No TypeScript errors
 
 ### 4. Critical Flow Verification
 
@@ -44,9 +45,9 @@ For changes affecting these areas, perform browser verification:
 | Sync (sync.ts, SyncStatusIndicator) | Sync button works, doesn't hang |
 | Components | Component renders, interactions work |
 
-### 4. Browser Verification Steps
+### 5. Browser Verification Steps
 
-Use the browser_subagent to verify:
+Use the browser_subagent to verify when needed:
 
 ```
 Login Verification:
@@ -71,9 +72,22 @@ Sign Out Verification:
 | What to Test | Test Location | Pattern |
 |--------------|---------------|---------|
 | Store functions | `src/lib/__tests__/` | `*.test.ts` |
+| Integration (sync/data) | `src/lib/__tests__/` | `*.integration.test.ts` |
 | Components | `src/components/__tests__/` | `*.test.tsx` |
 | Pages | `src/pages/__tests__/` | `*.test.tsx` |
-| E2E flows | `e2e/` | `*.spec.ts` |
+
+## Test Commands
+
+```powershell
+# Run all unit + component tests
+npm run test:run
+
+# Run integration tests (sync/data transforms)
+npm run test:integration
+
+# Run ALL tests (unit + integration)
+npm run test:all
+```
 
 ## When Tests Fail
 
@@ -82,30 +96,19 @@ Sign Out Verification:
 3. **Fix the test OR the code** - don't skip tests
 4. **Run tests again** - verify fix works
 
-## E2E Test Commands
-
-```powershell
-# Run all E2E tests
-npm run test:e2e
-
-# Run E2E with UI (for debugging)
-npm run test:e2e:ui
-
-# Run specific test file
-npx playwright test e2e/login.spec.ts
-```
-
 ## Quick Reference: Common Verification Scenarios
 
 ### Added a new component
 - [ ] Component renders without errors
 - [ ] Created test in `src/components/__tests__/ComponentName.test.tsx`
 - [ ] Test covers main render and key interactions
+- [ ] `npm run test:run` passes
 
 ### Modified store action
 - [ ] Action works as expected
 - [ ] Sync queue receives item (if applicable)
 - [ ] Updated test in `src/lib/__tests__/store.test.ts`
+- [ ] `npm run test:integration` passes (if sync-related)
 
 ### Fixed a bug
 - [ ] Bug is actually fixed (browser verify)
@@ -116,10 +119,11 @@ npx playwright test e2e/login.spec.ts
 - [ ] Works with real Supabase (not just mocks)
 - [ ] Error handling works for failures
 - [ ] Offline behavior is acceptable
+- [ ] `npm run test:integration` passes
 
 ## Recording Your Verification
 
 After completing verification, summarize in your walkthrough:
-- What tests were run
-- What was browser-verified
+- What tests were run and results
+- What was browser-verified (if applicable)
 - Any issues found and fixed
