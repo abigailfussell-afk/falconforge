@@ -2,15 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Sync Functionality', () => {
     test.beforeEach(async ({ page }) => {
-        // Login first
+        // Navigate to dashboard where sync button is available
+        // Auth is already handled by auth.setup.ts and stored state
         await page.goto('/');
-        await page.fill('input[type="email"]', 'jkfussell@gmail.com');
-        await page.fill('input[type="password"]', 'scooby');
-        await page.click('button:has-text("Sign In")');
-
-        // Wait for auth to complete and navigate away from login
-        await page.waitForURL(/.*(?!login).*/);
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(2000); // Give the app a moment to initialize
     });
 
     test('sync button appears in sidebar', async ({ page }) => {

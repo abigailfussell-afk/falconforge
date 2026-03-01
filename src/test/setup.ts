@@ -39,13 +39,6 @@ vi.mock('@/lib/offline-db', () => ({
             toArray: vi.fn().mockResolvedValue([]),
             count: vi.fn().mockResolvedValue(0),
         },
-        teams: { clear: vi.fn() },
-        teamMembers: { clear: vi.fn() },
-        subTeams: { clear: vi.fn() },
-        tasks: { clear: vi.fn() },
-        checklists: { clear: vi.fn() },
-        scoutingReports: { clear: vi.fn() },
-        matchPlans: { clear: vi.fn() },
     },
     generateId: vi.fn(() => `test-id-${Math.random().toString(36).substr(2, 9)}`),
     queueForSync: vi.fn().mockResolvedValue(undefined),
@@ -76,3 +69,8 @@ const mockIndexedDB = {
     open: vi.fn(),
 };
 vi.stubGlobal('indexedDB', mockIndexedDB);
+
+// Mock global DOMMatrix which is used by pdfjs in jsdom environment
+if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class DOMMatrix { } as any;
+}

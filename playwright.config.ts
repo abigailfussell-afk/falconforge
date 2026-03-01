@@ -6,7 +6,10 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1, // Retry once locally for flaky tests
     workers: process.env.CI ? 1 : undefined,
-    reporter: 'html',
+    reporter: [
+        ['html'],
+        ['json', { outputFile: 'playwright-report/results.json' }],
+    ],
     timeout: 60000, // 60 second timeout per test
     use: {
         baseURL: 'http://localhost:3000',

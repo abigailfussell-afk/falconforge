@@ -10,7 +10,7 @@
       - generic [ref=e9]: Season
       - generic [ref=e10]:
         - combobox [ref=e11] [cursor=pointer]:
-          - option "Demo Season" [selected]
+          - option "2025-2026 Decode" [selected]
         - img
     - navigation [ref=e12]:
       - button "Dashboard" [ref=e13] [cursor=pointer]:
@@ -34,117 +34,104 @@
       - button "Judging Prep" [ref=e45] [cursor=pointer]:
         - img [ref=e46]
         - generic [ref=e49]: Judging Prep
-      - button "Admin Settings" [ref=e51] [cursor=pointer]:
-        - img [ref=e52]
-        - generic [ref=e55]: Admin Settings
-    - generic [ref=e56]:
-      - generic [ref=e58]:
-        - generic [ref=e59]: Tasks Done
-        - generic [ref=e60]: "0"
-      - generic [ref=e62]:
-        - generic [ref=e63]:
-          - img [ref=e65]
-          - generic [ref=e68]:
-            - paragraph [ref=e69]: Kevin Fu
-            - button "Edit Profile" [ref=e70] [cursor=pointer]
-          - button "Sign out" [ref=e71] [cursor=pointer]:
-            - img [ref=e72]
-        - generic [ref=e75]:
-          - generic [ref=e77]: "#99"
-          - paragraph [ref=e79]: Demo Team
-          - button "Switch Team" [ref=e80] [cursor=pointer]:
-            - img [ref=e81]
-        - generic [ref=e84]:
-          - button "Synced" [ref=e86] [cursor=pointer]:
-            - img [ref=e88]
-            - generic [ref=e90]: Synced
-          - button "Switch to light mode" [ref=e91] [cursor=pointer]:
-            - img [ref=e92]
-  - main [ref=e98]:
-    - generic [ref=e100]:
-      - generic [ref=e102]:
-        - heading "Welcome back, Kevin! 👋" [level=1] [ref=e103]
-        - paragraph [ref=e104]: Your robotics Command Center is ready. You have 2 open tasks for this sprint.
-      - generic [ref=e107]:
-        - generic [ref=e108] [cursor=pointer]:
-          - generic [ref=e109]:
-            - img [ref=e111]
-            - generic [ref=e114]: Sprint Progress
-          - generic [ref=e115]: 0 / 2
-        - generic [ref=e116] [cursor=pointer]:
-          - generic [ref=e117]:
-            - img [ref=e119]
-            - generic [ref=e124]: Backlog Items
-          - generic [ref=e125]: "0"
-        - generic [ref=e126] [cursor=pointer]:
-          - generic [ref=e127]:
-            - img [ref=e129]
-            - generic [ref=e133]: Scouting Reports
-          - generic [ref=e134]: "1"
-        - generic [ref=e135] [cursor=pointer]:
-          - generic [ref=e136]:
-            - img [ref=e138]
-            - generic [ref=e140]: Match Plans
-          - generic [ref=e141]: "1"
-      - generic [ref=e142]:
-        - generic [ref=e143]:
-          - heading "Quick Actions" [level=2] [ref=e144]:
-            - img [ref=e145]
+    - generic [ref=e50]:
+      - generic [ref=e52]:
+        - generic [ref=e53]: Tasks Done
+        - generic [ref=e54]: "0"
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - img [ref=e59]
+          - generic [ref=e62]:
+            - paragraph [ref=e63]: Kevin Fu
+            - button "Edit Profile" [ref=e64] [cursor=pointer]
+          - button "Sign out" [active] [ref=e65] [cursor=pointer]:
+            - img [ref=e66]
+        - generic [ref=e69]:
+          - generic [ref=e71]: T
+          - paragraph [ref=e73]: Select Team
+          - button "Switch Team" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+        - generic [ref=e78]:
+          - button "Synced" [ref=e80] [cursor=pointer]:
+            - img [ref=e82]
+            - generic [ref=e84]: Synced
+          - button "Switch to light mode" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+  - main [ref=e92]:
+    - generic [ref=e94]:
+      - generic [ref=e96]:
+        - heading "Welcome back, Kevin! 👋" [level=1] [ref=e97]
+        - paragraph [ref=e98]: Your robotics Command Center is ready. You have 0 open tasks for this sprint.
+      - generic [ref=e101]:
+        - generic [ref=e102] [cursor=pointer]:
+          - generic [ref=e103]:
+            - img [ref=e105]
+            - generic [ref=e108]: Sprint Progress
+          - generic [ref=e109]: 0 / 0
+        - generic [ref=e110] [cursor=pointer]:
+          - generic [ref=e111]:
+            - img [ref=e113]
+            - generic [ref=e118]: Backlog Items
+          - generic [ref=e119]: "0"
+        - generic [ref=e120] [cursor=pointer]:
+          - generic [ref=e121]:
+            - img [ref=e123]
+            - generic [ref=e127]: Scouting Reports
+          - generic [ref=e128]: "0"
+        - generic [ref=e129] [cursor=pointer]:
+          - generic [ref=e130]:
+            - img [ref=e132]
+            - generic [ref=e134]: Match Plans
+          - generic [ref=e135]: "0"
+      - generic [ref=e136]:
+        - generic [ref=e137]:
+          - heading "Quick Actions" [level=2] [ref=e138]:
+            - img [ref=e139]
             - text: Quick Actions
-          - generic [ref=e147]:
-            - button "Sprint Planning Track your team's progress" [ref=e148] [cursor=pointer]:
-              - generic [ref=e149]:
-                - img [ref=e151]
-                - heading "Sprint Planning" [level=3] [ref=e156]
-                - paragraph [ref=e157]: Track your team's progress
-              - img [ref=e158]
-            - button "Pre-Match Checklist Always be competition ready" [ref=e161] [cursor=pointer]:
-              - generic [ref=e162]:
-                - img [ref=e164]
-                - heading "Pre-Match Checklist" [level=3] [ref=e167]
-                - paragraph [ref=e168]: Always be competition ready
-              - img [ref=e169]
-            - button "Scouting Reports Know your competition" [ref=e172] [cursor=pointer]:
-              - generic [ref=e173]:
-                - img [ref=e175]
-                - heading "Scouting Reports" [level=3] [ref=e179]
-                - paragraph [ref=e180]: Know your competition
-              - img [ref=e181]
-            - button "Match Planner Plan with your allies" [ref=e184] [cursor=pointer]:
-              - generic [ref=e185]:
-                - img [ref=e187]
-                - heading "Match Planner" [level=3] [ref=e189]
-                - paragraph [ref=e190]: Plan with your allies
-              - img [ref=e191]
-            - button "Portfolio Helper Summarize your team's accomplishments" [ref=e194] [cursor=pointer]:
-              - generic [ref=e195]:
-                - img [ref=e197]
-                - heading "Portfolio Helper" [level=3] [ref=e200]
-                - paragraph [ref=e201]: Summarize your team's accomplishments
-              - img [ref=e202]
-            - button "Judging Prep Be ready to answer any question" [ref=e205] [cursor=pointer]:
-              - generic [ref=e206]:
-                - img [ref=e208]
-                - heading "Judging Prep" [level=3] [ref=e211]
-                - paragraph [ref=e212]: Be ready to answer any question
-              - img [ref=e213]
-        - generic [ref=e216]:
-          - heading "Recent Activity" [level=2] [ref=e217]:
-            - img [ref=e218]
+          - generic [ref=e141]:
+            - button "Sprint Planning Track your team's progress" [ref=e142] [cursor=pointer]:
+              - generic [ref=e143]:
+                - img [ref=e145]
+                - heading "Sprint Planning" [level=3] [ref=e150]
+                - paragraph [ref=e151]: Track your team's progress
+              - img [ref=e152]
+            - button "Pre-Match Checklist Always be competition ready" [ref=e155] [cursor=pointer]:
+              - generic [ref=e156]:
+                - img [ref=e158]
+                - heading "Pre-Match Checklist" [level=3] [ref=e161]
+                - paragraph [ref=e162]: Always be competition ready
+              - img [ref=e163]
+            - button "Scouting Reports Know your competition" [ref=e166] [cursor=pointer]:
+              - generic [ref=e167]:
+                - img [ref=e169]
+                - heading "Scouting Reports" [level=3] [ref=e173]
+                - paragraph [ref=e174]: Know your competition
+              - img [ref=e175]
+            - button "Match Planner Plan with your allies" [ref=e178] [cursor=pointer]:
+              - generic [ref=e179]:
+                - img [ref=e181]
+                - heading "Match Planner" [level=3] [ref=e183]
+                - paragraph [ref=e184]: Plan with your allies
+              - img [ref=e185]
+            - button "Portfolio Helper Summarize your team's accomplishments" [ref=e188] [cursor=pointer]:
+              - generic [ref=e189]:
+                - img [ref=e191]
+                - heading "Portfolio Helper" [level=3] [ref=e194]
+                - paragraph [ref=e195]: Summarize your team's accomplishments
+              - img [ref=e196]
+            - button "Judging Prep Be ready to answer any question" [ref=e199] [cursor=pointer]:
+              - generic [ref=e200]:
+                - img [ref=e202]
+                - heading "Judging Prep" [level=3] [ref=e205]
+                - paragraph [ref=e206]: Be ready to answer any question
+              - img [ref=e207]
+        - generic [ref=e210]:
+          - heading "Recent Activity" [level=2] [ref=e211]:
+            - img [ref=e212]
             - text: Recent Activity
-          - generic [ref=e220]:
-            - generic [ref=e221]:
-              - generic [ref=e224] [cursor=pointer]:
-                - paragraph [ref=e225]: "Scouting: Team 1234"
-                - paragraph [ref=e226]: 2/1/2026
-              - generic [ref=e229] [cursor=pointer]:
-                - paragraph [ref=e230]: "Task: Limelight"
-                - paragraph [ref=e231]: 1/13/2026
-              - generic [ref=e234] [cursor=pointer]:
-                - paragraph [ref=e235]: "Match Plan: Jesuit"
-                - paragraph [ref=e236]: 1/10/2026
-              - generic [ref=e239] [cursor=pointer]:
-                - paragraph [ref=e240]: "Task: Testing Task 1"
-                - paragraph [ref=e241]: 1/10/2026
-            - button "View all project updates" [ref=e243] [cursor=pointer]
+          - generic [ref=e214]:
+            - generic [ref=e215]:
+              - img [ref=e216]
+              - paragraph [ref=e219]: No activity yet. Start by adding a task or scouting report!
+            - button "View all project updates" [ref=e221] [cursor=pointer]
 ```

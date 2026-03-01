@@ -233,4 +233,114 @@ describe('AppStore', () => {
             expect(state.seasons).toHaveLength(1);
         });
     });
+
+    describe('SubTeams', () => {
+        beforeEach(() => {
+            useAppStore.setState({ subTeams: [] });
+        });
+
+        it('should add a subteam', () => {
+            useAppStore.getState().addSubTeam('Programming');
+            const subTeams = useAppStore.getState().subTeams;
+
+            expect(subTeams).toHaveLength(1);
+            expect(subTeams[0].name).toBe('Programming');
+        });
+
+        it('should remove a subteam', () => {
+            useAppStore.getState().addSubTeam('Build');
+            const subTeamId = useAppStore.getState().subTeams[0].id;
+
+            useAppStore.getState().removeSubTeam(subTeamId);
+            expect(useAppStore.getState().subTeams).toHaveLength(0);
+        });
+
+        it('should toggle a member in a subteam', () => {
+            useAppStore.getState().addSubTeam('Design');
+            const subTeamId = useAppStore.getState().subTeams[0].id;
+
+            // Add member
+            useAppStore.getState().toggleMemberInSubTeam(subTeamId, 'user-1');
+            expect(useAppStore.getState().subTeams[0].memberIds).toContain('user-1');
+
+            // Remove member
+            useAppStore.getState().toggleMemberInSubTeam(subTeamId, 'user-1');
+            expect(useAppStore.getState().subTeams[0].memberIds).not.toContain('user-1');
+        });
+    });
+
+    describe('MatchPlans', () => {
+        beforeEach(() => {
+            useAppStore.setState({ matchPlans: [] });
+        });
+
+        it('should add a match plan', () => {
+            useAppStore.getState().addMatchPlan({
+                title: 'Auto Plan',
+                notes: 'Test',
+                drawingData: '',
+                allianceTeam: 'Red',
+                partnerAutonomous: false,
+                partnerPark: false
+            });
+
+            const plans = useAppStore.getState().matchPlans;
+            expect(plans).toHaveLength(1);
+            expect(plans[0].title).toBe('Auto Plan');
+        });
+
+        it('should update a match plan', () => {
+            useAppStore.getState().addMatchPlan({ title: 'Plan', notes: '', drawingData: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false });
+            const planId = useAppStore.getState().matchPlans[0].id;
+
+            useAppStore.getState().updateMatchPlan(planId, { title: 'Updated Plan' });
+            expect(useAppStore.getState().matchPlans[0].title).toBe('Updated Plan');
+        });
+
+        it('should delete a match plan', () => {
+            useAppStore.getState().addMatchPlan({ title: 'Plan', notes: '', drawingData: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false });
+            const planId = useAppStore.getState().matchPlans[0].id;
+
+            useAppStore.getState().deleteMatchPlan(planId);
+            expect(useAppStore.getState().matchPlans).toHaveLength(0);
+        });
+    });
+
+    describe('PortfolioHistory', () => {
+        beforeEach(() => {
+            useAppStore.setState({ portfolioHistory: [] });
+        });
+
+        it('should add a portfolio entry', () => {
+            useAppStore.getState().addPortfolioEntry('Summary', 5);
+            const entries = useAppStore.getState().portfolioHistory;
+
+            expect(entries).toHaveLength(1);
+            expect(entries[0].content).toBe('Summary');
+            expect(entries[0].taskCount).toBe(5);
+        });
+
+        it('should delete a portfolio entry', () => {
+            useAppStore.getState().addPortfolioEntry('Summary', 5);
+            const entryId = useAppStore.getState().portfolioHistory[0].id;
+
+            useAppStore.getState().deletePortfolioEntry(entryId);
+            expect(useAppStore.getState().portfolioHistory).toHaveLength(0);
+        });
+    });
+
+    describe('Seasons', () => {
+        beforeEach(() => {
+            useAppStore.setState({ seasons: [], currentSeasonId: null });
+        });
+
+        it('should add a season and set it as current', () => {
+            useAppStore.getState().addSeason('New Season');
+            const state = useAppStore.getState();
+
+            expect(state.seasons).toHaveLength(1);
+            expect(state.seasons[0].name).toBe('New Season');
+            expect(state.currentSeasonId).toBe(state.seasons[0].id);
+        });
+    });
 });

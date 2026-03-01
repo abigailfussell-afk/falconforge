@@ -24,8 +24,8 @@ flowchart TB
     end
     
     subgraph Storage["Storage Layer"]
-        IndexedDB["IndexedDB (offline-db.ts)"]
-        LocalStorage["localStorage (persistence)"]
+        IndexedDB["IndexedDB (syncQueue only)"]
+        LocalStorage["localStorage (Zustand persist)"]
     end
     
     subgraph Backend["Supabase Backend"]
@@ -37,6 +37,7 @@ flowchart TB
     Components --> Store
     Components --> Sync
     App --> Auth
+    Store --> LocalStorage
     Store --> IndexedDB
     Store --> SupabaseDB
     Auth --> SupabaseAuth
@@ -98,11 +99,14 @@ User clicks Sync button OR pendingChanges > 0 with isOnline
 
 ### 5. Sign Out Flow
 ```
-User clicks Sign Out -> App.tsx handleSignOut()
-  -> auth.signOut() -> Supabase signOut
+User clicks Sign Out -> Navigation / Sidebar / AdminSettings
+  -> auth.tsx useAuth().signOut()
+  -> supabase.auth.signOut()
+  -> store.resetToDefaults()  (Clears Zustand state)
+  -> clearLocalDatabase()     (Clears IndexedDB sync queue)
   -> localStorage.removeItem('falconforge-storage')
-  -> store.resetToDefaults()
-  -> window.location.href = /login
+  -> localStorage.removeItem('falconforge-sync-timestamps')
+  -> Redirect to /login
 ```
 
 ## Entity Relationships
@@ -143,7 +147,7 @@ erDiagram
 
 ### 2. IndexedDB (Dexie)
 - **Database name**: `FalconForgeDB`
-- **Tables**: teams, teamMembers, subTeams, tasks, checklists, scoutingReports, matchPlans, syncQueue
+- **Tables**: `syncQueue` (Entity tables were removed in v2 schema)
 - **Key function**: `queueForSync()` adds items to sync queue
 
 ### 3. localStorage Keys
@@ -151,16 +155,14 @@ erDiagram
 - `falconforge-sync-timestamps`: Last sync times per entity
 - `sb-xxxxx-auth-token`: Supabase auth token
 
-## Known Issues & Gotchas
+## Known Gotchas & Architectural Quirks
 
-### Sync Can Hang
-The `pullChangesFromServer()` function queries multiple tables sequentially. If any query hangs, the sync appears stuck. There's no timeout on individual queries.
+### LocalStorage vs IndexedDB
+- **State vs Queue:** Application data (tasks, teams, etc) is stored in the Zustand store and persisted synchronously to `localStorage`. Only the **network queue** (`syncQueue`) uses `IndexedDB`.
+- **Storage Limits:** LocalStorage has a ~5MB limit. This is generally fine for text-heavy data, but the SVG drawing data in `match_plans` could eventually hit this limit.
 
-### Sign Out State Clearing
-Sign out clears localStorage but IndexedDB (`FalconForgeDB`) is NOT cleared. This could lead to stale data on re-login.
-
-### Test Mocking
-Current tests mock Zustand store entirely, meaning they don't catch integration issues between components and the actual store logic.
+### Sequential Data Loading
+The `fetchTeamData` function in `store.ts` loads tables sequentially rather than in parallel. While technically slower, it prevents Supabase's JS client from stumbling over itself when many requests are fired off instantaneously upon connection restoration.
 
 ## When to Add New Skills
 

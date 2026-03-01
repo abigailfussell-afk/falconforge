@@ -2,149 +2,105 @@
 
 ```yaml
 - generic [ref=e3]:
-  - complementary [ref=e4]:
+  - generic [ref=e4]:
     - generic [ref=e5]:
       - img "FalconForge Logo" [ref=e6]
-      - heading "FALCONFORGE" [level=1] [ref=e7]
+      - generic [ref=e7]: FALCONFORGE
     - generic [ref=e8]:
-      - generic [ref=e9]: Season
-      - generic [ref=e10]:
-        - combobox [ref=e11] [cursor=pointer]:
-          - option "Demo Season" [selected]
-        - img
-    - navigation [ref=e12]:
-      - button "Dashboard" [ref=e13] [cursor=pointer]:
+      - button "Click to sync" [ref=e9] [cursor=pointer]:
+        - img [ref=e11]
+      - button [ref=e13] [cursor=pointer]:
         - img [ref=e14]
-        - generic [ref=e19]: Dashboard
-      - button "Sprint Planning" [ref=e21] [cursor=pointer]:
-        - img [ref=e22]
-        - generic [ref=e24]: Sprint Planning
-      - button "Pre-Match Checklist" [ref=e25] [cursor=pointer]:
-        - img [ref=e26]
-        - generic [ref=e29]: Pre-Match Checklist
-      - button "Scouting Reports" [ref=e30] [cursor=pointer]:
-        - img [ref=e31]
-        - generic [ref=e35]: Scouting Reports
-      - button "Match Planner" [ref=e36] [cursor=pointer]:
-        - img [ref=e37]
-        - generic [ref=e39]: Match Planner
-      - button "Portfolio Helper" [ref=e41] [cursor=pointer]:
-        - img [ref=e42]
-        - generic [ref=e44]: Portfolio Helper
-      - button "Judging Prep" [ref=e45] [cursor=pointer]:
-        - img [ref=e46]
-        - generic [ref=e49]: Judging Prep
-      - button "Admin Settings" [ref=e51] [cursor=pointer]:
-        - img [ref=e52]
-        - generic [ref=e55]: Admin Settings
-    - generic [ref=e56]:
-      - generic [ref=e58]:
-        - generic [ref=e59]: Tasks Done
-        - generic [ref=e60]: "0"
-      - generic [ref=e62]:
-        - generic [ref=e63]:
-          - img [ref=e65]
-          - generic [ref=e68]:
-            - paragraph [ref=e69]: Kevin Fu
-            - button "Edit Profile" [ref=e70] [cursor=pointer]
-          - button "Sign out" [ref=e71] [cursor=pointer]:
-            - img [ref=e72]
-        - generic [ref=e75]:
-          - generic [ref=e77]: "#99"
-          - paragraph [ref=e79]: Demo Team
-          - button "Switch Team" [ref=e80] [cursor=pointer]:
-            - img [ref=e81]
-        - generic [ref=e84]:
-          - button "Synced" [ref=e86] [cursor=pointer]:
-            - img [ref=e88]
-            - generic [ref=e90]: Synced
-          - button "Switch to light mode" [ref=e91] [cursor=pointer]:
-            - img [ref=e92]
-  - main [ref=e98]:
-    - generic [ref=e100]:
-      - generic [ref=e102]:
-        - heading "Welcome back, Kevin! 👋" [level=1] [ref=e103]
-        - paragraph [ref=e104]: Your robotics Command Center is ready. You have 2 open tasks for this sprint.
-      - generic [ref=e107]:
-        - generic [ref=e108] [cursor=pointer]:
-          - generic [ref=e109]:
-            - img [ref=e111]
-            - generic [ref=e114]: Sprint Progress
-          - generic [ref=e115]: 0 / 2
-        - generic [ref=e116] [cursor=pointer]:
-          - generic [ref=e117]:
-            - img [ref=e119]
-            - generic [ref=e124]: Backlog Items
-          - generic [ref=e125]: "0"
-        - generic [ref=e126] [cursor=pointer]:
-          - generic [ref=e127]:
-            - img [ref=e129]
-            - generic [ref=e133]: Scouting Reports
-          - generic [ref=e134]: "1"
-        - generic [ref=e135] [cursor=pointer]:
-          - generic [ref=e136]:
-            - img [ref=e138]
-            - generic [ref=e140]: Match Plans
-          - generic [ref=e141]: "1"
-      - generic [ref=e142]:
-        - generic [ref=e143]:
-          - heading "Quick Actions" [level=2] [ref=e144]:
-            - img [ref=e145]
+      - button [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+  - main [ref=e22]:
+    - generic [ref=e24]:
+      - generic [ref=e26]:
+        - heading "Welcome back, Kevin! 👋" [level=1] [ref=e27]
+        - paragraph [ref=e28]: Your robotics Command Center is ready. You have 2 open tasks for this sprint.
+      - generic [ref=e31]:
+        - generic [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]:
+            - img [ref=e35]
+            - generic [ref=e38]: Sprint Progress
+          - generic [ref=e39]: 1 / 3
+        - generic [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]:
+            - img [ref=e43]
+            - generic [ref=e48]: Backlog Items
+          - generic [ref=e49]: "1"
+        - generic [ref=e50] [cursor=pointer]:
+          - generic [ref=e51]:
+            - img [ref=e53]
+            - generic [ref=e57]: Scouting Reports
+          - generic [ref=e58]: "3"
+        - generic [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]:
+            - img [ref=e62]
+            - generic [ref=e64]: Match Plans
+          - generic [ref=e65]: "5"
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - heading "Quick Actions" [level=2] [ref=e68]:
+            - img [ref=e69]
             - text: Quick Actions
-          - generic [ref=e147]:
-            - button "Sprint Planning Track your team's progress" [ref=e148] [cursor=pointer]:
-              - generic [ref=e149]:
-                - img [ref=e151]
-                - heading "Sprint Planning" [level=3] [ref=e156]
-                - paragraph [ref=e157]: Track your team's progress
-              - img [ref=e158]
-            - button "Pre-Match Checklist Always be competition ready" [ref=e161] [cursor=pointer]:
-              - generic [ref=e162]:
-                - img [ref=e164]
-                - heading "Pre-Match Checklist" [level=3] [ref=e167]
-                - paragraph [ref=e168]: Always be competition ready
-              - img [ref=e169]
-            - button "Scouting Reports Know your competition" [ref=e172] [cursor=pointer]:
-              - generic [ref=e173]:
-                - img [ref=e175]
-                - heading "Scouting Reports" [level=3] [ref=e179]
-                - paragraph [ref=e180]: Know your competition
-              - img [ref=e181]
-            - button "Match Planner Plan with your allies" [ref=e184] [cursor=pointer]:
-              - generic [ref=e185]:
-                - img [ref=e187]
-                - heading "Match Planner" [level=3] [ref=e189]
-                - paragraph [ref=e190]: Plan with your allies
-              - img [ref=e191]
-            - button "Portfolio Helper Summarize your team's accomplishments" [ref=e194] [cursor=pointer]:
-              - generic [ref=e195]:
-                - img [ref=e197]
-                - heading "Portfolio Helper" [level=3] [ref=e200]
-                - paragraph [ref=e201]: Summarize your team's accomplishments
-              - img [ref=e202]
-            - button "Judging Prep Be ready to answer any question" [ref=e205] [cursor=pointer]:
-              - generic [ref=e206]:
-                - img [ref=e208]
-                - heading "Judging Prep" [level=3] [ref=e211]
-                - paragraph [ref=e212]: Be ready to answer any question
-              - img [ref=e213]
-        - generic [ref=e216]:
-          - heading "Recent Activity" [level=2] [ref=e217]:
-            - img [ref=e218]
+          - generic [ref=e71]:
+            - button "Sprint Planning Track your team's progress" [ref=e72] [cursor=pointer]:
+              - generic [ref=e73]:
+                - img [ref=e75]
+                - heading "Sprint Planning" [level=3] [ref=e80]
+                - paragraph [ref=e81]: Track your team's progress
+              - img [ref=e82]
+            - button "Pre-Match Checklist Always be competition ready" [ref=e85] [cursor=pointer]:
+              - generic [ref=e86]:
+                - img [ref=e88]
+                - heading "Pre-Match Checklist" [level=3] [ref=e91]
+                - paragraph [ref=e92]: Always be competition ready
+              - img [ref=e93]
+            - button "Scouting Reports Know your competition" [ref=e96] [cursor=pointer]:
+              - generic [ref=e97]:
+                - img [ref=e99]
+                - heading "Scouting Reports" [level=3] [ref=e103]
+                - paragraph [ref=e104]: Know your competition
+              - img [ref=e105]
+            - button "Match Planner Plan with your allies" [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]:
+                - img [ref=e111]
+                - heading "Match Planner" [level=3] [ref=e113]
+                - paragraph [ref=e114]: Plan with your allies
+              - img [ref=e115]
+            - button "Portfolio Helper Summarize your team's accomplishments" [ref=e118] [cursor=pointer]:
+              - generic [ref=e119]:
+                - img [ref=e121]
+                - heading "Portfolio Helper" [level=3] [ref=e124]
+                - paragraph [ref=e125]: Summarize your team's accomplishments
+              - img [ref=e126]
+            - button "Judging Prep Be ready to answer any question" [ref=e129] [cursor=pointer]:
+              - generic [ref=e130]:
+                - img [ref=e132]
+                - heading "Judging Prep" [level=3] [ref=e135]
+                - paragraph [ref=e136]: Be ready to answer any question
+              - img [ref=e137]
+        - generic [ref=e140]:
+          - heading "Recent Activity" [level=2] [ref=e141]:
+            - img [ref=e142]
             - text: Recent Activity
-          - generic [ref=e220]:
-            - generic [ref=e221]:
-              - generic [ref=e224] [cursor=pointer]:
-                - paragraph [ref=e225]: "Scouting: Team 1234"
-                - paragraph [ref=e226]: 2/1/2026
-              - generic [ref=e229] [cursor=pointer]:
-                - paragraph [ref=e230]: "Task: Limelight"
-                - paragraph [ref=e231]: 1/13/2026
-              - generic [ref=e234] [cursor=pointer]:
-                - paragraph [ref=e235]: "Match Plan: Jesuit"
-                - paragraph [ref=e236]: 1/10/2026
-              - generic [ref=e239] [cursor=pointer]:
-                - paragraph [ref=e240]: "Task: Testing Task 1"
-                - paragraph [ref=e241]: 1/10/2026
-            - button "View all project updates" [ref=e243] [cursor=pointer]
+          - generic [ref=e144]:
+            - generic [ref=e145]:
+              - generic [ref=e148] [cursor=pointer]:
+                - paragraph [ref=e149]: "Scouting: Team 1234"
+                - paragraph [ref=e150]: 3/1/2026
+              - generic [ref=e153] [cursor=pointer]:
+                - paragraph [ref=e154]: "Scouting: Team 20676"
+                - paragraph [ref=e155]: 3/1/2026
+              - generic [ref=e158] [cursor=pointer]:
+                - paragraph [ref=e159]: "Scouting: Team 5556"
+                - paragraph [ref=e160]: 3/1/2026
+              - generic [ref=e163] [cursor=pointer]:
+                - paragraph [ref=e164]: "Match Plan: Match 3"
+                - paragraph [ref=e165]: 2/15/2026
+              - generic [ref=e168] [cursor=pointer]:
+                - paragraph [ref=e169]: "Match Plan: Test 4"
+                - paragraph [ref=e170]: 2/15/2026
+            - button "View all project updates" [ref=e172] [cursor=pointer]
 ```

@@ -21,8 +21,7 @@ flowchart TB
     end
     
     subgraph LocalDB["IndexedDB (offline-db.ts)"]
-        Tables["teams, tasks, checklists, etc."]
-        SyncQueue["syncQueue table"]
+        SyncQueue["syncQueue table only"]
     end
     
     subgraph Sync["Sync Layer (sync.ts)"]
@@ -117,19 +116,19 @@ The `transformToSupabaseSchema()` function in `sync.ts` handles this:
 
 ### Complex Fields
 
-Some fields require special handling:
+Some fields require special handling for metadata mapping, but **arrays and objects can be passed directly to Supabase JSONB columns**; you do NOT need to use `JSON.stringify()`.
 
 ```typescript
-// Tasks: checklist and timeline are JSON columns
+// Tasks: checklist and timeline are JSON columns. No stringification needed.
 {
-    checklist: JSON.stringify(data.checklist),
-    timeline: JSON.stringify(data.timeline),
-    tags: JSON.stringify(data.tags),
+    checklist: data.checklist,
+    timeline: data.timeline,
+    tags: data.tags,
 }
 
-// Checklists: items is a JSON column
+// Checklists: items is a JSON column. No stringification needed.
 {
-    items: JSON.stringify(data.items),
+    items: data.items,
 }
 ```
 
@@ -339,8 +338,8 @@ const loadTimeout = setTimeout(() => setIsLoading(false), 8000);
 
 ## When to Create New Sync-Enabled Entities
 
-1. Add interface to `offline-db.ts`
-2. Add table to `FalconForgeDatabase` class
+1. Define the TypeScript interfaces in `types.ts` or `store.ts`
+2. Add store state and actions in `store.ts`
 3. Add store state and actions in `store.ts`
 4. Add transformation cases in `sync.ts`:
    - `transformToSupabaseSchema()`

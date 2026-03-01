@@ -128,7 +128,7 @@ Test that sync items are processed correctly:
 
 ```typescript
 describe('Sync Processing Integration', () => {
-    it('processSyncItem transforms camelCase to snake_case', async () => {
+    it('useSync().sync transforms camelCase to snake_case', async () => {
         // Add item to queue
         await db.syncQueue.add({
             id: 'queue-1',
@@ -154,8 +154,11 @@ describe('Sync Processing Integration', () => {
             }),
         } as any);
         
-        // Process sync
-        await processSync();
+        // Process sync using the exposed hook
+        const { result } = renderHook(() => useSync());
+        await act(async () => {
+             await result.current.sync();
+        });
         
         // Verify transformation
         expect(capturedPayload.team_id).toBe('team-1');
