@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
 import { supabase } from './supabase';
 import { useAppStore } from './store';
+import { useAuth } from './auth';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -37,6 +38,19 @@ export function useSync(): UseSyncResult {
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
+
+    // Derive auth readiness from the AuthProvider context.
+    // The AuthProvider already handles session restoration, token refresh,
+    // and timeouts after hard refreshes (Ctrl+F5). We piggyback on it
+    // instead of independently tracking auth state.
+    const { session, isLoading: authLoading } = useAuth();
+    const authReady = !!session && !authLoading;
+    const authReadyRef = useRef(authReady);
+
+    // Keep the ref in sync for use inside the sync() callback (avoids stale closures)
+    useEffect(() => {
+        authReadyRef.current = authReady;
+    }, [authReady]);
 
     // Track online/offline status
     useEffect(() => {
@@ -74,19 +88,27 @@ export function useSync(): UseSyncResult {
         return () => clearInterval(interval);
     }, []);
 
-    // Auto-sync when coming back online or when pending changes increase
-    // Added guard to prevent starting a sync while one is in progress
+    // Auto-sync when coming back online, when pending changes increase,
+    // or when auth becomes ready (e.g., after Ctrl+F5 token refresh completes).
     useEffect(() => {
-        if (isOnline && pendingChanges > 0 && syncStatus === 'idle' && !syncingRef.current) {
+        if (authReady && isOnline && pendingChanges > 0 && syncStatus === 'idle' && !syncingRef.current) {
             sync();
         }
-    }, [isOnline, pendingChanges, syncStatus]);
+    }, [authReady, isOnline, pendingChanges, syncStatus]);
 
     const sync = useCallback(async () => {
         if (syncingRef.current) return;
         // FIX: Read navigator.onLine directly to avoid stale closure
         if (!navigator.onLine || !supabase) {
             setSyncStatus('offline');
+            return;
+        }
+
+        // Check auth readiness via ref (avoids stale closure).
+        // After Ctrl+F5, the Supabase client needs time to restore the session.
+        // Syncing without a valid token causes RLS-protected queries to hang.
+        if (!authReadyRef.current) {
+            console.log('Sync skipped: auth session not ready yet');
             return;
         }
 

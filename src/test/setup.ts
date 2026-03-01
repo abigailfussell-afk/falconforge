@@ -20,6 +20,18 @@ vi.mock('@/lib/supabase', () => ({
     isSupabaseConfigured: () => false,
 }));
 
+// Mock auth module (used by sync.ts to check auth readiness)
+vi.mock('@/lib/auth', () => ({
+    useAuth: vi.fn(() => ({
+        user: { id: 'test-user' },
+        session: { access_token: 'test-token' },
+        isLoading: false,
+        isConfigured: true,
+        ageClassification: null,
+    })),
+    AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock offline-db module
 vi.mock('@/lib/offline-db', () => ({
     db: {
