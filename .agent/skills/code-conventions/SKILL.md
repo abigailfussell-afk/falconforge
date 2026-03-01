@@ -136,6 +136,13 @@ All interactive elements should have a `data-testid` for testing:
 <nav data-testid="mobile-nav">
 ```
 
+## Shared Utilities
+
+1. **Extraction Rule**: If you write a helper function (e.g., `getMemberDisplayName`, `calculateDerivedMetrics`) that exists in another component or might be used generically, extract it to a shared utility file.
+2. **Location**: `src/lib/` (e.g., `src/lib/member-utils.ts`, `src/lib/date-utils.ts`).
+3. **Usage**: Import the utility from `src/lib/` into your components rather than defining it inline.
+4. **Testing**: Write dedicated unit tests for these shared utilities in `src/lib/__tests__/`.
+
 ## Styling
 
 - **Framework**: Vanilla CSS via Tailwind utility classes (already configured)

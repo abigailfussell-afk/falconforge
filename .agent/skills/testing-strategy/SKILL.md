@@ -195,6 +195,50 @@ describe('transformToSupabaseSchema', () => {
 });
 ```
 
+### Pattern 3: Testing Hooks
+
+```typescript
+import { renderHook, act } from '@testing-library/react';
+import { useAuth } from '../auth';
+
+it('updates state securely', () => {
+    const { result } = renderHook(() => useAuth());
+    act(() => {
+        result.current.signInWithEmail('test', 'pwd');
+    });
+    expect(result.current.user).toBeDefined();
+});
+```
+
+### Pattern 4: Error States & Edge Cases
+
+Do not only test the "happy path". Explicitly verify component behavior under error conditions or empty states.
+
+```typescript
+// Test error boundary / fallback
+it('displays error message on fetch failure', () => {
+    mockSupabase.from.mockImplementationOnce(() => ({
+        select: vi.fn().mockResolvedValue({ error: new Error('Failed to fetch') }),
+    }));
+    render(<ComponentList />);
+    expect(screen.getByText(/failed/i)).toBeDefined();
+});
+
+// Test empty state
+it('displays empty state when list is empty', () => {
+    render(<ComponentList items={[]} />);
+    expect(screen.getByText('No items found')).toBeDefined();
+});
+```
+
+## Coverage Targets
+
+We aim for the following line coverage metrics:
+- **Business Logic (`src/lib/`)**: Aim for > 80% line coverage.
+- **UI Components (`src/components/`)**: Aim for > 70% line coverage.
+
+*Use the `/coverage` workflow when instructed to manually improve metrics.*
+
 ## Test Naming Conventions
 
 ```typescript

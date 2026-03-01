@@ -181,6 +181,14 @@ Key test files:
 - `src/lib/__tests__/store-sync.integration.test.ts` — Store → sync queue
 - `src/lib/__tests__/data-transform.integration.test.ts` — camelCase ↔ snake_case
 
+## Component Size Limits & Splitting
+
+1. **Maximum Component Size:** ~300 lines limit for UI components.
+2. **Maximum Store Size:** ~400 lines limit before splitting into domain-specific Zustand slices.
+3. **When to Split Components:** If rendering multiple inline sub-views or managing distinct domain objects.
+4. **Where to Move Sub-components:** Flat `src/components/` is usually fine, or encapsulate in a subdirectory if 3+ related sub-components exist.
+*Consult `.agent/skills/component-decomposition/SKILL.md` for specific instructions.*
+
 ## When to Add New Skills
 
 Consider creating a new skill when:
