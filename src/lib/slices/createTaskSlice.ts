@@ -15,12 +15,14 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
     setTasks: (tasks: Task[]) => set({ tasks }),
 
     addTask: (taskData) => {
+        const state = get();
         const newTask: Task = {
             ...taskData,
             id: generateId(),
             createdAt: Date.now(),
             status: (taskData.status as any) || 'Backlog',
             checklist: taskData.checklist || [],
+            seasonId: state.currentSeasonId || undefined,
             timeline: [{
                 id: generateId(),
                 type: 'history',
@@ -30,10 +32,13 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
             }]
         };
 
-        set((state: any) => ({
-            tasks: [...state.tasks, newTask]
+        set((s: any) => ({
+            tasks: [...s.tasks, newTask]
         }));
-        queueForSync('tasks', newTask.id, 'create', newTask).catch(console.error);
+        queueForSync('tasks', newTask.id, 'create', {
+            ...newTask,
+            teamId: state.currentTeamId
+        }).catch(console.error);
 
         return newTask.id;
     },
@@ -47,7 +52,10 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
 
         const task = get().tasks.find((t: Task) => t.id === id);
         if (task) {
-            queueForSync('tasks', id, 'update', task).catch(console.error);
+            queueForSync('tasks', id, 'update', {
+                ...task,
+                teamId: get().currentTeamId
+            }).catch(console.error);
         }
     },
 

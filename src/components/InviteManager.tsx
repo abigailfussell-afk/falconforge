@@ -35,7 +35,6 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
         }
 
         if (!teamId) {
-            console.log('InviteManager: No teamId provided');
             setIsLoading(false);
             return;
         }
@@ -49,8 +48,6 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
         setError(null);
 
         try {
-            console.log('InviteManager: Fetching invites for team', teamId);
-
             // Create a timeout promise
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Request timed out')), 10000)

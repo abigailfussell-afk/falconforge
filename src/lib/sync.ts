@@ -108,7 +108,6 @@ export function useSync(): UseSyncResult {
         // After Ctrl+F5, the Supabase client needs time to restore the session.
         // Syncing without a valid token causes RLS-protected queries to hang.
         if (!authReadyRef.current) {
-            console.log('Sync skipped: auth session not ready yet');
             return;
         }
 
@@ -388,7 +387,6 @@ async function pullChangesFromServer(): Promise<void> {
                     .equals('checklists')
                     .count();
                 if (pendingChecklistItems > 0) {
-                    console.log(`Skipping pull for checklists - ${pendingChecklistItems} pending local changes`);
                     continue;
                 }
             }
@@ -428,7 +426,7 @@ async function pullChangesFromServer(): Promise<void> {
         }
     }
 
-    console.log('Pull from server completed');
+
 }
 
 /**
@@ -441,7 +439,7 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
     // Get the store state directly using the imported useAppStore
     const store = useAppStore.getState();
 
-    console.log(`Updating store with ${records.length} records for ${tableName}`);
+
 
     switch (tableName) {
         case 'tasks':
@@ -515,6 +513,6 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
             break;
 
         default:
-            console.log(`No handler for table: ${tableName}`);
+        // No handler for unknown tables
     }
 }

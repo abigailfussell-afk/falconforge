@@ -111,6 +111,7 @@ export interface Task {
   timeline: TimelineEvent[];
   createdAt: number;
   dueDate?: number;
+  seasonId?: string;
   archivedAt?: number;
 }
 
