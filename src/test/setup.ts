@@ -17,6 +17,17 @@ vi.mock('@/lib/supabase', () => ({
             onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
         },
     },
+    supabaseSync: {
+        from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            insert: vi.fn().mockReturnThis(),
+            update: vi.fn().mockReturnThis(),
+            delete: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        })),
+    },
     isSupabaseConfigured: () => false,
 }));
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, UserCheck, UserX, Crown, GraduationCap, DollarSign, Shield, Clock, RefreshCw, AlertCircle } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember } from '../types';
 import { useCurrentUser } from '../lib/user-context';
 
@@ -31,7 +31,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Fetch pending members for this team
     const fetchPendingMembers = async () => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         if (isOffline) {
             setIsLoading(false);
@@ -47,7 +47,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                 setTimeout(() => reject(new Error('Request timed out')), 10000)
             );
 
-            const fetchPromise = supabase
+            const fetchPromise = supabaseSync
                 .from('team_members')
                 .select(`
                     id,
@@ -85,12 +85,12 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Approve a pending member
     const approveMember = async (memberId: string) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabase
+            const { error: updateError } = await (supabaseSync
                 .from('team_members') as any)
                 .update({ status: 'approved' })
                 .eq('id', memberId);
@@ -113,12 +113,12 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Reject a pending member
     const rejectMember = async (memberId: string) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await supabaseSync
                 .from('team_members')
                 .delete()
                 .eq('id', memberId);
@@ -140,12 +140,12 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Update member role
     const updateMemberRole = async (memberId: string, newRole: MemberRole) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabase
+            const { error: updateError } = await (supabaseSync
                 .from('team_members') as any)
                 .update({ role: newRole })
                 .eq('id', memberId);
@@ -166,12 +166,12 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Toggle billing status
     const toggleBillingStatus = async (memberId: string, currentStatus: boolean) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabase
+            const { error: updateError } = await (supabaseSync
                 .from('team_members') as any)
                 .update({ is_billing_active: !currentStatus })
                 .eq('id', memberId);
@@ -192,13 +192,13 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
     // Remove member from team
     const removeMember = async (memberId: string) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
         if (!confirm('Are you sure you want to remove this member from the team?')) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await supabaseSync
                 .from('team_members')
                 .delete()
                 .eq('id', memberId);

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, RefreshCw, Trash2, Clock, AlertCircle } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { useCurrentUser } from '../lib/user-context';
+import { useAuth } from '../lib/auth';
 
 interface Invite {
     id: string;
@@ -26,10 +27,11 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     const [error, setError] = useState<string | null>(null);
 
     const { isOffline } = useCurrentUser();
+    const { user } = useAuth();
 
     // Fetch active invites for this team
     const fetchInvites = async () => {
-        if (!supabase || !isSupabaseConfigured()) {
+        if (!supabaseSync || !isSupabaseConfigured()) {
             setIsLoading(false);
             return;
         }
@@ -54,7 +56,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             );
 
             // Explicitly select columns and remove the server-side date filter for now to be safe
-            const fetchPromise = supabase
+            const fetchPromise = supabaseSync
                 .from('invites')
                 .select('id, team_id, code, created_by, created_at, expires_at, use_count, max_uses')
                 .eq('team_id', teamId)
@@ -91,7 +93,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
 
     // Create a new invite code
     const createInvite = async () => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setIsCreating(true);
         setError(null);
@@ -102,10 +104,9 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             const expiresAt = new Date();
             expiresAt.setHours(expiresAt.getHours() + 24); // 24-hour expiration
 
-            const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            const { data, error: insertError } = await supabase
+            const { data, error: insertError } = await supabaseSync
                 .from('invites')
                 .insert({
                     team_id: teamId,
@@ -131,10 +132,10 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
 
     // Revoke (delete) an invite
     const revokeInvite = async (inviteId: string) => {
-        if (!supabase || !isSupabaseConfigured()) return;
+        if (!supabaseSync || !isSupabaseConfigured()) return;
 
         try {
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await supabaseSync
                 .from('invites')
                 .delete()
                 .eq('id', inviteId);
