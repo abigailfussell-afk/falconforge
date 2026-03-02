@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { generateId, queueForSync } from './offline-db';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabaseSync, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
@@ -207,14 +207,14 @@ export const useAppStore = create<AppState>()(
 
             fetchTeamData: async (teamId) => {
                 // Ensure Supabase is available and not null for TS
-                if (!teamId || !isSupabaseConfigured() || !supabase) return;
+                if (!teamId || !isSupabaseConfigured() || !supabaseSync) return;
 
                 set({ isLoading: true });
 
                 try {
                     // 1. Fetch Team Members (required - should always exist)
                     try {
-                        const { data: members, error: membersError } = await supabase
+                        const { data: members, error: membersError } = await supabaseSync
                             .from('team_members')
                             .select('*')
                             .eq('team_id', teamId)
@@ -244,7 +244,7 @@ export const useAppStore = create<AppState>()(
 
                     // 2. Fetch SubTeams
                     try {
-                        const { data: subTeams, error: subTeamsError } = await supabase
+                        const { data: subTeams, error: subTeamsError } = await supabaseSync
                             .from('sub_teams')
                             .select('*')
                             .eq('team_id', teamId);
@@ -267,7 +267,7 @@ export const useAppStore = create<AppState>()(
 
                     // 3. Fetch Seasons
                     try {
-                        const { data: seasons, error: seasonsError } = await supabase
+                        const { data: seasons, error: seasonsError } = await supabaseSync
                             .from('seasons')
                             .select('*')
                             .eq('team_id', teamId);
@@ -291,7 +291,7 @@ export const useAppStore = create<AppState>()(
 
                     // 4. Fetch Tasks (may not exist if migration not run)
                     try {
-                        const { data: tasks, error: tasksError } = await supabase
+                        const { data: tasks, error: tasksError } = await supabaseSync
                             .from('tasks')
                             .select('*')
                             .eq('team_id', teamId);
@@ -324,7 +324,7 @@ export const useAppStore = create<AppState>()(
 
                     // 5. Fetch Scouting Reports (may not exist if migration not run)
                     try {
-                        const { data: reports, error: reportsError } = await supabase
+                        const { data: reports, error: reportsError } = await supabaseSync
                             .from('scouting_reports')
                             .select('*')
                             .eq('team_id', teamId);
@@ -358,7 +358,7 @@ export const useAppStore = create<AppState>()(
 
                     // 6. Fetch Match Plans (may not exist if migration not run)
                     try {
-                        const { data: plans, error: plansError } = await supabase
+                        const { data: plans, error: plansError } = await supabaseSync
                             .from('match_plans')
                             .select('*')
                             .eq('team_id', teamId);
@@ -386,7 +386,7 @@ export const useAppStore = create<AppState>()(
 
                     // 7. Fetch Checklist (may not exist if migration not run)
                     try {
-                        const { data: checklists, error: checklistError } = await supabase
+                        const { data: checklists, error: checklistError } = await supabaseSync
                             .from('checklists')
                             .select('*')
                             .eq('team_id', teamId)

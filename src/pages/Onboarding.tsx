@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { supabase } from '../lib/supabase';
+import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import type { Team } from '../types';
 
@@ -30,7 +30,7 @@ export default function Onboarding() {
             setIsLoading(false);
         }, 8000);
 
-        if (!supabase || !user) {
+        if (!supabaseSync || !user) {
             clearTimeout(loadTimeout);
             setIsLoading(false);
             return;
@@ -38,7 +38,7 @@ export default function Onboarding() {
 
         try {
             // Get all team memberships for the current user
-            const { data: memberships, error } = await supabase
+            const { data: memberships, error } = await supabaseSync
                 .from('team_members')
                 .select(`
                     team_id,
@@ -99,9 +99,9 @@ export default function Onboarding() {
         setCurrentTeam(teamId);
 
         // Fetch seasons for the selected team from Supabase
-        if (supabase) {
+        if (supabaseSync) {
             try {
-                const { data: seasonsData, error } = await supabase
+                const { data: seasonsData, error } = await supabaseSync
                     .from('seasons')
                     .select('id, team_id, name, field_image_data, created_at')
                     .eq('team_id', teamId) as { data: any[] | null; error: any };
