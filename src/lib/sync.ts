@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
-import { supabase } from './supabase';
+import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
 
@@ -99,7 +99,7 @@ export function useSync(): UseSyncResult {
     const sync = useCallback(async () => {
         if (syncingRef.current) return;
         // FIX: Read navigator.onLine directly to avoid stale closure
-        if (!navigator.onLine || !supabase) {
+        if (!navigator.onLine || !supabaseSync) {
             setSyncStatus('offline');
             return;
         }
@@ -178,7 +178,7 @@ export function useSync(): UseSyncResult {
 }
 
 async function processSyncItem(item: SyncQueueItem): Promise<void> {
-    if (!supabase) throw new Error('Supabase not configured');
+    if (!supabaseSync) throw new Error('Supabase not configured');
 
     const { tableName, operation, data, recordId } = item;
 
@@ -190,7 +190,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // Use upsert to handle cases where record already exists (409 conflict)
             // Wrap in async IIFE to convert Supabase thenable to a real Promise
             const result: any = await withTimeout(
-                (async () => supabase.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
                 PER_QUERY_TIMEOUT_MS,
                 `upsert ${tableName}`
             );
@@ -203,14 +203,14 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // so use upsert to create-or-update. Other entities use normal update.
             if (tableName === 'checklists') {
                 const result: any = await withTimeout(
-                    (async () => supabase.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                    (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
                     PER_QUERY_TIMEOUT_MS,
                     `upsert ${tableName}`
                 );
                 if (result.error) throw result.error;
             } else {
                 const result: any = await withTimeout(
-                    (async () => (supabase.from(tableName) as any).update(transformedData).eq('id', recordId))(),
+                    (async () => (supabaseSync.from(tableName) as any).update(transformedData).eq('id', recordId))(),
                     PER_QUERY_TIMEOUT_MS,
                     `update ${tableName}`
                 );
@@ -221,7 +221,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
         case 'delete': {
             const result: any = await withTimeout(
-                (async () => supabase.from(tableName).delete().eq('id', recordId))(),
+                (async () => supabaseSync.from(tableName).delete().eq('id', recordId))(),
                 PER_QUERY_TIMEOUT_MS,
                 `delete ${tableName}`
             );
@@ -350,7 +350,7 @@ function setSyncTimestamp(entityKey: string, timestamp: number): void {
 }
 
 async function pullChangesFromServer(): Promise<void> {
-    if (!supabase) return;
+    if (!supabaseSync) return;
 
     // Get current team ID from localStorage (set by store)
     const storeData = localStorage.getItem('falconforge-storage');
@@ -391,19 +391,11 @@ async function pullChangesFromServer(): Promise<void> {
                 }
             }
 
-            // Build query with per-query timeout to prevent hanging
-            const query = supabase
-                .from(table)
-                .select('*')
-                .eq('team_id', currentTeamId);
-
             // Note: We intentionally fetch ALL records for the team on each sync
             // to ensure cross-client synchronization works correctly.
-            // Wrap in async IIFE to convert Supabase thenable to a real Promise.
-            // Supabase's PostgrestFilterBuilder.then() returns itself, which causes
-            // Promise.resolve() to infinitely try to unwrap the thenable.
+            // Use supabaseSync which bypasses the auth lock deadlock.
             const result: any = await withTimeout(
-                (async () => await query)(),
+                (async () => supabaseSync.from(table).select('*').eq('team_id', currentTeamId))(),
                 PER_QUERY_TIMEOUT_MS,
                 `pull ${table}`
             );
