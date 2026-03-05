@@ -264,6 +264,8 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 season_id: data.seasonId,
                 opponent_team_number: data.teamNumber,
                 match_number: data.matchNumber,
+                event_name: data.eventName || null,
+                created_by: data.createdBy || null,
                 data: {
                     hasAutonomous: data.hasAutonomous,
                     autoScore: data.autoScore,
@@ -457,6 +459,7 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
                 id: r.id,
                 teamNumber: r.opponent_team_number,
                 matchNumber: r.match_number,
+                eventName: r.event_name || '',
                 hasAutonomous: r.data?.hasAutonomous ?? false,
                 autoScore: r.data?.autoScore ?? 0,
                 intakeType: r.data?.intakeType ?? 'No Intake',
@@ -467,7 +470,9 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
                 parking: r.data?.parking ?? 'No Park',
                 rating: r.data?.rating ?? 0,
                 endGameNotes: r.data?.endGameNotes ?? '',
-                seasonId: r.season_id
+                createdBy: r.created_by || '',
+                seasonId: r.season_id,
+                createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
             })));
             break;
 

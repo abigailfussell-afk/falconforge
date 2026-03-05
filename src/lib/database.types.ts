@@ -6,8 +6,7 @@
  * ENTITY RENAME (2026-01-05):
  * - organizations → teams
  * - organization_members → team_members
- * - teams → sub_teams
- * - team_members (old sub-team junction) → sub_team_members
+ * - teams → sub_teams (member assignments stored in sub_teams.member_ids array)
  */
 
 export type Json =
@@ -136,6 +135,7 @@ export interface Database {
                     team_id: string
                     season_id: string | null
                     name: string
+                    member_ids: string[]
                     created_at: string
                 }
                 Insert: {
@@ -143,28 +143,14 @@ export interface Database {
                     team_id: string
                     season_id?: string | null
                     name: string
+                    member_ids?: string[]
                     created_at?: string
                 }
                 Update: {
                     name?: string
                     season_id?: string | null
+                    member_ids?: string[]
                 }
-            }
-            // Renamed from 'team_members' (old junction) - TeamMember assigned to SubTeam
-            sub_team_members: {
-                Row: {
-                    id: string
-                    sub_team_id: string
-                    team_member_id: string
-                    created_at: string
-                }
-                Insert: {
-                    id?: string
-                    sub_team_id: string
-                    team_member_id: string
-                    created_at?: string
-                }
-                Update: {}
             }
             seasons: {
                 Row: {

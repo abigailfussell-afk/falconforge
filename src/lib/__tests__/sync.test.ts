@@ -88,6 +88,7 @@ describe('transformToSupabaseSchema', () => {
             id: 'sr-1',
             teamNumber: '12345',
             matchNumber: 1,
+            eventName: 'League Meet #3',
             hasAutonomous: true,
             autoScore: 25,
             intakeType: 'Automatic',
@@ -98,6 +99,7 @@ describe('transformToSupabaseSchema', () => {
             parking: 'Full Park',
             rating: 4,
             endGameNotes: 'Great!',
+            createdBy: 'user-abc-123',
             teamId: 'team-1',
             seasonId: 'season-1',
         };
@@ -107,6 +109,8 @@ describe('transformToSupabaseSchema', () => {
         // Scouting reports use opponent_team_number and nest data fields
         expect(result.opponent_team_number).toBe('12345');
         expect(result.match_number).toBe(1);
+        expect(result.event_name).toBe('League Meet #3');
+        expect(result.created_by).toBe('user-abc-123');
         expect(result.team_id).toBe('team-1');
         // Most fields are nested under 'data'
         expect(result.data.hasAutonomous).toBe(true);

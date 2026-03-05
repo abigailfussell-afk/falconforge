@@ -129,6 +129,7 @@ export interface ScoutingReport {
   parking: 'No Park' | 'Full Park' | 'Partial Park';
   rating: number; // 1-5
   endGameNotes: string;
+  createdAt?: number;
 }
 
 export interface ChecklistItem {

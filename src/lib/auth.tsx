@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { useAppStore } from './store';
 import type { AgeClassification } from '../types';
 
 interface AuthState {
@@ -59,6 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user: session?.user ?? null,
                 isLoading: false,
             }));
+            // Keep store's currentUserId in sync with auth
+            if (session?.user) {
+                useAppStore.getState().setCurrentUserId(session.user.id);
+            }
         }).catch(err => {
             console.error('Auth session error:', err);
             clearTimeout(authTimeout);
@@ -77,7 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 // Handle user profile creation on first sign up
                 if (event === 'SIGNED_IN' && session?.user) {
+                    useAppStore.getState().setCurrentUserId(session.user.id);
                     await ensureUserProfile(session.user);
+                }
+
+                if (event === 'SIGNED_OUT') {
+                    useAppStore.getState().setCurrentUserId(null);
                 }
             }
         );

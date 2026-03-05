@@ -41,6 +41,7 @@ export interface ScoutingReport {
     id: string;
     teamNumber: string;
     matchNumber: number;
+    eventName?: string;
     hasAutonomous: boolean;
     autoScore: number;
     intakeType: 'No Intake' | 'Human Player' | 'Automatic';
@@ -51,7 +52,9 @@ export interface ScoutingReport {
     parking: 'No Park' | 'Full Park' | 'Partial Park';
     rating: number;
     endGameNotes: string;
+    createdBy?: string;
     seasonId?: string;
+    createdAt?: number;
 }
 
 export interface ChecklistItem {
@@ -108,6 +111,7 @@ const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
 interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     // Team context (top-level organization)
     currentTeamId: string | null;
+    currentUserId: string | null;  // Authenticated user's Supabase UID
     teams: Team[];  // Teams the user belongs to
     teamMembers: TeamMember[];  // Members of the current team (cached from Supabase)
 
@@ -132,6 +136,7 @@ interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
 
     // Team actions (top-level)
     setCurrentTeam: (teamId: string | null) => void;
+    setCurrentUserId: (userId: string | null) => void;
     setTeams: (teams: Team[]) => void;
     setTeamMembers: (members: TeamMember[]) => void;
 
@@ -175,6 +180,7 @@ export const useAppStore = create<AppState>()(
             ...createSeasonSlice(set, get),
 
             currentTeamId: null,
+            currentUserId: null,
             isLoading: false,
             teams: [],
             teamMembers: [],
@@ -199,6 +205,7 @@ export const useAppStore = create<AppState>()(
 
             // Team actions (top-level)
             setCurrentTeam: (teamId) => set({ currentTeamId: teamId }),
+            setCurrentUserId: (userId) => set({ currentUserId: userId }),
             setTeams: (teams) => set({ teams }),
             setTeamMembers: (members) => set({ teamMembers: members }),
 
@@ -335,6 +342,7 @@ export const useAppStore = create<AppState>()(
                                     id: r.id,
                                     teamNumber: r.opponent_team_number,
                                     matchNumber: r.match_number,
+                                    eventName: r.event_name || '',
                                     // Spread the data JSONB field for scouting details
                                     hasAutonomous: r.data?.hasAutonomous ?? false,
                                     autoScore: r.data?.autoScore ?? 0,
@@ -346,7 +354,9 @@ export const useAppStore = create<AppState>()(
                                     parking: r.data?.parking ?? 'No Park',
                                     rating: r.data?.rating ?? 0,
                                     endGameNotes: r.data?.endGameNotes ?? '',
-                                    seasonId: r.season_id
+                                    createdBy: r.created_by || '',
+                                    seasonId: r.season_id,
+                                    createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
                                 }))
                             });
                         } else if (reportsError) {
@@ -423,7 +433,9 @@ export const useAppStore = create<AppState>()(
                 const report: ScoutingReport = {
                     ...reportData,
                     id: generateId(),
+                    createdBy: state.currentUserId || undefined,
                     seasonId: state.currentSeasonId || undefined,
+                    createdAt: Date.now(),
                 };
                 set((s) => ({
                     scoutingReports: [...s.scoutingReports, report],
@@ -608,6 +620,7 @@ export const useAppStore = create<AppState>()(
             resetToDefaults: () => {
                 set({
                     currentTeamId: null,
+                    currentUserId: null,
                     teams: [],
                     scoutingReports: [],
                     checklist: DEFAULT_CHECKLIST_ITEMS,

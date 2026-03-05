@@ -54,9 +54,7 @@ describe('AdminSettings', () => {
 
     const mockProps = {
         teamMembers: [],
-        setTeamMembers: vi.fn(),
         subTeams: [],
-        setSubTeams: vi.fn(),
     };
 
     it('renders the admin settings sections', () => {

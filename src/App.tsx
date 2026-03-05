@@ -34,8 +34,6 @@ function Dashboard() {
         setTheme,
         addTask,
         updateTask,
-        setTeamMembers,
-        setSubTeams,
         seasons,
         currentSeasonId,
         setCurrentSeason,
@@ -150,9 +148,7 @@ function Dashboard() {
                         isCoach ? (
                             <AdminSettings
                                 teamMembers={teamMembers}
-                                setTeamMembers={setTeamMembers}
                                 subTeams={subTeams}
-                                setSubTeams={setSubTeams}
                             />
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-center p-8">

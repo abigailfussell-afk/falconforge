@@ -52,8 +52,8 @@ export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     // Get 3 most recent activities
     const recentActivity = [
         ...matchPlans.map(p => ({ type: 'plan', title: p.title, date: p.updatedAt, id: p.id })),
-        ...scoutingReports.map(r => ({ type: 'scout', title: `Team ${r.teamNumber}`, date: Date.now(), id: r.id })), // Mocking date for scout reports as they don't have it
-        ...tasks.slice(-5).map(t => ({ type: 'task', title: t.title, date: t.createdAt, id: t.id }))
+        ...scoutingReports.map(r => ({ type: 'scout', title: `Team ${r.teamNumber}`, date: r.createdAt || 0, id: r.id })),
+        ...tasks.map(t => ({ type: 'task', title: t.title, date: t.createdAt, id: t.id }))
     ].sort((a, b) => b.date - a.date).slice(0, 5);
 
     return (

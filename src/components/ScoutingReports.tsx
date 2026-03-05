@@ -32,6 +32,7 @@ const ScoutingReports: React.FC = () => {
         addScoutingReport({
             teamNumber: newScout.teamNumber || '',
             matchNumber: newScout.matchNumber || 0,
+            eventName: newScout.eventName || '',
             hasAutonomous: newScout.hasAutonomous || false,
             autoScore: newScout.autoScore || 0,
             intakeType: newScout.intakeType || 'No Intake',
@@ -52,6 +53,7 @@ const ScoutingReports: React.FC = () => {
         setNewScout({
             teamNumber: report.teamNumber,
             matchNumber: report.matchNumber,
+            eventName: report.eventName,
             hasAutonomous: report.hasAutonomous,
             autoScore: report.autoScore,
             intakeType: report.intakeType,
@@ -83,7 +85,8 @@ const ScoutingReports: React.FC = () => {
             shotsMissed: 0,
             parking: 'No Park',
             rating: 3,
-            endGameNotes: ''
+            endGameNotes: '',
+            eventName: ''
         });
     }
 
@@ -116,6 +119,9 @@ const ScoutingReports: React.FC = () => {
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <div className="text-2xl font-black text-slate-800 dark:text-white">#{report.teamNumber}</div>
+                                {report.eventName && (
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{report.eventName}</div>
+                                )}
                             </div>
                             <div className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
                                 Match {report.matchNumber}
@@ -227,6 +233,17 @@ const ScoutingReports: React.FC = () => {
                                         onChange={e => setNewScout({ ...newScout, matchNumber: parseInt(e.target.value) })}
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Event Name <span className="font-normal normal-case">(optional)</span></label>
+                                <input
+                                    type="text"
+                                    className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                                    placeholder="e.g. League Meet #3"
+                                    value={newScout.eventName || ''}
+                                    onChange={e => setNewScout({ ...newScout, eventName: e.target.value })}
+                                />
                             </div>
 
                             {/* Autonomous Section */}
