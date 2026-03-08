@@ -227,6 +227,7 @@ export default function LoginPage() {
                                         className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                         placeholder="you@team12345.org"
                                         required
+                                        autoFocus={mode === 'login'}
                                         data-testid="email-input"
                                     />
                                 </div>
