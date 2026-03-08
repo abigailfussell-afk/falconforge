@@ -351,6 +351,27 @@ function setSyncTimestamp(entityKey: string, timestamp: number): void {
     }
 }
 
+// How often to do a full reconciliation (every Nth pull)
+// Full pulls detect cross-client deletions; delta pulls only get new/updated records
+const FULL_SYNC_INTERVAL = 5;
+const SYNC_COUNTER_KEY = 'falconforge-sync-counter';
+
+function getSyncCounter(): number {
+    try {
+        return parseInt(localStorage.getItem(SYNC_COUNTER_KEY) || '0', 10);
+    } catch {
+        return 0;
+    }
+}
+
+function incrementSyncCounter(): number {
+    const next = getSyncCounter() + 1;
+    try {
+        localStorage.setItem(SYNC_COUNTER_KEY, String(next));
+    } catch { /* ignore */ }
+    return next;
+}
+
 async function pullChangesFromServer(): Promise<void> {
     if (!supabaseSync) return;
 
@@ -367,6 +388,11 @@ async function pullChangesFromServer(): Promise<void> {
     }
 
     if (!currentTeamId) return;
+
+    // Decide whether this is a full or delta pull
+    const counter = incrementSyncCounter();
+    const isFullPull = counter % FULL_SYNC_INTERVAL === 0;
+
     const entities = [
         { table: 'sub_teams', localTable: 'subTeams' },
         { table: 'tasks', localTable: 'tasks' },
@@ -393,11 +419,22 @@ async function pullChangesFromServer(): Promise<void> {
                 }
             }
 
-            // Note: We intentionally fetch ALL records for the team on each sync
-            // to ensure cross-client synchronization works correctly.
-            // Use supabaseSync which bypasses the auth lock deadlock.
+            // Build the query
+            let query = supabaseSync.from(table).select('*').eq('team_id', currentTeamId);
+
+            // For delta pulls, add timestamp filter (skip for checklists — blob sync always full)
+            const timestamps = getSyncTimestamps();
+            const lastSync = timestamps[entityKey];
+            const isDelta = !isFullPull && lastSync && table !== 'checklists';
+
+            if (isDelta) {
+                // Convert timestamp to ISO string for the query
+                const lastSyncISO = new Date(lastSync).toISOString();
+                query = query.gte('updated_at', lastSyncISO);
+            }
+
             const result: any = await withTimeout(
-                (async () => supabaseSync.from(table).select('*').eq('team_id', currentTeamId))(),
+                (async () => query)(),
                 PER_QUERY_TIMEOUT_MS,
                 `pull ${table}`
             );
@@ -408,9 +445,13 @@ async function pullChangesFromServer(): Promise<void> {
                 continue;
             }
 
-            // FIX: Always update local state, even with empty results.
-            // This ensures deletions from other clients are propagated.
-            updateLocalDatabase(localTable, result.data || []);
+            if (isDelta) {
+                // Delta: merge new/updated records into existing state
+                mergeIntoStore(localTable, result.data || []);
+            } else {
+                // Full: replace entire state (detects deletions)
+                updateLocalDatabase(localTable, result.data || []);
+            }
 
             // Update sync timestamp
             setSyncTimestamp(entityKey, Date.now());
@@ -419,8 +460,6 @@ async function pullChangesFromServer(): Promise<void> {
             console.warn(`Error pulling ${table}:`, err);
         }
     }
-
-
 }
 
 /**
@@ -511,5 +550,103 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
 
         default:
         // No handler for unknown tables
+    }
+}
+
+/**
+ * Merge delta-synced records into the existing Zustand store state.
+ * Upserts by `id` — existing records are updated, new records are added.
+ * Records NOT in the delta set are preserved (unlike updateLocalDatabase which replaces).
+ * Checklists are excluded from delta sync so this function never handles them.
+ */
+function mergeIntoStore(tableName: string, records: any[]): void {
+    if (!records || records.length === 0) return;
+
+    const store = useAppStore.getState();
+
+    // Generic upsert helper: merge new records into existing array by id
+    function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+        const map = new Map(existing.map(item => [item.id, item]));
+        for (const item of incoming) {
+            map.set(item.id, item);
+        }
+        return Array.from(map.values());
+    }
+
+    switch (tableName) {
+        case 'tasks': {
+            const transformed = records.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                description: t.description || '',
+                status: t.status,
+                type: t.type,
+                assignedTo: t.assigned_to || '',
+                department: t.sub_team_id || '',
+                tags: t.tags || [],
+                checklist: t.checklist || [],
+                timeline: t.timeline || [],
+                createdAt: new Date(t.created_at).getTime(),
+                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
+                seasonId: t.season_id
+            }));
+            store.setTasks(upsertById(store.tasks, transformed));
+            break;
+        }
+
+        case 'scoutingReports': {
+            const transformed = records.map((r: any) => ({
+                id: r.id,
+                teamNumber: r.opponent_team_number,
+                matchNumber: r.match_number,
+                eventName: r.event_name || '',
+                hasAutonomous: r.data?.hasAutonomous ?? false,
+                autoScore: r.data?.autoScore ?? 0,
+                intakeType: r.data?.intakeType ?? 'No Intake',
+                autoAim: r.data?.autoAim ?? false,
+                farShooting: r.data?.farShooting ?? false,
+                shotsTaken: r.data?.shotsTaken ?? 0,
+                shotsMissed: r.data?.shotsMissed ?? 0,
+                parking: r.data?.parking ?? 'No Park',
+                rating: r.data?.rating ?? 0,
+                endGameNotes: r.data?.endGameNotes ?? '',
+                createdBy: r.created_by || '',
+                seasonId: r.season_id,
+                createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
+            }));
+            store.setScoutingReports(upsertById(store.scoutingReports, transformed));
+            break;
+        }
+
+        case 'matchPlans': {
+            const transformed = records.map((p: any) => ({
+                id: p.id,
+                title: p.title || `Match ${p.match_number || '?'}`,
+                drawingData: p.drawing_data,
+                notes: p.notes || '',
+                allianceTeam: p.alliance_team || '',
+                partnerAutonomous: false,
+                partnerPark: false,
+                updatedAt: new Date(p.updated_at).getTime(),
+                seasonId: p.season_id
+            }));
+            store.setMatchPlans(upsertById(store.matchPlans, transformed));
+            break;
+        }
+
+        case 'subTeams': {
+            const transformed = records.map((st: any) => ({
+                id: st.id,
+                name: st.name,
+                memberIds: st.member_ids || [],
+                seasonId: st.season_id
+            }));
+            store.setSubTeams(upsertById(store.subTeams, transformed));
+            break;
+        }
+
+        // Note: checklists are always full-synced (blob), never delta
+        default:
+            break;
     }
 }

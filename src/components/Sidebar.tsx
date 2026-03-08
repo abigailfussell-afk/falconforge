@@ -1,4 +1,5 @@
 import { LayoutDashboard, CheckSquare, Gamepad2, BookOpen, Sun, Moon, Settings, ClipboardCheck, GraduationCap, LogOut, User, Activity, ChevronDown, ArrowRightLeft, Menu, X } from 'lucide-react';
+import { AI_FEATURES_ENABLED } from '../constants';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import SyncStatusIndicator from './SyncStatusIndicator';
 import type { Task, Season } from '../lib/store';
@@ -96,9 +97,13 @@ export default function Sidebar({
                     <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                     <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                     <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
-                    <div className="my-4 border-t border-slate-100 dark:border-slate-700"></div>
-                    <NavItem id="portfolio" label="Portfolio Helper" icon={BookOpen} />
-                    <NavItem id="judging" label="Judging Prep" icon={GraduationCap} />
+                    {AI_FEATURES_ENABLED && (
+                        <>
+                            <div className="my-4 border-t border-slate-100 dark:border-slate-700"></div>
+                            <NavItem id="portfolio" label="Portfolio Helper" icon={BookOpen} />
+                            <NavItem id="judging" label="Judging Prep" icon={GraduationCap} />
+                        </>
+                    )}
                     {isCoach && (
                         <>
                             <div className="my-4 border-t border-slate-100 dark:border-slate-700"></div>
@@ -247,8 +252,12 @@ export default function Sidebar({
                         <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                         <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                         <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
-                        <NavItem id="portfolio" label="Portfolio Helper" icon={BookOpen} />
-                        <NavItem id="judging" label="Judging Prep" icon={GraduationCap} />
+                        {AI_FEATURES_ENABLED && (
+                            <>
+                                <NavItem id="portfolio" label="Portfolio Helper" icon={BookOpen} />
+                                <NavItem id="judging" label="Judging Prep" icon={GraduationCap} />
+                            </>
+                        )}
                         {isCoach && <NavItem id="admin" label="Admin Settings" icon={Settings} />}
                     </nav>
 

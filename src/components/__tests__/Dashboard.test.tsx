@@ -114,8 +114,10 @@ describe('Dashboard Navigation', () => {
         expect(screen.getAllByText('Pre-Match Checklist').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Scouting Reports').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Match Planner').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Portfolio Helper').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Judging Prep').length).toBeGreaterThan(0);
+
+        // AI features are disabled via feature flag — these should NOT be rendered
+        expect(screen.queryByText('Portfolio Helper')).toBeNull();
+        expect(screen.queryByText('Judging Prep')).toBeNull();
     });
 
     it('shows Admin Settings for coach users', () => {

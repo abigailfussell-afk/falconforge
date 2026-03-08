@@ -137,6 +137,7 @@ export interface Database {
                     name: string
                     member_ids: string[]
                     created_at: string
+                    updated_at: string
                 }
                 Insert: {
                     id?: string
@@ -159,6 +160,7 @@ export interface Database {
                     name: string
                     field_image_data: string | null
                     created_at: string
+                    updated_at: string
                 }
                 Insert: {
                     id?: string
@@ -264,6 +266,7 @@ export interface Database {
                     data: Json
                     created_by: string
                     created_at: string
+                    updated_at: string
                 }
                 Insert: {
                     id?: string

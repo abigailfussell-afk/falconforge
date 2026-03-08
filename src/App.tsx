@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AI_FEATURES_ENABLED } from './constants';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
@@ -141,8 +142,8 @@ function Dashboard() {
                     {activeTab === 'checklist' && <PreMatchChecklist />}
                     {activeTab === 'scouting' && <ScoutingReports />}
                     {activeTab === 'planner' && <MatchPlanner />}
-                    {activeTab === 'portfolio' && <PortfolioAI tasks={tasksForComponents} view="portfolio" />}
-                    {activeTab === 'judging' && <PortfolioAI tasks={tasksForComponents} view="judging" />}
+                    {AI_FEATURES_ENABLED && activeTab === 'portfolio' && <PortfolioAI tasks={tasksForComponents} view="portfolio" />}
+                    {AI_FEATURES_ENABLED && activeTab === 'judging' && <PortfolioAI tasks={tasksForComponents} view="judging" />}
                     {activeTab === 'profile' && <EditProfile />}
                     {activeTab === 'admin' && (
                         isCoach ? (
