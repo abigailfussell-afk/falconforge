@@ -10,6 +10,8 @@ vi.mock('../../lib/auth', () => ({
         session: { access_token: 'token' },
         isLoading: false,
         isConfigured: true,
+        ageClassification: '18_plus',
+        signOut: vi.fn(),
     })),
 }));
 
@@ -99,8 +101,7 @@ describe('JoinTeam', () => {
     it('has link back to onboarding', () => {
         render(<JoinTeam />, { wrapper: TestWrapper });
 
-        const backLink = screen.queryByText(/back/i) ||
-            screen.queryByRole('link');
+        const backLink = screen.getByTestId('back-button');
         expect(backLink).toBeDefined();
     });
 });

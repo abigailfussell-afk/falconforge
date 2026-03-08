@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight } from 'lucide-react';
+import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
-import type { Team } from '../types';
+import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
+import type { Team, AgeClassification } from '../types';
 
 interface PendingTeam {
     teamId: string;
@@ -18,6 +19,9 @@ export default function Onboarding() {
     const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSigningOut, setIsSigningOut] = useState(false);
+    const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
+    const [profileCompleteSuccess, setProfileCompleteSuccess] = useState(false);
 
     useEffect(() => {
         loadTeams();
@@ -127,6 +131,7 @@ export default function Onboarding() {
     };
 
     const handleSignOut = async () => {
+        setIsSigningOut(true);
         // Reset store state first (prevents sync queue from getting new items)
         useAppStore.getState().resetToDefaults();
         await signOut();
@@ -141,6 +146,115 @@ export default function Onboarding() {
         }
         window.location.href = `${import.meta.env.BASE_URL}#/login`;
     };
+
+    const handleProfileComplete = async (selectedAge: AgeClassification) => {
+        setIsLoading(true);
+        setProfileCompleteError(null);
+
+        try {
+            // Need to update the age via API since user is already created
+            const { error, success } = await useAuth().updateAgeClassification(selectedAge);
+
+            if (!success || error) {
+                setProfileCompleteError(error?.message || 'Failed to update profile');
+                setIsLoading(false);
+                return;
+            }
+
+            setProfileCompleteSuccess(true);
+            setTimeout(() => {
+                setProfileCompleteSuccess(false);
+            }, 3000);
+
+        } catch (err: any) {
+            setProfileCompleteError(err.message || 'An unexpected error occurred');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (isLoading || isSigningOut) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+                <div className="text-center">
+                    {/* Logo with pulsing gradient backdrop */}
+                    <div className="relative inline-flex items-center justify-center w-24 h-24 mb-6">
+                        {/* Pulsing gradient background */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse"></div>
+                        {/* Logo container */}
+                        <div className="relative w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 p-2">
+                            <img
+                                src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                                className="w-full h-full object-contain"
+                                alt="FalconForge Logo"
+                            />
+                        </div>
+                    </div>
+                    <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                    <p className="text-slate-400">
+                        {isSigningOut ? 'Signing out securely...' : 'Loading your teams...'}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Force profile completion if missing
+    if (user && !ageClassification) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+                <div className="w-full max-w-md">
+                    <div className="text-center mb-8">
+                        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 mb-4 p-2">
+                            <img
+                                src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                                className="w-full h-full object-contain"
+                                alt="FalconForge Logo"
+                            />
+                        </div>
+                        <h1 className="text-3xl font-black italic tracking-tighter mb-2">
+                            <span className="text-white">Almost </span>
+                            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">Done!</span>
+                        </h1>
+                        <p className="text-slate-400">
+                            Please complete your profile configuration to continue.
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-xl overflow-hidden p-6">
+                        {profileCompleteSuccess ? (
+                            <div className="text-center py-4">
+                                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4">
+                                    <CheckCircle className="w-10 h-10 text-green-500" />
+                                </div>
+                                <h2 className="text-xl font-semibold text-white mb-2">Profile Complete!</h2>
+                                <p className="text-slate-400">Loading your teams...</p>
+                                <Loader2 className="w-6 h-6 animate-spin text-orange-500 mx-auto mt-4" />
+                            </div>
+                        ) : (
+                            <>
+                                <CompleteProfileForm
+                                    isLoading={isLoading}
+                                    error={profileCompleteError}
+                                    onSubmit={handleProfileComplete}
+                                    submitLabel="Complete Setup"
+                                />
+                                <div className="mt-8 pt-6 border-t border-slate-700/50 text-center">
+                                    <button
+                                        onClick={handleSignOut}
+                                        className="text-sm text-slate-400 hover:text-red-400 transition-colors flex items-center justify-center gap-2 mx-auto"
+                                    >
+                                        <LogOut size={16} />
+                                        Log Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (isLoading) {
         return (

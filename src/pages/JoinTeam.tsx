@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, LogOut, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../lib/store';
+import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
+import type { AgeClassification } from '../types';
 
 export default function JoinTeam() {
     const navigate = useNavigate();
     const { code: urlCode } = useParams<{ code?: string }>();
-    const { user, isConfigured, ageClassification } = useAuth();
+    const { user, isConfigured, ageClassification, signOut } = useAuth();
 
     const [isLoading, setIsLoading] = useState(false);
+    const [isSigningOut, setIsSigningOut] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
 
     // Form state
     const [inviteCode, setInviteCode] = useState(urlCode || '');
@@ -71,6 +76,49 @@ export default function JoinTeam() {
         }
     };
 
+    const handleSignOut = async () => {
+        setIsSigningOut(true);
+        useAppStore.getState().resetToDefaults();
+        await signOut();
+        localStorage.removeItem('falconforge-storage');
+        localStorage.removeItem('falconforge-sync-timestamps');
+        try {
+            const { clearLocalDatabase } = await import('../lib/offline-db');
+            await clearLocalDatabase();
+        } catch (e) {
+            console.warn('Failed to clear IndexedDB:', e);
+        }
+        window.location.href = `${import.meta.env.BASE_URL}#/login`;
+    };
+
+    const handleProfileComplete = async (selectedAge: AgeClassification) => {
+        setIsLoading(true);
+        setProfileCompleteError(null);
+        try {
+            const { error, success } = await useAuth().updateAgeClassification(selectedAge);
+            if (!success || error) {
+                setProfileCompleteError(error?.message || 'Failed to update profile');
+                return;
+            }
+        } catch (err: any) {
+            setProfileCompleteError(err.message || 'An unexpected error occurred');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Signing out state
+    if (isSigningOut) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+                <div className="text-center">
+                    <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                    <p className="text-slate-400">Signing out securely...</p>
+                </div>
+            </div>
+        );
+    }
+
     // Not configured
     if (!isConfigured) {
         return (
@@ -78,7 +126,14 @@ export default function JoinTeam() {
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 max-w-md text-center">
                     <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-white mb-2">Configuration Required</h2>
-                    <p className="text-slate-400">Supabase is not configured. Please contact your administrator.</p>
+                    <p className="text-slate-400 mb-6">Supabase is not configured. Please contact your administrator.</p>
+                    <button
+                        onClick={handleSignOut}
+                        className="text-sm text-slate-400 hover:text-red-400 transition-colors flex items-center justify-center gap-2 mx-auto"
+                    >
+                        <LogOut size={16} />
+                        Log Out
+                    </button>
                 </div>
             </div>
         );
@@ -110,13 +165,23 @@ export default function JoinTeam() {
                 <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 max-w-md text-center">
                     <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-white mb-2">Complete Your Profile</h2>
-                    <p className="text-slate-400 mb-6">Please complete your profile setup before joining a team.</p>
-                    <Link
-                        to="/login"
-                        className="block w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
-                    >
-                        Complete Profile
-                    </Link>
+                    <div className="mb-6">
+                        <CompleteProfileForm
+                            isLoading={isLoading}
+                            error={profileCompleteError}
+                            onSubmit={handleProfileComplete}
+                            submitLabel="Save and Continue"
+                        />
+                    </div>
+                    <div className="pt-6 border-t border-slate-700/50">
+                        <button
+                            onClick={handleSignOut}
+                            className="text-sm text-slate-400 hover:text-red-400 transition-colors flex items-center justify-center gap-2 mx-auto"
+                        >
+                            <LogOut size={16} />
+                            Log Out
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -203,6 +268,7 @@ export default function JoinTeam() {
                         <div className="flex gap-3">
                             <button
                                 type="button"
+                                data-testid="back-button"
                                 onClick={() => navigate('/onboarding')}
                                 className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                             >
