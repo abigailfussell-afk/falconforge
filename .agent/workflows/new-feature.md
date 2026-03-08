@@ -74,3 +74,10 @@ Check that:
 - [ ] All existing tests still pass  
 - [ ] New component has tests
 - [ ] Build succeeds (`npm run build`)
+
+## 9. Update E2E Test Scenarios
+If the new feature adds user-facing workflows:
+1. Add new test scenarios to the workflow map artifact (`workflow_map.md`)
+2. Assign them to the appropriate category (A-H) or create a new category
+3. Include edge cases with `- [ ]` checkboxes
+4. See `.agent/skills/e2e-testing/SKILL.md` for conventions
