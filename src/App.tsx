@@ -110,7 +110,7 @@ function Dashboard() {
 
             {/* Main Content Area */}
             <main className="flex-1 h-full overflow-hidden relative pt-16 lg:pt-0">
-                <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 lg:p-6">
+                <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 pl-4 pt-4 pb-4 lg:pl-6 lg:pt-6 lg:pb-6 [&>*]:pr-4 lg:[&>*]:pr-6">
                     {activeTab === 'dashboard' && <DashboardHome setActiveTab={setActiveTab} />}
                     {activeTab === 'kanban' && (
                         <SprintPlanning

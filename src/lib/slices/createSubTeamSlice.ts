@@ -15,7 +15,7 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
     setSubTeams: (subTeams: SubTeam[]) => set({ subTeams }),
 
     addSubTeam: (name: string) => {
-        const { currentSeasonId } = get();
+        const { currentSeasonId, currentTeamId } = get();
         const newSubTeam: SubTeam = {
             id: generateId(),
             name,
@@ -26,7 +26,10 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
             subTeams: [...state.subTeams, newSubTeam]
         }));
         // Queue for sync requires 4 parameters: table, id, action, data (optional)
-        queueForSync('sub_teams', newSubTeam.id, 'create', newSubTeam).catch(console.error);
+        queueForSync('sub_teams', newSubTeam.id, 'create', {
+            ...newSubTeam,
+            teamId: currentTeamId
+        }).catch(console.error);
     },
 
     removeSubTeam: (id: string) => {
@@ -48,7 +51,10 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
                     const updatedSubTeam = { ...subTeam, memberIds: newMemberIds };
 
                     // Queue sync for the team update
-                    queueForSync('sub_teams', subTeam.id, 'update', updatedSubTeam).catch(console.error);
+                    queueForSync('sub_teams', subTeam.id, 'update', {
+                        ...updatedSubTeam,
+                        teamId: get().currentTeamId
+                    }).catch(console.error);
 
                     return updatedSubTeam;
                 }
