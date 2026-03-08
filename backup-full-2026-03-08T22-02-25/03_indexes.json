@@ -1,0 +1,200 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "indexname": "checklists_pkey",
+    "indexdef": "CREATE UNIQUE INDEX checklists_pkey ON public.checklists USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "indexname": "idx_checklists_season_id",
+    "indexdef": "CREATE INDEX idx_checklists_season_id ON public.checklists USING btree (season_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "indexname": "idx_checklists_team_id",
+    "indexdef": "CREATE INDEX idx_checklists_team_id ON public.checklists USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "indexname": "idx_invites_code",
+    "indexdef": "CREATE INDEX idx_invites_code ON public.invites USING btree (code)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "indexname": "idx_invites_team_id",
+    "indexdef": "CREATE INDEX idx_invites_team_id ON public.invites USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "indexname": "invites_code_key",
+    "indexdef": "CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "indexname": "invites_pkey",
+    "indexdef": "CREATE UNIQUE INDEX invites_pkey ON public.invites USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "indexname": "idx_match_plans_season_id",
+    "indexdef": "CREATE INDEX idx_match_plans_season_id ON public.match_plans USING btree (season_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "indexname": "idx_match_plans_team_id",
+    "indexdef": "CREATE INDEX idx_match_plans_team_id ON public.match_plans USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "indexname": "match_plans_pkey",
+    "indexdef": "CREATE UNIQUE INDEX match_plans_pkey ON public.match_plans USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "indexname": "idx_scouting_reports_opponent",
+    "indexdef": "CREATE INDEX idx_scouting_reports_opponent ON public.scouting_reports USING btree (opponent_team_number)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "indexname": "idx_scouting_reports_season_id",
+    "indexdef": "CREATE INDEX idx_scouting_reports_season_id ON public.scouting_reports USING btree (season_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "indexname": "idx_scouting_reports_team_id",
+    "indexdef": "CREATE INDEX idx_scouting_reports_team_id ON public.scouting_reports USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "indexname": "scouting_reports_pkey",
+    "indexdef": "CREATE UNIQUE INDEX scouting_reports_pkey ON public.scouting_reports USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "seasons",
+    "indexname": "idx_seasons_team_id",
+    "indexdef": "CREATE INDEX idx_seasons_team_id ON public.seasons USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "seasons",
+    "indexname": "seasons_pkey",
+    "indexdef": "CREATE UNIQUE INDEX seasons_pkey ON public.seasons USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "sub_teams",
+    "indexname": "idx_sub_teams_team_id",
+    "indexdef": "CREATE INDEX idx_sub_teams_team_id ON public.sub_teams USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "sub_teams",
+    "indexname": "sub_teams_pkey",
+    "indexdef": "CREATE UNIQUE INDEX sub_teams_pkey ON public.sub_teams USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_season_id",
+    "indexdef": "CREATE INDEX idx_tasks_season_id ON public.tasks USING btree (season_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_status",
+    "indexdef": "CREATE INDEX idx_tasks_status ON public.tasks USING btree (status)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_team_id",
+    "indexdef": "CREATE INDEX idx_tasks_team_id ON public.tasks USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "idx_tasks_updated_at",
+    "indexdef": "CREATE INDEX idx_tasks_updated_at ON public.tasks USING btree (updated_at)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "indexname": "tasks_pkey",
+    "indexdef": "CREATE UNIQUE INDEX tasks_pkey ON public.tasks USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "indexname": "idx_team_members_team_id",
+    "indexdef": "CREATE INDEX idx_team_members_team_id ON public.team_members USING btree (team_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "indexname": "idx_team_members_user_id",
+    "indexdef": "CREATE INDEX idx_team_members_user_id ON public.team_members USING btree (user_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "indexname": "team_members_pkey",
+    "indexdef": "CREATE UNIQUE INDEX team_members_pkey ON public.team_members USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "indexname": "team_members_team_id_user_id_key",
+    "indexdef": "CREATE UNIQUE INDEX team_members_team_id_user_id_key ON public.team_members USING btree (team_id, user_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "teams",
+    "indexname": "idx_teams_owner_id",
+    "indexdef": "CREATE INDEX idx_teams_owner_id ON public.teams USING btree (owner_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "teams",
+    "indexname": "teams_pkey",
+    "indexdef": "CREATE UNIQUE INDEX teams_pkey ON public.teams USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "indexname": "idx_attestations_user_id",
+    "indexdef": "CREATE INDEX idx_attestations_user_id ON public.user_attestations USING btree (user_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "indexname": "user_attestations_pkey",
+    "indexdef": "CREATE UNIQUE INDEX user_attestations_pkey ON public.user_attestations USING btree (id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "indexname": "user_attestations_user_id_attestation_type_key",
+    "indexdef": "CREATE UNIQUE INDEX user_attestations_user_id_attestation_type_key ON public.user_attestations USING btree (user_id, attestation_type)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "users",
+    "indexname": "users_pkey",
+    "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+  }
+]

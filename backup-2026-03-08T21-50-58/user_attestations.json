@@ -1,0 +1,16 @@
+[
+  {
+    "id": "8018082c-eddb-4118-b5a6-2977212a7d1b",
+    "user_id": "919cee3b-41c0-4ee5-ba74-619e65802f74",
+    "attestation_type": "privacy_and_guidelines",
+    "version": "1.0",
+    "attested_at": "2026-01-08T02:06:53.219663+00:00"
+  },
+  {
+    "id": "f02a7b88-8222-46bf-984a-9650ea2b1632",
+    "user_id": "919cee3b-41c0-4ee5-ba74-619e65802f74",
+    "attestation_type": "coach_terms",
+    "version": "1.0",
+    "attested_at": "2026-01-14T02:24:49.677+00:00"
+  }
+]

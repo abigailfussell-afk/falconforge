@@ -1,0 +1,182 @@
+[
+  {
+    "table_name": "checklists",
+    "constraint_name": "checklists_season_id_fkey",
+    "column_name": "season_id",
+    "foreign_table": "seasons",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "checklists",
+    "constraint_name": "checklists_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_created_by_fkey",
+    "column_name": "created_by",
+    "foreign_table": "users",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "NO ACTION"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "match_plans",
+    "constraint_name": "match_plans_season_id_fkey",
+    "column_name": "season_id",
+    "foreign_table": "seasons",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "match_plans",
+    "constraint_name": "match_plans_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_created_by_fkey",
+    "column_name": "created_by",
+    "foreign_table": "team_members",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "SET NULL"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_season_id_fkey",
+    "column_name": "season_id",
+    "foreign_table": "seasons",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "seasons",
+    "constraint_name": "seasons_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "sub_teams",
+    "constraint_name": "sub_teams_season_id_fkey",
+    "column_name": "season_id",
+    "foreign_table": "seasons",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "sub_teams",
+    "constraint_name": "sub_teams_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_assigned_to_fkey",
+    "column_name": "assigned_to",
+    "foreign_table": "team_members",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "SET NULL"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_season_id_fkey",
+    "column_name": "season_id",
+    "foreign_table": "seasons",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_sub_team_id_fkey",
+    "column_name": "sub_team_id",
+    "foreign_table": "sub_teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "SET NULL"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_team_id_fkey",
+    "column_name": "team_id",
+    "foreign_table": "teams",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_user_id_fkey",
+    "column_name": "user_id",
+    "foreign_table": "users",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  },
+  {
+    "table_name": "teams",
+    "constraint_name": "teams_owner_id_fkey",
+    "column_name": "owner_id",
+    "foreign_table": "users",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "NO ACTION"
+  },
+  {
+    "table_name": "user_attestations",
+    "constraint_name": "user_attestations_user_id_fkey",
+    "column_name": "user_id",
+    "foreign_table": "users",
+    "foreign_column": "id",
+    "update_rule": "NO ACTION",
+    "delete_rule": "CASCADE"
+  }
+]

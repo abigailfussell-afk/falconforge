@@ -1,0 +1,34 @@
+[
+  {
+    "trigger_name": "update_checklists_updated_at",
+    "event_manipulation": "UPDATE",
+    "event_object_table": "checklists",
+    "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+    "action_timing": "BEFORE",
+    "action_orientation": "ROW"
+  },
+  {
+    "trigger_name": "update_match_plans_updated_at",
+    "event_manipulation": "UPDATE",
+    "event_object_table": "match_plans",
+    "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+    "action_timing": "BEFORE",
+    "action_orientation": "ROW"
+  },
+  {
+    "trigger_name": "update_tasks_updated_at",
+    "event_manipulation": "UPDATE",
+    "event_object_table": "tasks",
+    "action_statement": "EXECUTE FUNCTION update_updated_at_column()",
+    "action_timing": "BEFORE",
+    "action_orientation": "ROW"
+  },
+  {
+    "trigger_name": "on_user_profile_update",
+    "event_manipulation": "UPDATE",
+    "event_object_table": "users",
+    "action_statement": "EXECUTE FUNCTION sync_user_to_team_members()",
+    "action_timing": "AFTER",
+    "action_orientation": "ROW"
+  }
+]

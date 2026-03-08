@@ -1,0 +1,224 @@
+[
+  {
+    "table_name": "checklists",
+    "constraint_name": "checklists_season_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "season_id"
+  },
+  {
+    "table_name": "checklists",
+    "constraint_name": "checklists_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "checklists",
+    "constraint_name": "checklists_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_created_by_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "invites",
+    "constraint_name": "invites_code_key",
+    "constraint_type": "UNIQUE",
+    "column_name": "code"
+  },
+  {
+    "table_name": "match_plans",
+    "constraint_name": "match_plans_season_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "season_id"
+  },
+  {
+    "table_name": "match_plans",
+    "constraint_name": "match_plans_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "match_plans",
+    "constraint_name": "match_plans_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_created_by_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "created_by"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_season_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "season_id"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "scouting_reports",
+    "constraint_name": "scouting_reports_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "seasons",
+    "constraint_name": "seasons_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "seasons",
+    "constraint_name": "seasons_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "sub_teams",
+    "constraint_name": "sub_teams_season_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "season_id"
+  },
+  {
+    "table_name": "sub_teams",
+    "constraint_name": "sub_teams_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "sub_teams",
+    "constraint_name": "sub_teams_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_assigned_to_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "assigned_to"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_season_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "season_id"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_sub_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "sub_team_id"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "tasks",
+    "constraint_name": "tasks_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_team_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_user_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_team_id_user_id_key",
+    "constraint_type": "UNIQUE",
+    "column_name": "team_id"
+  },
+  {
+    "table_name": "team_members",
+    "constraint_name": "team_members_team_id_user_id_key",
+    "constraint_type": "UNIQUE",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "teams",
+    "constraint_name": "teams_owner_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "owner_id"
+  },
+  {
+    "table_name": "teams",
+    "constraint_name": "teams_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "user_attestations",
+    "constraint_name": "user_attestations_user_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "user_attestations",
+    "constraint_name": "user_attestations_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "user_attestations",
+    "constraint_name": "user_attestations_user_id_attestation_type_key",
+    "constraint_type": "UNIQUE",
+    "column_name": "attestation_type"
+  },
+  {
+    "table_name": "user_attestations",
+    "constraint_name": "user_attestations_user_id_attestation_type_key",
+    "constraint_type": "UNIQUE",
+    "column_name": "user_id"
+  },
+  {
+    "table_name": "users",
+    "constraint_name": "users_id_fkey",
+    "constraint_type": "FOREIGN KEY",
+    "column_name": "id"
+  },
+  {
+    "table_name": "users",
+    "constraint_name": "users_pkey",
+    "constraint_type": "PRIMARY KEY",
+    "column_name": "id"
+  }
+]

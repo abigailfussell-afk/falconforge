@@ -1,0 +1,32 @@
+[
+  {
+    "constraint_name": "tasks_status_check",
+    "table_name": "tasks",
+    "definition": "CHECK ((status = ANY (ARRAY['Backlog'::text, 'To Do'::text, 'In Progress'::text, 'Testing'::text, 'Done'::text, 'Archived'::text])))"
+  },
+  {
+    "constraint_name": "tasks_type_check",
+    "table_name": "tasks",
+    "definition": "CHECK ((type = ANY (ARRAY['Feature'::text, 'Bug'::text])))"
+  },
+  {
+    "constraint_name": "team_members_role_check",
+    "table_name": "team_members",
+    "definition": "CHECK ((role = ANY (ARRAY['coach'::text, 'assistant_coach'::text, 'mentor'::text, 'student'::text])))"
+  },
+  {
+    "constraint_name": "team_members_status_check",
+    "table_name": "team_members",
+    "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'removed'::text])))"
+  },
+  {
+    "constraint_name": "user_attestations_attestation_type_check",
+    "table_name": "user_attestations",
+    "definition": "CHECK ((attestation_type = ANY (ARRAY['terms'::text, 'privacy'::text, 'community_guidelines'::text, 'age_18_plus'::text, 'coppa_responsibility'::text, 'billing_acknowledgement'::text, 'age_13_plus'::text, 'privacy_and_guidelines'::text, 'coach_terms'::text])))"
+  },
+  {
+    "constraint_name": "users_age_classification_check",
+    "table_name": "users",
+    "definition": "CHECK ((age_classification = ANY (ARRAY['under_13'::text, '13_to_17'::text, '18_plus'::text])))"
+  }
+]

@@ -1,0 +1,60 @@
+[
+  {
+    "id": "87312341-d289-4d53-ac09-07a20fc85ac8",
+    "team_id": "87312341-d289-4d53-ac09-07a20fc85ac8",
+    "season_id": "0e970ec2-0f58-468e-bc92-7cf00d92d70b",
+    "name": "Pre-Match Checklist",
+    "items": [
+      {
+        "id": "2",
+        "text": "Swap main battery",
+        "checked": false,
+        "assignedTo": ""
+      },
+      {
+        "id": "1",
+        "text": "Turn off robot",
+        "checked": false
+      },
+      {
+        "id": "3",
+        "text": "Charge old battery",
+        "checked": false
+      },
+      {
+        "id": "4",
+        "text": "Charge Driver Hub",
+        "checked": false
+      },
+      {
+        "id": "5",
+        "text": "Tighten chassis screws",
+        "checked": false
+      },
+      {
+        "id": "6",
+        "text": "Check wiring connections",
+        "checked": false
+      },
+      {
+        "id": "7",
+        "text": "Clean wheels",
+        "checked": false
+      },
+      {
+        "id": "154b1564-f8f7-4945-bd27-6c10c47f9128",
+        "text": "Verify Auto Test Checklist",
+        "checked": false,
+        "seasonId": "0e970ec2-0f58-468e-bc92-7cf00d92d70b"
+      },
+      {
+        "id": "8",
+        "text": "Reset servo positions",
+        "checked": false
+      }
+    ],
+    "is_template": false,
+    "created_at": "2026-02-16T01:52:23.464641+00:00",
+    "updated_at": "2026-03-08T20:18:30.359921+00:00"
+  }
+]

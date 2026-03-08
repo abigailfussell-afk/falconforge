@@ -1,0 +1,392 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "policyname": "checklists_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "policyname": "checklists_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "policyname": "checklists_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "checklists",
+    "policyname": "checklists_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "policyname": "invites_delete_coach",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = invites.team_id) AND (tm.user_id = auth.uid()) AND (tm.role = 'coach'::text) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "policyname": "invites_insert_coach",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = invites.team_id) AND (tm.user_id = auth.uid()) AND (tm.role = 'coach'::text) AND (tm.status = 'approved'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "invites",
+    "policyname": "invites_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "true",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "policyname": "match_plans_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "policyname": "match_plans_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "policyname": "match_plans_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "match_plans",
+    "policyname": "match_plans_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "policyname": "scouting_reports_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "policyname": "scouting_reports_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "policyname": "scouting_reports_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "scouting_reports",
+    "policyname": "scouting_reports_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "seasons",
+    "policyname": "seasons_modify_coach",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = seasons.team_id) AND (tm.user_id = auth.uid()) AND (tm.role = 'coach'::text) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "seasons",
+    "policyname": "seasons_select_member",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = seasons.team_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "sub_teams",
+    "policyname": "sub_teams_modify_coach",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = sub_teams.team_id) AND (tm.user_id = auth.uid()) AND (tm.role = 'coach'::text) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "sub_teams",
+    "policyname": "sub_teams_select_member",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = sub_teams.team_id) AND (tm.user_id = auth.uid()) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "policyname": "tasks_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "policyname": "tasks_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "policyname": "tasks_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "tasks",
+    "policyname": "tasks_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_delete_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "qual": "is_team_coach(team_id, auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_insert_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "((user_id = auth.uid()) OR is_team_coach(team_id, auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(user_id = auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(is_team_member(team_id, auth.uid()) OR (user_id = auth.uid()))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_select_teammates",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "team_members",
+    "policyname": "team_members_update_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "is_team_coach(team_id, auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "teams",
+    "policyname": "teams_insert_owner",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(owner_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "teams",
+    "policyname": "teams_select_member",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = teams.id) AND (tm.user_id = auth.uid()) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "teams",
+    "policyname": "teams_update_coach",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(EXISTS ( SELECT 1\n   FROM team_members tm\n  WHERE ((tm.team_id = teams.id) AND (tm.user_id = auth.uid()) AND (tm.role = 'coach'::text) AND (tm.status = 'approved'::text))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "policyname": "attestations_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(user_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "policyname": "attestations_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(user_id = auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_attestations",
+    "policyname": "attestations_update_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(user_id = auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "users",
+    "policyname": "users_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "users",
+    "policyname": "users_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(id = auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "users",
+    "policyname": "users_select_via_teams",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "qual": "(id IN ( SELECT tm.user_id\n   FROM team_members tm\n  WHERE (tm.team_id IN ( SELECT get_user_team_ids(auth.uid()) AS get_user_team_ids))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "users",
+    "policyname": "users_update_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "qual": "(id = auth.uid())",
+    "with_check": null
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "6ad469b2-b735-4034-88ce-efc641dcbcd9",
+    "team_id": "87312341-d289-4d53-ac09-07a20fc85ac8",
+    "user_id": "2c84ef64-48c6-40ba-a489-7098cd776397",
+    "role": "student",
+    "status": "approved",
+    "is_billing_active": true,
+    "full_name": "Abby Fussell",
+    "email": "abbylynn.fussell@gmail.com",
+    "avatar_url": null,
+    "joined_at": "2026-01-08T02:53:48.451522+00:00"
+  },
+  {
+    "id": "89ec0f85-6d0c-42d4-9998-35505e9e8525",
+    "team_id": "a11d0e13-c49f-4c7a-9019-70fe3447f961",
+    "user_id": "2c84ef64-48c6-40ba-a489-7098cd776397",
+    "role": "student",
+    "status": "approved",
+    "is_billing_active": true,
+    "full_name": "Abby Fussell",
+    "email": "abbylynn.fussell@gmail.com",
+    "avatar_url": null,
+    "joined_at": "2026-01-14T02:25:18.915273+00:00"
+  },
+  {
+    "id": "9df44709-74ca-4bfb-aa52-5348a397366c",
+    "team_id": "87312341-d289-4d53-ac09-07a20fc85ac8",
+    "user_id": "919cee3b-41c0-4ee5-ba74-619e65802f74",
+    "role": "coach",
+    "status": "approved",
+    "is_billing_active": true,
+    "full_name": "Kevin Fus",
+    "email": "jkfussell@gmail.com",
+    "avatar_url": null,
+    "joined_at": "2026-01-08T02:35:55.494039+00:00"
+  },
+  {
+    "id": "bb1f8fa0-60fc-41af-9afc-e0e695fd5ea7",
+    "team_id": "a11d0e13-c49f-4c7a-9019-70fe3447f961",
+    "user_id": "919cee3b-41c0-4ee5-ba74-619e65802f74",
+    "role": "coach",
+    "status": "approved",
+    "is_billing_active": true,
+    "full_name": "Kevin Fus",
+    "email": "jkfussell@gmail.com",
+    "avatar_url": null,
+    "joined_at": "2026-01-14T02:24:48.896346+00:00"
+  },
+  {
+    "id": "36196dd5-5192-4ed0-ad7c-7b061e735872",
+    "team_id": "87312341-d289-4d53-ac09-07a20fc85ac8",
+    "user_id": "12f59b14-ab85-4491-82f0-d3f7437315d8",
+    "role": "student",
+    "status": "approved",
+    "is_billing_active": true,
+    "full_name": "Bobby Boucheee",
+    "email": "kevinfussell@outlook.com",
+    "avatar_url": null,
+    "joined_at": "2026-01-09T16:02:51.969647+00:00"
+  }
+]
