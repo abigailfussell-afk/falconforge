@@ -66,7 +66,7 @@ export default function LoginPage() {
     };
 
     // Step 2: Create the account with all information
-    const handleStep2Submit = async (selectedAge: AgeClassification, isPrivacyAccepted: boolean) => {
+    const handleStep2Submit = async (selectedAge: AgeClassification, _isPrivacyAccepted: boolean) => {
         setIsLoading(true);
         setError(null);
 
