@@ -62,13 +62,13 @@ function Dashboard() {
         // Reset store state first (prevents sync actions from queueing during teardown)
         useAppStore.getState().resetToDefaults();
         await signOut();
-        // Clear all local storage to remove persisted state
-        localStorage.removeItem('falconforge-storage');
+        // Clear lightweight localStorage keys
         localStorage.removeItem('falconforge-sync-timestamps');
-        // Clear IndexedDB tables (NOT db.delete() which destroys the Dexie instance)
+        // Clear IndexedDB tables (sync queue + persisted app state)
         try {
-            const { clearLocalDatabase } = await import('./lib/offline-db');
+            const { clearLocalDatabase, clearAppState } = await import('./lib/offline-db');
             await clearLocalDatabase();
+            await clearAppState();
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }

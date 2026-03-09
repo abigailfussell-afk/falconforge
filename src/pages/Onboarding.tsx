@@ -135,12 +135,12 @@ export default function Onboarding() {
         // Reset store state first (prevents sync queue from getting new items)
         useAppStore.getState().resetToDefaults();
         await signOut();
-        // Clear local storage and IndexedDB tables (NOT db.delete())
-        localStorage.removeItem('falconforge-storage');
+        // Clear lightweight localStorage keys
         localStorage.removeItem('falconforge-sync-timestamps');
         try {
-            const { clearLocalDatabase } = await import('../lib/offline-db');
+            const { clearLocalDatabase, clearAppState } = await import('../lib/offline-db');
             await clearLocalDatabase();
+            await clearAppState();
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }

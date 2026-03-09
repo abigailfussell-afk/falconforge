@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { generateId, queueForSync } from './offline-db';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { generateId, queueForSync, indexedDBStorage } from './offline-db';
 import { supabaseSync, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
@@ -612,9 +612,19 @@ export const useAppStore = create<AppState>()(
 
             // Data management
             initializeStore: async () => {
-                // Data is loaded from localStorage (Zustand persist) and pulled from
-                // Supabase via fetchTeamData when a team is selected.
-                // No IndexedDB initialization needed.
+                // One-time migration: move persisted state from localStorage to IndexedDB
+                if (typeof window !== 'undefined') {
+                    const legacy = localStorage.getItem('falconforge-storage');
+                    if (legacy) {
+                        try {
+                            await indexedDBStorage.setItem('falconforge-storage', legacy);
+                            localStorage.removeItem('falconforge-storage');
+                            console.log('[store] Migrated persisted state from localStorage → IndexedDB');
+                        } catch (e) {
+                            console.warn('[store] Failed to migrate localStorage to IndexedDB:', e);
+                        }
+                    }
+                }
             },
 
             resetToDefaults: () => {
@@ -639,6 +649,7 @@ export const useAppStore = create<AppState>()(
         }),
         {
             name: 'falconforge-storage',
+            storage: createJSONStorage(() => indexedDBStorage),
             partialize: (state) => ({
                 currentTeamId: state.currentTeamId,
                 teams: state.teams,
@@ -654,21 +665,21 @@ export const useAppStore = create<AppState>()(
                 theme: state.theme,
                 geminiApiKey: state.geminiApiKey,
             }),
+            onRehydrateStorage: () => (state) => {
+                // Apply theme as soon as persisted state is rehydrated from IndexedDB
+                if (state?.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            },
         }
     )
 );
 
-// Initialize theme on load
+// Theme is now applied via onRehydrateStorage callback (async from IndexedDB).
+// As a fallback, we default to dark mode until rehydration completes to prevent
+// a flash of light mode.
 if (typeof window !== 'undefined') {
-    const storedTheme = localStorage.getItem('falconforge-storage');
-    if (storedTheme) {
-        try {
-            const { state } = JSON.parse(storedTheme);
-            if (state?.theme === 'dark') {
-                document.documentElement.classList.add('dark');
-            }
-        } catch (e) {
-            // Ignore parse errors
-        }
-    }
+    document.documentElement.classList.add('dark');
 }

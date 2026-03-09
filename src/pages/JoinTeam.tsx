@@ -80,11 +80,11 @@ export default function JoinTeam() {
         setIsSigningOut(true);
         useAppStore.getState().resetToDefaults();
         await signOut();
-        localStorage.removeItem('falconforge-storage');
         localStorage.removeItem('falconforge-sync-timestamps');
         try {
-            const { clearLocalDatabase } = await import('../lib/offline-db');
+            const { clearLocalDatabase, clearAppState } = await import('../lib/offline-db');
             await clearLocalDatabase();
+            await clearAppState();
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }

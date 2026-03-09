@@ -50,11 +50,23 @@ vi.mock('@/lib/offline-db', () => ({
             toArray: vi.fn().mockResolvedValue([]),
             count: vi.fn().mockResolvedValue(0),
         },
+        appState: {
+            get: vi.fn().mockResolvedValue(null),
+            put: vi.fn().mockResolvedValue(undefined),
+            delete: vi.fn().mockResolvedValue(undefined),
+            clear: vi.fn().mockResolvedValue(undefined),
+        },
     },
     generateId: vi.fn(() => `test-id-${Math.random().toString(36).substr(2, 9)}`),
     queueForSync: vi.fn().mockResolvedValue(undefined),
     getPendingSyncCount: vi.fn().mockResolvedValue(0),
     clearLocalDatabase: vi.fn().mockResolvedValue(undefined),
+    clearAppState: vi.fn().mockResolvedValue(undefined),
+    indexedDBStorage: {
+        getItem: vi.fn().mockResolvedValue(null),
+        setItem: vi.fn().mockResolvedValue(undefined),
+        removeItem: vi.fn().mockResolvedValue(undefined),
+    },
 }));
 
 // Mock sync module

@@ -1,51 +1,22 @@
-# FalconForge Scaling — Remaining Items (4, 5, 6)
+# FalconForge Scaling — Remaining Items (5, 6)
 
-This document captures the remaining scaling changes from the original analysis. Items 1–3 are complete (AI feature flags, invite security, delta sync). Use this as a prompt for a future chat session.
+This document captures the remaining scaling changes from the original analysis. Items 1–4 are complete. Use this as a prompt for a future chat session.
 
 ## Context
 
-- Items 1–3 completed: 2026-03-08
-- Delta sync is live: `pullChangesFromServer()` now does full pull every 5th cycle, delta pulls otherwise
+- Items 1–3 completed: 2026-03-08 (AI feature flags, invite security, delta sync)
+- Item 4 completed: 2026-03-08 (Zustand persistence migrated from localStorage → IndexedDB)
+- Delta sync is live: `pullChangesFromServer()` does full pull every 5th cycle, delta pulls otherwise
 - Migrations applied: `014_fix_invites_rls.sql`, `015_delta_sync_columns.sql`
-- All tables now have `updated_at` columns with auto-update triggers
+- All tables have `updated_at` columns with auto-update triggers
+- Zustand state persists to IndexedDB via `appState` table (Dexie v3)
+- `indexedDBStorage` adapter in `offline-db.ts`, used by `store.ts` via `createJSONStorage`
+- Sign-out cleanup: `clearLocalDatabase()` + `clearAppState()` (both IndexedDB)
 - Backup script: `backup-full.mjs` (run with `$env:SUPABASE_DB_PASSWORD="k1uRA5kGvHria47A"; node backup-full.mjs`)
 
-## Changes To Make (Priority Order)
-
-### 4. Migrate Data Persistence from localStorage to IndexedDB
-
-**Why:** localStorage has a 5MB hard limit. Match plan SVG/JSON drawing data will eventually hit this ceiling. IndexedDB has essentially unlimited storage.
-
-**Current state:**
-- Zustand `persist` middleware → localStorage (`falconforge-storage` key)
-- Only the sync queue uses IndexedDB (via Dexie, in `src/lib/offline-db.ts`)
-
-**Plan:**
-- Switch Zustand `persist` storage adapter from localStorage to IndexedDB
-  - Dexie is already set up in `offline-db.ts` — add a new table for app state
-  - Use Zustand's custom storage adapter: `createJSONStorage(() => indexedDBStorage)`
-  - The custom adapter needs `getItem`, `setItem`, `removeItem` (all async-capable)
-- Keep localStorage ONLY for lightweight metadata:
-  - `falconforge-sync-timestamps` (sync timestamps)
-  - `falconforge-sync-counter` (delta sync counter)
-  - Theme preference
-- Handle migration: on first load, check if `falconforge-storage` exists in localStorage; if so, migrate it to IndexedDB and remove the localStorage copy
-- Update `signOut` flow in `App.tsx` and `JoinTeam.tsx` to clear the new IndexedDB state table
-
-**Key files:**
-- `src/lib/offline-db.ts` — Add new Dexie table + storage adapter
-- `src/lib/store.ts` — Switch persist middleware config
-- `src/App.tsx` — Update sign-out cleanup
-- `src/pages/JoinTeam.tsx` — Update sign-out cleanup
-- `src/lib/auth.tsx` — Check for any localStorage references
-
-**Testing:**
-- `npm run test:run` — all unit/component tests must pass
-- `npm run test:integration` — sync/data transform tests must pass
-- Browser test: sign in, verify data loads, refresh page (data should persist), sign out (data should clear)
-- Test with large match plan drawings to verify no storage errors
-
 ---
+
+## Changes To Make (Priority Order)
 
 ### 5. Supabase Realtime (Progressive Enhancement)
 
@@ -112,6 +83,8 @@ This document captures the remaining scaling changes from the original analysis.
 - `npm run test:run` — all tests pass
 - Browser test: navigate between pages, verify data loads per-page
 - Network tab: verify only relevant queries fire when switching pages
+
+---
 
 ## NOT Changing (Design Decisions Kept)
 

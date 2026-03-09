@@ -2,11 +2,11 @@ import Dexie, { Table } from 'dexie';
 
 /**
  * Local database for offline-first functionality
- * Uses IndexedDB via Dexie for the sync queue.
- * 
- * Note: Application data is stored in Zustand (persisted to localStorage).
- * IndexedDB is only used for the sync queue that tracks pending changes
- * to be pushed to Supabase.
+ * Uses IndexedDB via Dexie for:
+ *   1. syncQueue — tracks pending changes to be pushed to Supabase
+ *   2. appState — Zustand persisted state (replaces localStorage to avoid 5 MB limit)
+ *
+ * Lightweight metadata (sync timestamps, sync counter, theme) stays in localStorage.
  */
 
 export interface SyncQueueItem {
@@ -20,8 +20,15 @@ export interface SyncQueueItem {
     lastError?: string;
 }
 
+/** Simple key-value row used by the appState table. */
+export interface AppStateRow {
+    key: string;
+    value: string;
+}
+
 class FalconForgeDatabase extends Dexie {
     syncQueue!: Table<SyncQueueItem, string>;
+    appState!: Table<AppStateRow, string>;
 
     constructor() {
         super('FalconForgeDB');
@@ -38,7 +45,7 @@ class FalconForgeDatabase extends Dexie {
             syncQueue: 'id, tableName, timestamp, retryCount',
         });
 
-        // Version 2: Remove unused entity tables (data lives in Zustand/localStorage)
+        // Version 2: Remove unused entity tables (data lives in Zustand store)
         this.version(2).stores({
             teams: null,
             teamMembers: null,
@@ -49,10 +56,41 @@ class FalconForgeDatabase extends Dexie {
             matchPlans: null,
             syncQueue: 'id, tableName, timestamp, retryCount',
         });
+
+        // Version 3: Add appState table for Zustand persistence (replaces localStorage)
+        this.version(3).stores({
+            syncQueue: 'id, tableName, timestamp, retryCount',
+            appState: 'key',
+        });
     }
 }
 
 export const db = new FalconForgeDatabase();
+
+// ---------------------------------------------------------------------------
+// IndexedDB storage adapter for Zustand's `persist` middleware
+// ---------------------------------------------------------------------------
+
+/**
+ * Zustand-compatible async storage adapter backed by IndexedDB.
+ * Works with `createJSONStorage(() => indexedDBStorage)`.
+ */
+export const indexedDBStorage = {
+    getItem: async (name: string): Promise<string | null> => {
+        const row = await db.appState.get(name);
+        return row?.value ?? null;
+    },
+    setItem: async (name: string, value: string): Promise<void> => {
+        await db.appState.put({ key: name, value });
+    },
+    removeItem: async (name: string): Promise<void> => {
+        await db.appState.delete(name);
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // Helper to generate UUIDs
 export function generateId(): string {
@@ -82,7 +120,12 @@ export async function getPendingSyncCount(): Promise<number> {
     return await db.syncQueue.count();
 }
 
-// Clear all local data (for logout)
+// Clear sync queue (for logout)
 export async function clearLocalDatabase() {
     await db.syncQueue.clear();
+}
+
+// Clear persisted app state from IndexedDB (for logout)
+export async function clearAppState() {
+    await db.appState.clear();
 }

@@ -375,17 +375,8 @@ function incrementSyncCounter(): number {
 async function pullChangesFromServer(): Promise<void> {
     if (!supabaseSync) return;
 
-    // Get current team ID from localStorage (set by store)
-    const storeData = localStorage.getItem('falconforge-storage');
-    if (!storeData) return;
-
-    let currentTeamId: string | null = null;
-    try {
-        const parsed = JSON.parse(storeData);
-        currentTeamId = parsed.state?.currentTeamId;
-    } catch {
-        return;
-    }
+    // Get current team ID from the Zustand store
+    const currentTeamId = useAppStore.getState().currentTeamId;
 
     if (!currentTeamId) return;
 

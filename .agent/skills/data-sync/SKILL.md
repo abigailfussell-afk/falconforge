@@ -283,9 +283,10 @@ The store's `resetToDefaults()` must be called BEFORE `signOut()` to prevent the
 const handleSignOut = async () => {
     useAppStore.getState().resetToDefaults();  // 1. Stop sync
     await signOut();                            // 2. Auth logout
-    localStorage.clear();                      // 3. Clear storage
-    await clearLocalDatabase();                // 4. Clear IndexedDB
-    window.location.href = '...login';         // 5. Redirect
+    await clearLocalDatabase();                // 3. Clear sync queue
+    await clearAppState();                     // 4. Clear persisted state (IndexedDB)
+    localStorage.removeItem('falconforge-sync-timestamps'); // 5. Clear metadata
+    window.location.href = '...login';         // 6. Redirect
 };
 ```
 
