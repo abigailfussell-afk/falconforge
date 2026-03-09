@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import { FIELD_IMAGE_URL } from '../constants';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
+import { useMatchPlansQuery } from '../lib/queries';
 
 // Fixed viewBox dimensions for consistent coordinate storage
 const VIEWBOX_WIDTH = 600;
@@ -13,7 +14,11 @@ const MatchPlanner: React.FC = () => {
   const [color, setColor] = useState('#ef4444'); // Red default
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
   // Simple history stack for undo/redo
-  const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentSeasonId } = useAppStore();
+  const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentSeasonId, currentTeamId } = useAppStore();
+
+  // Background refresh — fetches latest match plans when this page is visited
+  useMatchPlansQuery(currentTeamId);
+
   const currentSeason = getCurrentSeason();
   // Field image: can be Base64 data URL, full URL, or local file path
   const customFieldImage = currentSeason?.fieldImageData;

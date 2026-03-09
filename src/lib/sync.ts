@@ -550,7 +550,7 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
  * Records NOT in the delta set are preserved (unlike updateLocalDatabase which replaces).
  * Checklists are excluded from delta sync so this function never handles them.
  */
-function mergeIntoStore(tableName: string, records: any[]): void {
+export function mergeIntoStore(tableName: string, records: any[]): void {
     if (!records || records.length === 0) return;
 
     const store = useAppStore.getState();

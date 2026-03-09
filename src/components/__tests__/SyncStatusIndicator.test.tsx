@@ -110,4 +110,23 @@ describe('SyncStatusIndicator', () => {
         // Restore
         vi.mocked(isSupabaseConfigured).mockReturnValue(true);
     });
+
+    it('shows "Live" when realtime is connected and idle with no pending changes', async () => {
+        // Mock realtime as connected
+        const { getRealtimeStatus, onRealtimeStatusChange } = await import('../../lib/realtime');
+        vi.mocked(getRealtimeStatus).mockReturnValue('connected');
+        // Make onRealtimeStatusChange immediately call the listener with 'connected'
+        vi.mocked(onRealtimeStatusChange).mockImplementation((listener) => {
+            listener('connected');
+            return () => { };
+        });
+
+        setupSync({ syncStatus: 'idle', pendingChanges: 0 });
+        render(<SyncStatusIndicator />);
+        expect(screen.getByText('Live')).toBeDefined();
+
+        // Restore
+        vi.mocked(getRealtimeStatus).mockReturnValue('disconnected');
+        vi.mocked(onRealtimeStatusChange).mockImplementation(() => () => { });
+    });
 });

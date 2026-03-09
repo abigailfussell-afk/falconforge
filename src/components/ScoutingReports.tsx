@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { useAppStore, ScoutingReport } from '../lib/store';
+import { useScoutingQuery } from '../lib/queries';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
 
 const ScoutingReports: React.FC = () => {
-    const { scoutingReports, addScoutingReport, deleteScoutingReport } = useAppStore();
+    const { scoutingReports, addScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
+
+    // Background refresh — fetches latest scouting data when this page is visited
+    useScoutingQuery(currentTeamId);
+
     const [isScoutModalOpen, setIsScoutModalOpen] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [editingReportId, setEditingReportId] = useState<string | null>(null);

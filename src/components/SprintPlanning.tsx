@@ -4,6 +4,7 @@ import { STATUS_COLUMNS } from '../constants';
 import { Plus, Calendar as CalendarIcon, List, Layout, Send, Trash2, X, Archive } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
 import { useAppStore } from '../lib/store';
+import { useTasksQuery } from '../lib/queries';
 import SprintBoard from './SprintBoard';
 import SprintList from './SprintList';
 import SprintCalendar from './SprintCalendar';
@@ -32,6 +33,10 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     const storeAddTask = useAppStore((state) => state.addTask);
     const storeUpdateTask = useAppStore((state) => state.updateTask);
     const storeDeleteTask = useAppStore((state) => state.deleteTask);
+    const currentTeamId = useAppStore((state) => state.currentTeamId);
+
+    // Background refresh — fetches latest tasks when this page is visited
+    useTasksQuery(currentTeamId);
 
     // Get current logged-in user for comments
     const { currentUser, displayName, initials: userInitials } = useCurrentUser();

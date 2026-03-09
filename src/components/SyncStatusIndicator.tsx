@@ -1,6 +1,8 @@
-import { Cloud, CloudOff, RefreshCw, AlertCircle, Check } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, Check, Radio } from 'lucide-react';
 import { useSync } from '../lib/sync';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { useState, useEffect } from 'react';
+import { getRealtimeStatus, onRealtimeStatusChange, type RealtimeStatus } from '../lib/realtime';
 
 interface SyncStatusIndicatorProps {
     variant?: 'full' | 'icon';
@@ -9,6 +11,12 @@ interface SyncStatusIndicatorProps {
 export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndicatorProps) {
     const { isOnline, syncStatus, pendingChanges, lastSyncTime, sync, error } = useSync();
     const isConfigured = isSupabaseConfigured();
+
+    // Track Realtime connection status
+    const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>(getRealtimeStatus());
+    useEffect(() => {
+        return onRealtimeStatusChange(setRealtimeStatus);
+    }, []);
 
     // Don't show anything in demo mode - just a subtle indicator
     if (!isConfigured) {
@@ -25,8 +33,11 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
             case 'error':
                 return <AlertCircle className="w-4 h-4 text-red-400" />;
             case 'idle':
-                return pendingChanges > 0
-                    ? <Cloud className="w-4 h-4 text-amber-400" />
+                if (pendingChanges > 0) {
+                    return <Cloud className="w-4 h-4 text-amber-400" />;
+                }
+                return realtimeStatus === 'connected'
+                    ? <Radio className="w-4 h-4 text-green-400" />
                     : <Check className="w-4 h-4 text-green-400" />;
             default:
                 return <CloudOff className="w-4 h-4 text-slate-400" />;
@@ -44,7 +55,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                 if (pendingChanges > 0) {
                     return `${pendingChanges} pending`;
                 }
-                return 'Synced';
+                return realtimeStatus === 'connected' ? 'Live' : 'Synced';
             default:
                 return 'Offline';
         }

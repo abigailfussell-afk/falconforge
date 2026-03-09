@@ -69,6 +69,22 @@ vi.mock('@/lib/offline-db', () => ({
     },
 }));
 
+// Mock realtime module
+vi.mock('@/lib/realtime', () => ({
+    getRealtimeStatus: vi.fn(() => 'disconnected'),
+    onRealtimeStatusChange: vi.fn(() => () => { }),
+    setupRealtimeSubscription: vi.fn(),
+    teardownRealtimeSubscription: vi.fn(),
+    handleRealtimeDelete: vi.fn(),
+}));
+
+// Mock queries module (React Query hooks for per-page refresh)
+vi.mock('@/lib/queries', () => ({
+    useTasksQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
+    useScoutingQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
+    useMatchPlansQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
+}));
+
 // Mock sync module
 vi.mock('@/lib/sync', () => ({
     useSyncStatus: vi.fn(() => ({

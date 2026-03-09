@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
+import { setupRealtimeSubscription, teardownRealtimeSubscription } from './lib/realtime';
 import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
@@ -22,6 +23,7 @@ import PortfolioAI from './components/PortfolioAI';
 import AdminSettings from './components/AdminSettings';
 import EditProfile from './components/EditProfile';
 import DashboardHome from './components/DashboardHome';
+import QueryProvider from './components/QueryProvider';
 
 function Dashboard() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -59,6 +61,8 @@ function Dashboard() {
     }));
 
     const handleSignOut = async () => {
+        // Tear down Realtime subscription before clearing state
+        teardownRealtimeSubscription();
         // Reset store state first (prevents sync actions from queueing during teardown)
         useAppStore.getState().resetToDefaults();
         await signOut();
@@ -86,6 +90,25 @@ function Dashboard() {
             fetchTeamData(currentTeamId);
         }
     }, [currentTeamId, fetchTeamData]);
+
+    // Realtime subscription lifecycle — subscribe when team is selected & online
+    useEffect(() => {
+        if (!currentTeamId) return;
+
+        setupRealtimeSubscription(currentTeamId);
+
+        const handleOnline = () => setupRealtimeSubscription(currentTeamId);
+        const handleOffline = () => teardownRealtimeSubscription();
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            teardownRealtimeSubscription();
+        };
+    }, [currentTeamId]);
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden transition-colors duration-200">
@@ -219,58 +242,60 @@ function App() {
     }
 
     return (
-        <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={
-                user ? <Navigate to="/onboarding" replace /> : <LoginPage />
-            } />
+        <QueryProvider>
+            <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={
+                    user ? <Navigate to="/onboarding" replace /> : <LoginPage />
+                } />
 
-            <Route path="/auth/callback" element={
-                <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-                    <div className="text-center">
-                        <div className="relative w-24 h-24 mx-auto mb-8">
-                            <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
-                            <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl p-2">
-                                <img
-                                    src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                                    className="w-full h-full object-contain animate-pulse"
-                                    alt="FalconForge Logo"
-                                />
+                <Route path="/auth/callback" element={
+                    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                        <div className="text-center">
+                            <div className="relative w-24 h-24 mx-auto mb-8">
+                                <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
+                                <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl p-2">
+                                    <img
+                                        src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                                        className="w-full h-full object-contain animate-pulse"
+                                        alt="FalconForge Logo"
+                                    />
+                                </div>
+                            </div>
+                            <h2 className="text-xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h2>
+                            <p className="text-sm text-slate-400 mb-4">Authenticating</p>
+                            <div className="flex items-center justify-center gap-2 text-slate-400">
+                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="text-sm font-medium">Securing your session...</p>
                             </div>
                         </div>
-                        <h2 className="text-xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h2>
-                        <p className="text-sm text-slate-400 mb-4">Authenticating</p>
-                        <div className="flex items-center justify-center gap-2 text-slate-400">
-                            <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-sm font-medium">Securing your session...</p>
-                        </div>
                     </div>
-                </div>
-            } />
+                } />
 
-            {/* Legal pages - public */}
-            <Route path="/legal/terms" element={<TermsAndConditions />} />
-            <Route path="/legal/privacy" element={<PrivacyPolicy />} />
-            <Route path="/legal/community" element={<CommunityGuidelines />} />
+                {/* Legal pages - public */}
+                <Route path="/legal/terms" element={<TermsAndConditions />} />
+                <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+                <Route path="/legal/community" element={<CommunityGuidelines />} />
 
-            {/* Onboarding routes - require auth */}
-            <Route path="/onboarding" element={
-                user ? <Onboarding /> : <Navigate to="/login" replace />
-            } />
+                {/* Onboarding routes - require auth */}
+                <Route path="/onboarding" element={
+                    user ? <Onboarding /> : <Navigate to="/login" replace />
+                } />
 
-            <Route path="/create-team" element={
-                user ? <CreateTeam /> : <Navigate to="/login" replace />
-            } />
+                <Route path="/create-team" element={
+                    user ? <CreateTeam /> : <Navigate to="/login" replace />
+                } />
 
-            <Route path="/join/:code?" element={
-                <JoinTeam />
-            } />
+                <Route path="/join/:code?" element={
+                    <JoinTeam />
+                } />
 
-            {/* Main app - require auth and team */}
-            <Route path="/*" element={
-                user ? <Dashboard /> : <Navigate to="/login" replace />
-            } />
-        </Routes>
+                {/* Main app - require auth and team */}
+                <Route path="/*" element={
+                    user ? <Dashboard /> : <Navigate to="/login" replace />
+                } />
+            </Routes>
+        </QueryProvider>
     );
 }
 
