@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: mode === 'production' ? "/falconforge/" : "/",
+    base: "/",
     server: {
       port: 3000,
       host: '0.0.0.0',
@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => {
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'any',
-          scope: mode === 'production' ? '/falconforge/' : '/',
-          start_url: mode === 'production' ? '/falconforge/' : '/',
+          scope: '/',
+          start_url: '/',
           icons: [
             {
               src: 'icon-192.png',
