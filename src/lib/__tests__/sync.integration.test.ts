@@ -310,5 +310,57 @@ describe('sync.integration', () => {
 
             unmount();
         });
+
+        it('performs delta pull when counter is not a multiple of 5 and timestamp exists', async () => {
+            localStorage.setItem('falconforge-sync-counter', '1');
+            localStorage.setItem('falconforge-sync-timestamps', JSON.stringify({
+                'test-team-123:tasks': 1000
+            }));
+
+            // Mocking the gte specifically
+            const mockFrom = supabaseSync.from as any;
+            mockFrom.mockImplementation((tableName: string) => {
+                const query: any = {
+                    select: vi.fn().mockReturnThis(),
+                    eq: vi.fn().mockReturnThis(),
+                    gte: vi.fn().mockReturnThis(),
+                    upsert: vi.fn(),
+                    update: vi.fn(),
+                    delete: vi.fn(),
+                    then: function(resolve: any) {
+                        if (tableName === 'tasks') {
+                            resolve({
+                                data: [{
+                                    id: 'delta-task',
+                                    title: 'Delta Sync Task',
+                                    status: 'To Do',
+                                    type: 'Feature',
+                                    team_id: 'test-team-123',
+                                    season_id: 'test-season-456',
+                                    created_at: new Date(2000).toISOString(),
+                                }],
+                                error: null
+                            });
+                        } else {
+                            resolve({ data: [], error: null });
+                        }
+                        return query;
+                    }
+                };
+                return query;
+            });
+
+            const { result, unmount } = renderHook(() => useSync());
+
+            await act(async () => {
+                await result.current.sync();
+            });
+
+            // Verify store has the new delta task
+            const store = useAppStore.getState();
+            expect(store.tasks.find(t => t.id === 'delta-task')).toBeDefined();
+            
+            unmount();
+        });
     });
 });
