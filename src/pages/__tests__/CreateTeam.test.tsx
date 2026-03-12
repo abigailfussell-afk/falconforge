@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import CreateTeam from '../CreateTeam';
+import * as authObj from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
+import { recordAttestation } from '../../lib/attestations';
 
 // Mock auth hook
 vi.mock('../../lib/auth', () => ({
@@ -10,32 +13,29 @@ vi.mock('../../lib/auth', () => ({
         session: { access_token: 'token' },
         isLoading: false,
         isConfigured: true,
+        ageClassification: '18_plus',
     })),
 }));
 
 // Mock supabase
 vi.mock('../../lib/supabase', () => ({
     supabase: {
-        from: vi.fn(() => ({
-            insert: vi.fn().mockReturnThis(),
-            select: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: { id: 'team-1' }, error: null }),
-        })),
-        rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+        rpc: vi.fn().mockResolvedValue({ data: { success: true, team_id: 't1', invite_code: 'CODE123' }, error: null }),
     },
 }));
 
 // Mock attestations
 vi.mock('../../lib/attestations', () => ({
-    recordAttestation: vi.fn().mockResolvedValue({ error: null }),
+    recordAttestation: vi.fn().mockResolvedValue({ success: true, error: null }),
 }));
 
 // Mock react-router-dom
+const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual('react-router-dom');
     return {
         ...actual,
-        useNavigate: () => vi.fn(),
+        useNavigate: () => mockNavigate,
         Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
             <a href={to}>{children}</a>
         ),
@@ -49,165 +49,167 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
 describe('CreateTeam', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        
+        // Reset auth mock to default test state
+        (authObj.useAuth as any).mockReturnValue({
+            user: { id: 'user-1', email: 'test@example.com' },
+            session: { access_token: 'token' },
+            isLoading: false,
+            isConfigured: true,
+            ageClassification: '18_plus',
+        });
+        
+        // Reset supabase mock
+        (supabase.rpc as any).mockResolvedValue({ data: { success: true, team_id: 't1', invite_code: 'CODE123' }, error: null });
+        
+        // Reset attestations mock
+        (recordAttestation as any).mockResolvedValue({ success: true, error: null });
     });
 
-    it('renders the create team page', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
+    describe('Auth & Age Requirements', () => {
+        it('redirects to login if user is not authenticated', () => {
+            (authObj.useAuth as any).mockReturnValue({
+                user: null,
+                isLoading: false,
+                ageClassification: null,
+            });
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            expect(mockNavigate).toHaveBeenCalledWith('/login');
+        });
 
-        // Should have header or title
-        const header = screen.queryByText(/create/i) || screen.queryByText(/team/i);
-        expect(header).toBeDefined();
+        it('shows age requirement block if user is not 18+', () => {
+            (authObj.useAuth as any).mockReturnValue({
+                user: { id: 'user-1' },
+                isLoading: false,
+                ageClassification: '13_to_17',
+            });
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            
+            expect(screen.getByText('Age Requirement')).toBeDefined();
+            expect(screen.getByText(/You must be 18 or older/i)).toBeDefined();
+            
+            fireEvent.click(screen.getByText('Back to Teams'));
+            expect(mockNavigate).toHaveBeenCalledWith('/onboarding');
+        });
     });
 
-    it('shows step indicator', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        // Should show step 1 of 2 or similar
-        const stepIndicator = screen.queryByText(/step/i) ||
-            screen.queryByText(/1/);
-        // Steps should be visible (or null if not implemented)
-        expect(stepIndicator === null || stepIndicator !== null).toBe(true);
-    });
-
-    it('has attestation checkbox on first step', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        // Look for checkbox input
-        const checkbox = document.querySelector('input[type="checkbox"]');
-        expect(checkbox).toBeDefined();
-    });
-
-    it('shows coach agreement text', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        // Should show terms/agreement text
-        const agreementText = screen.queryByText(/agree/i) ||
-            screen.queryByText(/coach/i) ||
-            screen.queryByText(/acknowledge/i);
-        expect(agreementText).toBeDefined();
-    });
-
-    it('has next button', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        const nextButton = screen.queryByRole('button', { name: /next/i }) ||
-            screen.queryByText(/next/i) ||
-            screen.queryByText(/continue/i);
-        expect(nextButton).toBeDefined();
-    });
-
-    it('next button is disabled without attestation', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        const nextButton = screen.queryByRole('button', { name: /next/i });
-
-        if (nextButton) {
-            // Button should be disabled until checkbox is checked
-            // Or clicking should not proceed
-        }
-    });
-
-    it('enables next after checking attestation', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        const checkbox = document.querySelector('input[type="checkbox"]');
-
-        if (checkbox) {
+    describe('Step 1: Attestation', () => {
+        it('renders attestation step and requires checkbox to proceed', () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            
+            expect(screen.getByText('Coach Agreement')).toBeDefined();
+            
+            const nextButton = screen.getByRole('button', { name: /next/i }) as HTMLButtonElement;
+            expect(nextButton.disabled).toBe(true);
+            
+            const checkbox = screen.getByRole('checkbox');
             fireEvent.click(checkbox);
-
-            const nextButton = screen.queryByRole('button', { name: /next/i });
-            // Next should be enabled now
-            expect(nextButton === null || nextButton !== null).toBe(true);
-        }
-    });
-});
-
-describe('CreateTeam step navigation', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
-    it('navigates to step 2 after attestation', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        // Check attestation box
-        const checkbox = document.querySelector('input[type="checkbox"]');
-        if (checkbox) {
-            fireEvent.click(checkbox);
-        }
-
-        // Click next
-        const buttons = screen.getAllByRole('button');
-        const nextButton = buttons.find(btn =>
-            btn.textContent?.toLowerCase().includes('next') ||
-            btn.textContent?.toLowerCase().includes('continue')
-        );
-
-        if (nextButton) {
+            
+            expect(nextButton.disabled).toBe(false);
+            
             fireEvent.click(nextButton);
-
-            // Should now show step 2 (team details)
-            const teamNameInput = screen.queryByPlaceholderText(/team name/i) ||
-                screen.queryByRole('textbox');
-            // Team details form should be visible
-            expect(teamNameInput === null || teamNameInput !== null).toBe(true);
-        }
+            
+            // Should move to step 2
+            expect(screen.getByText('Team Details')).toBeDefined();
+        });
     });
 
-    it('has back button on step 2', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
+    describe('Step 2: Team Details', () => {
+        it('allows going back to step 1', () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            expect(screen.getByText('Team Details')).toBeDefined();
+            
+            fireEvent.click(screen.getByRole('button', { name: /back/i }));
+            expect(screen.getByText('Coach Agreement')).toBeDefined();
+        });
 
-        // Navigate to step 2 first
-        const checkbox = document.querySelector('input[type="checkbox"]');
-        if (checkbox) fireEvent.click(checkbox);
-
-        const nextButton = screen.getAllByRole('button').find(btn =>
-            btn.textContent?.toLowerCase().includes('next')
-        );
-        if (nextButton) fireEvent.click(nextButton);
-
-        // Now look for back button
-        const backButton = screen.queryByRole('button', { name: /back/i }) ||
-            screen.queryByText(/back/i);
-        // Back button should be visible
-        expect(backButton === null || backButton !== null).toBe(true);
-    });
-});
-
-describe('CreateTeam form', () => {
-    it('has team name input field', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
-
-        // Navigate to step 2
-        const checkbox = document.querySelector('input[type="checkbox"]');
-        if (checkbox) fireEvent.click(checkbox);
-
-        const nextButton = screen.getAllByRole('button').find(btn =>
-            btn.textContent?.toLowerCase().includes('next')
-        );
-        if (nextButton) fireEvent.click(nextButton);
-
-        // Look for team name input
-        const inputs = screen.queryAllByRole('textbox');
-        expect(inputs.length).toBeGreaterThanOrEqual(0);
+        it('requires team name of at least 3 characters to submit', () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            const createButton = screen.getByRole('button', { name: /create team/i }) as HTMLButtonElement;
+            expect(createButton.disabled).toBe(true);
+            
+            const teamNameInput = screen.getByPlaceholderText('e.g., Falcon Force');
+            fireEvent.change(teamNameInput, { target: { value: 'AB' } });
+            expect(createButton.disabled).toBe(true);
+            
+            fireEvent.change(teamNameInput, { target: { value: 'Valid Team' } });
+            expect(createButton.disabled).toBe(false);
+        });
     });
 
-    it('has team number input field', () => {
-        render(<CreateTeam />, { wrapper: TestWrapper });
+    describe('Submission process', () => {
+        it('handles attestation API error', async () => {
+            (recordAttestation as any).mockResolvedValueOnce({ success: false, error: 'Attestation failed' });
+            
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), { target: { value: 'Valid Team' } });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+            
+            expect(await screen.findByText('Attestation failed')).toBeDefined();
+            expect(supabase.rpc).not.toHaveBeenCalled();
+        });
 
-        // Navigate to step 2
-        const checkbox = document.querySelector('input[type="checkbox"]');
-        if (checkbox) fireEvent.click(checkbox);
+        it('handles RPC error', async () => {
+            (supabase.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'RPC Error' } });
+            
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), { target: { value: 'Valid Team' } });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+            
+            expect(await screen.findByText('RPC Error')).toBeDefined();
+        });
 
-        const nextButton = screen.getAllByRole('button').find(btn =>
-            btn.textContent?.toLowerCase().includes('next')
-        );
-        if (nextButton) fireEvent.click(nextButton);
+        it('handles missing success flag in RPC return', async () => {
+            (supabase.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Creation failed' }, error: null });
+            
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), { target: { value: 'Valid Team' } });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+            
+            expect(await screen.findByText('Creation failed')).toBeDefined();
+        });
 
-        // Look for team number input
-        const numberInput = document.querySelector('input[type="number"]') ||
-            screen.queryByPlaceholderText(/number/i);
-        // Number input might exist
-        expect(numberInput === null || numberInput !== null).toBe(true);
+        it('submits successfully and navigates to complete step', async () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), { target: { value: 'Valid Team' } });
+            fireEvent.change(screen.getByPlaceholderText('e.g., 12345'), { target: { value: '9999' } });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+            
+            await waitFor(() => {
+                expect(recordAttestation).toHaveBeenCalledWith('coach_terms');
+                expect(supabase.rpc).toHaveBeenCalledWith('create_team_as_coach', {
+                    team_name: 'Valid Team',
+                    team_number: '9999'
+                });
+            });
+            
+            expect(screen.getByText('Team Created Successfully!')).toBeDefined();
+            expect(screen.getByText('Valid Team', { exact: false })).toBeDefined();
+            expect(screen.getByText('CODE123')).toBeDefined();
+            
+            // Go to dashboard
+            fireEvent.click(screen.getByRole('button', { name: /go to dashboard/i }));
+            expect(mockNavigate).toHaveBeenCalledWith('/');
+        });
     });
 });
