@@ -222,3 +222,35 @@ h6 {
 .rotate-y-180 {
   transform: rotateY(180deg);
 }
+
+/* Screensaver Background Animation */
+@keyframes pan-bg {
+  0% {
+    transform: scale(1.15) translate(-3%, -2%);
+  }
+  50% {
+    transform: scale(1.15) translate(3%, 2%);
+  }
+  100% {
+    transform: scale(1.15) translate(-3%, -2%);
+  }
+}
+
+.animate-pan-bg {
+  animation: pan-bg 25s ease-in-out infinite;
+  background-size: cover;
+  background-position: center;
+}
+
+/* SVG Drawing Animation for Match Planner */
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-line 3s ease-in-out forwards infinite;
+}

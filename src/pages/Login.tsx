@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
@@ -9,7 +10,13 @@ type SignupStep = 1 | 2;
 
 export default function LoginPage() {
     const { signInWithEmail, signUpWithEmail, resetPassword, isConfigured } = useAuth();
-    const [mode, setMode] = useState<AuthMode>('login');
+    const location = useLocation();
+    
+    // Check if we navigated here with ?mode=signup
+    const searchParams = new URLSearchParams(location.search);
+    const initialMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login';
+
+    const [mode, setMode] = useState<AuthMode>(initialMode);
     const [signupStep, setSignupStep] = useState<SignupStep>(1);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

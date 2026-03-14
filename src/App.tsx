@@ -9,6 +9,7 @@ import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
 import JoinTeam from './pages/JoinTeam';
+import LandingPage from './pages/Landing';
 import TermsAndConditions from './pages/legal/TermsAndConditions';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import CommunityGuidelines from './pages/legal/CommunityGuidelines';
@@ -244,7 +245,12 @@ function App() {
     return (
         <QueryProvider>
             <Routes>
-                {/* Public routes */}
+                {/* Public landing page */}
+                <Route path="/" element={
+                    user ? <Navigate to="/dashboard" replace /> : <LandingPage />
+                } />
+
+                {/* Authentication routes */}
                 <Route path="/login" element={
                     user ? <Navigate to="/onboarding" replace /> : <LoginPage />
                 } />
@@ -292,7 +298,7 @@ function App() {
 
                 {/* Main app - require auth and team */}
                 <Route path="/*" element={
-                    user ? <Dashboard /> : <Navigate to="/login" replace />
+                    user ? <Dashboard /> : <Navigate to="/" replace />
                 } />
             </Routes>
         </QueryProvider>
