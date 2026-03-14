@@ -171,21 +171,36 @@ export default function LandingPage() {
                             </div>
                             
                             <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
-                                {/* Grid Background */}
+                                {/* Definitions including Grid and Animated Masks for precisely syncing the stroke drawing to the robots */}
                                 <defs>
                                     <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
                                         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="1" />
                                     </pattern>
+                                    
+                                    <mask id="draw-mask-1">
+                                        <path d="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" fill="none" stroke="white" strokeWidth="10" strokeLinecap="round" pathLength="100" strokeDasharray="100" strokeDashoffset="100">
+                                            <animate attributeName="stroke-dashoffset" from="100" to="0" dur="4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1" />
+                                        </path>
+                                    </mask>
+
+                                    <mask id="draw-mask-2">
+                                        <path d="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250" fill="none" stroke="white" strokeWidth="10" strokeLinecap="round" pathLength="100" strokeDasharray="100" strokeDashoffset="100">
+                                            <animate attributeName="stroke-dashoffset" from="100" to="0" dur="5s" begin="0.5s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1" />
+                                        </path>
+                                    </mask>
                                 </defs>
                                 <rect width="100%" height="100%" fill="url(#grid)" />
                                 
-                                {/* Start Point */}
+                                {/* Start Points */}
                                 <circle cx="50" cy="250" r="10" fill="#f97316" />
                                 <text x="35" y="275" fill="#f97316" fontSize="12" fontWeight="bold">START</text>
                                 
-                                {/* Animated paths */}
+                                <circle cx="100" cy="50" r="10" fill="#eab308" />
+                                <text x="85" y="75" fill="#eab308" fontSize="12" fontWeight="bold">START</text>
+                                
+                                {/* Animated paths masked by drawing masks */}
                                 <path 
-                                    className="animate-draw"
+                                    mask="url(#draw-mask-1)"
                                     d="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" 
                                     fill="none" 
                                     stroke="#f97316" 
@@ -194,19 +209,63 @@ export default function LandingPage() {
                                     strokeLinejoin="round" 
                                 />
                                 <path 
-                                    className="animate-draw"
-                                    style={{ animationDelay: '1s', opacity: 0.7 }}
-                                    d="M 200 150 Q 250 250 350 250" 
+                                    mask="url(#draw-mask-2)"
+                                    style={{ opacity: 0.7 }}
+                                    d="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250" 
                                     fill="none" 
                                     stroke="#eab308" 
-                                    strokeWidth="4" 
-                                    strokeDasharray="10, 10"
+                                    strokeWidth="6" 
                                     strokeLinecap="round" 
                                 />
                                 
                                 {/* End Points */}
                                 <path d="M 330 50 L 350 50 L 350 70" fill="none" stroke="#f97316" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-                                <circle cx="350" cy="250" r="8" fill="#eab308" className="animate-pulse" />
+                                <path d="M 330 250 L 350 250 L 350 230" fill="none" stroke="#eab308" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                                
+                                {/* Robot 1 Layout */}
+                                <g className="drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]">
+                                    <g>
+                                        <animateMotion 
+                                            dur="4s" 
+                                            repeatCount="indefinite" 
+                                            path="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" 
+                                            rotate="auto"
+                                            calcMode="spline"
+                                            keyTimes="0;1"
+                                            keySplines="0.42 0 0.58 1"
+                                        />
+                                        {/* Scaled up 1.5x */}
+                                        <rect width="36" height="24" rx="4" fill="#0f172a" stroke="#f97316" strokeWidth="2" x="-18" y="-12" />
+                                        <rect width="8" height="14" rx="2" fill="#f97316" x="3" y="-7" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="-12" y="-14" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="-12" y="11" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="2" y="-14" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="2" y="11" />
+                                    </g>
+                                </g>
+
+                                {/* Robot 2 Layout */}
+                                <g className="drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" opacity="0.9">
+                                    <g>
+                                        <animateMotion 
+                                            dur="5s" 
+                                            begin="0.5s"
+                                            repeatCount="indefinite" 
+                                            path="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250" 
+                                            rotate="auto"
+                                            calcMode="spline"
+                                            keyTimes="0;1"
+                                            keySplines="0.42 0 0.58 1"
+                                        />
+                                        {/* Scaled up 1.5x */}
+                                        <rect width="36" height="24" rx="4" fill="#0f172a" stroke="#eab308" strokeWidth="2" x="-18" y="-12" />
+                                        <rect width="8" height="14" rx="2" fill="#eab308" x="3" y="-7" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="-12" y="-14" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="-12" y="11" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="2" y="-14" />
+                                        <rect width="10" height="3" fill="#94a3b8" x="2" y="11" />
+                                    </g>
+                                </g>
                             </svg>
                         </div>
                     </div>
