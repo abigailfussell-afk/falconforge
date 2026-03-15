@@ -1,11 +1,89 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Activity, Users, Zap, Shield, ChevronRight, PenTool, Check, Crown, User, Brain } from 'lucide-react';
+import { 
+    ArrowRight, ChevronRight, Check, Crown, User, Brain, 
+    KanbanSquare, ClipboardCheck, BarChart3, Map, Zap
+} from 'lucide-react';
+import React from 'react';
 
 export default function LandingPage() {
     const navigate = useNavigate();
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-orange-500/30 overflow-x-hidden">
+            <style>{`
+                /* Kanban Animations */
+                @keyframes kanbanCardFlow {
+                    0%, 15% { transform: translate(0, 0); opacity: 1; }
+                    30%, 45% { transform: translate(calc(100% + 1rem), 20px); opacity: 1; }
+                    60%, 80% { transform: translate(calc(200% + 2rem), -10px); opacity: 1; }
+                    95%, 100% { transform: translate(calc(200% + 2rem), -10px); opacity: 0; }
+                }
+                .animate-kanban-card {
+                    animation: kanbanCardFlow 8s ease-in-out infinite;
+                }
+                
+                /* Checklist Animations */
+                @keyframes checkmarkAppear {
+                    0%, 30% { opacity: 0; transform: scale(0.5); }
+                    40%, 90% { opacity: 1; transform: scale(1); }
+                    100% { opacity: 0; transform: scale(0.5); }
+                }
+                .animate-checkmark {
+                    animation: checkmarkAppear 6s infinite;
+                }
+                @keyframes strikethrough {
+                    0%, 30% { color: #cbd5e1; text-decoration: none; opacity: 1; }
+                    40%, 90% { color: #64748b; text-decoration: line-through; opacity: 0.5; }
+                    100% { color: #cbd5e1; text-decoration: none; opacity: 1; }
+                }
+                .animate-strikethrough {
+                    animation: strikethrough 6s infinite;
+                }
+                @keyframes progressFill {
+                    0% { width: 0%; }
+                    35% { width: 25%; }
+                    55% { width: 50%; }
+                    75% { width: 75%; }
+                    90%, 100% { width: 100%; }
+                }
+                .animate-progress-bar {
+                    animation: progressFill 6s ease-in-out infinite;
+                }
+
+                /* Scouting Charts Animations */
+                @keyframes barGrow {
+                    0%, 10% { height: 10%; }
+                    50%, 90% { height: var(--target-height, 100%); }
+                    100% { height: 10%; }
+                }
+                .animate-bar-grow {
+                    animation: barGrow 4s ease-in-out infinite alternate;
+                }
+                @keyframes circleDraw {
+                    0%, 10% { stroke-dasharray: 0, 100; }
+                    50%, 90% { stroke-dasharray: 87, 100; }
+                    100% { stroke-dasharray: 0, 100; }
+                }
+                .animate-circle-draw {
+                    animation: circleDraw 4s ease-in-out infinite alternate;
+                }
+                @keyframes subBarFill {
+                    0%, 10% { transform: scaleX(0); transform-origin: left; }
+                    50%, 90% { transform: scaleX(1); transform-origin: left; }
+                    100% { transform: scaleX(0); transform-origin: left; }
+                }
+                .animate-sub-bar {
+                    animation: subBarFill 4s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+                }
+                .animate-spin-slow {
+                    animation: spin 12s linear infinite;
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
+            
             {/* Navigation Bar */}
             <nav className="fixed top-0 w-full z-50 glass border-b border-slate-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,31 +122,31 @@ export default function LandingPage() {
             {/* Hero Section */}
             <main className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
                 {/* Moving Background Screensaver */}
-                <div 
+                <div
                     className="absolute inset-0 z-0 opacity-40 animate-pan-bg mix-blend-lighten"
                     style={{ backgroundImage: `url('${import.meta.env.BASE_URL}hero_bg.png')` }}
                 ></div>
-                
-                {/* Background Effects Gradient Overlay (fades the edges to blend into the rest of the site) */}
+
+                {/* Background Effects Gradient Overlay */}
                 <div className="absolute inset-0 z-0 bg-gradient-to-b from-slate-900/50 via-slate-900/70 to-slate-900/100 pointer-events-none"></div>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
-                
+
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-sm text-amber-400 font-medium mb-8 shadow-xl">
                         <Zap className="w-4 h-4" /> The ultimate agile engineering solution for your robotics team
                     </div>
-                    
+
                     <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8">
                         Don't just build your robot...<br />
                         <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 text-transparent bg-clip-text tracking-tighter italic">
                             FORGE IT
                         </span>
                     </h1>
-                    
+
                     <p className="mt-6 text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed">
                         The complete platform for competitive robotics teams to plan sprints, analyze scouting data, strategize with alliances, and learn real-world agile engineering processes.
                     </p>
-                    
+
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <button
                             onClick={() => navigate('/login?mode=signup')}
@@ -90,32 +168,31 @@ export default function LandingPage() {
             <section className="py-24 bg-slate-900/50 border-t border-slate-800 relative z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold mb-4">Four modules. One unified workflow.</h2>
-                        <p className="text-slate-400 text-lg">Everything your team needs to go from kickoff to world championships.</p>
+                        <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Everything your team needs to go from kickoff to world championships.</h2>
                     </div>
 
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Feature Cards */}
                         {[
                             {
-                                icon: <Activity className="w-6 h-6 text-orange-400" />,
-                                title: "Agile Planning",
+                                icon: <KanbanSquare className="w-6 h-6 text-orange-400" />,
+                                title: "Sprint Planning",
                                 desc: "Kanban boards and sprint planning adapted specifically for robotics build seasons."
                             },
                             {
-                                icon: <Users className="w-6 h-6 text-blue-400" />,
+                                icon: <ClipboardCheck className="w-6 h-6 text-blue-400" />,
+                                title: "Pre-Match Checklist",
+                                desc: "Ensure your robot is ready for every match with customizable, verifiable tasks."
+                            },
+                            {
+                                icon: <BarChart3 className="w-6 h-6 text-emerald-400" />,
                                 title: "Scouting Reports",
                                 desc: "Detailed match analysis and offline-first data sync for competition scenarios."
                             },
                             {
-                                icon: <Zap className="w-6 h-6 text-amber-400" />,
+                                icon: <Map className="w-6 h-6 text-amber-400" />,
                                 title: "Match Planner",
                                 desc: "Visualize strategies, assign tasks to alliance partners, and win more matches."
-                            },
-                            {
-                                icon: <Shield className="w-6 h-6 text-emerald-400" />,
-                                title: "AI Portfolio",
-                                desc: "Automatically document your season and generate judging material with our AI."
                             }
                         ].map((feature, i) => (
                             <div key={i} className="p-6 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-colors">
@@ -129,27 +206,27 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
-            
-            {/* Match Planner Animation Section */}
+
+            {/* Sprint Planning Section */}
             <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                    <div className="grid lg:grid-cols-2 gap-16 items-center">
-                        <div>
+                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row">
+                        <div className="order-1">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-orange-400 font-medium mb-6">
-                                <PenTool className="w-4 h-4" /> Strategy & Drawing
+                                <KanbanSquare className="w-4 h-4" /> Sprint Planning
                             </div>
                             <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
-                                Visualize your next move
+                                Keep the build season on track
                             </h2>
                             <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-                                Our built-in Match Planner lets you draw, diagram, and formulate complex alliance strategies directly over the season's field map, saving your master plans for the pre-match huddle.
+                                Organize your subteams, track tasks, and monitor progress with our integrated robotics-specific Kanban boards. Make sure you hit your deadlines before competition week.
                             </p>
                             <ul className="space-y-4 mb-8">
                                 {[
-                                    "Save unlimited custom plays",
-                                    "Pre-match task checklists",
-                                    "Real-time whiteboard feeling"
+                                    "Custom robotics workflow states",
+                                    "Assign tasks to specific subteams",
+                                    "Track progress across systems"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-center gap-3 text-slate-300">
                                         <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
@@ -160,23 +237,271 @@ export default function LandingPage() {
                                 ))}
                             </ul>
                         </div>
-                        
-                        {/* Animated Drawing Diagram */}
-                        <div className="relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+
+                        {/* Animated Kanban */}
+                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
                             {/* Fake UI Header */}
                             <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2">
                                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
                                 <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
                                 <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
                             </div>
+
+                            <div className="w-full flex gap-4 h-full pt-8 relative">
+                                {/* Columns */}
+                                {["To Do", "In Progress", "Done"].map((col, idx) => (
+                                    <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative">
+                                        <div className="text-slate-400 font-semibold text-sm uppercase tracking-wider">{col}</div>
+                                        {/* Static Cards */}
+                                        {idx === 0 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 mt-28"></div>}
+                                        {idx === 0 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 1 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 2 && <div className="w-full h-24 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 2 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                    </div>
+                                ))}
+
+                                {/* Animated Ticket */}
+                                <div className="absolute left-4 top-20 w-[calc(33.33%-1.5rem)] h-24 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg border border-orange-400/50 p-3 shadow-lg shadow-orange-500/20 flex flex-col justify-between animate-kanban-card z-10 pointer-events-none">
+                                    <div className="w-1/2 h-2 bg-white/30 rounded-full"></div>
+                                    <div className="w-full space-y-2">
+                                        <div className="w-5/6 h-2 bg-white/20 rounded-full"></div>
+                                        <div className="w-4/6 h-2 bg-white/20 rounded-full"></div>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <div className="w-6 h-6 rounded-full bg-white/20"></div>
+                                        <div className="w-6 h-4 bg-white/20 rounded-sm"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Pre-Match Checklist Section */}
+            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
+                        
+                        {/* Text Right */}
+                        <div className="order-1 lg:order-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-blue-400 font-medium mb-6">
+                                <ClipboardCheck className="w-4 h-4" /> Pre-Match Checklist
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Never forget a battery again
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Queue up with confidence. Custom checklists ensure your drive team completes every crucial step before placing the robot on the field, resulting in fewer disconnected wires and uncharged batteries.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Customizable by subsystem",
+                                    "Accountability & connection verification",
+                                    "Works fully offline in the pits"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Animated Checklist Left */}
+                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                                <span className="ml-4">Match 42 Preparation</span>
+                            </div>
                             
-                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]">
-                                {/* Definitions including Grid and Animated Masks for precisely syncing the stroke drawing to the robots */}
+                            <div className="w-full max-w-sm mt-8 space-y-4 relative">
+                                {/* Progress Bar Header */}
+                                <div className="mb-6">
+                                    <div className="flex justify-between text-sm text-slate-300 mb-2">
+                                        <span className="font-bold">Team Readiness</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 animate-progress-bar rounded-full"></div>
+                                    </div>
+                                </div>
+
+                                {/* Checklist Items */}
+                                {[
+                                    { label: "Install fresh battery", delay: "0s" },
+                                    { label: "Turn on main breaker", delay: "1.2s" },
+                                    { label: "Verify DS connection", delay: "2.4s" },
+                                    { label: "Set starting configuration", delay: "3.6s" }
+                                ].map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-4 bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-lg relative overflow-hidden group">
+                                        <div className="relative w-6 h-6 border-2 border-slate-600 rounded-md flex items-center justify-center flex-shrink-0 animate-checkbox" style={{ animationDelay: item.delay }}>
+                                            <Check className="w-4 h-4 text-white opacity-0 animate-checkmark" style={{ animationDelay: item.delay }} />
+                                        </div>
+                                        <span className="font-medium text-slate-300 animate-strikethrough" style={{ animationDelay: item.delay }}>
+                                            {item.label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Scouting Reports Section */}
+            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        <div className="order-1">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-emerald-400 font-medium mb-6">
+                                <BarChart3 className="w-4 h-4" /> Scouting Reports
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Data-driven alliance selection
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Move beyond pen and paper. Empower your scouts to log match data seamlessly, even without Wi-Fi. Sync to the cloud and uncover powerful metrics for your picklist.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Deep quantitative analysis",
+                                    "Offline-first pit & stand data entry",
+                                    "Team progression charts"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Animated Charts Right */}
+                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex flex-col justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                                <span className="ml-4">Team 118 Analysis</span>
+                            </div>
+                            
+                            <div className="w-full flex flex-col gap-6 mt-6">
+                                {/* Bar Chart */}
+                                <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg h-48 flex items-end justify-between gap-2 px-8">
+                                    {[30, 70, 45, 90, 60, 85, 40].map((h, i) => (
+                                        <div key={i} className="w-full bg-slate-800 rounded-t-md relative group">
+                                            <div 
+                                                className="absolute bottom-0 w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-1000 animate-bar-grow"
+                                                style={{ '--target-height': `${h}%`, animationDelay: `${i * 0.1}s` } as React.CSSProperties}
+                                            ></div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg flex items-center justify-center h-32 relative overflow-hidden">
+                                        {/* Circular Progress Indicator */}
+                                        <svg viewBox="0 0 36 36" className="w-20 h-20 animate-spin-slow">
+                                            <path
+                                                className="text-slate-800"
+                                                strokeWidth="3"
+                                                stroke="currentColor"
+                                                fill="none"
+                                                d="M18 2.0845
+                                                  a 15.9155 15.9155 0 0 1 0 31.831
+                                                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                                            />
+                                            <path
+                                                className="text-emerald-500 animate-circle-draw"
+                                                strokeWidth="3"
+                                                strokeDasharray="100, 100"
+                                                strokeLinecap="round"
+                                                stroke="currentColor"
+                                                fill="none"
+                                                d="M18 2.0845
+                                                  a 15.9155 15.9155 0 0 1 0 31.831
+                                                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">87%</div>
+                                    </div>
+                                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-center h-32 space-y-3">
+                                        <div className="h-3 w-1/2 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500 w-3/4 animate-sub-bar"></div>
+                                        </div>
+                                        <div className="h-3 w-3/4 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-amber-500 w-5/6 animate-sub-bar" style={{ animationDelay: '0.2s' }}></div>
+                                        </div>
+                                        <div className="h-3 w-2/3 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-orange-500 w-1/2 animate-sub-bar" style={{ animationDelay: '0.4s' }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Match Planner Section */}
+            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
+                        
+                        <div className="order-1 lg:order-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-amber-400 font-medium mb-6">
+                                <Map className="w-4 h-4" /> Match Planner
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Visualize your next move
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Our built-in Match Planner lets you draw, diagram, and formulate complex alliance strategies directly over the season's field map. Record crucial strategy notes, tag key starting positions, and build a unified game plan for your entire alliance.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Save unlimited custom plays",
+                                    "Coordinate alliance synergy & routing",
+                                    "Real-time whiteboard feeling"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Animated Drawing Diagram */}
+                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                                <span className="ml-4">Alliance Pre-Match Huddle</span>
+                            </div>
+
+                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] mt-6">
+                                {/* Definitions including Grid and Animated Masks */}
                                 <defs>
                                     <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
                                         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="1" />
                                     </pattern>
-                                    
+
                                     <mask id="draw-mask-1">
                                         <path d="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" fill="none" stroke="white" strokeWidth="10" strokeLinecap="round" pathLength="100" strokeDasharray="100" strokeDashoffset="100">
                                             <animate attributeName="stroke-dashoffset" from="100" to="0" dur="4s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1" />
@@ -190,51 +515,50 @@ export default function LandingPage() {
                                     </mask>
                                 </defs>
                                 <rect width="100%" height="100%" fill="url(#grid)" />
-                                
+
                                 {/* Start Points */}
                                 <circle cx="50" cy="250" r="10" fill="#f97316" />
                                 <text x="35" y="275" fill="#f97316" fontSize="12" fontWeight="bold">START</text>
-                                
+
                                 <circle cx="100" cy="50" r="10" fill="#eab308" />
                                 <text x="85" y="75" fill="#eab308" fontSize="12" fontWeight="bold">START</text>
-                                
+
                                 {/* Animated paths masked by drawing masks */}
-                                <path 
+                                <path
                                     mask="url(#draw-mask-1)"
-                                    d="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" 
-                                    fill="none" 
-                                    stroke="#f97316" 
-                                    strokeWidth="6" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
+                                    d="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50"
+                                    fill="none"
+                                    stroke="#f97316"
+                                    strokeWidth="6"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                 />
-                                <path 
+                                <path
                                     mask="url(#draw-mask-2)"
                                     style={{ opacity: 0.7 }}
-                                    d="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250" 
-                                    fill="none" 
-                                    stroke="#eab308" 
-                                    strokeWidth="6" 
-                                    strokeLinecap="round" 
+                                    d="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250"
+                                    fill="none"
+                                    stroke="#eab308"
+                                    strokeWidth="6"
+                                    strokeLinecap="round"
                                 />
-                                
+
                                 {/* End Points */}
                                 <path d="M 330 50 L 350 50 L 350 70" fill="none" stroke="#f97316" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
                                 <path d="M 330 250 L 350 250 L 350 230" fill="none" stroke="#eab308" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-                                
+
                                 {/* Robot 1 Layout */}
                                 <g className="drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]">
                                     <g>
-                                        <animateMotion 
-                                            dur="4s" 
-                                            repeatCount="indefinite" 
-                                            path="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50" 
+                                        <animateMotion
+                                            dur="4s"
+                                            repeatCount="indefinite"
+                                            path="M 50 250 C 100 250, 150 150, 200 150 S 300 100, 350 50"
                                             rotate="auto"
                                             calcMode="spline"
                                             keyTimes="0;1"
                                             keySplines="0.42 0 0.58 1"
                                         />
-                                        {/* Scaled up 1.5x */}
                                         <rect width="36" height="24" rx="4" fill="#0f172a" stroke="#f97316" strokeWidth="2" x="-18" y="-12" />
                                         <rect width="8" height="14" rx="2" fill="#f97316" x="3" y="-7" />
                                         <rect width="10" height="3" fill="#94a3b8" x="-12" y="-14" />
@@ -247,17 +571,16 @@ export default function LandingPage() {
                                 {/* Robot 2 Layout */}
                                 <g className="drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" opacity="0.9">
                                     <g>
-                                        <animateMotion 
-                                            dur="5s" 
+                                        <animateMotion
+                                            dur="5s"
                                             begin="0.5s"
-                                            repeatCount="indefinite" 
-                                            path="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250" 
+                                            repeatCount="indefinite"
+                                            path="M 100 50 C 150 50, 150 200, 220 200 C 290 200, 250 100, 350 250"
                                             rotate="auto"
                                             calcMode="spline"
                                             keyTimes="0;1"
                                             keySplines="0.42 0 0.58 1"
                                         />
-                                        {/* Scaled up 1.5x */}
                                         <rect width="36" height="24" rx="4" fill="#0f172a" stroke="#eab308" strokeWidth="2" x="-18" y="-12" />
                                         <rect width="8" height="14" rx="2" fill="#eab308" x="3" y="-7" />
                                         <rect width="10" height="3" fill="#94a3b8" x="-12" y="-14" />
@@ -271,7 +594,7 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
-            
+
             {/* Roles / Pricing Section */}
             <section className="py-24 bg-slate-900/50 relative z-10 border-t border-slate-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -288,14 +611,14 @@ export default function LandingPage() {
                             </div>
                             <h3 className="text-2xl font-bold mb-2">Student</h3>
                             <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For builders, programmers, and drivers executing the plan.</p>
-                            
+
                             <ul className="space-y-4 mb-8 flex-1">
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" /><span className="text-slate-300">Complete assigned sprint tasks</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" /><span className="text-slate-300">Submit match scouting data offline</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" /><span className="text-slate-300">Review Match Planner strategies</span></li>
                             </ul>
                         </div>
-                        
+
                         {/* Coach Tier */}
                         <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-orange-500 relative transform md:-translate-y-4 shadow-2xl shadow-orange-500/10 flex flex-col h-full">
                             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
@@ -306,14 +629,14 @@ export default function LandingPage() {
                             </div>
                             <h3 className="text-2xl font-bold mb-2">Coach</h3>
                             <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For lead administrators and head teachers managing the overall operation.</p>
-                            
+
                             <ul className="space-y-4 mb-8 flex-1">
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage user roles & permissions</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create new seasons & rosters</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Oversee sprint planning metrics</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Generate AI Portfolios</span></li>
                             </ul>
-                            
+
                             <button
                                 onClick={() => navigate('/login?mode=signup')}
                                 className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-colors"
@@ -321,7 +644,7 @@ export default function LandingPage() {
                                 Register a Team
                             </button>
                         </div>
-                        
+
                         {/* Mentor Tier */}
                         <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-emerald-500/50 transition-all flex flex-col h-full">
                             <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6">
@@ -329,7 +652,7 @@ export default function LandingPage() {
                             </div>
                             <h3 className="text-2xl font-bold mb-2">Mentor</h3>
                             <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For parent volunteers and industry professionals guiding the team.</p>
-                            
+
                             <ul className="space-y-4 mb-8 flex-1">
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create & distribute Kanban tasks</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Draw Match Planner diagrams</span></li>

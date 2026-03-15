@@ -51,10 +51,10 @@ describe('LandingPage', () => {
             </MemoryRouter>
         );
 
-        expect(screen.getAllByText(/Agile Planning/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Sprint Planning/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Pre-Match Checklist/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/Scouting Reports/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/Match Planner/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/AI Portfolio/i).length).toBeGreaterThan(0);
     });
 
     it('navigates to login on default Log In click', () => {
