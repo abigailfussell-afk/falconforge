@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { 
     ArrowRight, ChevronRight, Check, Crown, User, Brain, 
-    KanbanSquare, ClipboardCheck, BarChart3, Map, Zap
+    KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy
 } from 'lucide-react';
 import React from 'react';
 
@@ -180,9 +180,9 @@ export default function LandingPage() {
                                 desc: "Kanban boards and sprint planning adapted specifically for robotics build seasons."
                             },
                             {
-                                icon: <ClipboardCheck className="w-6 h-6 text-blue-400" />,
-                                title: "Pre-Match Checklist",
-                                desc: "Ensure your robot is ready for every match with customizable, verifiable tasks."
+                                icon: <Map className="w-6 h-6 text-amber-400" />,
+                                title: "Match Planner",
+                                desc: "Visualize strategies, assign tasks to alliance partners, and win more matches."
                             },
                             {
                                 icon: <BarChart3 className="w-6 h-6 text-emerald-400" />,
@@ -190,9 +190,9 @@ export default function LandingPage() {
                                 desc: "Detailed match analysis and offline-first data sync for competition scenarios."
                             },
                             {
-                                icon: <Map className="w-6 h-6 text-amber-400" />,
-                                title: "Match Planner",
-                                desc: "Visualize strategies, assign tasks to alliance partners, and win more matches."
+                                icon: <ClipboardCheck className="w-6 h-6 text-blue-400" />,
+                                title: "Pre-Match Checklist",
+                                desc: "Ensure your robot is ready for every match with customizable, verifiable tasks."
                             }
                         ].map((feature, i) => (
                             <div key={i} className="p-6 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-colors">
@@ -271,180 +271,6 @@ export default function LandingPage() {
                                     <div className="flex justify-between items-center mt-2">
                                         <div className="w-6 h-6 rounded-full bg-white/20"></div>
                                         <div className="w-6 h-4 bg-white/20 rounded-sm"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Pre-Match Checklist Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
-                        
-                        {/* Text Right */}
-                        <div className="order-1 lg:order-2">
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-blue-400 font-medium mb-6">
-                                <ClipboardCheck className="w-4 h-4" /> Pre-Match Checklist
-                            </div>
-                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
-                                Never forget a battery again
-                            </h2>
-                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-                                Queue up with confidence. Custom checklists ensure your drive team completes every crucial step before placing the robot on the field, resulting in fewer disconnected wires and uncharged batteries.
-                            </p>
-                            <ul className="space-y-4 mb-8">
-                                {[
-                                    "Customizable by subsystem",
-                                    "Accountability & connection verification",
-                                    "Works fully offline in the pits"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-slate-300">
-                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-                                            <Check className="w-4 h-4" />
-                                        </div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Animated Checklist Left */}
-                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
-                            {/* Fake UI Header */}
-                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
-                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                                <span className="ml-4">Match 42 Preparation</span>
-                            </div>
-                            
-                            <div className="w-full max-w-sm mt-8 space-y-4 relative">
-                                {/* Progress Bar Header */}
-                                <div className="mb-6">
-                                    <div className="flex justify-between text-sm text-slate-300 mb-2">
-                                        <span className="font-bold">Team Readiness</span>
-                                    </div>
-                                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500 animate-progress-bar rounded-full"></div>
-                                    </div>
-                                </div>
-
-                                {/* Checklist Items */}
-                                {[
-                                    { label: "Install fresh battery", delay: "0s" },
-                                    { label: "Turn on main breaker", delay: "1.2s" },
-                                    { label: "Verify DS connection", delay: "2.4s" },
-                                    { label: "Set starting configuration", delay: "3.6s" }
-                                ].map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-4 bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-lg relative overflow-hidden group">
-                                        <div className="relative w-6 h-6 border-2 border-slate-600 rounded-md flex items-center justify-center flex-shrink-0 animate-checkbox" style={{ animationDelay: item.delay }}>
-                                            <Check className="w-4 h-4 text-white opacity-0 animate-checkmark" style={{ animationDelay: item.delay }} />
-                                        </div>
-                                        <span className="font-medium text-slate-300 animate-strikethrough" style={{ animationDelay: item.delay }}>
-                                            {item.label}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Scouting Reports Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                    <div className="grid lg:grid-cols-2 gap-16 items-center">
-                        <div className="order-1">
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-emerald-400 font-medium mb-6">
-                                <BarChart3 className="w-4 h-4" /> Scouting Reports
-                            </div>
-                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
-                                Data-driven alliance selection
-                            </h2>
-                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-                                Move beyond pen and paper. Empower your scouts to log match data seamlessly, even without Wi-Fi. Sync to the cloud and uncover powerful metrics for your picklist.
-                            </p>
-                            <ul className="space-y-4 mb-8">
-                                {[
-                                    "Deep quantitative analysis",
-                                    "Offline-first pit & stand data entry",
-                                    "Team progression charts"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-slate-300">
-                                        <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                                            <Check className="w-4 h-4" />
-                                        </div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        {/* Animated Charts Right */}
-                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex flex-col justify-center overflow-hidden glass">
-                            {/* Fake UI Header */}
-                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
-                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                                <span className="ml-4">Team 118 Analysis</span>
-                            </div>
-                            
-                            <div className="w-full flex flex-col gap-6 mt-6">
-                                {/* Bar Chart */}
-                                <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg h-48 flex items-end justify-between gap-2 px-8">
-                                    {[30, 70, 45, 90, 60, 85, 40].map((h, i) => (
-                                        <div key={i} className="w-full bg-slate-800 rounded-t-md relative group">
-                                            <div 
-                                                className="absolute bottom-0 w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-1000 animate-bar-grow"
-                                                style={{ '--target-height': `${h}%`, animationDelay: `${i * 0.1}s` } as React.CSSProperties}
-                                            ></div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg flex items-center justify-center h-32 relative overflow-hidden">
-                                        {/* Circular Progress Indicator */}
-                                        <svg viewBox="0 0 36 36" className="w-20 h-20 animate-spin-slow">
-                                            <path
-                                                className="text-slate-800"
-                                                strokeWidth="3"
-                                                stroke="currentColor"
-                                                fill="none"
-                                                d="M18 2.0845
-                                                  a 15.9155 15.9155 0 0 1 0 31.831
-                                                  a 15.9155 15.9155 0 0 1 0 -31.831"
-                                            />
-                                            <path
-                                                className="text-emerald-500 animate-circle-draw"
-                                                strokeWidth="3"
-                                                strokeDasharray="100, 100"
-                                                strokeLinecap="round"
-                                                stroke="currentColor"
-                                                fill="none"
-                                                d="M18 2.0845
-                                                  a 15.9155 15.9155 0 0 1 0 31.831
-                                                  a 15.9155 15.9155 0 0 1 0 -31.831"
-                                            />
-                                        </svg>
-                                        <div className="absolute inset-0 flex items-center justify-center font-bold text-xl text-white">87%</div>
-                                    </div>
-                                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-center h-32 space-y-3">
-                                        <div className="h-3 w-1/2 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 w-3/4 animate-sub-bar"></div>
-                                        </div>
-                                        <div className="h-3 w-3/4 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-amber-500 w-5/6 animate-sub-bar" style={{ animationDelay: '0.2s' }}></div>
-                                        </div>
-                                        <div className="h-3 w-2/3 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-orange-500 w-1/2 animate-sub-bar" style={{ animationDelay: '0.4s' }}></div>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -590,6 +416,190 @@ export default function LandingPage() {
                                     </g>
                                 </g>
                             </svg>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Scouting Reports Section */}
+            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        <div className="order-1">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-emerald-400 font-medium mb-6">
+                                <BarChart3 className="w-4 h-4" /> Scouting Reports
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Data-driven alliance selection
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Move beyond pen and paper. Empower your scouts to log match data seamlessly, even without Wi-Fi. Sync to the cloud and uncover powerful metrics for your picklist.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Deep quantitative analysis",
+                                    "Offline-first pit & stand data entry",
+                                    "Team progression charts"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Animated Scouting UI Right */}
+                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-6 shadow-2xl flex flex-col justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm z-20">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                                <span className="ml-4 flex items-center gap-2"><Trophy size={14} className="text-amber-500"/> Scouting Dashboard</span>
+                            </div>
+                            
+                            <div className="w-full flex-1 mt-10 relative">
+                                {/* Report Card 2 (Floating behind) */}
+                                <div className="absolute top-20 left-6 right-6 bg-slate-900 border border-slate-700 p-5 rounded-xl shadow-xl transform scale-95 opacity-50 z-0">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <div className="text-xl font-black text-white">#254</div>
+                                        </div>
+                                        <div className="bg-slate-800 px-2 py-1 rounded text-xs font-bold text-slate-400">Match 41</div>
+                                    </div>
+                                    <div className="space-y-2 text-sm text-slate-400 mb-4">
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Autonomous</span><span className="text-emerald-500 font-bold">20 pts</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Shooting</span><span>12 / 12 Shots</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Report Card 1 */}
+                                <div className="absolute top-4 left-2 right-2 bg-slate-900 border border-slate-600 p-5 rounded-xl shadow-2xl z-10 animate-kanban-card" style={{ animationName: 'none', transform: 'translateY(0)' }}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <div className="text-2xl font-black text-white">#118</div>
+                                            <div className="text-xs text-slate-400 mt-0.5">District Championship</div>
+                                        </div>
+                                        <div className="bg-slate-800 px-2 py-1 rounded text-xs font-bold text-slate-300">
+                                            Match 42
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-3 text-sm text-slate-300 mb-4">
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Autonomous</span>
+                                            <span className="text-emerald-400 font-bold">15 pts</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Intake</span>
+                                            <span className="font-medium text-slate-300">Automatic</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Shooting</span>
+                                            <div className="text-right">
+                                                <div>9 / 10 Shots</div>
+                                                <div className="text-xs text-slate-400">Far Auto-Aim</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-800 pb-1">
+                                            <span>Parking</span>
+                                            <span className="font-medium text-emerald-400">Full Park</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 text-yellow-500">
+                                        <Trophy size={14} fill="currentColor" />
+                                        <Trophy size={14} fill="currentColor" />
+                                        <Trophy size={14} fill="currentColor" />
+                                        <Trophy size={14} fill="currentColor" />
+                                        <Trophy size={14} fill="none" className="text-slate-600" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Pre-Match Checklist Section */}
+            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
+                        
+                        {/* Text Right */}
+                        <div className="order-1 lg:order-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-blue-400 font-medium mb-6">
+                                <ClipboardCheck className="w-4 h-4" /> Pre-Match Checklist
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Arrive at each match with confidence
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Queue up with confidence. Custom checklists ensure your drive team completes every crucial step before placing the robot on the field, resulting in fewer disconnected wires and uncharged batteries.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "Customizable by subsystem",
+                                    "Accountability & connection verification",
+                                    "Works fully offline in the pits"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Animated Checklist Left */}
+                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                                <span className="ml-4">Match 42 Preparation</span>
+                            </div>
+                            
+                            <div className="w-full max-w-sm mt-8 space-y-4 relative">
+                                {/* Progress Bar Header */}
+                                <div className="mb-6">
+                                    <div className="flex justify-between text-sm text-slate-300 mb-2">
+                                        <span className="font-bold">Team Readiness</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 animate-progress-bar rounded-full"></div>
+                                    </div>
+                                </div>
+
+                                {/* Checklist Items */}
+                                {[
+                                    { label: "Install fresh battery", delay: "0s" },
+                                    { label: "Charge driver hub", delay: "1.2s" },
+                                    { label: "Check all connections and screws", delay: "2.4s" },
+                                    { label: "Turn on robot", delay: "3.6s" }
+                                ].map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-4 bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-lg relative overflow-hidden group">
+                                        <div className="relative w-6 h-6 border-2 border-slate-600 rounded-md flex items-center justify-center flex-shrink-0 animate-checkbox" style={{ animationDelay: item.delay }}>
+                                            <Check className="w-4 h-4 text-white opacity-0 animate-checkmark" style={{ animationDelay: item.delay }} />
+                                        </div>
+                                        <span className="font-medium text-slate-300 animate-strikethrough" style={{ animationDelay: item.delay }}>
+                                            {item.label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
