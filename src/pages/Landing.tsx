@@ -3,7 +3,6 @@ import {
     ArrowRight, ChevronRight, Check, Crown, User, Brain, 
     KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy
 } from 'lucide-react';
-import React from 'react';
 
 export default function LandingPage() {
     const navigate = useNavigate();
