@@ -60,7 +60,7 @@ describe('CreateTeam', () => {
         });
         
         // Reset supabase mock
-        (supabase.rpc as any).mockResolvedValue({ data: { success: true, team_id: 't1', invite_code: 'CODE123' }, error: null });
+        (supabase!.rpc as any).mockResolvedValue({ data: { success: true, team_id: 't1', invite_code: 'CODE123' }, error: null });
         
         // Reset attestations mock
         (recordAttestation as any).mockResolvedValue({ success: true, error: null });
@@ -157,11 +157,11 @@ describe('CreateTeam', () => {
             fireEvent.click(screen.getByRole('button', { name: /create team/i }));
             
             expect(await screen.findByText('Attestation failed')).toBeDefined();
-            expect(supabase.rpc).not.toHaveBeenCalled();
+            expect(supabase!.rpc).not.toHaveBeenCalled();
         });
 
         it('handles RPC error', async () => {
-            (supabase.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'RPC Error' } });
+            (supabase!.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'RPC Error' } });
             
             render(<CreateTeam />, { wrapper: TestWrapper });
             fireEvent.click(screen.getByRole('checkbox'));
@@ -174,7 +174,7 @@ describe('CreateTeam', () => {
         });
 
         it('handles missing success flag in RPC return', async () => {
-            (supabase.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Creation failed' }, error: null });
+            (supabase!.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Creation failed' }, error: null });
             
             render(<CreateTeam />, { wrapper: TestWrapper });
             fireEvent.click(screen.getByRole('checkbox'));
@@ -197,7 +197,7 @@ describe('CreateTeam', () => {
             
             await waitFor(() => {
                 expect(recordAttestation).toHaveBeenCalledWith('coach_terms');
-                expect(supabase.rpc).toHaveBeenCalledWith('create_team_as_coach', {
+                expect(supabase!.rpc).toHaveBeenCalledWith('create_team_as_coach', {
                     team_name: 'Valid Team',
                     team_number: '9999'
                 });

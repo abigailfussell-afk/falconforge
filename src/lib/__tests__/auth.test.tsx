@@ -7,7 +7,6 @@ vi.unmock('../auth');
 import { renderHook, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../auth';
 import { supabase } from '../supabase';
-import { useAppStore } from '../store';
 
 vi.mock('../supabase', () => ({
   supabase: {
@@ -36,7 +35,7 @@ vi.mock('../store', () => ({
 describe('auth.tsx', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (supabase.auth.getSession as any).mockResolvedValue({ data: { session: null } });
+    (supabase!.auth.getSession as any).mockResolvedValue({ data: { session: null } });
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -44,7 +43,7 @@ describe('auth.tsx', () => {
   );
 
   it('signInWithEmail returns error if fails', async () => {
-    (supabase.auth.signInWithPassword as any).mockResolvedValueOnce({ error: new Error('Invalid login') });
+    (supabase!.auth.signInWithPassword as any).mockResolvedValueOnce({ error: new Error('Invalid login') });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -58,7 +57,7 @@ describe('auth.tsx', () => {
   });
 
   it('signUpWithEmail passes metadata properly', async () => {
-    (supabase.auth.signUp as any).mockResolvedValueOnce({ data: { user: { id: '1' } }, error: null });
+    (supabase!.auth.signUp as any).mockResolvedValueOnce({ data: { user: { id: '1' } }, error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -66,7 +65,7 @@ describe('auth.tsx', () => {
       await result.current.signUpWithEmail('test@test.com', 'pwd', 'John Doe');
     });
 
-    expect(supabase.auth.signUp).toHaveBeenCalledWith({
+    expect(supabase!.auth.signUp).toHaveBeenCalledWith({
       email: 'test@test.com',
       password: 'pwd',
       options: {
@@ -80,7 +79,7 @@ describe('auth.tsx', () => {
   });
 
   it('updateProfile updates state', async () => {
-    (supabase.auth.updateUser as any).mockResolvedValueOnce({ data: { user: { id: '1', user_metadata: { full_name: 'New Name' } } }, error: null });
+    (supabase!.auth.updateUser as any).mockResolvedValueOnce({ data: { user: { id: '1', user_metadata: { full_name: 'New Name' } } }, error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     console.log("Current result keys:", Object.keys(result.current));
@@ -89,24 +88,24 @@ describe('auth.tsx', () => {
       await result.current.updateProfile('New Name');
     });
 
-    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ data: { full_name: 'New Name' } });
+    expect(supabase!.auth.updateUser).toHaveBeenCalledWith({ data: { full_name: 'New Name' } });
   });
 
   it('updateAgeClassification uses rpc', async () => {
-    (supabase.rpc as any).mockResolvedValueOnce({ data: { success: true } });
+    (supabase!.rpc as any).mockResolvedValueOnce({ data: { success: true } });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
     await act(async () => {
-      const res = await result.current.updateAgeClassification('13-17');
+      const res = await result.current.updateAgeClassification('13_to_17' as any);
       expect(res.success).toBe(true);
     });
 
-    expect(supabase.rpc).toHaveBeenCalledWith('update_user_age_classification', { classification: '13-17' });
+    expect(supabase!.rpc).toHaveBeenCalledWith('update_user_age_classification', { classification: '13_to_17' });
   });
 
   it('signOut calls supabase signOut', async () => {
-    (supabase.auth.signOut as any).mockResolvedValueOnce({ error: null });
+    (supabase!.auth.signOut as any).mockResolvedValueOnce({ error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -114,11 +113,11 @@ describe('auth.tsx', () => {
       await result.current.signOut();
     });
 
-    expect(supabase.auth.signOut).toHaveBeenCalled();
+    expect(supabase!.auth.signOut).toHaveBeenCalled();
   });
 
   it('resetPassword calls resetPasswordForEmail', async () => {
-    (supabase.auth.resetPasswordForEmail as any).mockResolvedValueOnce({ error: null });
+    (supabase!.auth.resetPasswordForEmail as any).mockResolvedValueOnce({ error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -126,6 +125,6 @@ describe('auth.tsx', () => {
       await result.current.resetPassword('test@test.com');
     });
 
-    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith('test@test.com', expect.any(Object));
+    expect(supabase!.auth.resetPasswordForEmail).toHaveBeenCalledWith('test@test.com', expect.any(Object));
   });
 });

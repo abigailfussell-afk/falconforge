@@ -88,7 +88,7 @@ export default function JoinTeam() {
         } catch (e) {
             console.warn('Failed to clear IndexedDB:', e);
         }
-        window.location.href = `${import.meta.env.BASE_URL}#/login`;
+        window.location.href = `${import.meta.env.BASE_URL}#/`;
     };
 
     const handleProfileComplete = async (selectedAge: AgeClassification) => {

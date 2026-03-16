@@ -171,7 +171,7 @@ describe('sync.integration', () => {
             const pendingCount = await db.syncQueue.count();
             expect(pendingCount).toBe(0);
 
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             expect(mockFrom).toHaveBeenCalledWith('tasks');
             expect(mockFrom).toHaveBeenCalledWith('scouting_reports');
 
@@ -202,7 +202,7 @@ describe('sync.integration', () => {
                 await result.current.sync();
             });
             
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             expect(mockFrom).toHaveBeenCalledWith('checklists');
             
             const queryInstances = mockFrom.mock.results.map((r: any) => r.value);
@@ -227,7 +227,7 @@ describe('sync.integration', () => {
             const pendingCount = await db.syncQueue.count();
             expect(pendingCount).toBe(1);
             
-            expect(supabaseSync.from).not.toHaveBeenCalled();
+            expect(supabaseSync!.from).not.toHaveBeenCalled();
 
             unmount();
         });
@@ -248,13 +248,13 @@ describe('sync.integration', () => {
 
             const pendingCount = await db.syncQueue.count();
             expect(pendingCount).toBe(1);
-            expect(supabaseSync.from).not.toHaveBeenCalled();
+            expect(supabaseSync!.from).not.toHaveBeenCalled();
 
             unmount();
         });
         
         it('handles sync item failure (retries) and retains item if below limit', async () => {
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             mockFrom.mockImplementationOnce(() => {
                 const obj: any = {};
                 obj.upsert = vi.fn().mockImplementation(() => {
@@ -290,7 +290,7 @@ describe('sync.integration', () => {
                 retryCount: 4, // Next fail will be 5
             });
 
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             mockFrom.mockImplementationOnce(() => {
                 const obj: any = {};
                 obj.upsert = vi.fn().mockImplementation(() => {
@@ -318,7 +318,7 @@ describe('sync.integration', () => {
             }));
 
             // Mocking the gte specifically
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             mockFrom.mockImplementation((tableName: string) => {
                 const query: any = {
                     select: vi.fn().mockReturnThis(),

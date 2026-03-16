@@ -453,15 +453,15 @@ describe('AppStore', () => {
             (isSupabaseConfigured as any).mockReturnValue(false);
             const store = useAppStore.getState();
             await store.fetchTeamData('team-1');
-            expect(supabaseSync.from).not.toHaveBeenCalled();
+            expect(supabaseSync!.from).not.toHaveBeenCalled();
             
             (isSupabaseConfigured as any).mockReturnValue(true);
             await store.fetchTeamData(null as any);
-            expect(supabaseSync.from).not.toHaveBeenCalled();
+            expect(supabaseSync!.from).not.toHaveBeenCalled();
         });
 
         it('should fetch and populate team data properly', async () => {
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             
             mockFrom.mockImplementation((table: string) => {
                 const chain: any = {
@@ -506,7 +506,7 @@ describe('AppStore', () => {
         });
 
         it('should handle errors gracefully without crashing', async () => {
-            const mockFrom = supabaseSync.from as any;
+            const mockFrom = supabaseSync!.from as any;
             mockFrom.mockImplementation(() => {
                 const chain: any = {
                     select: vi.fn().mockReturnThis(),

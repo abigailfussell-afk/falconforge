@@ -78,7 +78,7 @@ function Dashboard() {
             console.warn('Failed to clear IndexedDB:', e);
         }
         // Use window.location for a clean redirect to ensure auth state is cleared
-        window.location.href = `${import.meta.env.BASE_URL}#/login`;
+        window.location.href = `${import.meta.env.BASE_URL}#/`;
     };
 
     // Calculate role for permissions
@@ -285,11 +285,11 @@ function App() {
 
                 {/* Onboarding routes - require auth */}
                 <Route path="/onboarding" element={
-                    user ? <Onboarding /> : <Navigate to="/login" replace />
+                    user ? <Onboarding /> : <Navigate to="/" replace />
                 } />
 
                 <Route path="/create-team" element={
-                    user ? <CreateTeam /> : <Navigate to="/login" replace />
+                    user ? <CreateTeam /> : <Navigate to="/" replace />
                 } />
 
                 <Route path="/join/:code?" element={

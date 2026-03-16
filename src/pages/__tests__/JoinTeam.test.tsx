@@ -4,7 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import JoinTeam from '../JoinTeam';
 import * as authObj from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
-import { useAppStore } from '../../lib/store';
 
 const mockSignOut = vi.fn();
 const mockUpdateAgeClassification = vi.fn();
@@ -85,7 +84,7 @@ describe('JoinTeam', () => {
             updateAgeClassification: mockUpdateAgeClassification,
         });
 
-        (supabase.rpc as any).mockResolvedValue({ 
+        (supabase!.rpc as any).mockResolvedValue({ 
             data: { success: true, team_name: 'Test Team', status: 'pending' }, 
             error: null 
         });
@@ -153,7 +152,7 @@ describe('JoinTeam', () => {
 
     describe('Submission', () => {
         it('handles RPC error correctly', async () => {
-            (supabase.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'Invalid code provided' } });
+            (supabase!.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'Invalid code provided' } });
             render(<JoinTeam />, { wrapper: TestWrapper });
             
             fireEvent.click(screen.getByRole('button', { name: /Join Team/i }));
@@ -162,7 +161,7 @@ describe('JoinTeam', () => {
         });
 
         it('handles fail flag from RPC response', async () => {
-            (supabase.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Team is full' }, error: null });
+            (supabase!.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Team is full' }, error: null });
             render(<JoinTeam />, { wrapper: TestWrapper });
             
             fireEvent.click(screen.getByRole('button', { name: /Join Team/i }));
@@ -176,7 +175,7 @@ describe('JoinTeam', () => {
             fireEvent.click(screen.getByRole('button', { name: /Join Team/i }));
             
             await waitFor(() => {
-                expect(supabase.rpc).toHaveBeenCalledWith('join_team_with_invite', { invite_code: 'ABC12345' });
+                expect(supabase!.rpc).toHaveBeenCalledWith('join_team_with_invite', { invite_code: 'ABC12345' });
             });
             
             expect(await screen.findByText('Request Submitted!')).toBeDefined();

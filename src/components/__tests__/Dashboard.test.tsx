@@ -207,7 +207,7 @@ describe('Dashboard Navigation', () => {
         expect(screen.getByText('2025-2026')).toBeDefined();
     });
 
-    it('redirects to login when user is not authenticated', async () => {
+    it('redirects to landing page when user is not authenticated', async () => {
         // Override auth to return no user
         const authModule = await import('../../lib/auth');
         vi.mocked(authModule.useAuth).mockReturnValue({
@@ -224,7 +224,7 @@ describe('Dashboard Navigation', () => {
             </MemoryRouter>
         );
 
-        // Should show login page elements instead of dashboard nav
-        expect(screen.queryByText('Sprint Planning')).toBeNull();
+        // Should show landing page elements instead of dashboard nav
+        expect(screen.getByText(/Everything your team needs/i)).toBeDefined();
     });
 });

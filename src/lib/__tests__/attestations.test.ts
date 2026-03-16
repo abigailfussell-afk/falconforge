@@ -12,9 +12,9 @@ vi.mock('../supabase', () => ({
   isSupabaseConfigured: vi.fn()
 }));
 
-const mockFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
-const mockGetUser = supabase.auth.getUser as unknown as ReturnType<typeof vi.fn>;
-const mockIsSupabaseConfigured = isSupabaseConfigured as unknown as ReturnType<typeof vi.fn>;
+const mockFrom = supabase!.from as any;
+const mockGetUser = supabase!.auth.getUser as any;
+const mockIsSupabaseConfigured = isSupabaseConfigured as any;
 
 describe('attestations', () => {
   beforeEach(() => {
