@@ -62,23 +62,49 @@ function Dashboard() {
     }));
 
     const handleSignOut = async () => {
-        // Tear down Realtime subscription before clearing state
-        teardownRealtimeSubscription();
-        // Reset store state first (prevents sync actions from queueing during teardown)
-        useAppStore.getState().resetToDefaults();
-        await signOut();
-        // Clear lightweight localStorage keys
-        localStorage.removeItem('falconforge-sync-timestamps');
-        // Clear IndexedDB tables (sync queue + persisted app state)
         try {
-            const { clearLocalDatabase, clearAppState } = await import('./lib/offline-db');
-            await clearLocalDatabase();
-            await clearAppState();
-        } catch (e) {
-            console.warn('Failed to clear IndexedDB:', e);
+            // Tear down Realtime subscription before clearing state
+            teardownRealtimeSubscription();
+            
+            // Reset store state first (prevents sync actions from queueing during teardown)
+            useAppStore.getState().resetToDefaults();
+            
+            // Remove storage tokens forcefully as a fallback wrapper
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            localStorage.removeItem('falconforge-sync-timestamps');
+
+            // Await signout with a timeout
+            try {
+                await Promise.race([
+                    signOut(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 3000))
+                ]);
+            } catch (authErr) {
+                console.warn('Supabase signout issue ignored:', authErr);
+            }
+
+            // Clear IndexedDB tables (sync queue + persisted app state) with timeout
+            try {
+                await Promise.race([
+                    (async () => {
+                        const { clearLocalDatabase, clearAppState } = await import('./lib/offline-db');
+                        await clearLocalDatabase();
+                        await clearAppState();
+                    })(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('IDB timeout')), 2000))
+                ]);
+            } catch (dbErr) {
+                console.warn('Failed to clear IndexedDB:', dbErr);
+            }
+        } finally {
+            // Use window.location for a clean redirect to ensure auth state is cleared
+            window.location.href = `${import.meta.env.BASE_URL}#/`;
+            window.location.reload();
         }
-        // Use window.location for a clean redirect to ensure auth state is cleared
-        window.location.href = `${import.meta.env.BASE_URL}#/`;
     };
 
     // Calculate role for permissions
@@ -89,8 +115,18 @@ function Dashboard() {
     useEffect(() => {
         if (currentTeamId) {
             fetchTeamData(currentTeamId);
+        } else {
+            // If we don't have a team, explicitly wait against a hydration delay and then redirect
+            const timeout = setTimeout(() => {
+                const state = useAppStore.getState();
+                if (!state.currentTeamId) {
+                    navigate('/onboarding');
+                }
+            }, 1000); // 1s grace period for persisted state to load
+            
+            return () => clearTimeout(timeout);
         }
-    }, [currentTeamId, fetchTeamData]);
+    }, [currentTeamId, fetchTeamData, navigate]);
 
     // Realtime subscription lifecycle — subscribe when team is selected & online
     useEffect(() => {
