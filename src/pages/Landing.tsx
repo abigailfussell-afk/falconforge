@@ -159,17 +159,17 @@ export default function LandingPage() {
             
             {/* Navigation Bar */}
             <nav className="fixed top-0 w-full z-50 glass border-b border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8">
                     <div className="flex justify-between items-center h-20">
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-xl border border-slate-700/50 p-1 flex items-center justify-center">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-xl border border-slate-700/50 p-1 flex items-center justify-center">
                                 <img
                                     src={`${import.meta.env.BASE_URL}falcon_logo.png`}
                                     className="w-full h-full object-contain"
                                     alt="FalconForge Logo"
                                 />
                             </div>
-                            <span className="text-2xl font-black italic tracking-tighter">
+                            <span className="text-xl sm:text-2xl font-black italic tracking-tighter">
                                 <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
                                 <span className="text-slate-300">FORGE</span>
                             </span>
@@ -204,12 +204,12 @@ export default function LandingPage() {
                 <div className="absolute inset-0 z-0 bg-gradient-to-b from-slate-900/50 via-slate-900/70 to-slate-900/100 pointer-events-none"></div>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150vw] h-[150vw] sm:w-[800px] sm:h-[800px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
 
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                    <div className="inline-flex flex-col sm:flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-xs sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
-                        <Zap className="w-4 h-4 shrink-0" /> <span>The ultimate agile engineering solution for your robotics team</span>
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10 text-center">
+                    <div className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-[10px] sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
+                        <Zap className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> <span>The ultimate agile engineering solution for your robotics team</span>
                     </div>
 
-                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 sm:mb-8 leading-tight">
+                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 sm:mb-8 leading-none sm:leading-tight">
                         Don't just build your robot...<br />
                         <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 text-transparent bg-clip-text tracking-tighter italic">
                             FORGE IT
@@ -223,13 +223,13 @@ export default function LandingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <button
                             onClick={() => navigate('/login?mode=signup')}
-                            className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
                         >
                             Start Forging Now <ChevronRight className="w-5 h-5" />
                         </button>
                         <button
                             onClick={() => navigate('/login')}
-                            className="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-lg border border-slate-700 transition-all"
+                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-lg border border-slate-700 transition-all"
                         >
                             Log In
                         </button>
@@ -239,7 +239,7 @@ export default function LandingPage() {
 
             {/* Features Section */}
             <section className="py-16 lg:py-24 bg-slate-900/50 border-t border-slate-800 relative z-10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Everything your team needs to go from kickoff to world championships.</h2>
                     </div>
@@ -283,7 +283,7 @@ export default function LandingPage() {
             {/* Sprint Planning Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
                 <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row">
                         <div className="order-1">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-orange-400 font-medium mb-6">
@@ -326,10 +326,10 @@ export default function LandingPage() {
                                     <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative min-h-[160px] sm:min-h-0">
                                         <div className="text-slate-400 font-semibold text-sm uppercase tracking-wider">{col}</div>
                                         {/* Static Cards */}
-                                        {idx === 0 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 mt-28"></div>}
+                                        {idx === 0 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 mt-16 sm:mt-28"></div>}
                                         {idx === 0 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
                                         {idx === 1 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
-                                        {idx === 2 && <div className="w-full h-24 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 2 && <div className="w-full h-16 sm:h-24 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
                                         {idx === 2 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
                                     </div>
                                 ))}
@@ -355,7 +355,7 @@ export default function LandingPage() {
             {/* Match Planner Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
                 <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
                         <div className="order-1 lg:order-2">
@@ -498,7 +498,7 @@ export default function LandingPage() {
             {/* Scouting Reports Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
                 <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center">
                         <div className="order-1">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-emerald-400 font-medium mb-6">
@@ -544,11 +544,11 @@ export default function LandingPage() {
                                         <div className="p-4 space-y-3 bg-slate-800">
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Team #</label>
+                                                    <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Team #</label>
                                                     <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">330</div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Match #</label>
+                                                    <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Match #</label>
                                                     <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">43</div>
                                                 </div>
                                             </div>
@@ -564,7 +564,7 @@ export default function LandingPage() {
                                             </div>
                                             
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Notes</label>
+                                                <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Notes</label>
                                                 <div className="w-full border border-slate-600 rounded p-2 h-12 bg-slate-700 text-white text-sm flex items-start">
                                                     <span className="animate-scouting-typewriter border-r-2 border-slate-400 pr-1 block leading-tight">Fast auto, solid defense.</span>
                                                 </div>
@@ -627,7 +627,7 @@ export default function LandingPage() {
                                     <div className="absolute top-4 left-2 right-2 bg-slate-800 border border-slate-600 p-4 rounded-xl shadow-2xl animate-scouting-card-in z-20 hover:border-orange-600 transition-colors">
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
-                                                <div className="text-2xl font-black text-white">#330</div>
+                                                <div className="text-xl sm:text-2xl font-black text-white">#330</div>
                                             </div>
                                             <div className="bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-300">Match 43</div>
                                         </div>
@@ -662,7 +662,7 @@ export default function LandingPage() {
             {/* Pre-Match Checklist Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
                 <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
                         {/* Text Right */}
@@ -720,7 +720,7 @@ export default function LandingPage() {
                                     { label: "Check all connections and screws", delay: "2.4s" },
                                     { label: "Turn on robot", delay: "3.6s" }
                                 ].map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-4 bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-lg relative overflow-hidden group">
+                                    <div key={idx} className="flex items-center gap-4 bg-slate-900 border border-slate-700 p-3 sm:p-4 rounded-xl shadow-lg relative overflow-hidden group">
                                         <div className="relative w-6 h-6 border-2 border-slate-600 rounded-md flex items-center justify-center flex-shrink-0 animate-checkbox" style={{ animationDelay: item.delay }}>
                                             <Check className="w-4 h-4 text-white opacity-0 animate-checkmark" style={{ animationDelay: item.delay }} />
                                         </div>
@@ -737,7 +737,7 @@ export default function LandingPage() {
 
             {/* Roles / Pricing Section */}
             <section className="py-16 lg:py-24 bg-slate-900/50 relative z-10 border-t border-slate-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl font-bold mb-4">Built for the whole team</h2>
                         <p className="text-slate-400 text-lg">Specific tools tailored for the specific roles on your roster.</p>
