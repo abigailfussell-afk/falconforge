@@ -17,6 +17,14 @@ export default function LandingPage() {
                     60%, 80% { transform: translate(calc(200% + 2rem), -10px); opacity: 1; }
                     95%, 100% { transform: translate(calc(200% + 2rem), -10px); opacity: 0; }
                 }
+                @media (max-width: 639px) {
+                    @keyframes kanbanCardFlow {
+                        0%, 15% { transform: translate(0, 0); opacity: 1; }
+                        30%, 45% { transform: translate(10px, calc(100% + 1rem)); opacity: 1; }
+                        60%, 80% { transform: translate(-5px, calc(200% + 2rem)); opacity: 1; }
+                        95%, 100% { transform: translate(-5px, calc(200% + 2rem)); opacity: 0; }
+                    }
+                }
                 .animate-kanban-card {
                     animation: kanbanCardFlow 8s ease-in-out infinite;
                 }
@@ -81,6 +89,72 @@ export default function LandingPage() {
                     from { transform: rotate(0deg); }
                     to { transform: rotate(360deg); }
                 }
+
+                /* Scouting Report Flow Animations */
+                @keyframes scoutingFormFade {
+                    0%, 35% { opacity: 1; transform: scale(1); pointer-events: auto; }
+                    40%, 100% { opacity: 0; transform: scale(0.95); pointer-events: none; }
+                }
+                .animate-scouting-form {
+                    animation: scoutingFormFade 12s ease-in-out infinite;
+                }
+
+                @keyframes scoutingListFade {
+                    0%, 40% { opacity: 0; transform: scale(0.95); pointer-events: none; }
+                    45%, 95% { opacity: 1; transform: scale(1); pointer-events: auto; }
+                    100% { opacity: 0; transform: scale(0.95); pointer-events: none; }
+                }
+                .animate-scouting-list {
+                    animation: scoutingListFade 12s ease-in-out infinite;
+                }
+
+                @keyframes scoutingTypewriter {
+                    0%, 5% { width: 0; opacity: 1; }
+                    25%, 100% { width: 100%; opacity: 1; }
+                }
+                .animate-scouting-typewriter {
+                    display: inline-block;
+                    overflow: hidden;
+                    white-space: nowrap;
+                    animation: scoutingTypewriter 12s steps(40, end) infinite;
+                }
+
+                @keyframes scoutingButtonPress {
+                    0%, 30% { transform: scale(1); background-color: rgb(234, 88, 12); } /* orange-600 */
+                    32% { transform: scale(0.95); background-color: rgb(194, 65, 12); } /* orange-700 */
+                    35%, 100% { transform: scale(1); background-color: rgb(234, 88, 12); }
+                }
+                .animate-scouting-btn {
+                    animation: scoutingButtonPress 12s ease-in-out infinite;
+                }
+
+                @keyframes scoutingCardSlideIn {
+                    0%, 40% { transform: translateY(-20px); opacity: 0; }
+                    45%, 95% { transform: translateY(0); opacity: 1; }
+                    100% { transform: translateY(-20px); opacity: 0; }
+                }
+                .animate-scouting-card-in {
+                    animation: scoutingCardSlideIn 12s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+                }
+
+                @keyframes scoutingCardShiftDown1 {
+                    0%, 40% { transform: translateY(0) scale(1); opacity: 1; z-index: 10; }
+                    45%, 95% { transform: translateY(80px) scale(0.95); opacity: 0.5; z-index: 0; }
+                    100% { transform: translateY(0) scale(1); opacity: 0; }
+                }
+                .animate-scouting-card-shift-1 {
+                    animation: scoutingCardShiftDown1 12s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+                    transform-origin: top center;
+                }
+
+                @keyframes scoutingCardShiftDown2 {
+                    0%, 40% { transform: translateY(80px) scale(0.95); opacity: 0.5; }
+                    45%, 100% { transform: translateY(160px) scale(0.9); opacity: 0; }
+                }
+                .animate-scouting-card-shift-2 {
+                    animation: scoutingCardShiftDown2 12s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+                    transform-origin: top center;
+                }
             `}</style>
             
             {/* Navigation Bar */}
@@ -100,7 +174,7 @@ export default function LandingPage() {
                                 <span className="text-slate-300">FORGE</span>
                             </span>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4">
                             <button
                                 onClick={() => navigate('/login')}
                                 className="text-slate-300 hover:text-white font-medium transition-colors hidden sm:block"
@@ -109,7 +183,7 @@ export default function LandingPage() {
                             </button>
                             <button
                                 onClick={() => navigate('/login?mode=signup')}
-                                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-5 py-2 rounded-xl font-medium shadow-lg shadow-orange-500/25 transition-all flex items-center gap-2"
+                                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-4 sm:px-5 py-2 rounded-xl text-sm sm:text-base font-medium shadow-lg shadow-orange-500/25 transition-all flex items-center gap-1 sm:gap-2"
                             >
                                 Sign Up <ArrowRight className="w-4 h-4" />
                             </button>
@@ -119,7 +193,7 @@ export default function LandingPage() {
             </nav>
 
             {/* Hero Section */}
-            <main className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+            <main className="relative pt-32 pb-16 lg:pt-48 lg:pb-32 overflow-hidden">
                 {/* Moving Background Screensaver */}
                 <div
                     className="absolute inset-0 z-0 opacity-40 animate-pan-bg mix-blend-lighten"
@@ -128,14 +202,14 @@ export default function LandingPage() {
 
                 {/* Background Effects Gradient Overlay */}
                 <div className="absolute inset-0 z-0 bg-gradient-to-b from-slate-900/50 via-slate-900/70 to-slate-900/100 pointer-events-none"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150vw] h-[150vw] sm:w-[800px] sm:h-[800px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-sm text-amber-400 font-medium mb-8 shadow-xl">
-                        <Zap className="w-4 h-4" /> The ultimate agile engineering solution for your robotics team
+                    <div className="inline-flex flex-col sm:flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-xs sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
+                        <Zap className="w-4 h-4 shrink-0" /> <span>The ultimate agile engineering solution for your robotics team</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8">
+                    <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 sm:mb-8 leading-tight">
                         Don't just build your robot...<br />
                         <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 text-transparent bg-clip-text tracking-tighter italic">
                             FORGE IT
@@ -164,7 +238,7 @@ export default function LandingPage() {
             </main>
 
             {/* Features Section */}
-            <section className="py-24 bg-slate-900/50 border-t border-slate-800 relative z-10">
+            <section className="py-16 lg:py-24 bg-slate-900/50 border-t border-slate-800 relative z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Everything your team needs to go from kickoff to world championships.</h2>
@@ -207,8 +281,8 @@ export default function LandingPage() {
             </section>
 
             {/* Sprint Planning Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row">
                         <div className="order-1">
@@ -238,7 +312,7 @@ export default function LandingPage() {
                         </div>
 
                         {/* Animated Kanban */}
-                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                        <div className="order-2 relative w-full aspect-auto sm:aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-8 shadow-2xl flex items-center justify-center overflow-hidden glass min-h-[500px] sm:min-h-0">
                             {/* Fake UI Header */}
                             <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2">
                                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -246,22 +320,22 @@ export default function LandingPage() {
                                 <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
                             </div>
 
-                            <div className="w-full flex gap-4 h-full pt-8 relative">
+                            <div className="w-full flex flex-col sm:flex-row gap-4 h-full pt-12 sm:pt-8 relative">
                                 {/* Columns */}
                                 {["To Do", "In Progress", "Done"].map((col, idx) => (
-                                    <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative">
+                                    <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative min-h-[160px] sm:min-h-0">
                                         <div className="text-slate-400 font-semibold text-sm uppercase tracking-wider">{col}</div>
                                         {/* Static Cards */}
                                         {idx === 0 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 mt-28"></div>}
-                                        {idx === 0 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
-                                        {idx === 1 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 0 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
+                                        {idx === 1 && <div className="w-full h-20 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
                                         {idx === 2 && <div className="w-full h-24 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
-                                        {idx === 2 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50"></div>}
+                                        {idx === 2 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 hidden sm:block"></div>}
                                     </div>
                                 ))}
 
                                 {/* Animated Ticket */}
-                                <div className="absolute left-4 top-20 w-[calc(33.33%-1.5rem)] h-24 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg border border-orange-400/50 p-3 shadow-lg shadow-orange-500/20 flex flex-col justify-between animate-kanban-card z-10 pointer-events-none">
+                                <div className="absolute left-4 right-4 sm:right-auto sm:left-4 top-24 sm:top-20 sm:w-[calc(33.33%-1.5rem)] h-24 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg border border-orange-400/50 p-3 shadow-lg shadow-orange-500/20 flex flex-col justify-between animate-kanban-card z-10 pointer-events-none">
                                     <div className="w-1/2 h-2 bg-white/30 rounded-full"></div>
                                     <div className="w-full space-y-2">
                                         <div className="w-5/6 h-2 bg-white/20 rounded-full"></div>
@@ -279,8 +353,8 @@ export default function LandingPage() {
             </section>
 
             {/* Match Planner Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
@@ -311,16 +385,17 @@ export default function LandingPage() {
                         </div>
 
                         {/* Animated Drawing Diagram */}
-                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
                             {/* Fake UI Header */}
-                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-xs sm:text-sm">
                                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
                                 <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
                                 <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                                <span className="ml-4">Alliance Pre-Match Huddle</span>
+                                <span className="ml-2 sm:ml-4 truncate">Alliance Pre-Match Huddle</span>
                             </div>
 
                             <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] mt-6">
+// ...
                                 {/* Definitions including Grid and Animated Masks */}
                                 <defs>
                                     <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -421,8 +496,8 @@ export default function LandingPage() {
             </section>
 
             {/* Scouting Reports Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center">
                         <div className="order-1">
@@ -452,74 +527,130 @@ export default function LandingPage() {
                         </div>
 
                         {/* Animated Scouting UI Right */}
-                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-6 shadow-2xl flex flex-col justify-center overflow-hidden glass">
+                        <div className="order-2 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-6 shadow-2xl flex flex-col justify-center overflow-hidden glass">
                             {/* Fake UI Header */}
-                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm z-20">
-                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                                <span className="ml-4 flex items-center gap-2"><Trophy size={14} className="text-amber-500"/> Scouting Dashboard</span>
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-xs sm:text-sm z-20">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80 shrink-0"></div>
+                                <span className="ml-2 sm:ml-4 flex items-center gap-2 truncate"><Trophy size={14} className="text-amber-500 shrink-0"/> Scouting Dashboard</span>
                             </div>
                             
                             <div className="w-full flex-1 mt-10 relative">
-                                {/* Report Card 2 (Floating behind) */}
-                                <div className="absolute top-20 left-6 right-6 bg-slate-900 border border-slate-700 p-5 rounded-xl shadow-xl transform scale-95 opacity-50 z-0">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <div className="text-xl font-black text-white">#254</div>
+                                {/* Form View */}
+                                <div className="absolute inset-0 z-10 animate-scouting-form flex flex-col justify-center px-1 sm:px-2">
+                                    <div className="bg-slate-800 rounded-xl w-full border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+                                        <div className="p-3 bg-slate-900 border-b border-slate-700 font-bold text-sm text-white">New Scouting Report</div>
+                                        <div className="p-4 space-y-3 bg-slate-800">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Team #</label>
+                                                    <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">330</div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Match #</label>
+                                                    <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">43</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-700/50 p-3 rounded-lg space-y-2">
+                                                <h4 className="font-bold text-white text-xs">Autonomous</h4>
+                                                <label className="flex items-center gap-2 text-white text-sm">
+                                                    <div className="w-4 h-4 rounded bg-orange-600 flex items-center justify-center">
+                                                        <Check size={12} className="text-white" />
+                                                    </div>
+                                                    <span className="font-medium">Has Autonomous</span>
+                                                </label>
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Notes</label>
+                                                <div className="w-full border border-slate-600 rounded p-2 h-12 bg-slate-700 text-white text-sm flex items-start">
+                                                    <span className="animate-scouting-typewriter border-r-2 border-slate-400 pr-1 block leading-tight">Fast auto, solid defense.</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="bg-slate-800 px-2 py-1 rounded text-xs font-bold text-slate-400">Match 41</div>
-                                    </div>
-                                    <div className="space-y-2 text-sm text-slate-400 mb-4">
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Autonomous</span><span className="text-emerald-500 font-bold">20 pts</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Shooting</span><span>12 / 12 Shots</span>
+                                        <div className="p-3 bg-slate-900 border-t border-slate-700 flex justify-end gap-2">
+                                            <div className="px-3 py-1.5 text-slate-300 rounded text-xs">Cancel</div>
+                                            <div className="px-4 py-1.5 bg-orange-600 text-white rounded text-xs font-medium animate-scouting-btn shadow-lg shadow-orange-500/20">Save Report</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Report Card 1 */}
-                                <div className="absolute top-4 left-2 right-2 bg-slate-900 border border-slate-600 p-5 rounded-xl shadow-2xl z-10 animate-kanban-card" style={{ animationName: 'none', transform: 'translateY(0)' }}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <div className="text-2xl font-black text-white">#118</div>
-                                            <div className="text-xs text-slate-400 mt-0.5">District Championship</div>
-                                        </div>
-                                        <div className="bg-slate-800 px-2 py-1 rounded text-xs font-bold text-slate-300">
-                                            Match 42
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="space-y-3 text-sm text-slate-300 mb-4">
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Autonomous</span>
-                                            <span className="text-emerald-400 font-bold">15 pts</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Intake</span>
-                                            <span className="font-medium text-slate-300">Automatic</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Shooting</span>
-                                            <div className="text-right">
-                                                <div>9 / 10 Shots</div>
-                                                <div className="text-xs text-slate-400">Far Auto-Aim</div>
+                                {/* List View */}
+                                <div className="absolute inset-0 z-0 animate-scouting-list px-2 sm:px-4 pt-2">
+                                    {/* Card 3 (Oldest - 254) */}
+                                    <div className="absolute top-4 left-6 right-6 bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-xl animate-scouting-card-shift-2">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <div className="text-xl font-black text-white">#254</div>
                                             </div>
+                                            <div className="bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-300">Match 41</div>
                                         </div>
-                                        <div className="flex justify-between border-b border-slate-800 pb-1">
-                                            <span>Parking</span>
-                                            <span className="font-medium text-emerald-400">Full Park</span>
+                                        <div className="space-y-1.5 text-xs text-slate-300">
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Shooting</span><span>12 / 12 Shots</span>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-1 text-yellow-500">
-                                        <Trophy size={14} fill="currentColor" />
-                                        <Trophy size={14} fill="currentColor" />
-                                        <Trophy size={14} fill="currentColor" />
-                                        <Trophy size={14} fill="currentColor" />
-                                        <Trophy size={14} fill="none" className="text-slate-600" />
+                                    {/* Card 2 (Previous - 118) */}
+                                    <div className="absolute top-4 left-4 right-4 bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-2xl animate-scouting-card-shift-1 bg-slate-800/95 backdrop-blur">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <div className="text-xl font-black text-white">#118</div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5">District Championship</div>
+                                            </div>
+                                            <div className="bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-300">Match 42</div>
+                                        </div>
+                                        <div className="space-y-1.5 text-xs text-slate-300 mb-3">
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Autonomous</span><span className="text-green-400 font-bold">15 pts</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Shooting</span><span>9 / 10 Shots</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Parking</span><span className="text-orange-400 font-medium">Full Park</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-yellow-500">
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="none" className="text-slate-600" />
+                                        </div>
+                                    </div>
+
+                                    {/* Card 1 (New - 330) */}
+                                    <div className="absolute top-4 left-2 right-2 bg-slate-800 border border-slate-600 p-4 rounded-xl shadow-2xl animate-scouting-card-in z-20 hover:border-orange-600 transition-colors">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <div className="text-2xl font-black text-white">#330</div>
+                                            </div>
+                                            <div className="bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-300">Match 43</div>
+                                        </div>
+                                        
+                                        <div className="space-y-1.5 text-xs text-slate-300 mb-3">
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Autonomous</span><span className="text-green-400 font-bold">10 pts</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span>Parking</span><span className="text-orange-400 font-medium">Full Park</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1 text-yellow-500 mb-2">
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="currentColor" />
+                                            <Trophy size={12} fill="none" className="text-slate-600" />
+                                            <Trophy size={12} fill="none" className="text-slate-600" />
+                                        </div>
+                                        <p className="text-[10px] bg-slate-700 p-2 rounded text-slate-300 italic">
+                                            "Fast auto, solid defense."
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -529,8 +660,8 @@ export default function LandingPage() {
             </section>
 
             {/* Pre-Match Checklist Section */}
-            <section className="py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
@@ -562,13 +693,13 @@ export default function LandingPage() {
                         </div>
 
                         {/* Animated Checklist Left */}
-                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
+                        <div className="order-2 lg:order-1 relative w-full aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-8 shadow-2xl flex items-center justify-center overflow-hidden glass">
                             {/* Fake UI Header */}
-                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-sm">
-                                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                                <span className="ml-4">Match 42 Preparation</span>
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-xs sm:text-sm">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80 shrink-0"></div>
+                                <span className="ml-2 sm:ml-4 truncate">Match 42 Preparation</span>
                             </div>
                             
                             <div className="w-full max-w-sm mt-8 space-y-4 relative">
@@ -605,7 +736,7 @@ export default function LandingPage() {
             </section>
 
             {/* Roles / Pricing Section */}
-            <section className="py-24 bg-slate-900/50 relative z-10 border-t border-slate-800">
+            <section className="py-16 lg:py-24 bg-slate-900/50 relative z-10 border-t border-slate-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl font-bold mb-4">Built for the whole team</h2>
