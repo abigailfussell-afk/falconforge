@@ -48,6 +48,7 @@ describe('AdminSettings', () => {
             updateProfile: vi.fn(),
             updateAgeClassification: vi.fn(),
             isConfigured: true,
+            isSigningOut: false,
             ageClassification: null,
         });
     });

@@ -22,6 +22,7 @@ describe('Store → Sync Queue Integration', () => {
             matchPlans: [],
             subTeams: [],
             teamMembers: [],
+            seasons: [],
         });
     });
 
