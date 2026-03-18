@@ -260,6 +260,67 @@ describe('Store → Sync Queue Integration', () => {
         });
     });
 
+    describe('Season Actions', () => {
+        it('addSeason queues item for sync', async () => {
+            const store = useAppStore.getState();
+
+            store.addSeason('Centerstage 2023-2024');
+
+            await waitForAsync(150);
+
+            const seasons = useAppStore.getState().seasons;
+            expect(seasons).toHaveLength(1);
+            expect(seasons[0].name).toBe('Centerstage 2023-2024');
+
+            const queueItems = await db.syncQueue.toArray();
+            expect(queueItems).toHaveLength(1);
+            expect(queueItems[0].tableName).toBe('seasons');
+            expect(queueItems[0].operation).toBe('create');
+            expect(queueItems[0].data.name).toBe('Centerstage 2023-2024');
+        });
+
+        it('updateSeason queues update operation', async () => {
+            const store = useAppStore.getState();
+
+            store.addSeason('Test Season');
+            await waitForAsync(150);
+            
+            const seasonId = useAppStore.getState().seasons[0].id;
+            await db.syncQueue.clear();
+
+            store.updateSeason(seasonId, { name: 'Updated Season' });
+            await waitForAsync(150);
+
+            const updatedSeason = useAppStore.getState().seasons.find(s => s.id === seasonId);
+            expect(updatedSeason?.name).toBe('Updated Season');
+
+            const queueItems = await db.syncQueue.toArray();
+            expect(queueItems).toHaveLength(1);
+            expect(queueItems[0].tableName).toBe('seasons');
+            expect(queueItems[0].operation).toBe('update');
+        });
+
+        it('deleteSeason queues delete operation', async () => {
+            const store = useAppStore.getState();
+
+            store.addSeason('Delete Me Season');
+            await waitForAsync(150);
+            
+            const seasonId = useAppStore.getState().seasons[0].id;
+            await db.syncQueue.clear();
+
+            store.deleteSeason(seasonId);
+            await waitForAsync(150);
+
+            expect(useAppStore.getState().seasons).toHaveLength(0);
+
+            const queueItems = await db.syncQueue.toArray();
+            expect(queueItems).toHaveLength(1);
+            expect(queueItems[0].tableName).toBe('seasons');
+            expect(queueItems[0].operation).toBe('delete');
+        });
+    });
+
     describe('Multiple Operations', () => {
         it('multiple operations queue multiple items', async () => {
             const store = useAppStore.getState();

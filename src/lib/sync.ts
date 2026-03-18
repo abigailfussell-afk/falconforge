@@ -256,6 +256,14 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 due_date: data.dueDate ? new Date(data.dueDate).toISOString() : null,
             };
 
+        case 'seasons':
+            return {
+                id: data.id,
+                name: data.name,
+                team_id: data.teamId,
+                field_image_data: data.fieldImageData || null,
+            };
+
         case 'scoutingReports':
         case 'scouting_reports':
             return {
@@ -385,6 +393,7 @@ async function pullChangesFromServer(): Promise<void> {
     const isFullPull = counter % FULL_SYNC_INTERVAL === 0;
 
     const entities = [
+        { table: 'seasons', localTable: 'seasons' },
         { table: 'sub_teams', localTable: 'subTeams' },
         { table: 'tasks', localTable: 'tasks' },
         { table: 'scouting_reports', localTable: 'scoutingReports' },
@@ -481,6 +490,16 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
                 createdAt: new Date(t.created_at).getTime(),
                 dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
                 seasonId: t.season_id
+            })));
+            break;
+
+        case 'seasons':
+            store.setSeasons(records.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                teamId: s.team_id,
+                fieldImageData: s.field_image_data,
+                createdAt: new Date(s.created_at).getTime(),
             })));
             break;
 
@@ -582,6 +601,18 @@ export function mergeIntoStore(tableName: string, records: any[]): void {
                 seasonId: t.season_id
             }));
             store.setTasks(upsertById(store.tasks, transformed));
+            break;
+        }
+
+        case 'seasons': {
+            const transformed = records.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                teamId: s.team_id,
+                fieldImageData: s.field_image_data,
+                createdAt: new Date(s.created_at).getTime(),
+            }));
+            store.setSeasons(upsertById(store.seasons, transformed));
             break;
         }
 
