@@ -19,7 +19,6 @@ export default function Onboarding() {
     const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSigningOut, setIsSigningOut] = useState(false);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
     const [profileCompleteSuccess, setProfileCompleteSuccess] = useState(false);
 
@@ -131,7 +130,6 @@ export default function Onboarding() {
     };
 
     const handleSignOut = async () => {
-        setIsSigningOut(true);
         try {
             // Reset store state first (prevents sync queue from getting new items)
             useAppStore.getState().resetToDefaults();
@@ -199,7 +197,7 @@ export default function Onboarding() {
         }
     };
 
-    if (isLoading || isSigningOut) {
+    if (isLoading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="text-center">
@@ -217,9 +215,7 @@ export default function Onboarding() {
                         </div>
                     </div>
                     <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-                    <p className="text-slate-400">
-                        {isSigningOut ? 'Signing out securely...' : 'Loading your teams...'}
-                    </p>
+                    <p className="text-slate-400">Loading your teams...</p>
                 </div>
             </div>
         );

@@ -8,6 +8,7 @@ interface AuthState {
     user: User | null;
     session: Session | null;
     isLoading: boolean;
+    isSigningOut: boolean;
     isConfigured: boolean;
     ageClassification: AgeClassification | null;
 }
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: null,
         session: null,
         isLoading: true,
+        isSigningOut: false,
         isConfigured: isSupabaseConfigured(),
         ageClassification: null,
     });
@@ -54,12 +56,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             clearTimeout(authTimeout);
-            setState(prev => ({
-                ...prev,
-                session,
-                user: session?.user ?? null,
-                isLoading: false,
-            }));
+            
+            // If we have a user, wait to set isLoading to false until we check profile
+            if (session?.user) {
+                setState(prev => ({
+                    ...prev,
+                    session,
+                    user: session.user,
+                }));
+                // ensureUserProfile will call setState again or we rely on the sub
+            } else {
+                setState(prev => ({
+                    ...prev,
+                    session,
+                    user: null,
+                    isLoading: false,
+                }));
+            }
             // Keep store's currentUserId in sync with auth
             if (session?.user) {
                 useAppStore.getState().setCurrentUserId(session.user.id);
@@ -73,21 +86,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                // Determine if we should hold the loading state
+                // We hold it if someone just signed in or we have an initial session
+                // because we need to fetch their ageClassification before rendering securely
+                const needsProfileSync = (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user;
+
                 setState(prev => ({
                     ...prev,
                     session,
                     user: session?.user ?? null,
-                    isLoading: false,
+                    // Keep loading true until profile is fetched, unless logging out
+                    isLoading: needsProfileSync ? true : false,
                 }));
 
-                // Handle user profile creation on first sign up
-                if (event === 'SIGNED_IN' && session?.user) {
+                // Handle user profile creation / loading on sign up or sign in
+                if (needsProfileSync && session?.user) {
                     useAppStore.getState().setCurrentUserId(session.user.id);
                     await ensureUserProfile(session.user);
+                    
+                    // Once profile is ensured, finally release the loading lock
+                    setState(prev => ({
+                        ...prev,
+                        isLoading: false
+                    }));
                 }
 
                 if (event === 'SIGNED_OUT') {
                     useAppStore.getState().setCurrentUserId(null);
+                    // We DO NOT reset isSigningOut here. Keeping it true ensures that 
+                    // the screen stays on "Signing out securely..." until the browser 
+                    // finishes executing window.location.reload()
                 }
             }
         );
@@ -218,6 +246,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Cannot sign out: Supabase not configured');
             return;
         }
+        
+        // Let the app know we are signing out to engage loading states and prevent refetching
+        setState(prev => ({
+            ...prev,
+            isSigningOut: true,
+        }));
+        
         await supabase.auth.signOut();
     }, []);
 

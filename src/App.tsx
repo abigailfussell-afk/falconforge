@@ -230,7 +230,7 @@ function Dashboard() {
 }
 
 function App() {
-    const { user, isLoading } = useAuth();
+    const { user, isLoading, isSigningOut } = useAuth();
     const { theme, initializeStore } = useAppStore();
 
     // Initialize store on mount
@@ -247,8 +247,8 @@ function App() {
         }
     }, [theme]);
 
-    // Show loading screen while checking auth
-    if (isLoading) {
+    // Show loading screen while checking auth or during signout sequence
+    if (isLoading || isSigningOut) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="text-center">
@@ -271,7 +271,9 @@ function App() {
                     </h1>
                     <div className="flex items-center justify-center gap-2 text-slate-400">
                         <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-sm font-medium">Preparing your workspace...</p>
+                        <p className="text-sm font-medium">
+                            {isSigningOut ? 'Signing out securely...' : 'Preparing your workspace...'}
+                        </p>
                     </div>
                 </div>
             </div>
