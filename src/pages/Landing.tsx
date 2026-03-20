@@ -394,7 +394,7 @@ export default function LandingPage() {
                                 <span className="ml-2 sm:ml-4 truncate">Alliance Pre-Match Huddle</span>
                             </div>
 
-                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] mt-6">
+                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] mt-12">
 // ...
                                 {/* Definitions including Grid and Animated Masks */}
                                 <defs>
@@ -536,7 +536,7 @@ export default function LandingPage() {
                                 <span className="ml-2 sm:ml-4 flex items-center gap-2 truncate"><Trophy size={14} className="text-amber-500 shrink-0"/> Scouting Dashboard</span>
                             </div>
                             
-                            <div className="w-full flex-1 mt-10 relative">
+                            <div className="w-full flex-1 mt-12 relative">
                                 {/* Form View */}
                                 <div className="absolute inset-0 z-10 animate-scouting-form flex flex-col justify-center px-1 sm:px-2">
                                     <div className="bg-slate-800 rounded-xl w-full border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
@@ -702,7 +702,7 @@ export default function LandingPage() {
                                 <span className="ml-2 sm:ml-4 truncate">Match 42 Preparation</span>
                             </div>
                             
-                            <div className="w-full max-w-sm mt-8 space-y-4 relative">
+                            <div className="w-full max-w-sm mt-12 space-y-4 relative">
                                 {/* Progress Bar Header */}
                                 <div className="mb-6">
                                     <div className="flex justify-between text-sm text-slate-300 mb-2">

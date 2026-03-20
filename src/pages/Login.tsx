@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { AgeClassification } from '../types';
 
@@ -161,7 +161,16 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 relative">
+            <Link 
+                to="/"
+                className="absolute top-4 left-4 sm:top-6 sm:left-6 p-2 text-slate-400 bg-slate-800/50 rounded-full border border-slate-700 hover:bg-slate-700/50 hover:text-white transition-all shadow-sm flex items-center gap-2"
+                title="Back to Landing Page"
+            >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="font-medium hidden sm:block pr-2 text-sm">Return Home</span>
+            </Link>
+
             <div className="max-w-md w-full">
                 {/* Logo & Title */}
                 <div className="text-center mb-8">
