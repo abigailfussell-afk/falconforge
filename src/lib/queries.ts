@@ -13,6 +13,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabaseSync, isSupabaseConfigured } from './supabase';
 import { useAppStore } from './store';
+import {
+    transformTaskFromSupabase,
+    transformScoutingReportFromSupabase,
+    transformMatchPlanFromSupabase,
+} from './transformers';
 
 // ---------------------------------------------------------------------------
 // Tasks — SprintPlanning page
@@ -33,22 +38,7 @@ export function useTasksQuery(teamId: string | null) {
 
             if (error) throw error;
 
-            const transformed = (data || []).map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                description: t.description || '',
-                status: t.status,
-                type: t.type,
-                assignedTo: t.assigned_to || '',
-                department: t.sub_team_id || '',
-                tags: t.tags || [],
-                checklist: t.checklist || [],
-                timeline: t.timeline || [],
-                createdAt: new Date(t.created_at).getTime(),
-                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-                seasonId: t.season_id,
-            }));
-
+            const transformed = (data || []).map(transformTaskFromSupabase);
             setTasks(transformed);
             return transformed;
         },
@@ -76,26 +66,7 @@ export function useScoutingQuery(teamId: string | null) {
 
             if (error) throw error;
 
-            const transformed = (data || []).map((r: any) => ({
-                id: r.id,
-                teamNumber: r.opponent_team_number,
-                matchNumber: r.match_number,
-                eventName: r.event_name || '',
-                hasAutonomous: r.data?.hasAutonomous ?? false,
-                autoScore: r.data?.autoScore ?? 0,
-                intakeType: r.data?.intakeType ?? 'No Intake',
-                autoAim: r.data?.autoAim ?? false,
-                farShooting: r.data?.farShooting ?? false,
-                shotsTaken: r.data?.shotsTaken ?? 0,
-                shotsMissed: r.data?.shotsMissed ?? 0,
-                parking: r.data?.parking ?? 'No Park',
-                rating: r.data?.rating ?? 0,
-                endGameNotes: r.data?.endGameNotes ?? '',
-                createdBy: r.created_by || '',
-                seasonId: r.season_id,
-                createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined,
-            }));
-
+            const transformed = (data || []).map(transformScoutingReportFromSupabase);
             setScoutingReports(transformed);
             return transformed;
         },
@@ -123,18 +94,7 @@ export function useMatchPlansQuery(teamId: string | null) {
 
             if (error) throw error;
 
-            const transformed = (data || []).map((p: any) => ({
-                id: p.id,
-                title: p.title || `Match ${p.match_number || '?'}`,
-                drawingData: p.drawing_data,
-                notes: p.notes || '',
-                allianceTeam: p.alliance_team || '',
-                partnerAutonomous: false,
-                partnerPark: false,
-                updatedAt: new Date(p.updated_at).getTime(),
-                seasonId: p.season_id,
-            }));
-
+            const transformed = (data || []).map(transformMatchPlanFromSupabase);
             setMatchPlans(transformed);
             return transformed;
         },

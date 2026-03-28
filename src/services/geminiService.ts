@@ -3,11 +3,49 @@ import { Task, Flashcard } from "../types";
 import { supabase, supabaseUrl, supabaseAnonKey } from "../lib/supabase";
 
 const getAI = (providedKey?: string) => {
-  // Prioritize provided key (from store), then env var
-  const key = providedKey || (typeof process !== 'undefined' ? process.env.API_KEY : undefined);
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
+  // Only user-provided key (from store) is accepted.
+  // Never fall back to env vars — VITE_ vars are embedded in the client bundle.
+  if (!providedKey) return null;
+  return new GoogleGenAI({ apiKey: providedKey });
 };
+
+/**
+ * Sanitise user-supplied text before embedding it in an AI prompt.
+ *
+ * Guards against prompt-injection attacks where a malicious task title,
+ * description, or comment attempts to override the system instruction.
+ */
+const MAX_PROMPT_INPUT_LENGTH = 10_000;
+
+function sanitizeForPrompt(text: string): string {
+    if (!text) return '';
+
+    let cleaned = text;
+
+    // Strip common prompt-injection patterns (case-insensitive)
+    const injectionPatterns = [
+        /ignore\s+(all\s+)?previous\s+instructions/gi,
+        /ignore\s+(all\s+)?above\s+instructions/gi,
+        /you\s+are\s+now\s+/gi,
+        /system\s*:\s*/gi,
+        /\[INST\]/gi,
+        /<<SYS>>/gi,
+        /<\|im_start\|>/gi,
+    ];
+    for (const pattern of injectionPatterns) {
+        cleaned = cleaned.replace(pattern, '[blocked]');
+    }
+
+    // Strip triple-backtick fences that could inject formatting
+    cleaned = cleaned.replace(/```/g, "'''");
+
+    // Truncate to a safe length
+    if (cleaned.length > MAX_PROMPT_INPUT_LENGTH) {
+        cleaned = cleaned.slice(0, MAX_PROMPT_INPUT_LENGTH) + '… [truncated]';
+    }
+
+    return cleaned;
+}
 
 export const generatePortfolioSummary = async (tasks: Task[], apiKey?: string): Promise<string> => {
 
@@ -44,7 +82,7 @@ export const generatePortfolioSummary = async (tasks: Task[], apiKey?: string): 
 
   const completedTasks = tasks.filter(t => t.status === 'Done');
   const taskSummary = completedTasks.map(t =>
-    `- ${t.title} (${t.type}): ${t.description}. Tags: ${t.tags?.join(', ') || ''}`
+    `- ${sanitizeForPrompt(t.title)} (${t.type}): ${sanitizeForPrompt(t.description)}. Tags: ${(t.tags || []).map(sanitizeForPrompt).join(', ')}`
   ).join('\n');
 
   const prompt = `
@@ -119,8 +157,8 @@ export const generateInterviewQuestions = async (contextText: string, studyGuide
     Base the questions on the provided context about the team's season and robot.
     Return the response as a JSON object with a list of "questions" (each with "question" and "answer" keys).
     
-    Context: ${contextText}
-    Study Guide: ${studyGuide || 'None'}
+    Context: ${sanitizeForPrompt(contextText)}
+    Study Guide: ${sanitizeForPrompt(studyGuide || 'None')}
   `;
 
   const response = await ai.models.generateContent({
@@ -170,7 +208,7 @@ export const summarizeMeeting = async (notes: string, apiKey?: string): Promise<
 
   const response = await ai.models.generateContent({
     model: "gemini-1.5-flash",
-    contents: `Summarize these robotics team meeting notes into concise minutes with action items:\n\n${notes}`
+    contents: `Summarize these robotics team meeting notes into concise minutes with action items:\n\n${sanitizeForPrompt(notes)}`
   });
   return response.text || "";
 }

@@ -4,7 +4,7 @@ import { useScoutingQuery } from '../lib/queries';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
 
 const ScoutingReports: React.FC = () => {
-    const { scoutingReports, addScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
+    const { scoutingReports, addScoutingReport, updateScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
 
     // Background refresh — fetches latest scouting data when this page is visited
     useScoutingQuery(currentTeamId);
@@ -29,26 +29,29 @@ const ScoutingReports: React.FC = () => {
     const saveScoutingReport = () => {
         if (!newScout.teamNumber) return;
 
-        // If editing, delete the old report first
-        if (editingReportId) {
-            deleteScoutingReport(editingReportId);
-        }
-
-        addScoutingReport({
+        const reportData = {
             teamNumber: newScout.teamNumber || '',
             matchNumber: newScout.matchNumber || 0,
             eventName: newScout.eventName || '',
             hasAutonomous: newScout.hasAutonomous || false,
             autoScore: newScout.autoScore || 0,
-            intakeType: newScout.intakeType || 'No Intake',
+            intakeType: newScout.intakeType || 'No Intake' as const,
             autoAim: newScout.autoAim || false,
             farShooting: newScout.farShooting || false,
             shotsTaken: newScout.shotsTaken || 0,
             shotsMissed: newScout.shotsMissed || 0,
-            parking: newScout.parking || 'No Park',
+            parking: newScout.parking || 'No Park' as const,
             endGameNotes: newScout.endGameNotes || '',
             rating: newScout.rating || 3
-        });
+        };
+
+        if (editingReportId) {
+            // Update in-place — preserves ID, createdAt, createdBy
+            updateScoutingReport(editingReportId, reportData);
+        } else {
+            addScoutingReport(reportData);
+        }
+
         setIsScoutModalOpen(false);
         setEditingReportId(null);
         resetForm();

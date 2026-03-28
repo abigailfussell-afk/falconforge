@@ -190,6 +190,42 @@ describe('AppStore', () => {
             store.deleteScoutingReport(reportId);
             expect(useAppStore.getState().scoutingReports).toHaveLength(0);
         });
+
+        it('should update a scouting report in place', () => {
+            const store = useAppStore.getState();
+
+            store.addScoutingReport({
+                teamNumber: '12345',
+                matchNumber: 1,
+                hasAutonomous: true,
+                autoScore: 25,
+                intakeType: 'Automatic',
+                autoAim: true,
+                farShooting: false,
+                shotsTaken: 10,
+                shotsMissed: 2,
+                parking: 'Full Park',
+                rating: 4,
+                endGameNotes: 'Great match!',
+            });
+
+            const reportId = useAppStore.getState().scoutingReports[0].id;
+
+            // Update the report
+            store.updateScoutingReport(reportId, {
+                rating: 5,
+                endGameNotes: 'Updated notes',
+                shotsTaken: 15,
+            });
+
+            const updated = useAppStore.getState().scoutingReports.find(r => r.id === reportId);
+            expect(updated).toBeDefined();
+            expect(updated!.id).toBe(reportId); // ID preserved
+            expect(updated!.teamNumber).toBe('12345'); // Unchanged fields preserved
+            expect(updated!.rating).toBe(5); // Updated
+            expect(updated!.endGameNotes).toBe('Updated notes'); // Updated
+            expect(updated!.shotsTaken).toBe(15); // Updated
+        });
     });
 
     describe('resetToDefaults', () => {

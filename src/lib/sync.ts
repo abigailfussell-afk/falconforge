@@ -3,6 +3,13 @@ import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
+import {
+    transformTaskFromSupabase,
+    transformScoutingReportFromSupabase,
+    transformMatchPlanFromSupabase,
+    transformSeasonFromSupabase,
+    transformSubTeamFromSupabase,
+} from './transformers';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -476,67 +483,19 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
 
     switch (tableName) {
         case 'tasks':
-            store.setTasks(records.map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                description: t.description || '',
-                status: t.status,
-                type: t.type,
-                assignedTo: t.assigned_to || '',
-                department: t.sub_team_id || '',
-                tags: t.tags || [],
-                checklist: t.checklist || [],
-                timeline: t.timeline || [],
-                createdAt: new Date(t.created_at).getTime(),
-                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-                seasonId: t.season_id
-            })));
+            store.setTasks(records.map(transformTaskFromSupabase));
             break;
 
         case 'seasons':
-            store.setSeasons(records.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                teamId: s.team_id,
-                fieldImageData: s.field_image_data,
-                createdAt: new Date(s.created_at).getTime(),
-            })));
+            store.setSeasons(records.map(transformSeasonFromSupabase));
             break;
 
         case 'scoutingReports':
-            store.setScoutingReports(records.map((r: any) => ({
-                id: r.id,
-                teamNumber: r.opponent_team_number,
-                matchNumber: r.match_number,
-                eventName: r.event_name || '',
-                hasAutonomous: r.data?.hasAutonomous ?? false,
-                autoScore: r.data?.autoScore ?? 0,
-                intakeType: r.data?.intakeType ?? 'No Intake',
-                autoAim: r.data?.autoAim ?? false,
-                farShooting: r.data?.farShooting ?? false,
-                shotsTaken: r.data?.shotsTaken ?? 0,
-                shotsMissed: r.data?.shotsMissed ?? 0,
-                parking: r.data?.parking ?? 'No Park',
-                rating: r.data?.rating ?? 0,
-                endGameNotes: r.data?.endGameNotes ?? '',
-                createdBy: r.created_by || '',
-                seasonId: r.season_id,
-                createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
-            })));
+            store.setScoutingReports(records.map(transformScoutingReportFromSupabase));
             break;
 
         case 'matchPlans':
-            store.setMatchPlans(records.map((p: any) => ({
-                id: p.id,
-                title: p.title || `Match ${p.match_number || '?'}`,
-                drawingData: p.drawing_data,
-                notes: p.notes || '',
-                allianceTeam: p.alliance_team || '',
-                partnerAutonomous: false,
-                partnerPark: false,
-                updatedAt: new Date(p.updated_at).getTime(),
-                seasonId: p.season_id
-            })));
+            store.setMatchPlans(records.map(transformMatchPlanFromSupabase));
             break;
 
         case 'checklists':
@@ -550,12 +509,7 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
             break;
 
         case 'subTeams':
-            store.setSubTeams(records.map((st: any) => ({
-                id: st.id,
-                name: st.name,
-                memberIds: st.member_ids || [],
-                seasonId: st.season_id
-            })));
+            store.setSubTeams(records.map(transformSubTeamFromSupabase));
             break;
 
         default:
@@ -585,84 +539,31 @@ export function mergeIntoStore(tableName: string, records: any[]): void {
 
     switch (tableName) {
         case 'tasks': {
-            const transformed = records.map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                description: t.description || '',
-                status: t.status,
-                type: t.type,
-                assignedTo: t.assigned_to || '',
-                department: t.sub_team_id || '',
-                tags: t.tags || [],
-                checklist: t.checklist || [],
-                timeline: t.timeline || [],
-                createdAt: new Date(t.created_at).getTime(),
-                dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-                seasonId: t.season_id
-            }));
+            const transformed = records.map(transformTaskFromSupabase);
             store.setTasks(upsertById(store.tasks, transformed));
             break;
         }
 
         case 'seasons': {
-            const transformed = records.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                teamId: s.team_id,
-                fieldImageData: s.field_image_data,
-                createdAt: new Date(s.created_at).getTime(),
-            }));
+            const transformed = records.map(transformSeasonFromSupabase);
             store.setSeasons(upsertById(store.seasons, transformed));
             break;
         }
 
         case 'scoutingReports': {
-            const transformed = records.map((r: any) => ({
-                id: r.id,
-                teamNumber: r.opponent_team_number,
-                matchNumber: r.match_number,
-                eventName: r.event_name || '',
-                hasAutonomous: r.data?.hasAutonomous ?? false,
-                autoScore: r.data?.autoScore ?? 0,
-                intakeType: r.data?.intakeType ?? 'No Intake',
-                autoAim: r.data?.autoAim ?? false,
-                farShooting: r.data?.farShooting ?? false,
-                shotsTaken: r.data?.shotsTaken ?? 0,
-                shotsMissed: r.data?.shotsMissed ?? 0,
-                parking: r.data?.parking ?? 'No Park',
-                rating: r.data?.rating ?? 0,
-                endGameNotes: r.data?.endGameNotes ?? '',
-                createdBy: r.created_by || '',
-                seasonId: r.season_id,
-                createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
-            }));
+            const transformed = records.map(transformScoutingReportFromSupabase);
             store.setScoutingReports(upsertById(store.scoutingReports, transformed));
             break;
         }
 
         case 'matchPlans': {
-            const transformed = records.map((p: any) => ({
-                id: p.id,
-                title: p.title || `Match ${p.match_number || '?'}`,
-                drawingData: p.drawing_data,
-                notes: p.notes || '',
-                allianceTeam: p.alliance_team || '',
-                partnerAutonomous: false,
-                partnerPark: false,
-                updatedAt: new Date(p.updated_at).getTime(),
-                seasonId: p.season_id
-            }));
+            const transformed = records.map(transformMatchPlanFromSupabase);
             store.setMatchPlans(upsertById(store.matchPlans, transformed));
             break;
         }
 
         case 'subTeams': {
-            const transformed = records.map((st: any) => ({
-                id: st.id,
-                name: st.name,
-                memberIds: st.member_ids || [],
-                seasonId: st.season_id
-            }));
+            const transformed = records.map(transformSubTeamFromSupabase);
             store.setSubTeams(upsertById(store.subTeams, transformed));
             break;
         }

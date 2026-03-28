@@ -45,6 +45,7 @@ const mockScoutingReports = [
 const mockStore = {
     scoutingReports: mockScoutingReports,
     addScoutingReport: vi.fn(),
+    updateScoutingReport: vi.fn(),
     deleteScoutingReport: vi.fn(),
     currentSeasonId: 'season-1',
 };

@@ -6,6 +6,13 @@ import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
 import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
+import {
+    transformTaskFromSupabase,
+    transformScoutingReportFromSupabase,
+    transformMatchPlanFromSupabase,
+    transformSeasonFromSupabase,
+    transformSubTeamFromSupabase,
+} from './transformers';
 import type { Team, TeamMember, SubTeam, Season } from '../types';
 
 /**
@@ -142,6 +149,7 @@ interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
 
     // Scouting actions
     addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
+    updateScoutingReport: (id: string, updates: Partial<ScoutingReport>) => void;
     deleteScoutingReport: (id: string) => void;
     setScoutingReports: (reports: ScoutingReport[]) => void;
 
@@ -257,14 +265,7 @@ export const useAppStore = create<AppState>()(
                             .eq('team_id', teamId);
 
                         if (!subTeamsError && subTeams) {
-                            set({
-                                subTeams: subTeams.map((st: any) => ({
-                                    id: st.id,
-                                    name: st.name,
-                                    memberIds: st.member_ids || [],
-                                    seasonId: st.season_id
-                                }))
-                            });
+                            set({ subTeams: subTeams.map(transformSubTeamFromSupabase) });
                         } else if (subTeamsError) {
                             console.warn('Failed to fetch sub_teams:', subTeamsError.message);
                         }
@@ -280,15 +281,7 @@ export const useAppStore = create<AppState>()(
                             .eq('team_id', teamId);
 
                         if (!seasonsError && seasons && seasons.length > 0) {
-                            set({
-                                seasons: seasons.map((s: any) => ({
-                                    id: s.id,
-                                    name: s.name,
-                                    fieldImageData: s.field_image_data || '', // Fixed: was field_image_url
-                                    teamId: s.team_id,
-                                    createdAt: new Date(s.created_at).getTime()
-                                }))
-                            });
+                            set({ seasons: seasons.map(transformSeasonFromSupabase) });
                         } else if (seasonsError) {
                             console.warn('Failed to fetch seasons:', seasonsError.message);
                         }
@@ -304,23 +297,7 @@ export const useAppStore = create<AppState>()(
                             .eq('team_id', teamId);
 
                         if (!tasksError && tasks) {
-                            set({
-                                tasks: tasks.map((t: any) => ({
-                                    id: t.id,
-                                    title: t.title,
-                                    description: t.description || '',
-                                    status: t.status as any,
-                                    type: t.type as any,
-                                    assignedTo: t.assigned_to || '',
-                                    department: t.sub_team_id || '',
-                                    tags: t.tags || [],
-                                    checklist: (t.checklist as any) || [],
-                                    timeline: (t.timeline as any) || [],
-                                    createdAt: new Date(t.created_at).getTime(),
-                                    dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-                                    seasonId: t.season_id
-                                }))
-                            });
+                            set({ tasks: tasks.map(transformTaskFromSupabase) });
                         } else if (tasksError) {
                             // Table may not exist yet - this is expected before migration
                             console.warn('Failed to fetch tasks (table may not exist yet):', tasksError.message);
@@ -337,28 +314,7 @@ export const useAppStore = create<AppState>()(
                             .eq('team_id', teamId);
 
                         if (!reportsError && reports) {
-                            set({
-                                scoutingReports: reports.map((r: any) => ({
-                                    id: r.id,
-                                    teamNumber: r.opponent_team_number,
-                                    matchNumber: r.match_number,
-                                    eventName: r.event_name || '',
-                                    // Spread the data JSONB field for scouting details
-                                    hasAutonomous: r.data?.hasAutonomous ?? false,
-                                    autoScore: r.data?.autoScore ?? 0,
-                                    intakeType: r.data?.intakeType ?? 'No Intake',
-                                    autoAim: r.data?.autoAim ?? false,
-                                    farShooting: r.data?.farShooting ?? false,
-                                    shotsTaken: r.data?.shotsTaken ?? 0,
-                                    shotsMissed: r.data?.shotsMissed ?? 0,
-                                    parking: r.data?.parking ?? 'No Park',
-                                    rating: r.data?.rating ?? 0,
-                                    endGameNotes: r.data?.endGameNotes ?? '',
-                                    createdBy: r.created_by || '',
-                                    seasonId: r.season_id,
-                                    createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined
-                                }))
-                            });
+                            set({ scoutingReports: reports.map(transformScoutingReportFromSupabase) });
                         } else if (reportsError) {
                             console.warn('Failed to fetch scouting_reports (table may not exist yet):', reportsError.message);
                         }
@@ -374,19 +330,7 @@ export const useAppStore = create<AppState>()(
                             .eq('team_id', teamId);
 
                         if (!plansError && plans) {
-                            set({
-                                matchPlans: plans.map((p: any) => ({
-                                    id: p.id,
-                                    title: p.title || `Match ${p.match_number || '?'}`,
-                                    drawingData: p.drawing_data,
-                                    notes: p.notes || '',
-                                    allianceTeam: p.alliance_team || '',
-                                    partnerAutonomous: false,
-                                    partnerPark: false,
-                                    updatedAt: new Date(p.updated_at).getTime(),
-                                    seasonId: p.season_id
-                                }))
-                            });
+                            set({ matchPlans: plans.map(transformMatchPlanFromSupabase) });
                         } else if (plansError) {
                             console.warn('Failed to fetch match_plans (table may not exist yet):', plansError.message);
                         }
@@ -430,10 +374,16 @@ export const useAppStore = create<AppState>()(
             // Scouting
             addScoutingReport: (reportData) => {
                 const state = get();
+                // Resolve the team_members.id for the current auth user.
+                // The DB FK `scouting_reports_created_by_fkey` references
+                // team_members(id), NOT auth.users(id).
+                const currentMember = state.teamMembers.find(
+                    (m) => m.userId === state.currentUserId
+                );
                 const report: ScoutingReport = {
                     ...reportData,
                     id: generateId(),
-                    createdBy: state.currentUserId || undefined,
+                    createdBy: currentMember?.id || undefined,
                     seasonId: state.currentSeasonId || undefined,
                     createdAt: Date.now(),
                 };
@@ -444,6 +394,22 @@ export const useAppStore = create<AppState>()(
                     ...report,
                     teamId: state.currentTeamId,
                 });
+            },
+
+            updateScoutingReport: (id, updates) => {
+                set((state) => ({
+                    scoutingReports: state.scoutingReports.map((r) =>
+                        r.id === id ? { ...r, ...updates } : r
+                    ),
+                }));
+                const report = get().scoutingReports.find(r => r.id === id);
+                if (report) {
+                    queueForSync('scouting_reports', id, 'update', {
+                        ...report,
+                        ...updates,
+                        teamId: get().currentTeamId,
+                    });
+                }
             },
 
             deleteScoutingReport: (id) => {
@@ -663,7 +629,8 @@ export const useAppStore = create<AppState>()(
                 seasons: state.seasons,
                 currentSeasonId: state.currentSeasonId,
                 theme: state.theme,
-                geminiApiKey: state.geminiApiKey,
+                // NOTE: geminiApiKey intentionally excluded — not persisted to
+                // IndexedDB for security. Users re-enter once per session.
             }),
             onRehydrateStorage: () => (state) => {
                 // Apply theme as soon as persisted state is rehydrated from IndexedDB
