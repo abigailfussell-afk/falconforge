@@ -1,7 +1,7 @@
 # FalconForge — Production Checklist
 
 > **Last updated:** 2026-03-28
-> **Status:** 0 / 18 items complete
+> **Status:** 1 / 18 items complete
 
 Work through these items top-to-bottom. Each item includes what to do, how to verify, and files involved. Mark items `[x]` when done, `[/]` when in progress.
 
@@ -9,7 +9,7 @@ Work through these items top-to-bottom. Each item includes what to do, how to ve
 
 ## 🔴 Critical (Must fix before any public use)
 
-### 1. [ ] Rotate DB Password & Remove Secrets from Git
+### 1. [x] Rotate DB Password & Remove Secrets from Git
 
 **Problem:** Supabase DB password is committed in plaintext in `.agent/scaling-remaining-items.md` line 15. Backup scripts and SQL dumps are also tracked in git. The repo is on GitHub.
 
@@ -310,4 +310,4 @@ Work through these items top-to-bottom. Each item includes what to do, how to ve
 
 | Date | Item # | Summary | Verified |
 |------|--------|---------|----------|
-| — | — | — | — |
+| 2026-03-28 | #1 | Redacted DB password from `.agent/scaling-remaining-items.md`, added backup files/scripts/SQL dumps/auth output to `.gitignore`, ran `git rm --cached` on 60 tracked files (backup dirs, scripts, SQL dump, auth output, scaling doc). All 223 tests pass. **User must still rotate the Supabase DB password via Dashboard → Settings → Database** since the old password exists in git history. | ✅ Tests pass, `git ls-files` confirms files untracked, `grep` confirms no password in repo |

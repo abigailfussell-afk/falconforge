@@ -40,3 +40,11 @@ playwright-report/
 playwright/.auth/
 test-results/
 playwright_output*.txt
+
+# Backup files & scripts (contain or access sensitive data)
+backup-full.mjs
+backup-database.mjs
+backup_*.sql
+backup-*/
+auth_test_out.txt
+.agent/scaling-remaining-items.md
