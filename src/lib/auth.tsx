@@ -42,7 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        // Safety timeout for initial auth check (especially useful for offline PWA)
+        // Safety timeout for initial auth check (especially useful for offline PWA).
+        // 5s is generous enough for slow mobile networks while still preventing
+        // indefinite hangs if Supabase is unreachable.
         const authTimeout = setTimeout(() => {
             setState(prev => {
                 if (prev.isLoading) {
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
                 return prev;
             });
-        }, 1500);
+        }, 5000);
 
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {

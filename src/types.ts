@@ -119,6 +119,7 @@ export interface ScoutingReport {
   id: string;
   teamNumber: string;
   matchNumber: number;
+  eventName?: string;
   hasAutonomous: boolean;
   autoScore: number;
   intakeType: 'No Intake' | 'Human Player' | 'Automatic';
@@ -129,6 +130,8 @@ export interface ScoutingReport {
   parking: 'No Park' | 'Full Park' | 'Partial Park';
   rating: number; // 1-5
   endGameNotes: string;
+  createdBy?: string;   // TeamMember ID who created this report
+  seasonId?: string;    // Scoped to a specific Season
   createdAt?: number;
 }
 
@@ -137,6 +140,27 @@ export interface ChecklistItem {
   text: string;
   checked: boolean;
   assignedTo?: string; // TeamMember ID or SubTeam ID
+  seasonId?: string;   // Scoped to a specific Season
+}
+
+export interface MatchPlan {
+  id: string;
+  title: string;
+  drawingData: any; // SVG path data
+  notes: string;
+  allianceTeam: string;
+  partnerAutonomous: boolean;
+  partnerPark: boolean;
+  updatedAt: number;
+  seasonId?: string;
+}
+
+export interface PortfolioEntry {
+  id: string;
+  content: string;
+  createdAt: number;
+  taskCount: number;
+  seasonId?: string;
 }
 
 export interface Flashcard {

@@ -35,7 +35,32 @@ export const supabase = supabaseUrl && supabaseAnonKey
  * callback that reads the JWT straight from localStorage.  Because
  * `_getAccessToken()` checks `this.accessToken` *before* calling
  * `getSession()`, the lock is never touched and queries go out immediately.
+ *
+ * Stale-JWT mitigation: the callback checks the token's `exp` claim.  If the
+ * token has expired (or will expire within 30 seconds), we ask the main
+ * `supabase` client for a fresh session instead of sending an expired JWT
+ * that would cause RLS-protected queries to fail.
  */
+
+/** Decode JWT payload without a library (browser-safe). Returns null on failure. */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+    try {
+        const base64 = token.split('.')[1];
+        if (!base64) return null;
+        const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
+
+/** Returns true if the JWT's exp is within `bufferSec` seconds of now (or already past). */
+function isTokenExpired(token: string, bufferSec = 30): boolean {
+    const payload = decodeJwtPayload(token);
+    if (!payload?.exp) return true; // treat decode failures as expired
+    return payload.exp - bufferSec <= Date.now() / 1000;
+}
+
 export const supabaseSync: SupabaseClient<Database> | null = supabaseUrl && supabaseAnonKey
     ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
         accessToken: async () => {
@@ -44,7 +69,19 @@ export const supabaseSync: SupabaseClient<Database> | null = supabaseUrl && supa
                 const raw = localStorage.getItem(storageKey);
                 if (raw) {
                     const parsed = JSON.parse(raw);
-                    if (parsed?.access_token) return parsed.access_token;
+                    if (parsed?.access_token) {
+                        // If the token is still valid, use it directly (fast path)
+                        if (!isTokenExpired(parsed.access_token)) {
+                            return parsed.access_token;
+                        }
+                        // Token expired — ask the main client for a refreshed session
+                        if (supabase) {
+                            const { data } = await supabase.auth.getSession();
+                            if (data?.session?.access_token) {
+                                return data.session.access_token;
+                            }
+                        }
+                    }
                 }
             } catch {
                 // fall through

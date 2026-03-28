@@ -297,24 +297,62 @@ describe('MatchPlanner', () => {
                 expect(container.querySelector('.touch-none')?.querySelectorAll('path').length).toBe(0);
             }
         });
+    });
 
-        it('allows deleting a plan from the load modal', () => {
+    describe('Delete Plan Confirmation', () => {
+        it('shows delete confirmation modal before deleting a plan', () => {
             const { container } = render(<MatchPlanner />);
-            
+
+            // Open load modal
             const loadBtn = container.querySelector('button[title="Load Plans"]');
             if (loadBtn) fireEvent.click(loadBtn);
-            
-            // Find trash icon inside the modal
-            // We can pinpoint it by looking for the row of the plan
-            const planText = screen.getByText('Match 1 Strategy');
-            // The structure is roughly: .font-bold -> .cursor-pointer -> .flex.items-center.justify-between -> button
-            const planRow = planText.parentElement?.parentElement;
-            const deleteBtn = planRow?.querySelector('button');
-            
-            if (deleteBtn) {
-                fireEvent.click(deleteBtn);
-                expect(mockDeleteMatchPlan).toHaveBeenCalledWith('plan-1');
-            }
+
+            // Find and click the delete button
+            const deleteBtn = screen.getByTestId('delete-matchplan-button');
+            fireEvent.click(deleteBtn);
+
+            // Confirmation modal should appear
+            expect(screen.getByText('Delete Match Plan?')).toBeDefined();
+            expect(screen.getByText(/permanently deleted/i)).toBeDefined();
+
+            // deleteMatchPlan should NOT have been called yet
+            expect(mockDeleteMatchPlan).not.toHaveBeenCalled();
+        });
+
+        it('deletes plan when confirming', () => {
+            const { container } = render(<MatchPlanner />);
+
+            // Open load modal → click delete → confirm
+            const loadBtn = container.querySelector('button[title="Load Plans"]');
+            if (loadBtn) fireEvent.click(loadBtn);
+
+            const deleteBtn = screen.getByTestId('delete-matchplan-button');
+            fireEvent.click(deleteBtn);
+
+            // Click the red "Delete" confirm button
+            const confirmBtn = screen.getByTestId('confirm-delete-matchplan');
+            fireEvent.click(confirmBtn);
+
+            expect(mockDeleteMatchPlan).toHaveBeenCalledWith('plan-1');
+        });
+
+        it('cancels delete when clicking Cancel', () => {
+            const { container } = render(<MatchPlanner />);
+
+            // Open load modal → click delete → cancel
+            const loadBtn = container.querySelector('button[title="Load Plans"]');
+            if (loadBtn) fireEvent.click(loadBtn);
+
+            const deleteBtn = screen.getByTestId('delete-matchplan-button');
+            fireEvent.click(deleteBtn);
+
+            // Click Cancel
+            const cancelBtn = screen.getByTestId('cancel-delete-matchplan');
+            fireEvent.click(cancelBtn);
+
+            // Modal should close, nothing deleted
+            expect(screen.queryByText('Delete Match Plan?')).toBeNull();
+            expect(mockDeleteMatchPlan).not.toHaveBeenCalled();
         });
     });
 

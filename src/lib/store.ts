@@ -13,7 +13,10 @@ import {
     transformSeasonFromSupabase,
     transformSubTeamFromSupabase,
 } from './transformers';
-import type { Team, TeamMember, SubTeam, Season } from '../types';
+import type {
+    Team, TeamMember, SubTeam, Season,
+    Task, ScoutingReport, ChecklistItem, MatchPlan, PortfolioEntry,
+} from '../types';
 
 /**
  * Main application store using Zustand
@@ -26,74 +29,12 @@ import type { Team, TeamMember, SubTeam, Season } from '../types';
  * - SubTeam = Working groups (Build, Programming, etc.) - renamed from Team
  */
 
-// Types matching the existing app structure
-export interface Task {
-    id: string;
-    title: string;
-    description: string;
-    status: 'Backlog' | 'To Do' | 'In Progress' | 'Testing' | 'Done' | 'Archived';
-    type: 'Feature' | 'Bug';
-    assignedTo: string;  // TeamMember ID
-    department: string;  // SubTeam ID
-    tags: string[];
-    checklist: { id: string; text: string; completed: boolean }[];
-    timeline: { id: string; type: 'comment' | 'history'; authorId: string; content: string; timestamp: number }[];
-    createdAt: number;
-    dueDate?: number;
-    seasonId?: string;
-    archivedAt?: number;
-}
-
-export interface ScoutingReport {
-    id: string;
-    teamNumber: string;
-    matchNumber: number;
-    eventName?: string;
-    hasAutonomous: boolean;
-    autoScore: number;
-    intakeType: 'No Intake' | 'Human Player' | 'Automatic';
-    autoAim: boolean;
-    farShooting: boolean;
-    shotsTaken: number;
-    shotsMissed: number;
-    parking: 'No Park' | 'Full Park' | 'Partial Park';
-    rating: number;
-    endGameNotes: string;
-    createdBy?: string;
-    seasonId?: string;
-    createdAt?: number;
-}
-
-export interface ChecklistItem {
-    id: string;
-    text: string;
-    checked: boolean;
-    assignedTo?: string;  // TeamMember ID or SubTeam ID
-    seasonId?: string;
-}
-
-export interface MatchPlan {
-    id: string;
-    title: string;
-    drawingData: any; // SVG path data
-    notes: string;
-    allianceTeam: string;
-    partnerAutonomous: boolean;
-    partnerPark: boolean;
-    updatedAt: number;
-    seasonId?: string;
-}
-
-export interface PortfolioEntry {
-    id: string;
-    content: string;
-    createdAt: number;
-    taskCount: number;
-    seasonId?: string;
-}
-
 // Re-export types from types.ts for convenience
-export type { Team, TeamMember, SubTeam, Season };
+// (consumers can import { ScoutingReport } from '../lib/store' or from '../types')
+export type {
+    Team, TeamMember, SubTeam, Season,
+    Task, ScoutingReport, ChecklistItem, MatchPlan, PortfolioEntry,
+};
 
 // Default season for migration
 const DEFAULT_SEASON: Season = {

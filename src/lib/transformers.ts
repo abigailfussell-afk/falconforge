@@ -7,9 +7,7 @@
  * call these instead of inlining the mapping.
  */
 
-import type { Task } from '../types';
-import type { ScoutingReport, MatchPlan } from './store';
-import type { Season, SubTeam } from '../types';
+import type { Task, ScoutingReport, MatchPlan, Season, SubTeam } from '../types';
 
 // ── Supabase → Local (snake_case → camelCase) ──────────────────────────────
 
