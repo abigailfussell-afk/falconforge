@@ -12,14 +12,40 @@
  */
 import { execFileSync } from 'node:child_process';
 
+/**
+ * Ask the Supabase CLI where the stack is.
+ *
+ * Tries a `supabase` already on PATH before falling back to `npx supabase`. In CI the
+ * stack is started by `supabase/setup-cli@v1`, which installs a different (newer) CLI than
+ * the one pinned in devDependencies — and `npx` would resolve to the pinned one, so the
+ * version reading the stack's status would not be the version that created it. Preferring
+ * PATH means the same binary does both.
+ */
+function runStatus(): string {
+    const attempts: [string, string[]][] = [
+        ['supabase', ['status', '-o', 'env']],
+        ['npx', ['supabase', 'status', '-o', 'env']],
+    ];
+
+    let lastError: unknown;
+    for (const [command, args] of attempts) {
+        try {
+            return execFileSync(command, args, {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'pipe'],
+                shell: process.platform === 'win32',
+            });
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    throw lastError;
+}
+
 function readStackEnv(): Record<string, string> {
     let raw: string;
     try {
-        raw = execFileSync('npx', ['supabase', 'status', '-o', 'env'], {
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: process.platform === 'win32',
-        });
+        raw = runStatus();
     } catch (err) {
         throw new Error(
             'Could not read the local Supabase stack status. These tests run against a real ' +
