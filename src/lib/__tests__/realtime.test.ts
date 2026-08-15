@@ -39,8 +39,10 @@ vi.mock('@/lib/sync', () => ({
         isOnline: true,
         syncStatus: 'idle',
         pendingChanges: 0,
+        failedChanges: 0,
         lastSyncTime: null,
         sync: vi.fn(),
+        retryFailedChanges: vi.fn().mockResolvedValue(0),
         error: null,
     })),
 }));
@@ -93,19 +95,21 @@ describe('realtime', () => {
             expect(mockSubscribe).toHaveBeenCalled();
         });
 
-        it('should subscribe to all 5 synced tables (INSERT, UPDATE, DELETE each)', () => {
+        it('should subscribe to every synced table (INSERT, UPDATE, DELETE each)', () => {
             setupRealtimeSubscription('team-123');
 
-            // 5 tables × 3 events = 15 calls to .on()
-            expect(mockOn).toHaveBeenCalledTimes(15);
-
-            // Verify table names are in the filter configs
+            // The subscription list is derived from the entity registry plus checklists,
+            // rather than being a second hand-maintained list that can drift from the
+            // first (B16). That added `seasons`, which was previously omitted -- so this
+            // is 6 tables x 3 events, not the old 5 x 3. Season renames now propagate live
+            // instead of waiting for the next pull; the table is tiny and rarely written.
             const tables = mockOn.mock.calls.map((call: any[]) => call[1]?.table);
-            expect(tables).toContain('tasks');
-            expect(tables).toContain('scouting_reports');
-            expect(tables).toContain('match_plans');
-            expect(tables).toContain('checklists');
-            expect(tables).toContain('sub_teams');
+            const distinct = [...new Set(tables)];
+
+            expect(distinct.sort()).toEqual([
+                'checklists', 'match_plans', 'scouting_reports', 'seasons', 'sub_teams', 'tasks',
+            ]);
+            expect(mockOn).toHaveBeenCalledTimes(distinct.length * 3);
         });
 
         it('should filter subscriptions by team_id', () => {
@@ -222,7 +226,7 @@ describe('realtime', () => {
     });
 
     describe('Realtime event callbacks', () => {
-        it('should call mergeIntoStore for INSERT events', () => {
+        it('should call mergeIntoStore for INSERT events', async () => {
             setupRealtimeSubscription('team-123');
 
             // Find the INSERT callback for tasks
@@ -233,49 +237,55 @@ describe('realtime', () => {
 
             // Simulate an INSERT event
             const callback = insertCall![2];
-            callback({ new: { id: 'new-task', title: 'New Task', team_id: 'team-123' } });
+            await callback({ new: { id: 'new-task', title: 'New Task', team_id: 'team-123' } });
 
-            expect(mockMergeIntoStore).toHaveBeenCalledWith('tasks', [
-                { id: 'new-task', title: 'New Task', team_id: 'team-123' },
-            ]);
+            expect(mockMergeIntoStore).toHaveBeenCalledWith(
+                'tasks',
+                [{ id: 'new-task', title: 'New Task', team_id: 'team-123' }],
+                expect.any(Set),
+            );
         });
 
-        it('should call mergeIntoStore for UPDATE events on non-checklist tables', () => {
+        it('should call mergeIntoStore for UPDATE events on non-checklist tables', async () => {
             setupRealtimeSubscription('team-123');
 
             const updateCall = mockOn.mock.calls.find(
                 (call: any[]) => call[1]?.event === 'UPDATE' && call[1]?.table === 'tasks'
             );
             const callback = updateCall![2];
-            callback({ new: { id: 'task-1', title: 'Updated', team_id: 'team-123' } });
+            await callback({ new: { id: 'task-1', title: 'Updated', team_id: 'team-123' } });
 
-            expect(mockMergeIntoStore).toHaveBeenCalledWith('tasks', [
-                { id: 'task-1', title: 'Updated', team_id: 'team-123' },
-            ]);
+            expect(mockMergeIntoStore).toHaveBeenCalledWith(
+                'tasks',
+                [{ id: 'task-1', title: 'Updated', team_id: 'team-123' }],
+                expect.any(Set),
+            );
         });
 
-        it('should call updateLocalDatabase for UPDATE events on checklists', () => {
+        it('should call updateLocalDatabase for UPDATE events on checklists', async () => {
             setupRealtimeSubscription('team-123');
 
             const updateCall = mockOn.mock.calls.find(
                 (call: any[]) => call[1]?.event === 'UPDATE' && call[1]?.table === 'checklists'
             );
             const callback = updateCall![2];
-            callback({ new: { id: 'cl-1', items: [{ id: '1', text: 'Updated', checked: true }] } });
+            await callback({ new: { id: 'cl-1', items: [{ id: '1', text: 'Updated', checked: true }] } });
 
-            expect(mockUpdateLocalDatabase).toHaveBeenCalledWith('checklists', [
-                { id: 'cl-1', items: [{ id: '1', text: 'Updated', checked: true }] },
-            ]);
+            expect(mockUpdateLocalDatabase).toHaveBeenCalledWith(
+                'checklists',
+                [{ id: 'cl-1', items: [{ id: '1', text: 'Updated', checked: true }] }],
+                expect.any(Set),
+            );
         });
 
-        it('should handle DELETE events by removing the record', () => {
+        it('should handle DELETE events by removing the record', async () => {
             setupRealtimeSubscription('team-123');
 
             const deleteCall = mockOn.mock.calls.find(
                 (call: any[]) => call[1]?.event === 'DELETE' && call[1]?.table === 'tasks'
             );
             const callback = deleteCall![2];
-            callback({ old: { id: 'task-1' } });
+            await callback({ old: { id: 'task-1' } });
 
             const store = useAppStore.getState();
             expect(store.setTasks).toHaveBeenCalledWith([]);

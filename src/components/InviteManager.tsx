@@ -9,8 +9,11 @@ interface Invite {
     team_id: string;
     code: string;
     created_by: string;
-    created_at: string;
-    expires_at: string;
+    // created_at and expires_at are nullable in the schema (column DEFAULTs, not NOT NULL).
+    // This interface had both as non-null, and the hand-written database.types.ts agreed
+    // with it, so nothing ever contradicted the assumption. The generated types do.
+    created_at: string | null;
+    expires_at: string | null;
     max_uses: number | null;
     use_count: number;
 }
@@ -174,11 +177,17 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     };
 
     // Format remaining time
-    const formatTimeRemaining = (expiresAt: string): string => {
+    const formatTimeRemaining = (expiresAt: string | null): string => {
+        // expires_at is nullable. A null means the invite has no expiry -- previously this
+        // reached `new Date(null)`, giving NaN, and every comparison below was false, so it
+        // rendered as "0m remaining" rather than saying the invite never expires.
+        if (!expiresAt) return 'No expiry';
+
         const now = new Date();
         const expires = new Date(expiresAt);
         const diffMs = expires.getTime() - now.getTime();
 
+        if (Number.isNaN(diffMs)) return 'No expiry';
         if (diffMs <= 0) return 'Expired';
 
         const hours = Math.floor(diffMs / (1000 * 60 * 60));

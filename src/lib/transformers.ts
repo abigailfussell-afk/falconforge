@@ -1,85 +1,41 @@
 /**
- * Shared data transformation functions.
+ * Supabase -> local transforms.
  *
- * These convert between Supabase's snake_case schema and the app's camelCase
- * interfaces.  Every place that reads rows from Supabase (store.fetchTeamData,
- * sync.updateLocalDatabase, sync.mergeIntoStore, React Query hooks) should
- * call these instead of inlining the mapping.
+ * These are now thin delegations to `entity-registry.ts`, which holds the single
+ * definition of each entity's field mapping in both directions. The bodies used to live
+ * here, with the opposite direction living in a `switch` inside sync.ts -- nothing kept
+ * the two in step, which is how `partnerAutonomous`/`partnerPark` came to be read but
+ * never written, and how three of the five date fields ended up unguarded against NaN.
+ *
+ * Kept as named exports because call sites across the app import them directly. New code
+ * should prefer `findEntity(name).fromRemote(row)`.
  */
-
 import type { Task, ScoutingReport, MatchPlan, Season, SubTeam } from '../types';
+import { findEntity } from './entity-registry';
 
-// ── Supabase → Local (snake_case → camelCase) ──────────────────────────────
+/** Look up a definition that is known to exist, failing loudly if the registry changes. */
+function entity(name: string) {
+    const found = findEntity(name);
+    if (!found) throw new Error(`No entity definition registered for "${name}"`);
+    return found;
+}
 
 export function transformTaskFromSupabase(t: any): Task {
-    return {
-        id: t.id,
-        title: t.title,
-        description: t.description || '',
-        status: t.status,
-        type: t.type,
-        assignedTo: t.assigned_to || '',
-        department: t.sub_team_id || '',
-        tags: t.tags || [],
-        checklist: t.checklist || [],
-        timeline: t.timeline || [],
-        createdAt: new Date(t.created_at).getTime(),
-        dueDate: t.due_date ? new Date(t.due_date).getTime() : undefined,
-        seasonId: t.season_id,
-    };
+    return entity('tasks').fromRemote(t);
 }
 
 export function transformScoutingReportFromSupabase(r: any): ScoutingReport {
-    return {
-        id: r.id,
-        teamNumber: r.opponent_team_number,
-        matchNumber: r.match_number,
-        eventName: r.event_name || '',
-        hasAutonomous: r.data?.hasAutonomous ?? false,
-        autoScore: r.data?.autoScore ?? 0,
-        intakeType: r.data?.intakeType ?? 'No Intake',
-        autoAim: r.data?.autoAim ?? false,
-        farShooting: r.data?.farShooting ?? false,
-        shotsTaken: r.data?.shotsTaken ?? 0,
-        shotsMissed: r.data?.shotsMissed ?? 0,
-        parking: r.data?.parking ?? 'No Park',
-        rating: r.data?.rating ?? 0,
-        endGameNotes: r.data?.endGameNotes ?? '',
-        createdBy: r.created_by || '',
-        seasonId: r.season_id,
-        createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined,
-    };
+    return entity('scouting_reports').fromRemote(r);
 }
 
 export function transformMatchPlanFromSupabase(p: any): MatchPlan {
-    return {
-        id: p.id,
-        title: p.title || `Match ${p.match_number || '?'}`,
-        drawingData: p.drawing_data,
-        notes: p.notes || '',
-        allianceTeam: p.alliance_team || '',
-        partnerAutonomous: false,
-        partnerPark: false,
-        updatedAt: new Date(p.updated_at).getTime(),
-        seasonId: p.season_id,
-    };
+    return entity('match_plans').fromRemote(p);
 }
 
 export function transformSeasonFromSupabase(s: any): Season {
-    return {
-        id: s.id,
-        name: s.name,
-        teamId: s.team_id,
-        fieldImageData: s.field_image_data || '',
-        createdAt: new Date(s.created_at).getTime(),
-    };
+    return entity('seasons').fromRemote(s);
 }
 
 export function transformSubTeamFromSupabase(st: any): SubTeam {
-    return {
-        id: st.id,
-        name: st.name,
-        memberIds: st.member_ids || [],
-        seasonId: st.season_id,
-    };
+    return entity('sub_teams').fromRemote(st);
 }

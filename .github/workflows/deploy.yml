@@ -1,0 +1,76 @@
+name: Deploy
+
+# Replaces the manual "Add files via upload" deploys. Building in CI means the deployed
+# bundle always corresponds to a known commit, and old bundles stop accumulating: the
+# gh-pages branch is replaced wholesale each time rather than added to.
+on:
+  push:
+    branches: [main]
+  # Allows a re-deploy from the Actions tab without pushing anything.
+  workflow_dispatch:
+
+# Never let two deploys race. Do NOT cancel a deploy in progress -- a half-finished
+# deploy would leave the site in a mixed state.
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish to gh-pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to push the built output to the gh-pages branch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Deploying a build that does not typecheck or pass tests is how a broken site
+      # happens. The same gates as ci.yml, before anything is published.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # public/CNAME is copied into dist by Vite, which keeps the custom domain bound.
+      # If this file ever goes missing, GitHub Pages drops falcon-forge.com back to the
+      # default *.github.io address.
+      - name: Verify CNAME survived the build
+        run: |
+          test -f dist/CNAME || { echo "::error::dist/CNAME missing - custom domain would break"; exit 1; }
+          echo "CNAME: $(cat dist/CNAME)"
+
+      # Publishing sourcemaps makes the full application source downloadable from the live
+      # site. Vite and Workbox emit them from separate settings, so this checks the actual
+      # output rather than trusting both config flags to stay correct.
+      - name: Refuse to publish sourcemaps
+        run: |
+          maps=$(find dist -name '*.map' -print)
+          if [ -n "$maps" ]; then
+            echo "::error::Sourcemaps present in dist/ - these would be publicly downloadable:"
+            echo "$maps"
+            exit 1
+          fi
+          echo "No .map files in dist/"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          # force_orphan keeps a single-commit gh-pages branch, so stale bundles from
+          # previous builds are removed instead of piling up the way the manual uploads did.
+          force_orphan: true

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import App from '../../App';
 
 // --- Mocks (must be defined before importing App) ---
 
@@ -22,8 +23,10 @@ vi.mock('../../lib/sync', () => ({
         isOnline: true,
         syncStatus: 'idle',
         pendingChanges: 0,
+        failedChanges: 0,
         lastSyncTime: new Date(),
         sync: vi.fn(),
+        retryFailedChanges: vi.fn().mockResolvedValue(0),
         error: null,
     })),
 }));
@@ -56,8 +59,12 @@ vi.mock('dexie-react-hooks', () => ({
     useLiveQuery: vi.fn(() => []),
 }));
 
-// We need to import App lazily because Dashboard is not exported separately
-// Instead, we'll test via the store + rendering App
+// Dashboard is not exported separately, so we test it via the store + rendering App.
+// App is imported statically at the top: `vi.mock` calls are hoisted above all imports,
+// so the mocks above are already in place. Importing it inside `beforeEach` instead used
+// to blow the 10s hook timeout when the full suite ran in parallel — the first cold import
+// pulls the entire component tree, and ESM caches the module anyway (no `vi.resetModules`
+// here), so the repeated dynamic import bought nothing.
 import { useAppStore } from '../../lib/store';
 
 // Setup store state for a logged-in coach user
@@ -89,15 +96,9 @@ function setupStore(overrides: Record<string, any> = {}) {
     });
 }
 
-// Dynamic import of the default export from App
-let App: any;
-
-beforeEach(async () => {
+beforeEach(() => {
     vi.clearAllMocks();
     setupStore();
-    // Dynamically import to ensure mocks are in place
-    const mod = await import('../../App');
-    App = mod.default;
 });
 
 describe('Dashboard Navigation', () => {

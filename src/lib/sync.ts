@@ -1,15 +1,44 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
+import {
+    db,
+    getPendingSyncCount,
+    getPendingSyncItems,
+    getPendingRecordIds,
+    getSyncMeta,
+    setSyncCursor,
+    bumpSyncCounter,
+    getSyncFailureCount,
+    moveToDeadLetter,
+    retrySyncFailures,
+    SyncQueueItem,
+} from './offline-db';
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
-import {
-    transformTaskFromSupabase,
-    transformScoutingReportFromSupabase,
-    transformMatchPlanFromSupabase,
-    transformSeasonFromSupabase,
-    transformSubTeamFromSupabase,
-} from './transformers';
+import { findEntity, SYNCED_ENTITIES, type RemoteTable } from './entity-registry';
+
+/**
+ * Tables the sync queue is allowed to touch.
+ *
+ * The queue stores `tableName` as a plain string -- it is persisted data, so nothing stops
+ * a stale or corrupted entry naming something that does not exist. The generated database
+ * types narrow `.from()` to real tables, and this is the one place that boundary is
+ * crossed: validate once, loudly, instead of casting at each of the four call sites.
+ */
+const SYNCABLE_TABLES = new Set<string>([
+    ...SYNCED_ENTITIES.map((e) => e.remoteTable),
+    'checklists',
+]);
+
+function asSyncableTable(tableName: string): RemoteTable {
+    if (!SYNCABLE_TABLES.has(tableName)) {
+        // Throwing routes the item through the normal retry path and, after
+        // MAX_SYNC_RETRIES, into the dead-letter store where a human can see it -- rather
+        // than failing silently against a table that is not there.
+        throw new Error(`Refusing to sync unknown table "${tableName}"`);
+    }
+    return tableName as RemoteTable;
+}
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -17,24 +46,37 @@ export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 const PER_QUERY_TIMEOUT_MS = 10_000;  // 10s per Supabase query
 const OVERALL_SYNC_TIMEOUT_MS = 30_000; // 30s for entire sync operation
 
+/** Attempts before a change is parked in the dead-letter store (B2). */
+export const MAX_SYNC_RETRIES = 5;
+
 /**
  * Race a promise against a timeout. Rejects with a descriptive error if timeout fires first.
  */
 export function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+    // The timer must be cleared when the promise settles first (B13). Previously every
+    // call left a pending timer alive for up to its full duration -- harmless in the
+    // browser, but it keeps the event loop busy and is a plausible source of slow test
+    // teardown, since a suite could accumulate hundreds of 10-30s timers.
+    let timer: ReturnType<typeof setTimeout>;
+
     return Promise.race([
         Promise.resolve(promise),
-        new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout: ${label} after ${ms}ms`)), ms)
-        ),
-    ]);
+        new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout: ${label} after ${ms}ms`)), ms);
+        }),
+    ]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
 interface UseSyncResult {
     isOnline: boolean;
     syncStatus: SyncStatus;
     pendingChanges: number;
+    /** Changes that exhausted their retries and are parked, not lost (B2). */
+    failedChanges: number;
     lastSyncTime: Date | null;
     sync: () => Promise<void>;
+    /** Re-queue every parked change. Resolves to how many were restored. */
+    retryFailedChanges: () => Promise<number>;
     error: string | null;
 }
 
@@ -42,6 +84,7 @@ export function useSync(): UseSyncResult {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
     const [pendingChanges, setPendingChanges] = useState(0);
+    const [failedChanges, setFailedChanges] = useState(0);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
@@ -84,8 +127,12 @@ export function useSync(): UseSyncResult {
     // Update pending changes count
     useEffect(() => {
         const updatePendingCount = async () => {
-            const count = await getPendingSyncCount();
-            setPendingChanges(count);
+            const [pending, failed] = await Promise.all([
+                getPendingSyncCount(),
+                getSyncFailureCount(),
+            ]);
+            setPendingChanges(pending);
+            setFailedChanges(failed);
         };
 
         updatePendingCount();
@@ -122,14 +169,20 @@ export function useSync(): UseSyncResult {
         setSyncStatus('syncing');
         setError(null);
 
+        // withTimeout only rejects the outer promise -- the work inside keeps running (B6).
+        // Without a cancellation flag, a timed-out run carried on mutating the queue and the
+        // store while the next run started, so two loops raced over the same items.
+        const token: SyncToken = { cancelled: false };
+
         try {
             // Overall sync timeout to prevent hanging forever
             await withTimeout(
                 (async () => {
-                    // Get all pending sync items
-                    const queueItems = await db.syncQueue.toArray();
+                    // Ordered by timestamp, NOT primary key — see getPendingSyncItems (B1).
+                    const queueItems = await getPendingSyncItems();
 
                     for (const item of queueItems) {
+                        if (token.cancelled) return;
                         try {
                             await processSyncItem(item);
                             // Remove from queue on success
@@ -138,10 +191,16 @@ export function useSync(): UseSyncResult {
                             // Update retry count
                             const newRetryCount = (item.retryCount || 0) + 1;
 
-                            // If too many retries, log error and remove from queue to prevent stuck state
-                            if (newRetryCount >= 5) {
-                                console.error(`Sync item ${item.id} failed after 5 retries. Removing from queue.`, err);
-                                await db.syncQueue.delete(item.id);
+                            // Out of retries: park the change in the dead-letter store rather
+                            // than deleting it (B2). The queue still drains, but the user's
+                            // work survives and the UI can report it.
+                            if (newRetryCount >= MAX_SYNC_RETRIES) {
+                                console.error(
+                                    `Sync item ${item.id} failed after ${MAX_SYNC_RETRIES} retries. ` +
+                                    `Moved to failed changes.`,
+                                    err,
+                                );
+                                await moveToDeadLetter(item, err);
                             } else {
                                 await db.syncQueue.update(item.id, {
                                     retryCount: newRetryCount,
@@ -152,7 +211,7 @@ export function useSync(): UseSyncResult {
                     }
 
                     // Pull latest changes from server
-                    await pullChangesFromServer();
+                    await pullChangesFromServer(token);
                 })(),
                 OVERALL_SYNC_TIMEOUT_MS,
                 'Overall sync'
@@ -161,10 +220,17 @@ export function useSync(): UseSyncResult {
             setLastSyncTime(new Date());
             setSyncStatus('idle');
 
-            // Update pending count
-            const count = await getPendingSyncCount();
-            setPendingChanges(count);
+            // Update pending + failed counts
+            const [pending, failed] = await Promise.all([
+                getPendingSyncCount(),
+                getSyncFailureCount(),
+            ]);
+            setPendingChanges(pending);
+            setFailedChanges(failed);
         } catch (err) {
+            // Stop the orphaned run before releasing the lock, so the next sync does not
+            // race it over the same queue items (B6).
+            token.cancelled = true;
             console.error('Sync failed:', err);
             setError(err instanceof Error ? err.message : 'Sync failed');
             setSyncStatus('error');
@@ -174,12 +240,21 @@ export function useSync(): UseSyncResult {
         // FIX: No deps on isOnline - we read navigator.onLine directly
     }, []);
 
+    const retryFailedChanges = useCallback(async () => {
+        const restored = await retrySyncFailures();
+        setFailedChanges(await getSyncFailureCount());
+        setPendingChanges(await getPendingSyncCount());
+        return restored;
+    }, []);
+
     return {
         isOnline,
         syncStatus,
         pendingChanges,
+        failedChanges,
         lastSyncTime,
         sync,
+        retryFailedChanges,
         error,
     };
 }
@@ -188,6 +263,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     if (!supabaseSync) throw new Error('Supabase not configured');
 
     const { tableName, operation, data, recordId } = item;
+    const table = asSyncableTable(tableName);
 
     // Transform local data to Supabase schema format
     const transformedData = transformToSupabaseSchema(tableName, data);
@@ -197,7 +273,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // Use upsert to handle cases where record already exists (409 conflict)
             // Wrap in async IIFE to convert Supabase thenable to a real Promise
             const result: any = await withTimeout(
-                (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                (async () => supabaseSync.from(table).upsert(transformedData as never, { onConflict: 'id' }))(),
                 PER_QUERY_TIMEOUT_MS,
                 `upsert ${tableName}`
             );
@@ -210,14 +286,14 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // so use upsert to create-or-update. Other entities use normal update.
             if (tableName === 'checklists') {
                 const result: any = await withTimeout(
-                    (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                    (async () => supabaseSync.from(table).upsert(transformedData as never, { onConflict: 'id' }))(),
                     PER_QUERY_TIMEOUT_MS,
                     `upsert ${tableName}`
                 );
                 if (result.error) throw result.error;
             } else {
                 const result: any = await withTimeout(
-                    (async () => (supabaseSync.from(tableName) as any).update(transformedData).eq('id', recordId))(),
+                    (async () => supabaseSync.from(table).update(transformedData as never).eq('id', recordId))(),
                     PER_QUERY_TIMEOUT_MS,
                     `update ${tableName}`
                 );
@@ -228,7 +304,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
         case 'delete': {
             const result: any = await withTimeout(
-                (async () => supabaseSync.from(tableName).delete().eq('id', recordId))(),
+                (async () => supabaseSync.from(table).delete().eq('id', recordId))(),
                 PER_QUERY_TIMEOUT_MS,
                 `delete ${tableName}`
             );
@@ -245,72 +321,15 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 export function transformToSupabaseSchema(tableName: string, data: any): any {
     if (!data) return data;
 
+    const entity = findEntity(tableName);
+    if (entity) return entity.toRemote(data);
+
     switch (tableName) {
-        case 'tasks':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                sub_team_id: data.department || data.subTeamId || null,
-                title: data.title,
-                description: data.description,
-                status: data.status,
-                type: data.type,
-                assigned_to: data.assignedTo || null,
-                tags: data.tags || [],
-                checklist: data.checklist || [],
-                timeline: data.timeline || [],
-                due_date: data.dueDate ? new Date(data.dueDate).toISOString() : null,
-            };
-
-        case 'seasons':
-            return {
-                id: data.id,
-                name: data.name,
-                team_id: data.teamId,
-                field_image_data: data.fieldImageData || null,
-            };
-
-        case 'scoutingReports':
-        case 'scouting_reports':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                opponent_team_number: data.teamNumber,
-                match_number: data.matchNumber,
-                event_name: data.eventName || null,
-                created_by: data.createdBy || null,
-                data: {
-                    hasAutonomous: data.hasAutonomous,
-                    autoScore: data.autoScore,
-                    intakeType: data.intakeType,
-                    autoAim: data.autoAim,
-                    farShooting: data.farShooting,
-                    shotsTaken: data.shotsTaken,
-                    shotsMissed: data.shotsMissed,
-                    parking: data.parking,
-                    rating: data.rating,
-                    endGameNotes: data.endGameNotes,
-                },
-            };
-
-        case 'matchPlans':
-        case 'match_plans':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                title: data.title,
-                match_number: data.matchNumber || null,
-                alliance_team: data.allianceTeam || null,
-                drawing_data: data.drawingData,
-                notes: data.notes,
-            };
-
         case 'checklists':
+            // Blob-synced: one row per team holding the whole array, so the row id IS the
+            // team id. Not an entity in the registry sense -- it has no per-record identity.
             return {
-                id: data.teamId || data.id, // Use teamId as the row ID for blob sync
+                id: data.teamId || data.id,
                 team_id: data.teamId,
                 season_id: data.seasonId || null,
                 name: data.name || 'Pre-Match Checklist',
@@ -318,18 +337,9 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 is_template: data.isTemplate || false,
             };
 
-        case 'sub_teams':
-        case 'subTeams':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                name: data.name,
-                member_ids: data.memberIds || [],
-                season_id: data.seasonId || null,
-            };
-
         case 'portfolio_entries':
         case 'portfolioHistory':
+            // Local-only today; kept so a queued payload from an older build still pushes.
             return {
                 id: data.id,
                 team_id: data.teamId,
@@ -339,55 +349,64 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
             };
 
         default:
-            // Return as-is for unknown tables
+            // Unknown table: pass through untouched rather than silently dropping fields.
             return data;
     }
 }
 
-// Keys for storing last sync timestamps in localStorage
-const SYNC_TIMESTAMPS_KEY = 'falconforge-sync-timestamps';
+/**
+ * Legacy localStorage keys for sync bookkeeping.
+ *
+ * Both are now stored in IndexedDB `appState` via offline-db's SyncMeta, so sign-out clears
+ * them along with everything else (B5). These are removed on first pull so a shared device
+ * does not keep serving a previous user's cursors out of localStorage.
+ */
+const LEGACY_SYNC_TIMESTAMPS_KEY = 'falconforge-sync-timestamps';
+const LEGACY_SYNC_COUNTER_KEY = 'falconforge-sync-counter';
 
-function getSyncTimestamps(): Record<string, number> {
+function clearLegacySyncKeys(): void {
     try {
-        const stored = localStorage.getItem(SYNC_TIMESTAMPS_KEY);
-        return stored ? JSON.parse(stored) : {};
-    } catch {
-        return {};
-    }
-}
-
-function setSyncTimestamp(entityKey: string, timestamp: number): void {
-    try {
-        const timestamps = getSyncTimestamps();
-        timestamps[entityKey] = timestamp;
-        localStorage.setItem(SYNC_TIMESTAMPS_KEY, JSON.stringify(timestamps));
-    } catch (err) {
-        console.warn('Failed to save sync timestamp:', err);
-    }
+        localStorage.removeItem(LEGACY_SYNC_TIMESTAMPS_KEY);
+        localStorage.removeItem(LEGACY_SYNC_COUNTER_KEY);
+    } catch { /* private mode / storage disabled */ }
 }
 
 // How often to do a full reconciliation (every Nth pull)
 // Full pulls detect cross-client deletions; delta pulls only get new/updated records
 const FULL_SYNC_INTERVAL = 5;
-const SYNC_COUNTER_KEY = 'falconforge-sync-counter';
 
-function getSyncCounter(): number {
-    try {
-        return parseInt(localStorage.getItem(SYNC_COUNTER_KEY) || '0', 10);
-    } catch {
-        return 0;
+/**
+ * Newest server `updated_at` across a set of rows, as an ISO string.
+ *
+ * This is the delta cursor. It has to come from the DATA, not from `Date.now()`:
+ * `updated_at` is written by a Postgres trigger on the server clock, so a client running
+ * even slightly fast would skip every record written inside the skew window, and would do
+ * so silently until the next full reconciliation (B4).
+ */
+export function newestUpdatedAt(rows: any[]): string | null {
+    let newest: number | null = null;
+    let newestISO: string | null = null;
+
+    for (const row of rows) {
+        const raw = row?.updated_at ?? row?.created_at;
+        if (!raw) continue;
+        const ms = new Date(raw).getTime();
+        if (Number.isNaN(ms)) continue;
+        if (newest === null || ms > newest) {
+            newest = ms;
+            newestISO = new Date(ms).toISOString();
+        }
     }
+
+    return newestISO;
 }
 
-function incrementSyncCounter(): number {
-    const next = getSyncCounter() + 1;
-    try {
-        localStorage.setItem(SYNC_COUNTER_KEY, String(next));
-    } catch { /* ignore */ }
-    return next;
+/** Cooperative cancellation for a sync run (B6). */
+export interface SyncToken {
+    cancelled: boolean;
 }
 
-async function pullChangesFromServer(): Promise<void> {
+async function pullChangesFromServer(token: SyncToken = { cancelled: false }): Promise<void> {
     if (!supabaseSync) return;
 
     // Get current team ID from the Zustand store
@@ -395,21 +414,29 @@ async function pullChangesFromServer(): Promise<void> {
 
     if (!currentTeamId) return;
 
-    // Decide whether this is a full or delta pull
-    const counter = incrementSyncCounter();
+    // Retire the pre-IndexedDB bookkeeping if it is still lying around (B5).
+    clearLegacySyncKeys();
+
+    // Decide whether this is a full or delta pull. The counter is per-team, so switching
+    // teams no longer shifts which entity lands on the reconciliation cycle (B15).
+    const counter = await bumpSyncCounter(currentTeamId);
     const isFullPull = counter % FULL_SYNC_INTERVAL === 0;
 
+    // Derived from the registry rather than restated here -- adding an entity should mean
+    // adding one definition, not remembering to update a second list (B16).
+    // portfolio_entries is intentionally local-only and so is absent from the registry.
     const entities = [
-        { table: 'seasons', localTable: 'seasons' },
-        { table: 'sub_teams', localTable: 'subTeams' },
-        { table: 'tasks', localTable: 'tasks' },
-        { table: 'scouting_reports', localTable: 'scoutingReports' },
-        { table: 'match_plans', localTable: 'matchPlans' },
+        ...SYNCED_ENTITIES.map((e) => ({ table: e.remoteTable, localTable: e.localKey })),
+        // Blob-synced, not a registry entity: one row per team holding the whole array.
         { table: 'checklists', localTable: 'checklists' },
-        // Note: portfolio_entries is intentionally local-only (not synced)
     ];
 
+    const meta = await getSyncMeta();
+
     for (const { table, localTable } of entities) {
+        // A timed-out run must stop touching the store instead of racing the next one (B6).
+        if (token.cancelled) return;
+
         try {
             const entityKey = `${currentTeamId}:${table}`;
 
@@ -427,17 +454,22 @@ async function pullChangesFromServer(): Promise<void> {
             }
 
             // Build the query
-            let query = supabaseSync.from(table).select('*').eq('team_id', currentTeamId);
+            let query = supabaseSync.from(table as RemoteTable).select('*').eq('team_id', currentTeamId);
 
-            // For delta pulls, add timestamp filter (skip for checklists — blob sync always full)
-            const timestamps = getSyncTimestamps();
-            const lastSync = timestamps[entityKey];
-            const isDelta = !isFullPull && lastSync && table !== 'checklists';
+            // updateLocalDatabase takes records[0] for the checklist blob, and Postgres row
+            // order is otherwise unspecified -- so the active checklist could flip between
+            // syncs when more than one row existed (B12). Order explicitly and ignore
+            // templates, which are not the team's working checklist.
+            if (table === 'checklists') {
+                query = query.eq('is_template', false).order('created_at', { ascending: true });
+            }
+
+            // For delta pulls, filter on the cursor (skip for checklists — blob sync always full)
+            const cursor = meta.cursors[entityKey];
+            const isDelta = !isFullPull && !!cursor && table !== 'checklists';
 
             if (isDelta) {
-                // Convert timestamp to ISO string for the query
-                const lastSyncISO = new Date(lastSync).toISOString();
-                query = query.gte('updated_at', lastSyncISO);
+                query = query.gte('updated_at', cursor);
             }
 
             const result: any = await withTimeout(
@@ -452,16 +484,28 @@ async function pullChangesFromServer(): Promise<void> {
                 continue;
             }
 
+            if (token.cancelled) return;
+
+            // Records with unpushed local changes must survive the pull (B3). Read this
+            // AFTER the query so anything queued while it was in flight is still covered.
+            const pendingIds = await getPendingRecordIds(table);
+
             if (isDelta) {
                 // Delta: merge new/updated records into existing state
-                mergeIntoStore(localTable, result.data || []);
+                mergeIntoStore(localTable, result.data || [], pendingIds);
             } else {
-                // Full: replace entire state (detects deletions)
-                updateLocalDatabase(localTable, result.data || []);
+                // Full: replace entire state (detects deletions), keeping pending records
+                updateLocalDatabase(localTable, result.data || [], pendingIds);
             }
 
-            // Update sync timestamp
-            setSyncTimestamp(entityKey, Date.now());
+            // Advance the cursor to the newest SERVER timestamp we actually saw, never to
+            // the local clock (B4). No rows means nothing newer exists, so the cursor stays
+            // put rather than jumping forward over records we never received.
+            const newest = newestUpdatedAt(result.data || []);
+            if (newest) {
+                meta.cursors[entityKey] = newest;
+                await setSyncCursor(entityKey, newest);
+            }
 
         } catch (err) {
             console.warn(`Error pulling ${table}:`, err);
@@ -473,47 +517,45 @@ async function pullChangesFromServer(): Promise<void> {
  * Update the Zustand store with data from Supabase
  * Transforms snake_case from Supabase to camelCase for local use
  */
-export function updateLocalDatabase(tableName: string, records: any[]): void {
+export function updateLocalDatabase(
+    tableName: string,
+    records: any[],
+    /**
+     * Ids with unpushed local changes. Their local version is kept and the server's copy is
+     * ignored, because the local one is newer by definition -- it has not been sent yet (B3).
+     */
+    pendingIds: Set<string> = new Set(),
+): void {
     if (!records) return;
 
-    // Get the store state directly using the imported useAppStore
     const store = useAppStore.getState();
 
+    const entity = findEntity(tableName);
+    if (entity) {
+        const incoming = records.map((r) => entity.fromRemote(r));
 
+        // A full pull REPLACES the collection, which is how deletions made on another
+        // device propagate. Records with a pending queue entry are carried over so that
+        // replacement does not delete work that has never been sent.
+        let next = incoming;
+        if (pendingIds.size > 0) {
+            const preserved = entity.getFromStore(store).filter((e: any) => pendingIds.has(e.id));
+            next = [...incoming.filter((r: any) => !pendingIds.has(r.id)), ...preserved];
+        }
 
-    switch (tableName) {
-        case 'tasks':
-            store.setTasks(records.map(transformTaskFromSupabase));
-            break;
+        entity.setInStore(store, next);
+        return;
+    }
 
-        case 'seasons':
-            store.setSeasons(records.map(transformSeasonFromSupabase));
-            break;
-
-        case 'scoutingReports':
-            store.setScoutingReports(records.map(transformScoutingReportFromSupabase));
-            break;
-
-        case 'matchPlans':
-            store.setMatchPlans(records.map(transformMatchPlanFromSupabase));
-            break;
-
-        case 'checklists':
-            // Checklists are stored as a single blob per team
-            if (records.length > 0 && records[0]?.items && Array.isArray(records[0].items)) {
-                store.setChecklist(records[0].items);
-            } else if (records.length === 0) {
-                // Empty results = checklist was cleared/deleted on another client
-                store.setChecklist([]);
-            }
-            break;
-
-        case 'subTeams':
-            store.setSubTeams(records.map(transformSubTeamFromSupabase));
-            break;
-
-        default:
-        // No handler for unknown tables
+    if (tableName === 'checklists') {
+        // Blob-synced: the first row IS the team's checklist. The query orders explicitly
+        // and excludes templates, so "first" is deterministic (B12).
+        if (records.length > 0 && Array.isArray(records[0]?.items)) {
+            store.setChecklist(records[0].items);
+        } else if (records.length === 0) {
+            // Empty results = checklist was cleared/deleted on another client
+            store.setChecklist([]);
+        }
     }
 }
 
@@ -523,53 +565,31 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
  * Records NOT in the delta set are preserved (unlike updateLocalDatabase which replaces).
  * Checklists are excluded from delta sync so this function never handles them.
  */
-export function mergeIntoStore(tableName: string, records: any[]): void {
+export function mergeIntoStore(
+    tableName: string,
+    records: any[],
+    /**
+     * Ids with unpushed local changes. Incoming rows for these are dropped so a teammate's
+     * update cannot overwrite an edit the user has not sent yet (B3/B8). The local change
+     * is pushed on the next drain, and last-write-wins settles it there.
+     */
+    pendingIds: Set<string> = new Set(),
+): void {
     if (!records || records.length === 0) return;
 
+    const entity = findEntity(tableName);
+    // Checklists are always full-synced (blob), never delta, so they never reach here.
+    if (!entity) return;
+
     const store = useAppStore.getState();
+    const existing = entity.getFromStore(store);
 
-    // Generic upsert helper: merge new records into existing array by id
-    function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
-        const map = new Map(existing.map(item => [item.id, item]));
-        for (const item of incoming) {
-            map.set(item.id, item);
-        }
-        return Array.from(map.values());
+    const byId = new Map(existing.map((item: any) => [item.id, item]));
+    for (const row of records) {
+        const item = entity.fromRemote(row);
+        if (pendingIds.has(item.id)) continue;
+        byId.set(item.id, item);
     }
 
-    switch (tableName) {
-        case 'tasks': {
-            const transformed = records.map(transformTaskFromSupabase);
-            store.setTasks(upsertById(store.tasks, transformed));
-            break;
-        }
-
-        case 'seasons': {
-            const transformed = records.map(transformSeasonFromSupabase);
-            store.setSeasons(upsertById(store.seasons, transformed));
-            break;
-        }
-
-        case 'scoutingReports': {
-            const transformed = records.map(transformScoutingReportFromSupabase);
-            store.setScoutingReports(upsertById(store.scoutingReports, transformed));
-            break;
-        }
-
-        case 'matchPlans': {
-            const transformed = records.map(transformMatchPlanFromSupabase);
-            store.setMatchPlans(upsertById(store.matchPlans, transformed));
-            break;
-        }
-
-        case 'subTeams': {
-            const transformed = records.map(transformSubTeamFromSupabase);
-            store.setSubTeams(upsertById(store.subTeams, transformed));
-            break;
-        }
-
-        // Note: checklists are always full-synced (blob), never delta
-        default:
-            break;
-    }
+    entity.setInStore(store, Array.from(byId.values()));
 }

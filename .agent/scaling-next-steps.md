@@ -6,7 +6,7 @@ This document captures the agreed-upon changes from the scalability analysis con
 
 - Full database backup completed: `backup-full-2026-03-08T22-03-03/`
 - Scalability analysis: `.gemini/antigravity/brain/3e2882b2-7c3a-4616-81eb-9ec98e6a5f5a/scalability_analysis.md`
-- Backup script for future use: `backup-full.mjs` (run with `$env:SUPABASE_DB_PASSWORD="k1uRA5kGvHria47A"; node backup-full.mjs`)
+- Backup script for future use: `backup-full.mjs` (run with `$env:SUPABASE_DB_PASSWORD="<your-password>"; node backup-full.mjs`)
 - Database region: **us-west-2** (pooler host: `aws-0-us-west-2.pooler.supabase.com`)
 
 ## Changes To Make (Priority Order)

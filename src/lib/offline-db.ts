@@ -26,9 +26,24 @@ export interface AppStateRow {
     value: string;
 }
 
+/**
+ * A change that exhausted its retries and could not be pushed to the server.
+ *
+ * Previously these were deleted from the queue outright, so the user's work was destroyed
+ * with nothing but a console.error to show for it (B2). They are parked here instead, so
+ * the change still exists and the UI can tell somebody about it.
+ */
+export interface SyncFailure extends SyncQueueItem {
+    /** When the change was moved out of the retry queue. */
+    failedAt: number;
+    /** Error text from the final attempt. */
+    lastError: string;
+}
+
 class FalconForgeDatabase extends Dexie {
     syncQueue!: Table<SyncQueueItem, string>;
     appState!: Table<AppStateRow, string>;
+    syncFailures!: Table<SyncFailure, string>;
 
     constructor() {
         super('FalconForgeDB');
@@ -62,6 +77,13 @@ class FalconForgeDatabase extends Dexie {
             syncQueue: 'id, tableName, timestamp, retryCount',
             appState: 'key',
         });
+
+        // Version 4: Dead-letter store for changes that exhausted their retries (B2).
+        this.version(4).stores({
+            syncQueue: 'id, tableName, timestamp, retryCount',
+            appState: 'key',
+            syncFailures: 'id, tableName, failedAt',
+        });
     }
 }
 
@@ -92,26 +114,176 @@ export const indexedDBStorage = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Sync metadata (delta cursors + full-pull counters)
+// ---------------------------------------------------------------------------
+
+/**
+ * Bookkeeping for incremental pulls.
+ *
+ * This used to live in localStorage under two separate keys, which sign-out never cleared
+ * (B5): the next user on a shared laptop inherited the previous user's cursors and silently
+ * received an incomplete dataset. Keeping it in `appState` means `clearAppState()` on
+ * sign-out is the single cleanup path.
+ */
+export interface SyncMeta {
+    /**
+     * Last seen server `updated_at`, keyed by `${teamId}:${table}`.
+     *
+     * SERVER time, as an ISO string, taken from the rows themselves -- never `Date.now()`.
+     * `updated_at` is written by a Postgres trigger, so comparing it against the client
+     * clock skips every record inside the skew window (B4).
+     */
+    cursors: Record<string, string>;
+    /** Pull counter per team, deciding when to do a full reconciliation (B15). */
+    counters: Record<string, number>;
+}
+
+const SYNC_META_KEY = 'falconforge-sync-meta';
+
+/**
+ * Fresh empty metadata.
+ *
+ * Must be a factory, not a shared constant. Callers mutate the returned object
+ * (`meta.cursors[key] = ...`), and a spread of a shared constant is only a SHALLOW copy --
+ * `cursors` and `counters` would stay the same references, so the "empty" default would
+ * quietly accumulate every cursor ever written and never read as empty again.
+ */
+function emptyMeta(): SyncMeta {
+    return { cursors: {}, counters: {} };
+}
+
+export async function getSyncMeta(): Promise<SyncMeta> {
+    try {
+        const row = await db.appState.get(SYNC_META_KEY);
+        if (!row?.value) return emptyMeta();
+        const parsed = JSON.parse(row.value);
+        return {
+            cursors: parsed.cursors ?? {},
+            counters: parsed.counters ?? {},
+        };
+    } catch {
+        return emptyMeta();
+    }
+}
+
+async function writeSyncMeta(meta: SyncMeta): Promise<void> {
+    try {
+        await db.appState.put({ key: SYNC_META_KEY, value: JSON.stringify(meta) });
+    } catch {
+        // Metadata is an optimisation; losing it costs a full pull, not correctness.
+    }
+}
+
+/** Record the newest server timestamp seen for an entity. */
+export async function setSyncCursor(entityKey: string, updatedAtISO: string): Promise<void> {
+    const meta = await getSyncMeta();
+    meta.cursors[entityKey] = updatedAtISO;
+    await writeSyncMeta(meta);
+}
+
+/** Advance and return this team's pull counter. Per-team, so switching teams cannot shift
+ *  which entity happens to land on the full-reconciliation cycle (B15). */
+export async function bumpSyncCounter(teamId: string): Promise<number> {
+    const meta = await getSyncMeta();
+    const next = (meta.counters[teamId] ?? 0) + 1;
+    meta.counters[teamId] = next;
+    await writeSyncMeta(meta);
+    return next;
+}
+
 // Helper to generate UUIDs
 export function generateId(): string {
     return crypto.randomUUID();
 }
 
-// Helper to add item to sync queue
+/**
+ * Strictly increasing queue timestamps.
+ *
+ * The drain orders by `timestamp` (B1), but `Date.now()` has millisecond resolution and a
+ * burst of edits easily lands inside one tick. Equal timestamps mean the tie is broken
+ * arbitrarily -- which is the same undefined ordering B1 set out to remove, just narrower.
+ *
+ * Nudging forward on a collision keeps ordering deterministic without a second index. The
+ * value stays within a millisecond or two of wall-clock, and it is only ever used for
+ * relative ordering, never displayed or compared against server time.
+ */
+let lastIssuedTimestamp = 0;
+
+function nextQueueTimestamp(): number {
+    const now = Date.now();
+    lastIssuedTimestamp = now > lastIssuedTimestamp ? now : lastIssuedTimestamp + 1;
+    return lastIssuedTimestamp;
+}
+
+/**
+ * Queue a change for the server, coalescing redundant entries (B14).
+ *
+ * Every edit used to append a new row, so twenty tweaks to one task meant twenty full
+ * upserts of the same record. Checklist toggles were the pathological case -- each one
+ * queued the entire blob.
+ *
+ * Coalescing rules, in terms of what the server actually needs:
+ *
+ *   - `update` after a pending `create`  -> keep the create, with the newer data. The
+ *     server has never seen this record, so it still has to be an insert.
+ *   - `update` after a pending `update`  -> replace it. Only the latest state matters.
+ *   - `delete` after a pending `create`  -> drop both. The server never saw it, so there
+ *     is nothing to delete; sending a delete for an unknown id just fails and retries.
+ *   - `delete` after a pending `update`  -> replace with the delete.
+ *
+ * The surviving entry keeps the ORIGINAL timestamp, so relative ordering against other
+ * records is preserved and B1's drain order still holds.
+ */
 export async function queueForSync(
     tableName: string,
     recordId: string,
     operation: 'create' | 'update' | 'delete',
     data: any
 ) {
-    await db.syncQueue.add({
-        id: generateId(),
-        tableName,
-        recordId,
-        operation,
-        data,
-        timestamp: Date.now(),
-        retryCount: 0,
+    await db.transaction('rw', db.syncQueue, async () => {
+        const pending = await db.syncQueue
+            .where('tableName')
+            .equals(tableName)
+            .filter((i) => i.recordId === recordId)
+            .toArray();
+
+        if (pending.length === 0) {
+            await db.syncQueue.add({
+                id: generateId(),
+                tableName,
+                recordId,
+                operation,
+                data,
+                timestamp: nextQueueTimestamp(),
+                retryCount: 0,
+            });
+            return;
+        }
+
+        // Oldest entry defines the operation the server still needs and the ordering.
+        pending.sort((a, b) => a.timestamp - b.timestamp);
+        const first = pending[0];
+        const hadCreate = pending.some((i) => i.operation === 'create');
+
+        // A create that never reached the server, now deleted locally: nothing to send.
+        if (operation === 'delete' && hadCreate) {
+            await db.syncQueue.bulkDelete(pending.map((i) => i.id));
+            return;
+        }
+
+        // Collapse to a single entry carrying the latest data.
+        await db.syncQueue.bulkDelete(pending.map((i) => i.id));
+        await db.syncQueue.add({
+            id: first.id,
+            tableName,
+            recordId,
+            // A pending create stays a create -- the row still does not exist server-side.
+            operation: hadCreate && operation !== 'delete' ? 'create' : operation,
+            data,
+            timestamp: first.timestamp,
+            retryCount: 0,
+        });
     });
 }
 
@@ -120,9 +292,86 @@ export async function getPendingSyncCount(): Promise<number> {
     return await db.syncQueue.count();
 }
 
+/**
+ * Queued operations, in the order the user performed them.
+ *
+ * Must NOT be `db.syncQueue.toArray()`. Dexie returns rows in primary-key order, and the
+ * primary key is `generateId()` -> `crypto.randomUUID()`, so a plain toArray() drains the
+ * queue in an order unrelated to what the user did: a delete can be applied before its
+ * create (the record comes back), or an update before its create (it targets a row that
+ * does not exist, fails, and is eventually discarded).
+ *
+ * `timestamp` is indexed in the schema above precisely so this ordering is cheap.
+ */
+export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
+    return await db.syncQueue.orderBy('timestamp').toArray();
+}
+
+/**
+ * Park a change that exhausted its retries, instead of deleting it.
+ *
+ * The queue entry is removed so the drain can make progress, but the change itself is
+ * preserved so it can be retried later or inspected. Losing a scouting report entered at a
+ * competition because five pushes happened to fail is not an acceptable outcome (B2).
+ */
+export async function moveToDeadLetter(item: SyncQueueItem, error: unknown): Promise<void> {
+    await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
+        await db.syncFailures.put({
+            ...item,
+            failedAt: Date.now(),
+            lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+        });
+        await db.syncQueue.delete(item.id);
+    });
+}
+
+/**
+ * Record ids for a table that still have unpushed local changes.
+ *
+ * A server pull must not overwrite these. A full pull replaces the whole collection, so
+ * without this a record created offline disappears from the UI the moment a pull lands,
+ * while still sitting in the queue waiting to be pushed (B3).
+ *
+ * `tableName` is the snake_case name as queued, e.g. 'scouting_reports'.
+ */
+export async function getPendingRecordIds(tableName: string): Promise<Set<string>> {
+    const items = await db.syncQueue.where('tableName').equals(tableName).toArray();
+    return new Set(items.map((i) => i.recordId));
+}
+
+export async function getSyncFailureCount(): Promise<number> {
+    return await db.syncFailures.count();
+}
+
+export async function getSyncFailures(): Promise<SyncFailure[]> {
+    return await db.syncFailures.orderBy('failedAt').toArray();
+}
+
+/**
+ * Put every parked change back on the queue with its retry count reset.
+ * Ordering is preserved because the original `timestamp` travels with the item.
+ */
+export async function retrySyncFailures(): Promise<number> {
+    return await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
+        const failures = await db.syncFailures.toArray();
+        for (const failure of failures) {
+            const { failedAt: _failedAt, lastError: _lastError, ...item } = failure;
+            await db.syncQueue.put({ ...item, retryCount: 0 });
+        }
+        await db.syncFailures.clear();
+        return failures.length;
+    });
+}
+
+/** Give up on parked changes. Only ever called from an explicit user action. */
+export async function discardSyncFailures(): Promise<void> {
+    await db.syncFailures.clear();
+}
+
 // Clear sync queue (for logout)
 export async function clearLocalDatabase() {
     await db.syncQueue.clear();
+    await db.syncFailures.clear();
 }
 
 // Clear persisted app state from IndexedDB (for logout)

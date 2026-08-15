@@ -14,6 +14,13 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.config.integration.ts",
     "test:all": "npm run lint && npm run test:run && npm run test:integration",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:verify": "supabase db reset && npm run db:assert",
+    "db:assert": "docker exec -i supabase_db_falconforge psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema_assertions.sql",
+    "db:diff": "supabase db diff --linked --schema public",
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "prepare": "husky",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"

@@ -118,7 +118,8 @@ export interface Task {
 export interface ScoutingReport {
   id: string;
   teamNumber: string;
-  matchNumber: number;
+  /** Undefined when the scout did not record a match number. Never 0 — see B18. */
+  matchNumber?: number;
   eventName?: string;
   hasAutonomous: boolean;
   autoScore: number;
@@ -146,6 +147,12 @@ export interface ChecklistItem {
 export interface MatchPlan {
   id: string;
   title: string;
+  /**
+   * Undefined when not recorded. The match_plans.match_number column has always existed,
+   * but the write path read `data.matchNumber` from a type that had no such property, so
+   * it was written as null every time (B10).
+   */
+  matchNumber?: number;
   drawingData: any; // SVG path data
   notes: string;
   allianceTeam: string;

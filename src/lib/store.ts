@@ -56,7 +56,7 @@ const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
     { id: '8', text: 'Reset servo positions', checked: false },
 ];
 
-interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
+export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     // Team context (top-level organization)
     currentTeamId: string | null;
     currentUserId: string | null;  // Authenticated user's Supabase UID

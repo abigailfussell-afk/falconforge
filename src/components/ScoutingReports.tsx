@@ -31,7 +31,15 @@ const ScoutingReports: React.FC = () => {
 
         const reportData = {
             teamNumber: newScout.teamNumber || '',
-            matchNumber: newScout.matchNumber || 0,
+            // Match number is optional. `parseInt('')` yields NaN when the field is cleared,
+            // and the old `|| 0` turned that into a fabricated 0 that reached the database
+            // and rendered as "Match 0". Undefined means "not recorded" (B18).
+            matchNumber:
+                typeof newScout.matchNumber === 'number' &&
+                    Number.isFinite(newScout.matchNumber) &&
+                    newScout.matchNumber > 0
+                    ? newScout.matchNumber
+                    : undefined,
             eventName: newScout.eventName || '',
             hasAutonomous: newScout.hasAutonomous || false,
             autoScore: newScout.autoScore || 0,
@@ -132,7 +140,7 @@ const ScoutingReports: React.FC = () => {
                                 )}
                             </div>
                             <div className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
-                                Match {report.matchNumber}
+                                {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
                             </div>
                         </div>
 
@@ -237,8 +245,15 @@ const ScoutingReports: React.FC = () => {
                                     <input
                                         type="number"
                                         className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                        value={newScout.matchNumber || ''}
-                                        onChange={e => setNewScout({ ...newScout, matchNumber: parseInt(e.target.value) })}
+                                        placeholder="Optional"
+                                        value={newScout.matchNumber ?? ''}
+                                        onChange={e => setNewScout({
+                                            ...newScout,
+                                            // Clearing the field must yield undefined, not NaN (B18).
+                                            matchNumber: e.target.value === ''
+                                                ? undefined
+                                                : parseInt(e.target.value, 10),
+                                        })}
                                     />
                                 </div>
                             </div>
