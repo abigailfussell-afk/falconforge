@@ -314,15 +314,33 @@ the final walkthrough and tags `v2.0.0-beta`.
 | 2026-08-15 | Sprint 1 — Purge & critical fixes (AI removal, C1, C2, C4, C8, C9, dead code, dedupe) | `v2/sprint-1-purge` | **Complete.** Gate green (lint / 257 unit / 80 integration / build). Main JS 882 → 385 kB; precache 5172 → 4737 KiB. Offline styling verified with the server killed. `as any` 95 → 82. Coverage thresholds active at 55/53/53/57. |
 | 2026-08-15 | Sprint 2 — Data-layer unification & test truth (C3, C5, C7, local-Postgres harness, drain/auth tests, mock narrowing) | `v2/sprint-2-data-layer` | **Complete, merged to `main`.** Gate + `db:verify` + `test:rls` green (lint / 272 unit / 83 integration / 211 db / build). Three read paths → one (`server-pull.ts`). 180-assertion tenant-isolation suite against real Postgres. `sync.ts` branch coverage **13% → 84.6%**; merged coverage now measures all three suites (68.5/63.7/64.9/70.7). Global unit mocks → per-file opt-in. `as any` 82 → 66. C3 verified in the browser end-to-end. |
 | 2026-08-15 | Follow-on fixes: **B19** failed pushes never retried automatically; **B20** a new team's seeded checklist wiped on first load | `v2/sync-retry-schedule` | **Complete, merged to `main`.** Both found by running the app / reviewing the diff rather than by the suite. B19: self-re-arming backoff schedule (3s/15s/60s/3m/5m) reading the queue instead of React state; offline periods consume no retry attempts. B20: zero checklist rows now leaves local state alone — an emptied checklist still propagates as a row with `items: []`. Six regression tests against real Postgres; each verified to fail without its fix. Gate green (217 db tests). |
+| 2026-08-15 | **Missing API-role grants** — migrations rebuilt a database PostgREST could not use | `main` | **Complete, pushed.** Found when the new `test:db` CI step went red on first push: `permission denied for table teams` from the service-role client. Not a CI defect — the migrations genuinely produced an unusable schema, invisible to `schema_assertions.sql` because those run as `postgres`. Added the grants migration + default privileges, a schema assertion guarding it, and pinned the local CLI to CI's version. CI and Deploy green; falcon-forge.com serving. **See the parking lot before squashing migrations.** |
 
 **Discovered / parking lot:**
 
 *From Sprint 2:*
-- **`Onboarding.test.tsx` is flaky under load.** "shows the Complete Setup form when the
-  account has no age classification" failed once in 8 full-suite runs, immediately after the
-  db suite had loaded the machine, and passes in isolation every time. It is a `waitFor`
-  timing sensitivity, not a product bug, and predates Sprint 2 (reproduced on the sprint-2
-  branch without the retry fix). Worth tightening when Sprint 5 touches Onboarding.
+- **🔴 READ BEFORE SQUASHING MIGRATIONS (Sprint 3).** Our migrations create tables with **no
+  DML grants for the API roles**. Supabase used to configure default privileges so anything
+  created in `public` was granted to `anon`/`authenticated`/`service_role` automatically;
+  newer stack versions do not, so tables came out with only REFERENCES/TRIGGER/TRUNCATE and
+  PostgREST answered every request with `permission denied for table …`. Rebuilding from
+  `supabase/migrations/` produced a database the app could not read a single row of. The
+  hosted project predates the change and has the grants, so nothing was visibly broken —
+  the gap was only ever in a rebuild, which is exactly what the Sprint 3 squash is.
+  Fixed by `20260815000000_api_role_grants.sql`; **that file's contents must survive the
+  squash**, including the `ALTER DEFAULT PRIVILEGES` half, or every table Sprint 3 adds
+  will have the same problem. Assertion 6 in `schema_assertions.sql` now fails if any
+  public table is missing SELECT/INSERT/UPDATE/DELETE for any of the three roles.
+  Note the coupling: granting DML to `anon` is safe *only* because RLS is enabled
+  everywhere and default-deny (assertion 1, plus the anon block of the RLS suite). Do not
+  keep one and drop the other.
+- **The Supabase CLI is pinned to the version CI installs** (2.114). Developing against an
+  older local stack than CI runs is what hid the grants gap until it reached `main`. If you
+  bump `supabase/setup-cli` in `ci.yml`, bump the devDependency with it.
+- **✅ FIXED** — was: `Onboarding.test.tsx` flaky under load. Testing Library's 1s default
+  `findBy*` timeout was too tight for a component that starts async work on mount; it failed
+  twice in eleven full-suite runs, always under load. `src/test/setup.ts` now configures a
+  5s `asyncUtilTimeout`.
 - **✅ FIXED on `v2/sync-retry-schedule`** — was: **A failed push is never retried
   automatically (found in the browser, not the suite).**
   `useSync`'s auto-sync effect is `useEffect(..., [authReady, isOnline, pendingChanges,
