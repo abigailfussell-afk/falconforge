@@ -82,6 +82,9 @@ import {
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
 
+// The queue is not this suite's subject: `getPendingRecordIds` is driven through the mock.
+vi.mock('@/lib/offline-db');
+
 describe('realtime', () => {
     beforeEach(() => {
         vi.clearAllMocks();

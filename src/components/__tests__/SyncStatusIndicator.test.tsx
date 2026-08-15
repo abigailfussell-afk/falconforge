@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SyncStatusIndicator from '../SyncStatusIndicator';
 
+// The component reads live realtime status; this suite drives it through the mock.
+vi.mock('@/lib/realtime');
+
 // Mock sync hook
 const mockSync = vi.fn();
 const mockUseSync = vi.fn();

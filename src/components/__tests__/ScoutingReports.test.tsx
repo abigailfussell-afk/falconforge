@@ -3,6 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import ScoutingReports from '../ScoutingReports';
 import { useAppStore } from '../../lib/store';
 
+// Opt in to the manual mocks in src/lib/__mocks__. This suite is about the form and list
+// rendering; the page's background refresh hook and auth are not what it asserts on.
+vi.mock('@/lib/auth');
+vi.mock('@/lib/queries');
+
 // Mock the store
 vi.mock('../../lib/store', () => ({
     useAppStore: vi.fn(),

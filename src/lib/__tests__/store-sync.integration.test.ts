@@ -1,14 +1,17 @@
 /**
  * Store → Sync Queue Integration Tests
- * 
+ *
  * These tests verify that store actions correctly queue items for sync.
- * Uses real IndexedDB (via fake-indexeddb) and real Zustand store,
- * but mocks Supabase network calls.
+ * Uses real IndexedDB (via fake-indexeddb) and the real Zustand store. No Supabase mock:
+ * the store no longer talks to the server at all — reads go through `server-pull.ts` and
+ * writes go onto the queue, which is exactly what is under test here.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore } from '../store';
 import { db } from '../offline-db';
-import { waitForAsync } from '../../test/setup-integration';
+
+/** Store actions queue without awaiting; give the Dexie transaction time to commit. */
+const waitForAsync = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Store → Sync Queue Integration', () => {
     beforeEach(() => {

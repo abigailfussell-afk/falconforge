@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../store';
 
+// The store persists through `indexedDBStorage`; jsdom has no IndexedDB, and this suite is
+// about store actions rather than persistence.
+vi.mock('../offline-db');
+
 // No Supabase mock here any more: the store no longer talks to the server at all. Reads
 // moved to `server-pull.ts` (C3), writes go through the offline queue. If this file ever
 // needs a Supabase mock again, that is a sign a second read path has grown back.

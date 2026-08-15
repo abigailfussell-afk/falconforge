@@ -4,6 +4,12 @@ import { MemoryRouter } from 'react-router-dom';
 import DashboardHome from '../DashboardHome';
 import { useAppStore } from '@/lib/store';
 
+// Opt in to the manual mocks in src/lib/__mocks__: this suite renders widgets and asserts
+// on their content; auth readiness and the background refresh hooks are not its subject.
+vi.mock('@/lib/auth');
+vi.mock('@/lib/queries');
+vi.mock('@/lib/realtime');
+
 describe('DashboardHome', () => {
     beforeEach(() => {
         vi.clearAllMocks();

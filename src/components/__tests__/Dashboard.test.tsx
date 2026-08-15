@@ -70,6 +70,11 @@ vi.mock('dexie-react-hooks', () => ({
 // here), so the repeated dynamic import bought nothing.
 import { useAppStore } from '../../lib/store';
 
+// Opt in to the manual mocks in src/lib/__mocks__ for the subsystems App touches on mount
+// but this navigation suite does not assert on.
+vi.mock('@/lib/realtime');
+vi.mock('@/lib/queries');
+
 // Setup store state for a logged-in coach user
 function setupStore(overrides: Record<string, any> = {}) {
     useAppStore.setState({
