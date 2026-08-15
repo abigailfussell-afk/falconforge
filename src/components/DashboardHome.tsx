@@ -9,6 +9,7 @@ import {
     Activity
 } from 'lucide-react';
 import { useAppStore } from '../lib/store';
+import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
 
 interface DashboardHomeProps {
@@ -17,14 +18,12 @@ interface DashboardHomeProps {
 
 export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     const { user } = useAuth();
-    const { tasks: allTasks, matchPlans: allMatchPlans, scoutingReports: allScoutingReports, currentSeasonId } = useAppStore();
+    const { tasks: allTasks, matchPlans: allMatchPlans, scoutingReports: allScoutingReports } = useAppStore();
 
-    // Filter data by current season
-    // Season-scoped, with no `!x.seasonId ||` escape hatch: season_id is NOT NULL in the
-    // schema, so a record with no season no longer exists to be tolerated.
-    const tasks = allTasks.filter(t => t.seasonId === currentSeasonId);
-    const matchPlans = allMatchPlans.filter(p => p.seasonId === currentSeasonId);
-    const scoutingReports = allScoutingReports.filter(r => r.seasonId === currentSeasonId);
+    // One definition of "belongs to the season on screen", shared with App and MatchPlanner.
+    const tasks = useSeasonScoped(allTasks);
+    const matchPlans = useSeasonScoped(allMatchPlans);
+    const scoutingReports = useSeasonScoped(allScoutingReports);
 
     const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'Team Member';
 

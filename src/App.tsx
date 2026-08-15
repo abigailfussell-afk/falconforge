@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
+import { useSeasonScoped } from './lib/season-scope';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from './lib/realtime';
 import { fetchTeamData } from './lib/server-pull';
 import { performSignOut } from './lib/sign-out';
@@ -15,6 +16,7 @@ import TermsAndConditions from './pages/legal/TermsAndConditions';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import CommunityGuidelines from './pages/legal/CommunityGuidelines';
 import Sidebar from './components/Sidebar';
+import ArchivedSeasonBanner from './components/ArchivedSeasonBanner';
 
 // Import consolidated components from src/components
 import SprintPlanning from './components/SprintPlanning';
@@ -44,16 +46,13 @@ function Dashboard() {
     } = useAppStore();
     const navigate = useNavigate();
 
-    // Filter data by current season.
-    //
-    // The `!t.seasonId ||` half of this filter is gone. It was there to tolerate records
-    // with no season, and what it actually did was leak every one of them into EVERY
-    // season — the opposite of the fresh start a new season is meant to be. `season_id` is
-    // NOT NULL in the schema and `seasonId` is required on the type, so there is nothing
-    // left for it to tolerate.
-    const tasks = allTasks.filter(t => t.seasonId === currentSeasonId);
-    const teamMembers = allTeamMembers.filter(m => m.teamId === useAppStore.getState().currentTeamId);
-    const subTeams = allSubTeams.filter(t => t.seasonId === currentSeasonId);
+    // Season scoping goes through `useSeasonScoped`, which is the one definition of
+    // "belongs to the season on screen". It used to be written out here and in two other
+    // components; the roster is team-scoped rather than season-scoped, so it is not one of
+    // them.
+    const tasks = useSeasonScoped(allTasks);
+    const subTeams = useSeasonScoped(allSubTeams);
+    const teamMembers = allTeamMembers.filter(m => m.teamId === currentTeamId);
 
     // Adapt store data to component props format
     const tasksForComponents = tasks.map(t => ({
@@ -136,6 +135,9 @@ function Dashboard() {
             {/* Main Content Area */}
             <main className="flex-1 h-full overflow-hidden relative pt-16 lg:pt-0">
                 <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 pl-4 pt-4 pb-4 lg:pl-6 lg:pt-6 lg:pb-6 [&>*]:pr-4 lg:[&>*]:pr-6">
+                    {/* Every view below is season-scoped, so the "this season is read-only"
+                        state belongs here once rather than in each of them. */}
+                    <ArchivedSeasonBanner />
                     {activeTab === 'dashboard' && <DashboardHome setActiveTab={setActiveTab} />}
                     {activeTab === 'kanban' && (
                         <SprintPlanning

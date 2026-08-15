@@ -30,12 +30,15 @@ const mockStore = {
         { id: 'subteam-1', name: 'Build Team', memberIds: ['member-1'] },
         { id: 'subteam-2', name: 'Programming', memberIds: ['member-2'] },
     ],
+    // Sprint 4: the checklist asks whether its season is archived before offering an edit.
+    seasons: [{ id: SEASON_ID, name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
     toggleChecklistItem: vi.fn(),
     addChecklistItem: vi.fn(),
     deleteChecklistItem: vi.fn(),
     resetChecklist: vi.fn(),
     updateChecklistItem: vi.fn(),
     reorderChecklist: vi.fn(),
+    saveChecklistAsTemplate: vi.fn(),
 };
 
 describe('PreMatchChecklist', () => {

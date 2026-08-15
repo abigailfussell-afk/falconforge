@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
 import { useAppStore, ScoutingReport } from '../lib/store';
+import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
 import { useScoutingQuery } from '../lib/queries';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
 
 const ScoutingReports: React.FC = () => {
-    const { scoutingReports, addScoutingReport, updateScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
+    const { scoutingReports: allScoutingReports, addScoutingReport, updateScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
+
+    // THIS PAGE WAS NOT SEASON-SCOPED AT ALL.
+    //
+    // Every other view filtered on the current season; this one rendered the store's whole
+    // `scoutingReports` array, so a team's second season showed the first season's scouting
+    // data mixed in with its own — with no way to tell which was which, since a report shows
+    // an opponent's number and not a season. The dashboard's "Scouting Reports" count and
+    // this list disagreed for the same reason. Missed because the filter was duplicated per
+    // component, which is precisely what `useSeasonScoped` now prevents.
+    const scoutingReports = useSeasonScoped(allScoutingReports);
+    const { canEdit } = useSeasonScope();
 
     // Background refresh — fetches latest scouting data when this page is visited
     useScoutingQuery(currentTeamId);
@@ -118,8 +130,11 @@ const ScoutingReports: React.FC = () => {
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Scouting Reports</h2>
                 <button
+                    data-testid="scout-match"
                     onClick={() => setIsScoutModalOpen(true)}
-                    className="bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-orange-700 transition shadow-sm"
+                    disabled={!canEdit}
+                    title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
+                    className="bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-orange-700 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
                 </button>
@@ -179,8 +194,9 @@ const ScoutingReports: React.FC = () => {
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(report.id); }}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Delete report"
+                                disabled={!canEdit}
+                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={canEdit ? 'Delete report' : 'This season is archived and read-only'}
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -385,7 +401,16 @@ const ScoutingReports: React.FC = () => {
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                             <button onClick={() => setIsScoutModalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">Cancel</button>
-                            <button onClick={saveScoutingReport} className="px-6 py-2 bg-orange-600 text-white rounded font-medium hover:bg-orange-700">Save Report</button>
+                            {/* The modal still OPENS on an archived season — "full history
+                                backward" means a past report stays readable. Only saving is
+                                unavailable, which is the write the database refuses. */}
+                            <button
+                                data-testid="save-scouting-report"
+                                onClick={saveScoutingReport}
+                                disabled={!canEdit}
+                                title={canEdit ? 'Save report' : 'This season is archived and read-only'}
+                                className="px-6 py-2 bg-orange-600 text-white rounded font-medium hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >Save Report</button>
                         </div>
                     </div>
                 </div>

@@ -32,7 +32,7 @@ describe('DashboardHome', () => {
                 ],
             },
             currentSeasonId: 'season-1',
-            seasons: [{ id: 'season-1', name: 'Test Season', fieldImageData: '', createdAt: 1000 }]
+            seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }]
         });
     });
 
@@ -95,7 +95,7 @@ describe('DashboardHome', () => {
                 { id: 'm1', title: 'Mid Plan', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 2000, seasonId: 'season-1' },
             ],
             currentSeasonId: 'season-1',
-            seasons: [{ id: 'season-1', name: 'Test Season', fieldImageData: '', createdAt: 1000 }],
+            seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
         });
 
         render(

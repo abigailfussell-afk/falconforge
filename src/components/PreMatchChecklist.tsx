@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown, BookmarkPlus } from 'lucide-react';
 import { useAppStore, selectChecklist } from '../lib/store';
+import { useSeasonScope } from '../lib/season-scope';
 import { getMemberDisplayName } from '../lib/member-utils';
 
 const PreMatchChecklist: React.FC = () => {
     const [isEditingChecklist, setIsEditingChecklist] = useState(false);
     const [newChecklistItem, setNewChecklistItem] = useState('');
+    const [templateName, setTemplateName] = useState('');
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    // An archived season's checklist is history: every write below is refused by
+    // `season_is_open` server-side, so none of them are offered.
+    const { canEdit } = useSeasonScope();
+    const saveChecklistAsTemplate = useAppStore((state) => state.saveChecklistAsTemplate);
 
     // Get checklist and actions from the store (sync-enabled)
     // `selectChecklist` resolves the current season's list — one row per season now (C6),
@@ -30,8 +38,16 @@ const PreMatchChecklist: React.FC = () => {
     };
 
     const toggleCheck = (id: string) => {
-        if (isEditingChecklist) return;
+        if (isEditingChecklist || !canEdit) return;
         toggleChecklistItem(id);
+    };
+
+    const handleSaveTemplate = () => {
+        if (!templateName.trim()) return;
+        if (saveChecklistAsTemplate(templateName.trim())) {
+            setTemplateName('');
+            setIsSavingTemplate(false);
+        }
     };
 
     const handleAddChecklistItem = () => {
@@ -76,21 +92,62 @@ const PreMatchChecklist: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                         <button
+                            data-testid="save-checklist-template"
+                            onClick={() => setIsSavingTemplate(!isSavingTemplate)}
+                            disabled={checklist.length === 0}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isSavingTemplate ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            title="Save as a team template"
+                        >
+                            <BookmarkPlus size={20} />
+                        </button>
+                        <button
+                            data-testid="edit-checklist"
                             onClick={() => setIsEditingChecklist(!isEditingChecklist)}
-                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 ${isEditingChecklist ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
-                            title="Edit Checklist"
+                            disabled={!canEdit}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            title={canEdit ? 'Edit Checklist' : 'This season is archived and read-only'}
                         >
                             <Edit size={20} />
                         </button>
                         <button
+                            data-testid="reset-checklist"
                             onClick={resetChecklist}
-                            className="text-slate-500 hover:text-orange-600 p-2 rounded-full hover:bg-orange-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9"
-                            title="Reset Checklist"
+                            disabled={!canEdit}
+                            className="text-slate-500 hover:text-orange-600 p-2 rounded-full hover:bg-orange-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={canEdit ? 'Reset Checklist' : 'This season is archived and read-only'}
                         >
                             <RotateCcw size={20} />
                         </button>
                     </div>
                 </div>
+
+                {/*
+                  * Saving a template stays available on an archived season: it READS this
+                  * list and writes a new row of its own, which no season owns. Capturing a
+                  * checklist a team spent a season refining is exactly what somebody wants
+                  * to do while looking back at it.
+                  */}
+                {isSavingTemplate && (
+                    <div className="flex gap-2 border-b border-slate-100 p-4 dark:border-slate-700">
+                        <input
+                            type="text"
+                            data-testid="template-name-input"
+                            value={templateName}
+                            onChange={(e) => setTemplateName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
+                            placeholder="Template name, e.g. Standard pre-match"
+                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                        />
+                        <button
+                            data-testid="confirm-save-template"
+                            onClick={handleSaveTemplate}
+                            disabled={!templateName.trim()}
+                            className="rounded bg-orange-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            Save
+                        </button>
+                    </div>
+                )}
                 <div className="divide-y divide-slate-100 dark:divide-slate-700 overflow-y-auto flex-1 pr-1 custom-scrollbar">
                     {checklist.map((item, index) => (
                         <div

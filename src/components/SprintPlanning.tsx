@@ -3,6 +3,7 @@ import { Task, TaskStatus, TaskType, SubTeam, TeamMember, TimelineEvent } from '
 import { Plus, Calendar as CalendarIcon, List, Layout, Archive } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
 import { useAppStore } from '../lib/store';
+import { useSeasonScope } from '../lib/season-scope';
 import { useTasksQuery } from '../lib/queries';
 import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
 import SprintBoard from './SprintBoard';
@@ -33,8 +34,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     const storeDeleteTask = useAppStore((state) => state.deleteTask);
     const currentTeamId = useAppStore((state) => state.currentTeamId);
     // The draft task below is a real `Task` before it is saved, and `Task.seasonId` is
-    // required now that `tasks.season_id` is NOT NULL.
-    const currentSeasonId = useAppStore((state) => state.currentSeasonId);
+    // required now that `tasks.season_id` is NOT NULL. `canEdit` additionally covers an
+    // ARCHIVED season, whose writes the database refuses outright (Sprint 4).
+    const { currentSeasonId, canEdit } = useSeasonScope();
 
     // Background refresh — fetches latest tasks when this page is visited
     useTasksQuery(currentTeamId);
@@ -65,8 +67,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
 
     const createNewTask = () => {
         // `tasks.season_id` is NOT NULL, so a task drafted with no season could never be
-        // saved. The button is disabled in the same condition; this is the guard behind it.
-        if (!currentSeasonId) return;
+        // saved — and an archived season refuses the INSERT. The button is disabled in the
+        // same condition; this is the guard behind it.
+        if (!canEdit || !currentSeasonId) return;
 
         const newTask: Task = {
             id: Date.now().toString(),
@@ -211,8 +214,14 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
 
                     <button
                         onClick={createNewTask}
-                        disabled={!currentSeasonId}
-                        title={currentSeasonId ? 'New item' : 'Select a season first'}
+                        disabled={!canEdit}
+                        title={
+                            canEdit
+                                ? 'New item'
+                                : currentSeasonId
+                                    ? 'This season is archived and read-only'
+                                    : 'Select a season first'
+                        }
                         className="flex items-center justify-center gap-2 bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-orange-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <Plus size={20} /><span className="hidden md:inline">New Item</span>

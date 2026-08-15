@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import { FIELD_IMAGE_URL } from '../constants';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
+import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
 import { useMatchPlansQuery } from '../lib/queries';
 
 // Fixed viewBox dimensions for consistent coordinate storage
@@ -14,7 +15,8 @@ const MatchPlanner: React.FC = () => {
   const [color, setColor] = useState('#ef4444'); // Red default
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
   // Simple history stack for undo/redo
-  const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentSeasonId, currentTeamId } = useAppStore();
+  const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentTeamId } = useAppStore();
+  const { canEdit } = useSeasonScope();
 
   // Background refresh — fetches latest match plans when this page is visited
   useMatchPlansQuery(currentTeamId);
@@ -27,8 +29,7 @@ const MatchPlanner: React.FC = () => {
       ? customFieldImage
       : `${import.meta.env.BASE_URL}${customFieldImage}`)
     : `${import.meta.env.BASE_URL}${FIELD_IMAGE_URL}`;
-  // Filter match plans by current season
-  const matchPlans = allMatchPlans.filter(p => p.seasonId === currentSeasonId);
+  const matchPlans = useSeasonScoped(allMatchPlans);
   const [paths, setPaths] = useState<{ d: string, stroke: string, width: number }[]>([]);
   const [undoHistory, setUndoHistory] = useState<{ d: string, stroke: string, width: number }[]>([]);
   const [currentPath, setCurrentPath] = useState('');
@@ -216,9 +217,11 @@ const MatchPlanner: React.FC = () => {
               <FolderOpen size={18} />
             </button>
             <button
+              data-testid="save-plan-desktop"
               onClick={() => setIsSaveModalOpen(true)}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
-              title="Save Plan"
+              disabled={!canEdit}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              title={canEdit ? 'Save Plan' : 'This season is archived and read-only'}
             >
               <Save size={18} />
             </button>
@@ -317,8 +320,11 @@ const MatchPlanner: React.FC = () => {
             <FolderOpen size={18} /> Load
           </button>
           <button
+            data-testid="save-plan-mobile"
             onClick={() => setIsSaveModalOpen(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-600 text-white rounded-lg font-semibold text-sm shadow-md"
+            disabled={!canEdit}
+            title={canEdit ? 'Save Plan' : 'This season is archived and read-only'}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-600 text-white rounded-lg font-semibold text-sm shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Save size={18} /> Save
           </button>
@@ -376,7 +382,9 @@ const MatchPlanner: React.FC = () => {
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(plan.id); }}
-                      className="p-2 text-red-400 hover:text-red-600"
+                      disabled={!canEdit}
+                      title={canEdit ? 'Delete plan' : 'This season is archived and read-only'}
+                      className="p-2 text-red-400 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                       data-testid="delete-matchplan-button"
                     >
                       <Trash2 size={16} />
