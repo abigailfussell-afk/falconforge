@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
+import { getMemberDisplayName, getMemberInitials } from './member-utils';
 
 /**
  * Current User Context
@@ -132,21 +133,10 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
         }
     }, [user, authLoading, isConfigured]);
 
-    // Compute display name and initials
-    const displayName = currentUser?.fullName || currentUser?.email?.split('@')[0] || 'Guest';
-    const initials = (() => {
-        if (currentUser?.fullName) {
-            const parts = currentUser.fullName.trim().split(/\s+/);
-            if (parts.length >= 2) {
-                return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-            }
-            return parts[0]?.substring(0, 2).toUpperCase() || '?';
-        }
-        if (currentUser?.email) {
-            return currentUser.email.substring(0, 2).toUpperCase();
-        }
-        return 'G';
-    })();
+    // Compute display name and initials. Signed-out/unresolved users read as "Guest"/"G"
+    // rather than the roster defaults, since there is no member record to be unknown about.
+    const displayName = getMemberDisplayName(currentUser, 'Guest');
+    const initials = getMemberInitials(currentUser, 'G');
 
     const value: CurrentUserContextType = {
         currentUser,

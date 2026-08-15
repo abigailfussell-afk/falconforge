@@ -4,6 +4,7 @@ import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from './lib/realtime';
+import { performSignOut } from './lib/sign-out';
 import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
@@ -57,51 +58,7 @@ function Dashboard() {
         }))
     }));
 
-    const handleSignOut = async () => {
-        try {
-            // Tear down Realtime subscription before clearing state
-            teardownRealtimeSubscription();
-            
-            // Reset store state first (prevents sync actions from queueing during teardown)
-            useAppStore.getState().resetToDefaults();
-            
-            // Remove storage tokens forcefully as a fallback wrapper
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-                    localStorage.removeItem(key);
-                }
-            });
-            localStorage.removeItem('falconforge-sync-timestamps');
-
-            // Await signout with a timeout
-            try {
-                await Promise.race([
-                    signOut(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 3000))
-                ]);
-            } catch (authErr) {
-                console.warn('Supabase signout issue ignored:', authErr);
-            }
-
-            // Clear IndexedDB tables (sync queue + persisted app state) with timeout
-            try {
-                await Promise.race([
-                    (async () => {
-                        const { clearLocalDatabase, clearAppState } = await import('./lib/offline-db');
-                        await clearLocalDatabase();
-                        await clearAppState();
-                    })(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('IDB timeout')), 2000))
-                ]);
-            } catch (dbErr) {
-                console.warn('Failed to clear IndexedDB:', dbErr);
-            }
-        } finally {
-            // Use window.location for a clean redirect to ensure auth state is cleared
-            window.location.href = `${import.meta.env.BASE_URL}#/`;
-            window.location.reload();
-        }
-    };
+    const handleSignOut = () => performSignOut(signOut);
 
     // Calculate role for permissions
     const currentUserRole = teamMembers.find(m => m.userId === user?.id)?.role;

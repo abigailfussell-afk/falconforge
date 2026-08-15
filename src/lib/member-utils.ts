@@ -1,32 +1,63 @@
-import { TeamMember } from '../types';
+/**
+ * Canonical display-name and initials logic.
+ *
+ * Six copies of this used to exist (here, user-context, SprintPlanning, SprintTaskActivity,
+ * PreMatchChecklist, MemberManager) and they did not agree: five rendered the local part of
+ * the email as a fallback, this one rendered the whole address; three split names on /\s+/,
+ * this one on a single space. The same person could therefore appear under two different
+ * names on two screens.
+ *
+ * The majority behaviours won. The local part is what the compact chips and avatars were
+ * designed around, and splitting on /\s+/ avoids a real crash-adjacent bug: with a single
+ * space, a trailing space in a full name ("Jane ") produced the initials "JUNDEFINED".
+ */
 
 /**
- * Returns the preferred display name for a team member.
- * Falls back to 'Unknown User' if member is not found,
- * or the email address if no full name is set.
+ * The minimum shape needed to name someone. Structural rather than `TeamMember` so the
+ * currentUser record and pending-invite rows can use the same logic without being cast.
  */
-export const getMemberDisplayName = (member: TeamMember | null | undefined): string => {
-    if (!member) return 'Unknown User';
+export interface NamedPerson {
+    fullName?: string | null;
+    email?: string | null;
+}
 
-    return member.fullName || member.email || 'Unknown User';
+/**
+ * Preferred display name: full name, else the local part of the email, else the fallback.
+ */
+export const getMemberDisplayName = (
+    person: NamedPerson | null | undefined,
+    fallback = 'Unknown User'
+): string => {
+    if (!person) return fallback;
+    if (person.fullName) return person.fullName;
+    if (person.email) return person.email.split('@')[0];
+    return fallback;
 };
 
 /**
- * Generates initials based on a team member's full name or email.
- * Defaults to '?' if both are missing.
+ * Initials: first and last initial of the full name, else its first two characters, else the
+ * first two characters of the email, else the fallback.
  */
-export const getMemberInitials = (member: TeamMember | null | undefined): string => {
-    if (!member) return '?';
+export const getMemberInitials = (
+    person: NamedPerson | null | undefined,
+    fallback = '?'
+): string => {
+    if (!person) return fallback;
 
-    if (member.fullName) {
-        const parts = member.fullName.trim().split(' ');
-        if (parts.length > 1) {
-            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    if (person.fullName) {
+        const parts = person.fullName.trim().split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
         }
-        return member.fullName.substring(0, 2).toUpperCase();
+        if (parts.length === 1) {
+            return parts[0].substring(0, 2).toUpperCase();
+        }
+        // A name of nothing but whitespace — fall through to the email.
     }
-    if (member.email) {
-        return member.email.substring(0, 2).toUpperCase();
+
+    if (person.email) {
+        return person.email.substring(0, 2).toUpperCase();
     }
-    return '?';
+
+    return fallback;
 };

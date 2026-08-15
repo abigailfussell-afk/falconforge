@@ -4,6 +4,7 @@ import { Plus, Calendar as CalendarIcon, List, Layout, Archive } from 'lucide-re
 import { useCurrentUser } from '../lib/user-context';
 import { useAppStore } from '../lib/store';
 import { useTasksQuery } from '../lib/queries';
+import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
 import SprintBoard from './SprintBoard';
 import SprintList from './SprintList';
 import SprintCalendar from './SprintCalendar';
@@ -38,27 +39,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     // Get current logged-in user for comments
     const { currentUser } = useCurrentUser();
 
-    // Helper to get display name for a TeamMember
-    const getMemberDisplayName = (member: TeamMember): string => {
-        if (member.fullName) return member.fullName;
-        return member.email.split('@')[0];
-    };
-
-    // Helper to get initials for a TeamMember
-    const getMemberInitials = (member: TeamMember): string => {
-        if (member.fullName) {
-            const parts = member.fullName.trim().split(/\s+/);
-            if (parts.length >= 2) {
-                return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-            }
-            return parts[0]?.substring(0, 2).toUpperCase() || '?';
-        }
-        return member.email.substring(0, 2).toUpperCase();
-    };
-
     const getMemberName = (id: string) => {
         const m = teamMembers.find(mem => mem.id === id);
-        return m ? getMemberDisplayName(m) : 'Unassigned';
+        return getMemberDisplayName(m, 'Unassigned');
     };
 
     const getSubTeamName = (id: string) => {
@@ -68,7 +51,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
 
     const getInitials = (id: string) => {
         const m = teamMembers.find(mem => mem.id === id);
-        return m ? getMemberInitials(m) : '?';
+        return getMemberInitials(m);
     };
 
     const openTask = (task: Task) => {
