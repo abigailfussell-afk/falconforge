@@ -60,6 +60,14 @@ vi.mock('@/lib/offline-db', () => ({
     generateId: vi.fn(() => `test-id-${Math.random().toString(36).substr(2, 9)}`),
     queueForSync: vi.fn().mockResolvedValue(undefined),
     getPendingSyncCount: vi.fn().mockResolvedValue(0),
+    getPendingSyncItems: vi.fn().mockResolvedValue([]),
+    // Nothing pending by default, so pulls and realtime events apply normally (B3/B8).
+    getPendingRecordIds: vi.fn().mockResolvedValue(new Set<string>()),
+    moveToDeadLetter: vi.fn().mockResolvedValue(undefined),
+    getSyncFailureCount: vi.fn().mockResolvedValue(0),
+    getSyncFailures: vi.fn().mockResolvedValue([]),
+    retrySyncFailures: vi.fn().mockResolvedValue(0),
+    discardSyncFailures: vi.fn().mockResolvedValue(undefined),
     clearLocalDatabase: vi.fn().mockResolvedValue(undefined),
     clearAppState: vi.fn().mockResolvedValue(undefined),
     indexedDBStorage: {

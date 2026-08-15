@@ -175,6 +175,20 @@ export async function moveToDeadLetter(item: SyncQueueItem, error: unknown): Pro
     });
 }
 
+/**
+ * Record ids for a table that still have unpushed local changes.
+ *
+ * A server pull must not overwrite these. A full pull replaces the whole collection, so
+ * without this a record created offline disappears from the UI the moment a pull lands,
+ * while still sitting in the queue waiting to be pushed (B3).
+ *
+ * `tableName` is the snake_case name as queued, e.g. 'scouting_reports'.
+ */
+export async function getPendingRecordIds(tableName: string): Promise<Set<string>> {
+    const items = await db.syncQueue.where('tableName').equals(tableName).toArray();
+    return new Set(items.map((i) => i.recordId));
+}
+
 export async function getSyncFailureCount(): Promise<number> {
     return await db.syncFailures.count();
 }

@@ -3,6 +3,7 @@ import {
     db,
     getPendingSyncCount,
     getPendingSyncItems,
+    getPendingRecordIds,
     getSyncFailureCount,
     moveToDeadLetter,
     retrySyncFailures,
@@ -492,12 +493,16 @@ async function pullChangesFromServer(): Promise<void> {
                 continue;
             }
 
+            // Records with unpushed local changes must survive the pull (B3). Read this
+            // AFTER the query so anything queued while it was in flight is still covered.
+            const pendingIds = await getPendingRecordIds(table);
+
             if (isDelta) {
                 // Delta: merge new/updated records into existing state
-                mergeIntoStore(localTable, result.data || []);
+                mergeIntoStore(localTable, result.data || [], pendingIds);
             } else {
-                // Full: replace entire state (detects deletions)
-                updateLocalDatabase(localTable, result.data || []);
+                // Full: replace entire state (detects deletions), keeping pending records
+                updateLocalDatabase(localTable, result.data || [], pendingIds);
             }
 
             // Update sync timestamp
@@ -513,29 +518,53 @@ async function pullChangesFromServer(): Promise<void> {
  * Update the Zustand store with data from Supabase
  * Transforms snake_case from Supabase to camelCase for local use
  */
-export function updateLocalDatabase(tableName: string, records: any[]): void {
+export function updateLocalDatabase(
+    tableName: string,
+    records: any[],
+    /**
+     * Ids with unpushed local changes. Their local version is kept and the server's copy is
+     * ignored, because the local one is newer by definition -- it has not been sent yet.
+     * Omitted by callers that already know nothing is pending (B3).
+     */
+    pendingIds: Set<string> = new Set(),
+): void {
     if (!records) return;
 
     // Get the store state directly using the imported useAppStore
     const store = useAppStore.getState();
 
-
+    /**
+     * A full pull REPLACES the collection, which is how deletions made on another device
+     * propagate. That is also how it used to delete records that had never been pushed:
+     * they are absent from the server, so a replace dropped them. Records with a pending
+     * queue entry are carried over instead.
+     */
+    function reconcile<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+        if (pendingIds.size === 0) return incoming;
+        const preserved = existing.filter((e) => pendingIds.has(e.id));
+        const notPending = incoming.filter((r) => !pendingIds.has(r.id));
+        return [...notPending, ...preserved];
+    }
 
     switch (tableName) {
         case 'tasks':
-            store.setTasks(records.map(transformTaskFromSupabase));
+            store.setTasks(reconcile(store.tasks, records.map(transformTaskFromSupabase)));
             break;
 
         case 'seasons':
-            store.setSeasons(records.map(transformSeasonFromSupabase));
+            store.setSeasons(reconcile(store.seasons, records.map(transformSeasonFromSupabase)));
             break;
 
         case 'scoutingReports':
-            store.setScoutingReports(records.map(transformScoutingReportFromSupabase));
+            store.setScoutingReports(
+                reconcile(store.scoutingReports, records.map(transformScoutingReportFromSupabase)),
+            );
             break;
 
         case 'matchPlans':
-            store.setMatchPlans(records.map(transformMatchPlanFromSupabase));
+            store.setMatchPlans(
+                reconcile(store.matchPlans, records.map(transformMatchPlanFromSupabase)),
+            );
             break;
 
         case 'checklists':
@@ -549,7 +578,7 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
             break;
 
         case 'subTeams':
-            store.setSubTeams(records.map(transformSubTeamFromSupabase));
+            store.setSubTeams(reconcile(store.subTeams, records.map(transformSubTeamFromSupabase)));
             break;
 
         default:
@@ -563,7 +592,16 @@ export function updateLocalDatabase(tableName: string, records: any[]): void {
  * Records NOT in the delta set are preserved (unlike updateLocalDatabase which replaces).
  * Checklists are excluded from delta sync so this function never handles them.
  */
-export function mergeIntoStore(tableName: string, records: any[]): void {
+export function mergeIntoStore(
+    tableName: string,
+    records: any[],
+    /**
+     * Ids with unpushed local changes. Incoming rows for these are dropped so a teammate's
+     * update cannot overwrite an edit the user has not sent yet (B3/B8). The local change
+     * is pushed on the next drain, and last-write-wins settles it there.
+     */
+    pendingIds: Set<string> = new Set(),
+): void {
     if (!records || records.length === 0) return;
 
     const store = useAppStore.getState();
@@ -572,6 +610,7 @@ export function mergeIntoStore(tableName: string, records: any[]): void {
     function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
         const map = new Map(existing.map(item => [item.id, item]));
         for (const item of incoming) {
+            if (pendingIds.has(item.id)) continue;
             map.set(item.id, item);
         }
         return Array.from(map.values());

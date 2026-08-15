@@ -13,6 +13,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { useAppStore } from './store';
 import { mergeIntoStore, updateLocalDatabase } from './sync';
+import { getPendingRecordIds } from './offline-db';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +71,7 @@ export function onRealtimeStatusChange(listener: StatusListener): () => void {
 export function handleRealtimeDelete(tableName: string, recordId: string): void {
     const store = useAppStore.getState();
 
+
     switch (tableName) {
         case 'tasks':
             store.setTasks(store.tasks.filter((t) => t.id !== recordId));
@@ -120,10 +122,11 @@ export function setupRealtimeSubscription(teamId: string): void {
                 table,
                 filter: `team_id=eq.${teamId}`,
             },
-            (payload: any) => {
+            async (payload: any) => {
                 if (payload.new) {
-                    // Wrap in an array — mergeIntoStore expects an array of raw Supabase rows
-                    mergeIntoStore(localTable, [payload.new]);
+                    // Wrap in an array — mergeIntoStore expects an array of raw Supabase rows.
+                    // pendingIds keeps an unpushed local edit from being overwritten (B8).
+                    mergeIntoStore(localTable, [payload.new], await getPendingRecordIds(table));
                 }
             },
         );
@@ -136,13 +139,18 @@ export function setupRealtimeSubscription(teamId: string): void {
                 table,
                 filter: `team_id=eq.${teamId}`,
             },
-            (payload: any) => {
+            async (payload: any) => {
                 if (payload.new) {
+                    // An edit the user has not pushed yet is newer than anything arriving
+                    // from the server, so it wins until the queue drains (B8). Without this,
+                    // a teammate's update overwrites what someone is actively typing.
+                    const pendingIds = await getPendingRecordIds(table);
+
                     // For checklists, the blob is the entire record — use updateLocalDatabase
                     if (table === 'checklists') {
-                        updateLocalDatabase(localTable, [payload.new]);
+                        updateLocalDatabase(localTable, [payload.new], pendingIds);
                     } else {
-                        mergeIntoStore(localTable, [payload.new]);
+                        mergeIntoStore(localTable, [payload.new], pendingIds);
                     }
                 }
             },
@@ -156,8 +164,14 @@ export function setupRealtimeSubscription(teamId: string): void {
                 table,
                 filter: `team_id=eq.${teamId}`,
             },
-            (payload: any) => {
+            async (payload: any) => {
                 if (payload.old?.id) {
+                    // Same rule for deletes: if the user has an unpushed change to this
+                    // record, keep it and let the queue drain decide. Otherwise a remote
+                    // delete removes a row whose local edit is still waiting to be sent.
+                    const pendingIds = await getPendingRecordIds(table);
+                    if (pendingIds.has(payload.old.id)) return;
+
                     handleRealtimeDelete(table, payload.old.id);
                 }
             },
