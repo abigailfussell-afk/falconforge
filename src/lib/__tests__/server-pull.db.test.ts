@@ -273,3 +273,73 @@ describe('the read path is genuinely shared', () => {
         expect(await db.syncQueue.count()).toBe(1);
     });
 });
+
+describe('the React Query hooks are the third caller of the same read path', () => {
+    /**
+     * The hooks are mocked in every component suite, which is reasonable there and left
+     * their bodies at zero coverage — the one place the C3 claim ("all three read paths
+     * are one") was asserted only by inspection. Here they run for real, against a real
+     * database, with a real QueryClient.
+     */
+    it('useTasksQuery pulls the team’s tasks without clobbering queued work', async () => {
+        const { renderHook, waitFor } = await import('@testing-library/react');
+        const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+        const React = await import('react');
+        const { useTasksQuery } = await import('@/lib/queries');
+
+        // A task created offline, still queued, exactly as in the C3 scenario above.
+        const offlineId = crypto.randomUUID();
+        useAppStore.setState({
+            tasks: [{
+                id: offlineId,
+                title: 'Queued while the hook refetches',
+                description: '',
+                status: 'Backlog',
+                type: 'Feature',
+                assignedTo: '',
+                department: '',
+                tags: [],
+                checklist: [],
+                timeline: [],
+                createdAt: Date.now(),
+                seasonId: team.seasonId,
+            }],
+        });
+        await queueForSync('tasks', offlineId, 'create', { id: offlineId, teamId: team.id });
+
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const wrapper = ({ children }: { children: React.ReactNode }) =>
+            React.createElement(QueryClientProvider, { client }, children);
+
+        const { result } = renderHook(() => useTasksQuery(team.id), { wrapper });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        // It really fetched: the server's row is in the store...
+        const titles = useAppStore.getState().tasks.map((t) => t.title);
+        expect(titles).toContain('pull task');
+        // ...and the queued one survived the refetch.
+        expect(titles).toContain('Queued while the hook refetches');
+        expect(result.current.data).toEqual({ tasks: expect.any(Number) });
+
+        client.clear();
+    });
+
+    it('does not fetch without a team', async () => {
+        const { renderHook } = await import('@testing-library/react');
+        const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+        const React = await import('react');
+        const { useScoutingQuery } = await import('@/lib/queries');
+
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const wrapper = ({ children }: { children: React.ReactNode }) =>
+            React.createElement(QueryClientProvider, { client }, children);
+
+        const { result } = renderHook(() => useScoutingQuery(null), { wrapper });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(useAppStore.getState().scoutingReports).toEqual([]);
+
+        client.clear();
+    });
+});

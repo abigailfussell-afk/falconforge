@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
+        // Named so the three configs can be composed as projects for coverage.
+        name: 'integration',
         globals: true,
         environment: 'jsdom',
         setupFiles: ['./src/test/setup-integration.ts'],

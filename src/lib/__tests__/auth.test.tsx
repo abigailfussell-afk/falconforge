@@ -1,5 +1,5 @@
 import React from 'react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../auth';
@@ -47,16 +47,39 @@ const session = (overrides: Record<string, unknown> = {}) => ({
   user: { id: 'user-1', email: 'coach@example.com', user_metadata: {}, ...overrides },
 });
 
+/**
+ * Mock accessor for the stubbed client.
+ *
+ * `(supabase!.auth.getSession as any).mockResolvedValue(...)` was written nineteen times
+ * in this file. This gives the same access without an `any`: the mock API is typed, while
+ * the resolved values stay deliberately partial. Building a complete `Session` or `User`
+ * for every stub would be pages of fields no test reads, and the fields these tests do
+ * read are the ones they set.
+ */
+const asMock = (fn: unknown): Mock => fn as Mock;
+
+const authMock = {
+  getSession: asMock(supabase!.auth.getSession),
+  onAuthStateChange: asMock(supabase!.auth.onAuthStateChange),
+  signInWithPassword: asMock(supabase!.auth.signInWithPassword),
+  signUp: asMock(supabase!.auth.signUp),
+  signOut: asMock(supabase!.auth.signOut),
+  resetPasswordForEmail: asMock(supabase!.auth.resetPasswordForEmail),
+  updateUser: asMock(supabase!.auth.updateUser),
+};
+const fromMock = asMock(supabase!.from);
+const rpcMock = asMock(supabase!.rpc);
+
 // Shared by both describes below. Declared at file scope deliberately: when this lived
 // inside the first `describe`, the second one silently ran with mocks that were never
 // reset between tests, and its call-count assertions counted the whole file's traffic.
 beforeEach(() => {
   vi.clearAllMocks();
-  (supabase!.auth.getSession as any).mockResolvedValue({ data: { session: null } });
-  (supabase!.auth.onAuthStateChange as any).mockReturnValue({
+  authMock.getSession.mockResolvedValue({ data: { session: null } });
+  authMock.onAuthStateChange.mockReturnValue({
     data: { subscription: { unsubscribe: vi.fn() } },
   });
-  (supabase!.from as any).mockImplementation(() => tableStub());
+  fromMock.mockImplementation(() => tableStub());
   useAppStore.setState({ currentUserId: null });
 });
 
@@ -67,7 +90,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('auth.tsx', () => {
 
   it('signInWithEmail returns error if fails', async () => {
-    (supabase!.auth.signInWithPassword as any).mockResolvedValueOnce({ error: new Error('Invalid login') });
+    authMock.signInWithPassword.mockResolvedValueOnce({ error: new Error('Invalid login') });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -81,7 +104,7 @@ describe('auth.tsx', () => {
   });
 
   it('signUpWithEmail passes metadata properly', async () => {
-    (supabase!.auth.signUp as any).mockResolvedValueOnce({ data: { user: { id: '1' } }, error: null });
+    authMock.signUp.mockResolvedValueOnce({ data: { user: { id: '1' } }, error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -103,7 +126,7 @@ describe('auth.tsx', () => {
   });
 
   it('updateProfile updates state', async () => {
-    (supabase!.auth.updateUser as any).mockResolvedValueOnce({ data: { user: { id: '1', user_metadata: { full_name: 'New Name' } } }, error: null });
+    authMock.updateUser.mockResolvedValueOnce({ data: { user: { id: '1', user_metadata: { full_name: 'New Name' } } }, error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     console.log("Current result keys:", Object.keys(result.current));
@@ -116,7 +139,7 @@ describe('auth.tsx', () => {
   });
 
   it('updateAgeClassification uses rpc', async () => {
-    (supabase!.rpc as any).mockResolvedValueOnce({ data: { success: true } });
+    rpcMock.mockResolvedValueOnce({ data: { success: true } });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -129,7 +152,7 @@ describe('auth.tsx', () => {
   });
 
   it('signOut calls supabase signOut', async () => {
-    (supabase!.auth.signOut as any).mockResolvedValueOnce({ error: null });
+    authMock.signOut.mockResolvedValueOnce({ error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -141,7 +164,7 @@ describe('auth.tsx', () => {
   });
 
   it('resetPassword calls resetPasswordForEmail', async () => {
-    (supabase!.auth.resetPasswordForEmail as any).mockResolvedValueOnce({ error: null });
+    authMock.resetPasswordForEmail.mockResolvedValueOnce({ error: null });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
     
@@ -165,7 +188,7 @@ describe('auth lifecycle', () => {
     });
 
     it('restores a stored session and tells the store who the user is', async () => {
-      (supabase!.auth.getSession as any).mockResolvedValue({ data: { session: session() } });
+      authMock.getSession.mockResolvedValue({ data: { session: session() } });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -180,7 +203,7 @@ describe('auth lifecycle', () => {
       // The offline PWA case: Supabase is unreachable, the promise never resolves. Without
       // the 5s safety timeout the app renders its loading screen and never leaves it.
       vi.useFakeTimers();
-      (supabase!.auth.getSession as any).mockReturnValue(new Promise(() => {}));
+      authMock.getSession.mockReturnValue(new Promise(() => {}));
 
       const { result } = renderHook(() => useAuth(), { wrapper });
       expect(result.current.isLoading).toBe(true);
@@ -194,7 +217,7 @@ describe('auth lifecycle', () => {
     });
 
     it('stops loading when the session lookup rejects', async () => {
-      (supabase!.auth.getSession as any).mockRejectedValue(new Error('network down'));
+      authMock.getSession.mockRejectedValue(new Error('network down'));
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -204,7 +227,7 @@ describe('auth lifecycle', () => {
 
     it('unsubscribes from auth changes on unmount', async () => {
       const unsubscribe = vi.fn();
-      (supabase!.auth.onAuthStateChange as any).mockReturnValue({
+      authMock.onAuthStateChange.mockReturnValue({
         data: { subscription: { unsubscribe } },
       });
 
@@ -226,18 +249,18 @@ describe('auth lifecycle', () => {
      */
     async function captureHandler() {
       let handler!: (event: string, s: unknown) => Promise<void>;
-      (supabase!.auth.onAuthStateChange as any).mockImplementation((cb: any) => {
+      authMock.onAuthStateChange.mockImplementation((cb: any) => {
         handler = cb;
         return { data: { subscription: { unsubscribe: vi.fn() } } };
       });
       const hook = renderHook(() => useAuth(), { wrapper });
       await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
-      (supabase!.from as any).mockClear();
+      fromMock.mockClear();
       return { ...hook, handler: () => handler };
     }
 
     it('SIGNED_IN records the user, ensures a profile and loads the age classification', async () => {
-      (supabase!.from as any).mockImplementation(() =>
+      fromMock.mockImplementation(() =>
         tableStub({ data: { age_classification: '18_plus' }, error: null }),
       );
 
@@ -258,7 +281,7 @@ describe('auth lifecycle', () => {
     it('falls back to signup metadata when the profile row cannot be read', async () => {
       // RLS or a network blip: the upsert lands but the read back returns nothing. The
       // classification gates the whole under-13 flow, so guessing null would be wrong.
-      (supabase!.from as any).mockImplementation(() => tableStub({ data: null, error: null }));
+      fromMock.mockImplementation(() => tableStub({ data: null, error: null }));
 
       const { result, handler } = await captureHandler();
       await act(async () => {
@@ -270,7 +293,7 @@ describe('auth lifecycle', () => {
 
     it('records the privacy attestation once, and not again if it already exists', async () => {
       const existing = tableStub({ data: { id: 'attestation-1' }, error: null });
-      (supabase!.from as any).mockImplementation((table: string) =>
+      fromMock.mockImplementation((table: string) =>
         table === 'user_attestations' ? existing : tableStub(),
       );
 

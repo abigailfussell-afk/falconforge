@@ -16,6 +16,8 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
+        // Named so the three configs can be composed as projects for coverage.
+        name: 'db',
         globals: true,
         environment: 'jsdom',
         globalSetup: ['./src/test/db/globalSetup.ts'],
