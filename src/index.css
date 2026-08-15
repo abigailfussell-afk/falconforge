@@ -1,6 +1,10 @@
 /* FalconForge - Global Styles */
 
-/* Base reset */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base reset (layered after preflight so these win) */
 *,
 *::before,
 *::after {
