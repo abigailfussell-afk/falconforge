@@ -53,6 +53,19 @@ jobs:
           test -f dist/CNAME || { echo "::error::dist/CNAME missing - custom domain would break"; exit 1; }
           echo "CNAME: $(cat dist/CNAME)"
 
+      # Publishing sourcemaps makes the full application source downloadable from the live
+      # site. Vite and Workbox emit them from separate settings, so this checks the actual
+      # output rather than trusting both config flags to stay correct.
+      - name: Refuse to publish sourcemaps
+        run: |
+          maps=$(find dist -name '*.map' -print)
+          if [ -n "$maps" ]; then
+            echo "::error::Sourcemaps present in dist/ - these would be publicly downloadable:"
+            echo "$maps"
+            exit 1
+          fi
+          echo "No .map files in dist/"
+
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
