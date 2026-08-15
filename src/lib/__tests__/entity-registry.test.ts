@@ -47,9 +47,12 @@ const task: Task = {
 
 const season: Season = {
     id: 'season-1',
-    name: '2025-2026 DECODE',
+    name: '2025-2026 Season',
+    // Sprint 4. Both directions, or the round-trip below fails — which is the point.
+    gameTitle: 'DECODE',
     teamId: 'team-1',
     fieldImageData: 'data:image/png;base64,AAAA',
+    isArchived: true,
     createdAt: 1000,
 };
 

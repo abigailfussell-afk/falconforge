@@ -719,6 +719,59 @@ describe('an unlicensed team is read-only, and loses nothing', () => {
         expect(tasks.data![0].title).toBe('alpha task');
     });
 
+    it('refuses a season rollover', async () => {
+        /*
+         * Sprint 4's required guard. A rollover is a WRITE gated on entitlement — seasons
+         * and sub-teams go through `can_manage_structure`, which requires `team_can_write` —
+         * so a lapsed team pressing "Start New Season" gets a 403 from every statement.
+         *
+         * This is asserted server-side because that is where it is enforced. The wizard also
+         * disables the action when `team_entitlement.status = 'read_only'` (covered in
+         * `SeasonManager.test.tsx`), and that half is what stops the team queueing a
+         * rollover it cannot complete — Sprint 3 verified in a browser that such a write
+         * shows the row, is refused, and reports only "1 pending" with no reason. The two
+         * halves are not interchangeable: the button covers the client that knows, the
+         * policy covers every client that does not.
+         */
+        const admin = teamA.admin.client;
+
+        await expectDenied(
+            'INSERT a new season into an unlicensed team',
+            admin.from('seasons')
+                .insert({ team_id: teamA.id, name: '2027-2028 Season', game_title: 'DECODE' } as never)
+                .select(),
+        );
+
+        // The other two writes a rollover makes, for completeness: cloning the sub-team
+        // structure into the new season, and archiving the outgoing one.
+        await expectDenied(
+            'INSERT a cloned sub-team into an unlicensed team',
+            admin.from('sub_teams')
+                .insert({ team_id: teamA.id, season_id: teamA.seasonId, name: 'Build' } as never)
+                .select(),
+        );
+
+        await expectDenied(
+            'ARCHIVE the outgoing season of an unlicensed team',
+            admin.from('seasons')
+                .update({ is_archived: true } as never)
+                .eq('id', teamA.seasonId)
+                .select(),
+        );
+
+        // Nothing landed. An empty result from UPDATE is weaker evidence than it looks
+        // (RETURNING is filtered by the SELECT policy), so this asks the database directly.
+        const { serviceClient } = await import('./stack');
+        const { data: seasons } = await serviceClient()
+            .from('seasons')
+            .select('id, is_archived')
+            .eq('team_id', teamA.id)
+            .returns<{ id: string; is_archived: boolean }[]>();
+
+        expect(seasons, 'an unlicensed team created a season').toHaveLength(1);
+        expect(seasons![0].is_archived, 'an unlicensed team archived a season').toBe(false);
+    });
+
     it('still allows the admin to manage the roster, so the problem is fixable', async () => {
         // can_manage_roster is deliberately NOT gated on entitlement. Locking an admin out
         // of their own membership list is how a billing problem becomes a support ticket

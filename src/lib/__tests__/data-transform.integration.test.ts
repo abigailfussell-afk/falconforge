@@ -198,8 +198,29 @@ describe('transformToSupabaseSchema', () => {
                 id: 'season-1',
                 name: '2025-2026 Decode',
                 team_id: 'team-1',
+                game_title: null,
                 field_image_data: null,
+                is_archived: false,
             });
+        });
+
+        it('sends null for a blank game title — the column has a not-blank CHECK', () => {
+            const row = transformToSupabaseSchema('seasons', {
+                id: 'season-1', name: '2025-2026', teamId: 'team-1', fieldImageData: '',
+                gameTitle: '   ',
+            });
+
+            expect(row.game_title).toBeNull();
+        });
+
+        it('carries the archive flag, so a rollover can close the outgoing season', () => {
+            const row = transformToSupabaseSchema('seasons', {
+                id: 'season-1', name: '2025-2026', teamId: 'team-1', fieldImageData: '',
+                gameTitle: 'DECODE', isArchived: true,
+            });
+
+            expect(row.is_archived).toBe(true);
+            expect(row.game_title).toBe('DECODE');
         });
 
         it('carries the season through, because a sub-team cannot be unscoped', () => {

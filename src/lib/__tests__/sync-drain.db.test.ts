@@ -13,7 +13,7 @@
  * value, a foreign key pointing at another tenant, RLS refusing a write.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { Fixtures, type TestTeam } from '@/test/db/fixtures';
+import { Fixtures, mintAccessToken, type TestTeam } from '@/test/db/fixtures';
 import { serviceClient } from '@/test/db/stack';
 import { signInAppClientAs, signOutAppClient } from '@/test/db/setup';
 import { useAppStore } from '@/lib/store';
@@ -35,25 +35,9 @@ beforeAll(async () => {
     fixtures = new Fixtures();
     team = await fixtures.createTeam('drain');
 
-    const { createHmac } = await import('node:crypto');
-    const b64 = (v: string | Buffer) =>
-        Buffer.from(v).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const now = Math.floor(Date.now() / 1000);
-    const header = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const payload = b64(
-        JSON.stringify({
-            sub: team.users.coach.id,
-            email: team.users.coach.email,
-            role: 'authenticated',
-            aud: 'authenticated',
-            iat: now,
-            exp: now + 3600,
-        }),
-    );
-    const sig = b64(
-        createHmac('sha256', process.env.SUPABASE_JWT_SECRET!).update(`${header}.${payload}`).digest(),
-    );
-    signInAppClientAs(`${header}.${payload}.${sig}`);
+    // Sign the APP's own client in as the coach, so the drain under test pushes with a real
+    // JWT and is subject to RLS exactly as the browser is.
+    signInAppClientAs(mintAccessToken(team.users.coach.id, team.users.coach.email));
 });
 
 afterAll(async () => {
