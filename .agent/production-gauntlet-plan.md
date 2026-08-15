@@ -30,7 +30,7 @@
 ### 🔴 CRITICAL
 
 **C1. Live Supabase DB password in a tracked file on public GitHub.**
-`.agent/scaling-next-steps.md:9` → `SUPABASE_DB_PASSWORD="k1uRA5kGvHria47A"`. Confirmed in `HEAD`. The earlier checklist marked this done but only fixed the *other* file. Bypasses every RLS policy. **On the free tier this is worse than it would be on Pro — there is no point-in-time recovery if someone drops your data.**
+`.agent/scaling-next-steps.md:9` contains a plaintext `SUPABASE_DB_PASSWORD=`. Confirmed in `HEAD`. (The value is deliberately not repeated here — quoting it would just create another copy.) The earlier checklist marked this done but only fixed the *other* file. Bypasses every RLS policy. **On the free tier this is worse than it would be on Pro — there is no point-in-time recovery if someone drops your data.**
 
 **C2. Tailwind loads from CDN at runtime.** `index.html:26`. Built CSS is 2.6 KB, so every style comes from `cdn.tailwindcss.com` on load. Offline at a venue = unstyled app, defeating the entire offline-first architecture. Plus ~300 KB blocking render and a third-party script with full DOM access.
 
