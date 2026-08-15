@@ -24,6 +24,48 @@ Four of these are silent-data-loss bugs. If your users have ever said "my task d
 
 ---
 
+## Progress — 2026-08-14, branch `refactor/data-layer` (11 commits)
+
+**Rounds B and C are complete.** Every bug below marked ✅ has a fix and a test.
+
+| Bug | Status | Fix |
+|---|---|---|
+| B1 queue drains in random order | ✅ | `getPendingSyncItems()` orders by `timestamp` |
+| B2 failed changes silently deleted | ✅ | dead-letter store + `role="alert"` notice + retry |
+| B3 full pull wipes unsynced records | ✅ | `getPendingRecordIds()` guard on every entity |
+| B8 realtime clobbers in-progress edits | ✅ | same guard; local pending wins until pushed |
+| B4 delta cursor used the local clock | ✅ | cursor = newest `updated_at` in received rows |
+| B5 cursors survived sign-out | ✅ | moved to `appState`; one cleanup path |
+| B6 timeout didn't stop the work | ✅ | cooperative cancellation token |
+| B7 realtime DELETE never fired | ✅ | `REPLICA IDENTITY FULL` migration |
+| B12 checklist picked an arbitrary row | ✅ | explicit `ORDER BY`, templates excluded |
+| B15 full-pull counter was global | ✅ | per-team counter |
+| B18 blank match number became `0` | ✅ | nullable column, `undefined` end to end |
+| B9/B10/B11/B13/B14/B16/B17 | ⬜ | Round D (entity registry + round-trip tests) |
+
+Suite: **239 unit / 59 integration**, typecheck, build and schema assertions all green.
+
+**Both migrations production still needs were validated against real production data** —
+restored from `supabase db dump`, applied, zero errors, no row loss (11 tasks, 9 scouting
+reports intact, 15 CHECK constraints and 5 `REPLICA IDENTITY FULL` tables in place). The
+restored copy and the dumps have since been deleted; they held real emails and names.
+
+**One bug was introduced and caught during this work:** `getSyncMeta()` returned
+`{ ...EMPTY_META }`, a shallow copy, so callers mutating `meta.cursors` mutated the shared
+module-level default and every later "empty" read returned accumulated garbage. Fixed with a
+factory. Worth noting because it briefly looked like a fake-indexeddb timing artifact — the
+wrong diagnosis, corrected once the raw row was inspected.
+
+**Still open**
+
+- **A2** — repoint the integration suite at local Postgres and delete the hand-written
+  Supabase query-builder mock; add the `test:rls` cross-tenant suite. Not started.
+- **Push/PR** — blocked by the permission classifier, twice. All 11 commits are local only.
+- **Production migration** — held deliberately, per your call.
+- **Round D** — the entity registry, which retires the remaining seven bugs at once.
+
+---
+
 ## Round A progress — 2026-08-14, branch `refactor/data-layer`
 
 **Done**
