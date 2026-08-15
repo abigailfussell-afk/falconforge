@@ -1,6 +1,6 @@
 # FalconForge — Refactor & Bug-Fix Gauntlet
 
-> **Prepared:** 2026-08-09 · Focus: **code cleanup + bug fixing**. Production/infra work is deferred to `production-gauntlet-plan.md`.
+> **Prepared:** 2026-08-14 · Focus: **code cleanup + bug fixing**. Production/infra work is deferred to `production-gauntlet-plan.md`.
 > **Reviewed at commit:** `566bc1d` · **Status:** plan only, no code changed.
 
 ---
@@ -24,7 +24,7 @@ Four of these are silent-data-loss bugs. If your users have ever said "my task d
 
 ---
 
-## Round A progress — 2026-08-09, branch `refactor/data-layer`
+## Round A progress — 2026-08-14, branch `refactor/data-layer`
 
 **Done**
 
@@ -43,7 +43,7 @@ Four of these are silent-data-loss bugs. If your users have ever said "my task d
 
 Together: **the backups you have are not restorable.** Worth knowing before the free tier's lack of PITR ever gets tested.
 
-**Verified against the hosted project — 2026-08-09**
+**Verified against the hosted project — 2026-08-14**
 
 The baseline was inferred from a 5-month-old backup, so it was checked against the live project before being trusted. No service-role key or DB password was available, but PostgREST resolves the `select=` column list *before* RLS filters rows, which makes it a read-only existence probe: unknown table → `PGRST205`, unknown column → `42703`, valid column → `200 []`.
 
@@ -72,13 +72,26 @@ The last row is the one that matters. Those foreign keys are what stop a task fr
 
 **Current state: local matches production exactly, except for the security-audit constraints** — which is now a deliberate, documented difference rather than an unknown.
 
-**Next step — needs a decision, not just a command**
+**Preflight RUN against real production data — 2026-08-14**
 
-Applying those constraints is a schema change against a live database with no PITR, and it will fail and roll back if any existing row violates them. `supabase/tests/preflight_security_audit.sql` finds those rows first. It is read-only; paste it into Dashboard → SQL Editor.
+Rather than querying production directly, the whole database was pulled down with the CLI and restored locally:
 
-Checks 6–8 are the ones to read carefully: they look for tasks referencing another team's sub-team or member, and scouting reports created by another team's member. A non-zero count there is not merely a migration blocker — it is live cross-tenant data, and it would mean the missing foreign keys have already let something through.
+```
+supabase db dump --linked --schema public -f schema.sql   # 1,143 lines
+supabase db dump --linked --data-only     -f data.sql     # 344 KB
+```
 
-Sequence once the preflight is clean: take a real schema dump (`supabase db dump`), then apply. This belongs in **Round C**, alongside B7's `REPLICA IDENTITY FULL` change, so production takes one schema change rather than two.
+Both loaded into a scratch `prod_audit` database **with zero errors** — which incidentally proves these two commands produce the restorable backup that `backup-full.mjs` never did. Production is small: 4 teams, 7 members, 11 tasks, 9 scouting reports, 7 match plans, 5 seasons, 3 sub-teams, 11 invites, 6 users.
+
+Preflight result — **15 of 16 checks clean**:
+
+- ✅ **No cross-tenant violations.** Checks 6–8 all zero: no task references another team's sub-team or member, no scouting report was created by another team's member, nothing dangling. The missing foreign keys have not let anything through. This was the outcome that mattered.
+- ✅ No blank names, no negative use counts, no duplicate composite keys.
+- ❌ **5 scouting reports with `match_number = 0`** — see **B18**. This is the sole blocker.
+
+**So applying the security audit needs one decision first (B18), not a data cleanup of any breadth.** Once that is settled, the sequence is: fresh `db dump` → apply to staging → apply to production. Belongs in **Round C**, alongside B7's `REPLICA IDENTITY FULL`, so production takes one schema change instead of two.
+
+The local `prod_audit` database and the dump files hold real user emails and names. They live in the session scratchpad, outside the repo, and should be deleted once Round C is done.
 
 **Still to do in Round A**
 
@@ -247,8 +260,17 @@ Both fields exist on `MatchPlan` ([types.ts:152-153](src/types.ts:152)). The to-
 **B10. `match_number` is read from a field that doesn't exist.** [sync.ts:305](src/lib/sync.ts:305)
 `data.matchNumber || null` — but `MatchPlan` has no `matchNumber` property. Always writes `null`.
 
+**B18. A blank match number is silently stored as `0`.** [ScoutingReports.tsx:34](src/components/ScoutingReports.tsx:34)
+`saveScoutingReport` validates only `teamNumber` ([line 30](src/components/ScoutingReports.tsx:30)). The match-number input runs `parseInt(e.target.value)`, so clearing it yields `NaN`, and `newScout.matchNumber || 0` turns that into **0**. The column is `NOT NULL` with no CHECK, so Postgres accepts it, and the card then renders "Match 0" ([line 135](src/components/ScoutingReports.tsx:135)).
+
+**This is live in production: 5 of 9 scouting reports have `match_number = 0`**, created between 2026-02-07 and 2026-02-28 (verified against a local restore of the production dump, 2026-08-14).
+
+It is also the one thing blocking the security-audit migration, which adds `CHECK (match_number > 0)` with no backfill for this table. Applying it today fails on those five rows.
+
+The modelling is the actual bug: the UI treats match number as optional while the schema treats it as required, and `|| 0` invents a sentinel to bridge the gap. Fixing it is a decision — make the column nullable with `CHECK (match_number IS NULL OR match_number > 0)` and send `null` for blank, or make the field genuinely required and backfill the five rows. Either way, drop the `|| 0`.
+
 **B17. `Task.archivedAt` has no column to live in.** [SprintPlanning.tsx:195](src/components/SprintPlanning.tsx:195) / [types.ts:115](src/types.ts:115)
-The app sets `archivedAt: Date.now()` when archiving a task and renders it in [SprintArchived.tsx:49](src/components/SprintArchived.tsx:49), sorting the archived list by it. There is **no `archived_at` column** in production or in the migrations (verified 2026-08-09), and neither transform direction touches the field.
+The app sets `archivedAt: Date.now()` when archiving a task and renders it in [SprintArchived.tsx:49](src/components/SprintArchived.tsx:49), sorting the archived list by it. There is **no `archived_at` column** in production or in the migrations (verified 2026-08-14), and neither transform direction touches the field.
 
 So the value lives only in local state: archive a task, let it round-trip through the server, and the timestamp is gone. The archive itself survives — that is carried by `status = 'Archived'` — but the "Archived <date>" label vanishes and the list's sort key collapses to `0` for every task that has been pulled back from the server.
 

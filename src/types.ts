@@ -118,7 +118,8 @@ export interface Task {
 export interface ScoutingReport {
   id: string;
   teamNumber: string;
-  matchNumber: number;
+  /** Undefined when the scout did not record a match number. Never 0 — see B18. */
+  matchNumber?: number;
   eventName?: string;
   hasAutonomous: boolean;
   autoScore: number;

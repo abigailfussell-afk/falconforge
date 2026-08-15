@@ -1,6 +1,6 @@
 # Decision Record — Rewrite vs. Refactor In Place
 
-> **Date:** 2026-08-09 · **Status:** recommendation, pending your call
+> **Date:** 2026-08-14 · **Status:** recommendation, pending your call
 > **Recommendation:** **Refactor in place.** Rewrite the data layer only, behind a stable interface, on a branch.
 
 ---

@@ -33,7 +33,8 @@ export function transformScoutingReportFromSupabase(r: any): ScoutingReport {
     return {
         id: r.id,
         teamNumber: r.opponent_team_number,
-        matchNumber: r.match_number,
+        // NULL means "not recorded" (B18); keep it undefined rather than coercing to 0.
+        matchNumber: r.match_number ?? undefined,
         eventName: r.event_name || '',
         hasAutonomous: r.data?.hasAutonomous ?? false,
         autoScore: r.data?.autoScore ?? 0,

@@ -278,7 +278,8 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 team_id: data.teamId,
                 season_id: data.seasonId,
                 opponent_team_number: data.teamNumber,
-                match_number: data.matchNumber,
+                // Undefined must become NULL, not 0 — the column is nullable now (B18).
+                match_number: data.matchNumber ?? null,
                 event_name: data.eventName || null,
                 created_by: data.createdBy || null,
                 data: {

@@ -1,6 +1,6 @@
 # FalconForge — Production Readiness Plan (GitHub Pages + Supabase Free Tier)
 
-> **Prepared:** 2026-08-09 · **Revised** for the constraint: stay on GitHub Pages, stay on Supabase free tier.
+> **Prepared:** 2026-08-14 · **Revised** for the constraint: stay on GitHub Pages, stay on Supabase free tier.
 > **Reviewed at commit:** `566bc1d` on `non-split-landing-page`
 > **Status:** plan only — no code changed.
 

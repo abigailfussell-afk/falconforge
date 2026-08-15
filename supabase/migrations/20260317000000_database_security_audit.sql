@@ -23,7 +23,27 @@ ALTER TABLE checklists ADD CONSTRAINT checklists_name_check CHECK (char_length(t
 ALTER TABLE invites ADD CONSTRAINT invites_code_check CHECK (char_length(trim(code)) > 0);
 
 -- Prevent logical impossibilities with numeric fields
-ALTER TABLE scouting_reports ADD CONSTRAINT scouting_reports_match_number_check CHECK (match_number > 0);
+-- scouting_reports.match_number: made NULLABLE 2026-08-14 (see B18).
+--
+-- The original constraint was a plain CHECK (match_number > 0) with no backfill, and it
+-- cannot be applied to production as written: 5 of 9 live scouting reports have
+-- match_number = 0. That value is fabricated by the app -- ScoutingReports.tsx validates
+-- only teamNumber, and `newScout.matchNumber || 0` turns the NaN from an empty
+-- parseInt() into 0, which the NOT NULL column accepts. The card then renders "Match 0".
+--
+-- The mismatch is the bug: the form treats match number as optional while the schema
+-- treats it as required. Scouting happens in a hurry between matches, so optional is the
+-- honest model -- forcing a value just gets a throwaway number typed in. NULL now means
+-- "not recorded", and the app sends NULL instead of inventing a sentinel.
+ALTER TABLE scouting_reports ALTER COLUMN match_number DROP NOT NULL;
+UPDATE scouting_reports SET match_number = NULL WHERE match_number <= 0;
+
+-- The NULL branch is redundant in SQL's three-valued logic (a CHECK evaluating to NULL
+-- passes), but it is spelled out so nobody "tidies" the column back to NOT NULL.
+ALTER TABLE scouting_reports ADD CONSTRAINT scouting_reports_match_number_check
+  CHECK (match_number IS NULL OR match_number > 0);
+
+-- match_plans.match_number was already nullable, so NULL passes here too.
 ALTER TABLE match_plans ADD CONSTRAINT match_plans_match_number_check CHECK (match_number > 0);
 ALTER TABLE invites ADD CONSTRAINT invites_use_count_check CHECK (use_count >= 0);
 
