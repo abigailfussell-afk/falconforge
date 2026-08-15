@@ -4,6 +4,7 @@ import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle } f
 import { useAuth } from '../lib/auth';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
+import { performSignOut } from '../lib/sign-out';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
 
@@ -15,7 +16,7 @@ interface PendingTeam {
 
 export default function Onboarding() {
     const navigate = useNavigate();
-    const { user, signOut, ageClassification } = useAuth();
+    const { user, signOut, ageClassification, updateAgeClassification } = useAuth();
     const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -129,55 +130,17 @@ export default function Onboarding() {
         navigate('/');
     };
 
-    const handleSignOut = async () => {
-        try {
-            // Reset store state first (prevents sync queue from getting new items)
-            useAppStore.getState().resetToDefaults();
-            
-            // Remove storage tokens forcefully
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-                    localStorage.removeItem(key);
-                }
-            });
-            localStorage.removeItem('falconforge-sync-timestamps');
-
-            // Await signout with a timeout
-            try {
-                await Promise.race([
-                    signOut(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 3000))
-                ]);
-            } catch (authErr) {
-                console.warn('Supabase signout issue ignored:', authErr);
-            }
-
-            // Clear IndexedDB tables
-            try {
-                await Promise.race([
-                    (async () => {
-                        const { clearLocalDatabase, clearAppState } = await import('../lib/offline-db');
-                        await clearLocalDatabase();
-                        await clearAppState();
-                    })(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('IDB timeout')), 2000))
-                ]);
-            } catch (dbErr) {
-                console.warn('Failed to clear IndexedDB:', dbErr);
-            }
-        } finally {
-            window.location.href = `${import.meta.env.BASE_URL}#/`;
-            window.location.reload();
-        }
-    };
+    const handleSignOut = () => performSignOut(signOut);
 
     const handleProfileComplete = async (selectedAge: AgeClassification) => {
         setIsLoading(true);
         setProfileCompleteError(null);
 
         try {
-            // Need to update the age via API since user is already created
-            const { error, success } = await useAuth().updateAgeClassification(selectedAge);
+            // Need to update the age via API since user is already created.
+            // `updateAgeClassification` comes from the hook call in the component body --
+            // calling useAuth() here would break the rules of hooks and throw (C2).
+            const { error, success } = await updateAgeClassification(selectedAge);
 
             if (!success || error) {
                 setProfileCompleteError(error?.message || 'Failed to update profile');
@@ -273,17 +236,6 @@ export default function Onboarding() {
                             </>
                         )}
                     </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-                    <p className="text-slate-400">Loading your teams...</p>
                 </div>
             </div>
         );

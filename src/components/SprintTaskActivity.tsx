@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TeamMember, TimelineEvent } from '../types';
 import { Send, Trash2 } from 'lucide-react';
 import { useCurrentUser } from '../lib/user-context';
+import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
 
 /**
  * The activity feed and comment box for a task.
@@ -16,18 +17,6 @@ interface SprintTaskActivityProps {
     teamMembers: TeamMember[];
     onAddComment: (text: string) => void;
     onDeleteComment: (commentId: string) => void;
-}
-
-/** Initials for a member, from full name where available, otherwise the email. */
-function initialsFor(member: TeamMember): string {
-    if (member.fullName) {
-        const parts = member.fullName.trim().split(/\s+/);
-        if (parts.length >= 2) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return parts[0]?.substring(0, 2).toUpperCase() || '?';
-    }
-    return member.email.substring(0, 2).toUpperCase();
 }
 
 const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
@@ -57,7 +46,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
         }
         const member = teamMembers.find((m) => m.id === authorId);
         if (member) {
-            return { name: member.fullName || member.email.split('@')[0], initials: initialsFor(member) };
+            return { name: getMemberDisplayName(member), initials: getMemberInitials(member) };
         }
         return { name: 'Guest', initials: 'G' };
     };

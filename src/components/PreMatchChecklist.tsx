@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../lib/store';
+import { getMemberDisplayName } from '../lib/member-utils';
 
 const PreMatchChecklist: React.FC = () => {
     const [isEditingChecklist, setIsEditingChecklist] = useState(false);
@@ -20,11 +21,10 @@ const PreMatchChecklist: React.FC = () => {
     const subTeams = useAppStore((state) => state.subTeams);
 
     // Helper to get display name for a TeamMember
-    const getMemberDisplayName = (id: string): string => {
+    const displayNameForMemberId = (id: string): string => {
         const member = teamMembers.find(m => m.id === id);
-        if (!member) return id; // fallback to the stored value
-        if (member.fullName) return member.fullName;
-        return member.email.split('@')[0];
+        // No member record means a legacy free-text assignment; show it as stored.
+        return member ? getMemberDisplayName(member) : id;
     };
 
     const toggleCheck = (id: string) => {
@@ -59,7 +59,7 @@ const PreMatchChecklist: React.FC = () => {
         if (subTeam) return subTeam.name;
         // Check if it's a member
         const member = teamMembers.find(m => m.id === assignedTo);
-        if (member) return getMemberDisplayName(member.id);
+        if (member) return getMemberDisplayName(member);
         // Return as-is (legacy value)
         return assignedTo;
     };
@@ -130,7 +130,7 @@ const PreMatchChecklist: React.FC = () => {
                                             {subTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                         </optgroup>
                                         <optgroup label="Team Members">
-                                            {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m.id)}</option>)}
+                                            {teamMembers.map(m => <option key={m.id} value={m.id}>{displayNameForMemberId(m.id)}</option>)}
                                         </optgroup>
                                     </select>
 

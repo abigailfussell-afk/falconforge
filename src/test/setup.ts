@@ -124,8 +124,3 @@ const mockIndexedDB = {
     open: vi.fn(),
 };
 vi.stubGlobal('indexedDB', mockIndexedDB);
-
-// Mock global DOMMatrix which is used by pdfjs in jsdom environment
-if (typeof globalThis.DOMMatrix === 'undefined') {
-    globalThis.DOMMatrix = class DOMMatrix { } as any;
-}

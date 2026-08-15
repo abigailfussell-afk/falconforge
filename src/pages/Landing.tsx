@@ -774,7 +774,6 @@ export default function LandingPage() {
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage user roles & permissions</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create new seasons & rosters</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Oversee sprint planning metrics</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Generate AI Portfolios</span></li>
                             </ul>
 
                             <button

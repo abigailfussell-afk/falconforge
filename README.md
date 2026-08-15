@@ -1,6 +1,6 @@
 # FalconForge
 
-A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Features sprint planning, scouting reports, match planning, portfolio generation, and judging prep - all with offline-first support.
+A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Features sprint planning, scouting reports, and match planning - all with offline-first support.
 
 ## Features
 
@@ -8,8 +8,6 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 - **Pre-Match Checklist** - Customizable checklists for competition day
 - **Scouting Reports** - Track opponent capabilities during competitions
 - **Match Planner** - Draw autonomous paths and game strategies on the field
-- **Portfolio Helper** - AI-powered portfolio summary generation
-- **Judging Prep** - Flashcard-style interview preparation
 
 ## Tech Stack
 
@@ -18,7 +16,6 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 - **State Management**: Zustand (with localStorage persistence)
 - **Offline Storage**: IndexedDB via Dexie.js
 - **Backend** (optional): Supabase (PostgreSQL + Auth)
-- **AI**: Google Gemini API
 - **PWA**: Installable on desktop, tablet, and mobile
 
 ## Quick Start
@@ -66,7 +63,6 @@ Create/edit `.env.local` in the project root:
 ```env
 VITE_SUPABASE_URL=your_project_url
 VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_GEMINI_API_KEY=your_gemini_api_key  # For AI features
 ```
 
 ### 3. Set up Database Schema
@@ -163,9 +159,7 @@ falconforge/
 - [ ] Team invite system with shareable links
 - [ ] Subscription management with Stripe
 - [ ] Real-time collaboration
-- [ ] Meeting minutes with AI transcription
 - [ ] Image/video uploads for task documentation
-- [ ] Export portfolio to PDF
 
 ## License
 

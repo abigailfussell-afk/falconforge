@@ -3,6 +3,7 @@ import { Task, TaskStatus, TaskType, SubTeam, TeamMember } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { Plus, Trash2, X, Archive } from 'lucide-react';
 import SprintTaskActivity from './SprintTaskActivity';
+import { getMemberDisplayName } from '../lib/member-utils';
 
 /**
  * The task create/edit modal, extracted from SprintPlanning.
@@ -59,11 +60,6 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
             titleInputRef.current.select();
         }
     }, [isNewTask]);
-
-    const getMemberDisplayName = (member: TeamMember): string =>
-        member.fullName || member.email.split('@')[0];
-
-
 
 
 

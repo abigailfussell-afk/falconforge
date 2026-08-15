@@ -18,8 +18,5 @@ export const DEFAULT_SUBTEAMS: SubTeam[] = [
   { id: 'subteam-outreach', name: 'Outreach', memberIds: [] },
 ];
 
-// Feature flags
-export const AI_FEATURES_ENABLED = false;
-
 // The field image filename - MatchPlanner will prepend BASE_URL when using this
 export const FIELD_IMAGE_URL = "DecodeField.png";

@@ -17,8 +17,8 @@ describe('member-utils', () => {
             expect(getMemberDisplayName({ ...defaultMember, fullName: 'John Doe' })).toBe('John Doe');
         });
 
-        it('falls back to email if full name is missing', () => {
-            expect(getMemberDisplayName(defaultMember)).toBe('test@example.com');
+        it('falls back to the local part of the email, not the whole address', () => {
+            expect(getMemberDisplayName(defaultMember)).toBe('test');
         });
 
         it('returns "Unknown User" if null or undefined', () => {
@@ -26,9 +26,14 @@ describe('member-utils', () => {
             expect(getMemberDisplayName(undefined)).toBe('Unknown User');
         });
 
-        it('handles demo users correctly', () => {
-            expect(getMemberDisplayName({ ...defaultMember, role: 'demo' as any, fullName: 'Demo John' })).toBe('Demo John');
-            expect(getMemberDisplayName({ ...defaultMember, role: 'demo' as any })).toBe('Demo User');
+        it('accepts a caller-supplied fallback', () => {
+            expect(getMemberDisplayName(null, 'Guest')).toBe('Guest');
+            expect(getMemberDisplayName({ fullName: null, email: null }, 'Guest')).toBe('Guest');
+        });
+
+        it('accepts any shape carrying a name and an email', () => {
+            expect(getMemberDisplayName({ fullName: 'Ada Lovelace', email: 'ada@ftc.org' })).toBe('Ada Lovelace');
+            expect(getMemberDisplayName({ email: 'ada@ftc.org' })).toBe('ada');
         });
     });
 
@@ -37,8 +42,24 @@ describe('member-utils', () => {
             expect(getMemberInitials({ ...defaultMember, fullName: 'John Doe' })).toBe('JD');
         });
 
+        it('uses first and last name when there are middle names', () => {
+            expect(getMemberInitials({ ...defaultMember, fullName: 'John Quincy Doe' })).toBe('JD');
+        });
+
         it('returns first two letters of first name if no last name', () => {
             expect(getMemberInitials({ ...defaultMember, fullName: 'John' })).toBe('JO');
+        });
+
+        it('handles irregular whitespace without emitting "UNDEFINED"', () => {
+            // Regression: splitting on a single space turned "John " into ['John', ''],
+            // whose second element has no [0], producing the initials "JUNDEFINED".
+            expect(getMemberInitials({ ...defaultMember, fullName: 'John ' })).toBe('JO');
+            expect(getMemberInitials({ ...defaultMember, fullName: 'John  Doe' })).toBe('JD');
+            expect(getMemberInitials({ ...defaultMember, fullName: '  Jane   Q   Roe  ' })).toBe('JR');
+        });
+
+        it('falls back to the email when the name is only whitespace', () => {
+            expect(getMemberInitials({ ...defaultMember, fullName: '   ' })).toBe('TE');
         });
 
         it('falls back to email if full name is missing', () => {
@@ -50,8 +71,9 @@ describe('member-utils', () => {
             expect(getMemberInitials(undefined)).toBe('?');
         });
 
-        it('handles demo users correctly', () => {
-            expect(getMemberInitials({ ...defaultMember, role: 'demo' as any, fullName: 'DJohn' })).toBe('DJ');
+        it('accepts a caller-supplied fallback', () => {
+            expect(getMemberInitials(null, 'G')).toBe('G');
+            expect(getMemberInitials({ fullName: null, email: null }, 'G')).toBe('G');
         });
     });
 });

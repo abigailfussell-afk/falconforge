@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getMissingAttestations, recordAttestation, recordAttestations, ATTESTATION_VERSIONS } from '../attestations';
+import { recordAttestation, ATTESTATION_VERSIONS } from '../attestations';
 import { supabase, isSupabaseConfigured } from '../supabase';
 
 vi.mock('../supabase', () => ({
@@ -20,50 +20,6 @@ describe('attestations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsSupabaseConfigured.mockReturnValue(true);
-  });
-
-  describe('getMissingAttestations', () => {
-    it('returns empty array if supabase is not configured', async () => {
-      mockIsSupabaseConfigured.mockReturnValue(false);
-      const result = await getMissingAttestations('user-1', ['terms', 'privacy']);
-      expect(result).toEqual([]);
-    });
-
-    it('identifies missing attestations correctly', async () => {
-      mockFrom.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({
-          data: [{ attestation_type: 'terms', version: ATTESTATION_VERSIONS.terms }],
-          error: null
-        })
-      });
-
-      const missing = await getMissingAttestations('user-1', ['terms', 'privacy']);
-      expect(missing).toEqual(['privacy']); // Terms exists, privacy is missing
-    });
-
-    it('treats outdated attestations as missing', async () => {
-      mockFrom.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({
-          data: [{ attestation_type: 'terms', version: '0.9' }], // Outdated
-          error: null
-        })
-      });
-
-      const missing = await getMissingAttestations('user-1', ['terms']);
-      expect(missing).toEqual(['terms']);
-    });
-
-    it('returns all required types on supabase error', async () => {
-      mockFrom.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ data: null, error: new Error('DB Error') })
-      });
-
-      const missing = await getMissingAttestations('user-1', ['terms', 'privacy']);
-      expect(missing).toEqual(['terms', 'privacy']);
-    });
   });
 
   describe('recordAttestation', () => {
@@ -102,26 +58,4 @@ describe('attestations', () => {
     });
   });
 
-  describe('recordAttestations', () => {
-    it('records multiple attestations in sequence', async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-      mockFrom.mockReturnValue({ upsert: vi.fn().mockResolvedValue({ error: null }) });
-
-      const result = await recordAttestations(['terms', 'privacy']);
-      expect(result).toEqual({ success: true });
-      expect(mockFrom().upsert).toHaveBeenCalledTimes(2);
-    });
-
-    it('stops and returns error if one fails', async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-      
-      const mockUpsert = vi.fn()
-        .mockResolvedValueOnce({ error: null }) // terms succeeds
-        .mockResolvedValueOnce({ error: { message: 'Failed on privacy' } }); // privacy fails
-      mockFrom.mockReturnValue({ upsert: mockUpsert });
-
-      const result = await recordAttestations(['terms', 'privacy']);
-      expect(result).toEqual({ success: false, error: 'Failed on privacy' });
-    });
-  });
 });

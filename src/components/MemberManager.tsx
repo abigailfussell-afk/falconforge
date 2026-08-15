@@ -3,6 +3,7 @@ import { X, UserCheck, UserX, Crown, GraduationCap, DollarSign, Shield, Clock, R
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember } from '../types';
 import { useCurrentUser } from '../lib/user-context';
+import { getMemberDisplayName } from '../lib/member-utils';
 
 interface PendingMember {
     id: string;
@@ -227,12 +228,13 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     };
 
     // Get display name
-    const getDisplayName = (member: TeamMember | PendingMember): string => {
-        if ('fullName' in member) {
-            return member.fullName || member.email.split('@')[0];
-        }
-        return member.full_name || member.email.split('@')[0];
-    };
+    // Pending rows come straight off the wire in snake_case, so normalise before naming.
+    const getDisplayName = (member: TeamMember | PendingMember): string =>
+        getMemberDisplayName(
+            'fullName' in member
+                ? member
+                : { fullName: member.full_name, email: member.email }
+        );
 
     if (!isSupabaseConfigured()) {
         return (

@@ -15,7 +15,7 @@ import {
 } from './transformers';
 import type {
     Team, TeamMember, SubTeam, Season,
-    Task, ScoutingReport, ChecklistItem, MatchPlan, PortfolioEntry,
+    Task, ScoutingReport, ChecklistItem, MatchPlan,
 } from '../types';
 
 /**
@@ -33,7 +33,7 @@ import type {
 // (consumers can import { ScoutingReport } from '../lib/store' or from '../types')
 export type {
     Team, TeamMember, SubTeam, Season,
-    Task, ScoutingReport, ChecklistItem, MatchPlan, PortfolioEntry,
+    Task, ScoutingReport, ChecklistItem, MatchPlan,
 };
 
 // Default season for migration
@@ -69,18 +69,15 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     scoutingReports: ScoutingReport[];
     checklist: ChecklistItem[];
     matchPlans: MatchPlan[];
-    portfolioHistory: PortfolioEntry[];
     seasons: Season[];
     currentSeasonId: string | null;
 
     // UI state
     theme: 'light' | 'dark';
-    geminiApiKey: string | null;
     isLoading: boolean;
 
     // Actions
     setTheme: (theme: 'light' | 'dark') => void;
-    setGeminiApiKey: (key: string | null) => void;
 
     // Team actions (top-level)
     setCurrentTeam: (teamId: string | null) => void;
@@ -109,10 +106,6 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
     setMatchPlans: (plans: MatchPlan[]) => void;
 
-    // Portfolio History actions
-    addPortfolioEntry: (content: string, taskCount: number) => void;
-    deletePortfolioEntry: (id: string) => void;
-
     // Data management
     setIsLoading: (isLoading: boolean) => void;
     fetchTeamData: (teamId: string) => Promise<void>;
@@ -136,9 +129,7 @@ export const useAppStore = create<AppState>()(
             scoutingReports: [],
             checklist: DEFAULT_CHECKLIST_ITEMS,
             matchPlans: [],
-            portfolioHistory: [],
             theme: 'dark',
-            geminiApiKey: null,
 
             // Theme
             setTheme: (theme) => {
@@ -149,8 +140,6 @@ export const useAppStore = create<AppState>()(
                     document.documentElement.classList.remove('dark');
                 }
             },
-
-            setGeminiApiKey: (key) => set({ geminiApiKey: key }),
 
             // Team actions (top-level)
             setCurrentTeam: (teamId) => set({ currentTeamId: teamId }),
@@ -298,8 +287,6 @@ export const useAppStore = create<AppState>()(
                     } catch (err) {
                         console.warn('Error fetching checklists:', err);
                     }
-
-                    // Note: Portfolio entries are intentionally local-only (not synced to Supabase)
 
                 } catch (err) {
                     console.error('Error fetching team data:', err);
@@ -497,25 +484,6 @@ export const useAppStore = create<AppState>()(
 
             setMatchPlans: (matchPlans) => set({ matchPlans }),
 
-            // Portfolio History
-            addPortfolioEntry: (content, taskCount) => {
-                const entry: PortfolioEntry = {
-                    id: generateId(),
-                    content,
-                    createdAt: Date.now(),
-                    taskCount,
-                    seasonId: get().currentSeasonId || undefined,
-                };
-                set((state) => ({ portfolioHistory: [entry, ...state.portfolioHistory] }));
-            },
-
-            deletePortfolioEntry: (id) => {
-                set((state) => ({
-                    portfolioHistory: state.portfolioHistory.filter((e) => e.id !== id),
-                }));
-            },
-
-
 
             // Data management
             initializeStore: async () => {
@@ -543,7 +511,6 @@ export const useAppStore = create<AppState>()(
                     checklist: DEFAULT_CHECKLIST_ITEMS,
                     matchPlans: [],
                     teamMembers: [],
-                    portfolioHistory: [],
                     isLoading: false,
 
                     // Reset slices to initial values
@@ -566,12 +533,9 @@ export const useAppStore = create<AppState>()(
                 scoutingReports: state.scoutingReports,
                 checklist: state.checklist,
                 matchPlans: state.matchPlans,
-                portfolioHistory: state.portfolioHistory,
                 seasons: state.seasons,
                 currentSeasonId: state.currentSeasonId,
                 theme: state.theme,
-                // NOTE: geminiApiKey intentionally excluded — not persisted to
-                // IndexedDB for security. Users re-enter once per session.
             }),
             onRehydrateStorage: () => (state) => {
                 // Apply theme as soon as persisted state is rehydrated from IndexedDB

@@ -194,7 +194,6 @@ const SeasonManager: React.FC = () => {
                             <li>All sub-team assignments</li>
                             <li>All scouting reports</li>
                             <li>All match plans</li>
-                            <li>All portfolio entries</li>
                         </ul>
                         <p className="text-red-600 dark:text-red-400 text-sm font-medium mb-6">This action cannot be undone.</p>
                         <div className="flex justify-end gap-3">
