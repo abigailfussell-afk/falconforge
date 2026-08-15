@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, UserCheck, UserX, Crown, GraduationCap, DollarSign, Shield, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
-import { TeamMember } from '../types';
+import { TeamMember, MemberRole } from '../types';
 import { useCurrentUser } from '../lib/user-context';
 import { getMemberDisplayName } from '../lib/member-utils';
 
@@ -21,14 +21,34 @@ interface MemberManagerProps {
     onMembersChange: () => void;
 }
 
-type MemberRole = 'coach' | 'assistant_coach' | 'student';
+/**
+ * Roles this screen can assign.
+ *
+ * `admin` is deliberately absent. There is exactly one per team (a partial unique index
+ * enforces it) and moving it is a transfer, not an edit — `transfer_team_admin` demotes and
+ * promotes in one transaction because the index permits no moment with two. The admin
+ * console in Sprint 6 is where that lives.
+ */
+const ASSIGNABLE_ROLES: { value: MemberRole; label: string }[] = [
+    { value: 'student', label: 'Student' },
+    { value: 'mentor', label: 'Mentor' },
+    { value: 'coach', label: 'Coach' },
+];
 
 export default function MemberManager({ teamId, teamMembers, onMembersChange }: MemberManagerProps) {
     const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
-    const { isOffline } = useCurrentUser();
+    const { currentUser, isOffline } = useCurrentUser();
+
+    /**
+     * Seats are the admin's alone — `enforce_seat_capacity` refuses them to anyone else, so
+     * a coach shown this control would only ever get an error back. This is UX for a rule the
+     * database owns, not the rule itself.
+     */
+    const viewerIsAdmin =
+        teamMembers.find((m) => m.userId === currentUser?.id)?.role === 'admin';
 
     // Fetch pending members for this team
     const fetchPendingMembers = async () => {
@@ -91,8 +111,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
                 .update({ status: 'approved' })
                 .eq('id', memberId);
 
@@ -146,8 +166,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
                 .update({ role: newRole })
                 .eq('id', memberId);
 
@@ -165,23 +185,25 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         }
     };
 
-    // Toggle billing status
-    const toggleBillingStatus = async (memberId: string, currentStatus: boolean) => {
+    // Assign or release one of the team's licensed seats.
+    const toggleSeat = async (memberId: string, currentlyAssigned: boolean) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
-                .update({ is_billing_active: !currentStatus })
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
+                .update({ seat_assigned: !currentlyAssigned })
                 .eq('id', memberId);
 
+            // `enforce_seat_capacity` refuses this when the team has no seat left, so the
+            // message has to be the database's rather than a generic one.
             if (updateError) throw updateError;
             onMembersChange();
         } catch (err: any) {
-            console.error('Error toggling billing:', err);
-            setError('Failed to update billing status');
+            console.error('Error updating seat assignment:', err);
+            setError(err?.message || 'Failed to update seat assignment');
         } finally {
             setProcessingIds(prev => {
                 const next = new Set(prev);
@@ -221,8 +243,9 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     // Get role icon
     const getRoleIcon = (role: string) => {
         switch (role) {
-            case 'coach': return <Crown size={14} className="text-amber-500" />;
-            case 'assistant_coach': return <Shield size={14} className="text-blue-500" />;
+            case 'admin': return <Crown size={14} className="text-amber-500" />;
+            case 'coach': return <Shield size={14} className="text-blue-500" />;
+            case 'mentor': return <Shield size={14} className="text-emerald-500" />;
             default: return <GraduationCap size={14} className="text-slate-400" />;
         }
     };
@@ -347,34 +370,43 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                         <select
                                             value={member.role}
                                             onChange={(e) => updateMemberRole(member.id, e.target.value as MemberRole)}
-                                            disabled={processingIds.has(member.id)}
+                                            disabled={processingIds.has(member.id) || member.role === 'admin'}
                                             className="text-xs p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-50"
                                         >
-                                            <option value="student">Student</option>
-                                            <option value="assistant_coach">Assistant Coach</option>
-                                            <option value="coach">Coach</option>
+                                            {ASSIGNABLE_ROLES.map((role) => (
+                                                <option key={role.value} value={role.value}>{role.label}</option>
+                                            ))}
+                                            {/* The admin's own row shows their role rather than
+                                                silently rendering as whatever sorts first. */}
+                                            {member.role === 'admin' && (
+                                                <option value="admin">Team Admin</option>
+                                            )}
                                         </select>
 
-                                        {/* Billing Toggle */}
+                                        {/* Licensed seat. Read-only for anyone but the admin. */}
                                         <button
-                                            onClick={() => toggleBillingStatus(member.id, member.isBillingActive)}
-                                            disabled={processingIds.has(member.id)}
-                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition disabled:opacity-50 ${member.isBillingActive
+                                            onClick={() => toggleSeat(member.id, member.seatAssigned)}
+                                            disabled={processingIds.has(member.id) || !viewerIsAdmin}
+                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition disabled:opacity-50 ${member.seatAssigned
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                                 : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
                                                 }`}
-                                            title={member.isBillingActive ? 'Billing Active' : 'Billing Inactive'}
+                                            title={
+                                                viewerIsAdmin
+                                                    ? (member.seatAssigned ? 'Holds a licensed seat' : 'No seat assigned')
+                                                    : 'Only the team admin can assign licensed seats'
+                                            }
                                         >
                                             <DollarSign size={12} />
-                                            {member.isBillingActive ? 'Active' : 'Inactive'}
+                                            {member.seatAssigned ? 'Seated' : 'No seat'}
                                         </button>
 
                                         {/* Remove Button */}
                                         <button
                                             onClick={() => removeMember(member.id)}
-                                            disabled={processingIds.has(member.id) || member.role === 'coach'}
+                                            disabled={processingIds.has(member.id) || member.role === 'admin'}
                                             className="p-1.5 text-slate-400 hover:text-red-500 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title={member.role === 'coach' ? 'Cannot remove coach' : 'Remove from team'}
+                                            title={member.role === 'admin' ? 'Transfer the admin role before removing this member' : 'Remove from team'}
                                         >
                                             <X size={16} />
                                         </button>

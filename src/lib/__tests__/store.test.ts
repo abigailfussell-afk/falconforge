@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useAppStore } from '../store';
+import { useAppStore, selectChecklist } from '../store';
+/**
+ * A season for the store to work in.
+ *
+ * Every season-scoped action refuses to run without one now: `season_id` is NOT NULL in the
+ * schema, so a task, report, plan or checklist item created with no season could never be
+ * pushed. `checklist()` reads the current season's list, which is what the UI does.
+ */
+const SEASON_ID = '00000000-0000-4000-8000-0000000000aa';
+const checklist = () => selectChecklist(useAppStore.getState());
+
 
 // The store persists through `indexedDBStorage`; jsdom has no IndexedDB, and this suite is
 // about store actions rather than persistence.
@@ -14,8 +24,9 @@ describe('AppStore', () => {
         // Reset store to initial state before each test
         useAppStore.setState({
             tasks: [],
-            checklist: [],
+            checklistsBySeason: {},
             scoutingReports: [],
+            currentSeasonId: SEASON_ID,
             theme: 'dark',
         });
     });
@@ -94,36 +105,35 @@ describe('AppStore', () => {
 
             store.addChecklistItem('New checklist item');
 
-            const checklist = useAppStore.getState().checklist;
-            expect(checklist).toHaveLength(1);
-            expect(checklist[0].text).toBe('New checklist item');
-            expect(checklist[0].checked).toBe(false);
+            expect(checklist()).toHaveLength(1);
+            expect(checklist()[0].text).toBe('New checklist item');
+            expect(checklist()[0].checked).toBe(false);
         });
 
         it('should toggle a checklist item', () => {
             const store = useAppStore.getState();
 
             store.addChecklistItem('Toggle me');
-            const itemId = useAppStore.getState().checklist[0].id;
+            const itemId = checklist()[0].id;
 
             // Toggle to checked
             store.toggleChecklistItem(itemId);
-            expect(useAppStore.getState().checklist[0].checked).toBe(true);
+            expect(checklist()[0].checked).toBe(true);
 
             // Toggle back to unchecked
             store.toggleChecklistItem(itemId);
-            expect(useAppStore.getState().checklist[0].checked).toBe(false);
+            expect(checklist()[0].checked).toBe(false);
         });
 
         it('should delete a checklist item', () => {
             const store = useAppStore.getState();
 
             store.addChecklistItem('Delete me');
-            const itemId = useAppStore.getState().checklist[0].id;
-            expect(useAppStore.getState().checklist).toHaveLength(1);
+            const itemId = checklist()[0].id;
+            expect(checklist()).toHaveLength(1);
 
             store.deleteChecklistItem(itemId);
-            expect(useAppStore.getState().checklist).toHaveLength(0);
+            expect(checklist()).toHaveLength(0);
         });
     });
 
@@ -240,7 +250,7 @@ describe('AppStore', () => {
                     {
                         id: 'task-1', title: 'Dirty', description: '', status: 'To Do' as const,
                         type: 'Feature' as const, assignedTo: '', department: '', tags: [],
-                        checklist: [], timeline: [], createdAt: 1000,
+                        checklist: [], timeline: [], createdAt: 1000, seasonId: SEASON_ID,
                     },
                 ],
                 scoutingReports: [
@@ -248,11 +258,11 @@ describe('AppStore', () => {
                         id: 'sr-1', teamNumber: '12345', matchNumber: 1, hasAutonomous: false,
                         autoScore: 0, intakeType: 'No Intake' as const, autoAim: false,
                         farShooting: false, shotsTaken: 0, shotsMissed: 0,
-                        parking: 'No Park' as const, rating: 1, endGameNotes: '',
+                        parking: 'No Park' as const, rating: 1, endGameNotes: '', seasonId: SEASON_ID,
                     },
                 ],
-                checklist: [{ id: 'cl-1', text: 'Dirty item', checked: true }],
-                matchPlans: [{ id: 'mp-1', title: 'Plan 1', notes: 'Dirty', drawingData: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1000 }],
+                checklistsBySeason: { [SEASON_ID]: [{ id: 'cl-1', text: 'Dirty item', checked: true }] },
+                matchPlans: [{ id: 'mp-1', title: 'Plan 1', notes: 'Dirty', drawingData: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1000, seasonId: SEASON_ID }],
                 isLoading: true,
             });
 
@@ -273,8 +283,19 @@ describe('AppStore', () => {
             expect(state.scoutingReports).toHaveLength(0);
             expect(state.matchPlans).toHaveLength(0);
             expect(state.isLoading).toBe(false);
-            // Seasons should be reset to default (1 default season)
-            expect(state.seasons).toHaveLength(1);
+            expect(state.checklistsBySeason).toEqual({});
+
+            // NOTHING is seeded any more, seasons included.
+            //
+            // This used to assert one default season, because the store held a
+            // `DEFAULT_SEASON` with a hardcoded uuid. That season existed on no server, and
+            // `season_id` is NOT NULL with a composite foreign key, so every task created
+            // under it was unpushable — a signed-out device that started collecting work
+            // before the first pull was collecting it into a season that could never sync.
+            // A team's seasons come from `create_team_as_admin` now.
+            expect(state.seasons).toHaveLength(0);
+            expect(state.currentSeasonId).toBeNull();
+            expect(state.subTeams).toHaveLength(0);
         });
     });
 
@@ -367,26 +388,26 @@ describe('AppStore', () => {
 
     describe('Additional Checklist Actions', () => {
         beforeEach(() => {
-            useAppStore.setState({ checklist: [] });
+            useAppStore.setState({ checklistsBySeason: {}, currentSeasonId: SEASON_ID });
         });
 
         it('should reset checklist', () => {
             const store = useAppStore.getState();
             store.addChecklistItem('Item 1');
-            store.toggleChecklistItem(useAppStore.getState().checklist[0].id);
-            expect(useAppStore.getState().checklist[0].checked).toBe(true);
+            store.toggleChecklistItem(checklist()[0].id);
+            expect(checklist()[0].checked).toBe(true);
             
             store.resetChecklist();
-            expect(useAppStore.getState().checklist[0].checked).toBe(false);
+            expect(checklist()[0].checked).toBe(false);
         });
 
         it('should update checklist assignment', () => {
             const store = useAppStore.getState();
             store.addChecklistItem('Item 1');
-            const itemId = useAppStore.getState().checklist[0].id;
+            const itemId = checklist()[0].id;
             
             store.updateChecklistAssignment(itemId, 'member-1');
-            expect(useAppStore.getState().checklist[0].assignedTo).toBe('member-1');
+            expect(checklist()[0].assignedTo).toBe('member-1');
         });
 
         it('should move checklist item up or down', () => {
@@ -394,28 +415,28 @@ describe('AppStore', () => {
             store.addChecklistItem('Item 1');
             store.addChecklistItem('Item 2');
             
-            const id1 = useAppStore.getState().checklist[0].id;
-            const id2 = useAppStore.getState().checklist[1].id;
+            const id1 = checklist()[0].id;
+            const id2 = checklist()[1].id;
             
             store.moveChecklistItem(id2, 'up');
-            expect(useAppStore.getState().checklist[0].id).toBe(id2);
-            expect(useAppStore.getState().checklist[1].id).toBe(id1);
+            expect(checklist()[0].id).toBe(id2);
+            expect(checklist()[1].id).toBe(id1);
             
             store.moveChecklistItem(id2, 'down'); // Undo it
-            expect(useAppStore.getState().checklist[0].id).toBe(id1);
-            expect(useAppStore.getState().checklist[1].id).toBe(id2);
+            expect(checklist()[0].id).toBe(id1);
+            expect(checklist()[1].id).toBe(id2);
         });
         
         it('ignores move out of bounds or not found', () => {
             const store = useAppStore.getState();
             store.addChecklistItem('Item 1');
-            const id1 = useAppStore.getState().checklist[0].id;
+            const id1 = checklist()[0].id;
             
             store.moveChecklistItem(id1, 'up'); // Can't move up
-            expect(useAppStore.getState().checklist[0].id).toBe(id1);
+            expect(checklist()[0].id).toBe(id1);
             
             store.moveChecklistItem(id1, 'down'); // Can't move down
-            expect(useAppStore.getState().checklist[0].id).toBe(id1);
+            expect(checklist()[0].id).toBe(id1);
             
             store.moveChecklistItem('invalid-id', 'up'); // Not found
         });

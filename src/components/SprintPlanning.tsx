@@ -32,6 +32,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     const storeUpdateTask = useAppStore((state) => state.updateTask);
     const storeDeleteTask = useAppStore((state) => state.deleteTask);
     const currentTeamId = useAppStore((state) => state.currentTeamId);
+    // The draft task below is a real `Task` before it is saved, and `Task.seasonId` is
+    // required now that `tasks.season_id` is NOT NULL.
+    const currentSeasonId = useAppStore((state) => state.currentSeasonId);
 
     // Background refresh — fetches latest tasks when this page is visited
     useTasksQuery(currentTeamId);
@@ -61,6 +64,10 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     };
 
     const createNewTask = () => {
+        // `tasks.season_id` is NOT NULL, so a task drafted with no season could never be
+        // saved. The button is disabled in the same condition; this is the guard behind it.
+        if (!currentSeasonId) return;
+
         const newTask: Task = {
             id: Date.now().toString(),
             title: 'New Task',
@@ -72,7 +79,8 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
             tags: [],
             checklist: [],
             timeline: [],
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            seasonId: currentSeasonId
         };
         setActiveTask(newTask);
         setIsNewTask(true);
@@ -203,7 +211,9 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
 
                     <button
                         onClick={createNewTask}
-                        className="flex items-center justify-center gap-2 bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-orange-700 transition"
+                        disabled={!currentSeasonId}
+                        title={currentSeasonId ? 'New item' : 'Select a season first'}
+                        className="flex items-center justify-center gap-2 bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-orange-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <Plus size={20} /><span className="hidden md:inline">New Item</span>
                     </button>

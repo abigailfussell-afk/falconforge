@@ -57,12 +57,12 @@ vi.mock('@/lib/store', () => {
         scoutingReports: [{ id: 'sr-1' }],
         matchPlans: [{ id: 'mp-1' }],
         subTeams: [{ id: 'st-1' }],
-        checklist: [{ id: 'cl-1', text: 'Test', checked: false }],
+        checklistsBySeason: { 'season-1': [{ id: 'cl-1', text: 'Test', checked: false }] },
         setTasks: vi.fn(),
         setScoutingReports: vi.fn(),
         setMatchPlans: vi.fn(),
         setSubTeams: vi.fn(),
-        setChecklist: vi.fn(),
+        setChecklistForSeason: vi.fn(),
     };
     return {
         useAppStore: {
@@ -220,10 +220,13 @@ describe('realtime', () => {
             expect(store.setSubTeams).toHaveBeenCalledWith([]);
         });
 
-        it('should clear checklist on delete', () => {
-            handleRealtimeDelete('checklists', 'cl-1');
+        it('should clear the deleted season’s checklist', () => {
+            // The checklist row id IS the season id (blob sync has no per-record identity,
+            // so the id has to be derived from something two offline devices already agree
+            // on). A DELETE therefore names the season whose list went away.
+            handleRealtimeDelete('checklists', 'season-1');
             const store = useAppStore.getState();
-            expect(store.setChecklist).toHaveBeenCalledWith([]);
+            expect(store.setChecklistForSeason).toHaveBeenCalledWith('season-1', []);
         });
 
         it('should not throw for unknown table names', () => {

@@ -1,9 +1,16 @@
 -- Schema assertions, run against the local stack after `supabase db reset`.
 --
--- Purpose: prove that supabase/migrations/ alone can reconstruct the database. Until
--- 2026-08-09 it could not -- the migration history began at 009 and the 001-008 that
+-- Purpose: prove that supabase/migrations/ alone can reconstruct the database, and that the
+-- reconstruction holds the invariants the application relies on. Until 2026-08-09 the
+-- migrations could not rebuild anything — the history began at 009 and the 001-008 that
 -- created the tables were never committed, so the cloud project was the only source of
 -- truth. If this file starts failing, that has silently become true again.
+--
+-- These run as `postgres`, who has every privilege regardless of RLS. They can therefore
+-- prove a policy EXISTS but never what it PERMITS. That question is asked by the behavioural
+-- suite in `src/test/db/`, which connects as the real API roles over HTTP. Neither file is
+-- sufficient alone: this one catches a schema that cannot be built, that one catches a
+-- schema that can be built and is wrong.
 --
 -- Run locally:
 --   supabase db reset
@@ -20,13 +27,16 @@ DECLARE
     missing text;
 BEGIN
     SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO missing
-    -- 11 tables. sub_team_members is deliberately NOT here: 013 creates it and the security
-    -- audit alters it, but it does not exist in the hosted project (verified 2026-08-09 via
-    -- PostgREST -> PGRST205). Local must mirror production, not the migration fiction.
     FROM unnest(ARRAY[
-        'checklists', 'invites', 'match_plans', 'scouting_reports', 'seasons',
-        'sub_teams', 'tasks', 'team_members', 'teams',
-        'user_attestations', 'users'
+        -- identity
+        'users', 'user_attestations', 'managed_profiles', 'guardian_consents',
+        -- tenant
+        'teams', 'team_members', 'invites',
+        -- licensing
+        'platform_operators', 'license_grants',
+        -- season-scoped
+        'seasons', 'sub_teams', 'tasks', 'scouting_reports', 'match_plans', 'checklists',
+        'meetings', 'meeting_attendance'
     ]) AS expected(name)
     WHERE NOT EXISTS (
         SELECT 1 FROM information_schema.tables
@@ -43,7 +53,7 @@ END $$;
 -- 2. Row Level Security is enabled on every public table.
 --    A table without RLS is readable by any authenticated user via the anon key, which
 --    ships in the client bundle. This is the check that would have caught the invite-code
---    exposure patched in 014_fix_invites_rls.sql.
+--    exposure patched in the archived 014_fix_invites_rls.sql.
 DO $$
 DECLARE
     unprotected text;
@@ -79,22 +89,21 @@ BEGIN
     END IF;
 END $$;
 
--- 4. The delta-sync contract: every table pulled incrementally by sync.ts must have an
---    updated_at column. sync.ts filters with `query.gte('updated_at', ...)`, and a missing
---    column makes that query error; pullChangesFromServer swallows it into a console.warn
---    and moves on, so the table just quietly stops delta-syncing.
+-- 4. The delta-sync contract: every table pulled incrementally by the read path must have an
+--    updated_at column. `pullFromServer` filters with `query.gte('updated_at', cursor)`, and
+--    a missing column makes that query error; the pull swallows it into a console.warn and
+--    moves on, so the table just quietly stops delta-syncing.
 --
---    015_delta_sync_columns.sql adds these to scouting_reports, sub_teams and seasons. The
---    2026-03-08 backup this baseline came from does NOT contain them despite being dated the
---    same day, so either the backup predates that migration or the migration never reached
---    production. UNVERIFIED against production -- see the note in the baseline migration.
+--    team_members is in this list as of V2. It had no updated_at, which is why the roster
+--    could only ever refresh on a team switch.
 DO $$
 DECLARE
     missing text;
 BEGIN
     SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO missing
     FROM unnest(ARRAY[
-        'tasks', 'seasons', 'sub_teams', 'match_plans', 'checklists', 'scouting_reports'
+        'tasks', 'seasons', 'sub_teams', 'match_plans', 'checklists', 'scouting_reports',
+        'team_members', 'meetings', 'meeting_attendance'
     ]) AS expected(name)
     WHERE NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -139,7 +148,7 @@ END $$;
 --    schema the application could not read a single row of, and nothing here noticed --
 --    these assertions run as `postgres`, who has full rights regardless.
 --
---    Granting to `anon` is safe only because assertion 1 above proves RLS is enabled on
+--    Granting to `anon` is safe only because assertion 2 above proves RLS is enabled on
 --    every one of these tables. The two go together; do not keep this and drop that.
 DO $$
 DECLARE
@@ -159,6 +168,205 @@ BEGIN
 
     IF offenders IS NOT NULL THEN
         RAISE EXCEPTION 'Tables the API roles cannot use (missing GRANTs): %', offenders;
+    END IF;
+END $$;
+
+-- 6b. Same, for views. `pg_tables` does not list them, so assertion 6 cannot see
+--     `team_entitlement` -- and a view the client cannot select from is exactly as dead as a
+--     table it cannot select from.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s (%s)', v.viewname, r.role), ', ' ORDER BY v.viewname, r.role)
+      INTO offenders
+    FROM pg_views v
+    CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(role)
+    WHERE v.schemaname = 'public'
+      AND NOT has_table_privilege(r.role, format('public.%I', v.viewname), 'SELECT');
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'Views the API roles cannot select from (missing GRANTs): %', offenders;
+    END IF;
+END $$;
+
+-- 7. Season scoping is NOT NULL, and the reference is COMPOSITE.
+--
+--    NOT NULL is what makes "a new season is a fresh start" a property of the schema. The
+--    client used to filter with `!x.seasonId || x.seasonId === current` in five places, so a
+--    row with a null season leaked into every season that ever existed.
+--
+--    The composite `(season_id, team_id) -> seasons (id, team_id)` is what makes a
+--    cross-tenant reference impossible rather than merely unlikely. A plain `season_id` FK
+--    would let a row in team A point at team B's season and RLS would never notice, because
+--    every policy looks only at `team_id`.
+DO $$
+DECLARE
+    nullable text;
+    uncoupled text;
+BEGIN
+    SELECT string_agg(c.table_name, ', ' ORDER BY c.table_name) INTO nullable
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.column_name = 'season_id'
+      AND c.is_nullable = 'YES';
+
+    IF nullable IS NOT NULL THEN
+        RAISE EXCEPTION 'Season-scoped tables with a nullable season_id: %', nullable;
+    END IF;
+
+    SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO uncoupled
+    FROM unnest(ARRAY[
+        'sub_teams', 'tasks', 'scouting_reports', 'match_plans', 'checklists', 'meetings'
+    ]) AS expected(name)
+    WHERE NOT EXISTS (
+        -- A foreign key on this table covering exactly (season_id, team_id).
+        SELECT 1
+        FROM pg_constraint fk
+        JOIN pg_class rel ON rel.oid = fk.conrelid
+        JOIN pg_namespace n ON n.oid = rel.relnamespace
+        WHERE fk.contype = 'f'
+          AND n.nspname = 'public'
+          AND rel.relname = expected.name
+          AND (
+              SELECT array_agg(att.attname::text ORDER BY att.attname::text)
+              FROM unnest(fk.conkey) AS k(attnum)
+              JOIN pg_attribute att
+                ON att.attrelid = fk.conrelid AND att.attnum = k.attnum
+          ) = ARRAY['season_id', 'team_id']
+    );
+
+    IF uncoupled IS NOT NULL THEN
+        RAISE EXCEPTION
+            'Season-scoped tables without a composite (season_id, team_id) FK: %', uncoupled;
+    END IF;
+END $$;
+
+-- 8. Every tenant table carries a NOT NULL team_id.
+--    RLS scopes on it, sync filters on it, and a nullable one is a row no policy matches and
+--    no client ever sees again.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO offenders
+    FROM unnest(ARRAY[
+        'team_members', 'invites', 'license_grants', 'seasons', 'sub_teams', 'tasks',
+        'scouting_reports', 'match_plans', 'checklists', 'meetings', 'meeting_attendance'
+    ]) AS expected(name)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = expected.name
+          AND column_name = 'team_id'
+          AND is_nullable = 'NO'
+    );
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'Tenant tables without a NOT NULL team_id: %', offenders;
+    END IF;
+END $$;
+
+-- 9. Every content table has exactly one policy per verb.
+--
+--    V1's `team_members` had FIVE overlapping SELECT policies. Policies for a verb OR
+--    together, so the effective rule was the union of five half-remembered intentions with
+--    no single place to read it. One per verb is the rule V2 holds itself to; a second
+--    SELECT policy appearing on a table is how that drift starts again.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s.%s x%s', t.name, v.cmd, counted.n), ', ') INTO offenders
+    FROM unnest(ARRAY[
+        'tasks', 'scouting_reports', 'match_plans', 'checklists', 'meetings',
+        'meeting_attendance', 'seasons', 'sub_teams', 'team_members', 'invites'
+    ]) AS t(name)
+    CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) AS v(cmd)
+    CROSS JOIN LATERAL (
+        SELECT count(*) AS n FROM pg_policies p
+        WHERE p.schemaname = 'public' AND p.tablename = t.name AND p.cmd = v.cmd
+    ) counted
+    WHERE counted.n <> 1;
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'Tables without exactly one policy per verb: %', offenders;
+    END IF;
+END $$;
+
+-- 10. Every SECURITY DEFINER function pins its search_path.
+--
+--     A SECURITY DEFINER function runs with the owner's privileges. If it resolves an
+--     unqualified name through a caller-controlled search_path, the caller chooses which
+--     `users` table the function reads -- which is a privilege-escalation primitive, not a
+--     style question. Every authorization predicate in this schema is SECURITY DEFINER.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(p.proname, ', ' ORDER BY p.proname) INTO offenders
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef
+      AND NOT EXISTS (
+          SELECT 1 FROM unnest(coalesce(p.proconfig, ARRAY[]::text[])) AS cfg
+          WHERE cfg LIKE 'search_path=%'
+      );
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'SECURITY DEFINER functions with an unpinned search_path: %', offenders;
+    END IF;
+END $$;
+
+-- 11. Exactly one admin per team is enforced by an index, not by hope.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'team_members'
+          AND indexname = 'team_members_one_admin_per_team'
+    ) THEN
+        RAISE EXCEPTION 'The one-admin-per-team unique index is missing';
+    END IF;
+END $$;
+
+-- 12. `team_entitlement` is security_invoker.
+--
+--     Without it a view executes as its OWNER (postgres), which bypasses RLS on every table
+--     it reads. This view reads `license_grants` and `team_members`, so a non-invoker
+--     version would hand any authenticated user the licensing state and seat counts of
+--     every team on the platform. This is the single most dangerous line in the schema to
+--     lose, and it is invisible in the view definition itself.
+DO $$
+DECLARE
+    opts text[];
+BEGIN
+    SELECT c.reloptions INTO opts
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'team_entitlement';
+
+    IF opts IS NULL OR NOT ('security_invoker=true' = ANY (opts)) THEN
+        RAISE EXCEPTION
+            'team_entitlement is not security_invoker -- it leaks every team''s licensing state';
+    END IF;
+END $$;
+
+-- 13. The checklist is one per season, per team (C6).
+--     V1 had one row per TEAM, so a new season inherited the previous season's checklist and
+--     the "fresh start" was not one. The partial unique index is what lets two offline
+--     devices in the same season converge on a single row instead of creating two.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'checklists'
+          AND indexname = 'checklists_one_per_season'
+    ) THEN
+        RAISE EXCEPTION 'The one-checklist-per-season unique index is missing';
     END IF;
 END $$;
 

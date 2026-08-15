@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
-import { useAppStore } from '../lib/store';
+import { useAppStore, selectChecklist } from '../lib/store';
 import { getMemberDisplayName } from '../lib/member-utils';
 
 const PreMatchChecklist: React.FC = () => {
@@ -8,7 +8,9 @@ const PreMatchChecklist: React.FC = () => {
     const [newChecklistItem, setNewChecklistItem] = useState('');
 
     // Get checklist and actions from the store (sync-enabled)
-    const checklist = useAppStore((state) => state.checklist);
+    // `selectChecklist` resolves the current season's list — one row per season now (C6),
+    // so which list this is depends on the season picker, not on the team.
+    const checklist = useAppStore(selectChecklist);
     const toggleChecklistItem = useAppStore((state) => state.toggleChecklistItem);
     const resetChecklist = useAppStore((state) => state.resetChecklist);
     const addChecklistItem = useAppStore((state) => state.addChecklistItem);

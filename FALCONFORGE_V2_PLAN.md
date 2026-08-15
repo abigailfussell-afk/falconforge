@@ -315,11 +315,60 @@ the final walkthrough and tags `v2.0.0-beta`.
 | 2026-08-15 | Sprint 2 — Data-layer unification & test truth (C3, C5, C7, local-Postgres harness, drain/auth tests, mock narrowing) | `v2/sprint-2-data-layer` | **Complete, merged to `main`.** Gate + `db:verify` + `test:rls` green (lint / 272 unit / 83 integration / 211 db / build). Three read paths → one (`server-pull.ts`). 180-assertion tenant-isolation suite against real Postgres. `sync.ts` branch coverage **13% → 84.6%**; merged coverage now measures all three suites (68.5/63.7/64.9/70.7). Global unit mocks → per-file opt-in. `as any` 82 → 66. C3 verified in the browser end-to-end. |
 | 2026-08-15 | Follow-on fixes: **B19** failed pushes never retried automatically; **B20** a new team's seeded checklist wiped on first load | `v2/sync-retry-schedule` | **Complete, merged to `main`.** Both found by running the app / reviewing the diff rather than by the suite. B19: self-re-arming backoff schedule (3s/15s/60s/3m/5m) reading the queue instead of React state; offline periods consume no retry attempts. B20: zero checklist rows now leaves local state alone — an emptied checklist still propagates as a row with `items: []`. Six regression tests against real Postgres; each verified to fail without its fix. Gate green (217 db tests). |
 | 2026-08-15 | **Missing API-role grants** — migrations rebuilt a database PostgREST could not use | `main` | **Complete, pushed.** Found when the new `test:db` CI step went red on first push: `permission denied for table teams` from the service-role client. Not a CI defect — the migrations genuinely produced an unusable schema, invisible to `schema_assertions.sql` because those run as `postgres`. Added the grants migration + default privileges, a schema assertion guarding it, and pinned the local CLI to CI's version. CI and Deploy green; falcon-forge.com serving. **See the parking lot before squashing migrations.** |
+| 2026-08-15 | Sprint 3 — V2 schema: tenancy, roles, licensing, guardians, meetings. **Schema frozen.** | `v2/sprint-3-schema` | **Complete.** Gate + `db:verify` + `test:rls` green (lint / 272 unit / 83 integration / 299 db / 258 rls / build). 7 migrations squashed to 6; the API-role grants survived intact. Roles are admin\|coach\|mentor\|student with a one-admin index and an 18+ trigger; four capability functions replace `is_team_coach`; `team_members`' five SELECT policies became one. `license_grants` + a `security_invoker` `team_entitlement` view make an expired team read-only *in the database*. Guardian and meetings tables landed schema-only. `season_id` is NOT NULL everywhere with composite `(season_id, team_id)` FKs, checklists are per-season (C6), and the `!x.seasonId \|\|` filters are deleted. **Found and closed B21**, a cross-tenant privilege escalation in the V1 policies. Schema assertions 6 → 14, RLS suite 180 → 258. Verified in the browser end to end: register → seeded season/sub-teams/checklist → edits sync. |
 
 **Discovered / parking lot:**
 
+*From Sprint 3:*
+- **✅ B21 patched on production 2026-08-15** (`ALTER POLICY` on the hosted project, verified
+  before and after) and fixed permanently in the V2 policies. The V1 `team_members` INSERT
+  policy allowed `user_id = auth.uid()`, so any authenticated user could insert themselves
+  into any team as an approved coach. The lesson for future suites is in the sprint report:
+  every cross-tenant INSERT the C7 suite tried named the *victim's* user id, so 180
+  assertions passed over an escalation that only needed the attacker to name themselves.
+- **The trial licence in `create_team_as_admin` is temporary and must be removed when
+  billing goes live.** A team with no licence is read-only, so self-serve registration has
+  to leave the team entitled or the app is dead on arrival; the RPC therefore issues a
+  90-day unlimited gift grant. Sprint 6's operator gifting replaces it for real teams and
+  Sprint 10's Stripe webhook replaces it permanently. Delete the `INSERT INTO license_grants`
+  block in that function and registration becomes "create team, then pay".
+- **An unlicensed team's writes fail silently in the UI.** Verified in the browser: with the
+  licence revoked, creating a task showed the card, the server refused the insert (403), and
+  the sync indicator said "1 pending" with no reason given. The engine is behaving correctly
+  — it retries, then dead-letters — but two things belong in Sprint 6 alongside the
+  "expired team → read-only banner": the client should read `team_entitlement` and stop
+  offering writes, and an entitlement refusal should be treated as TERMINAL rather than
+  consuming five retries, since it will never succeed on its own.
+- **Seat assignment is admin-only, enforced in a trigger, and the UI half is a stub.**
+  `enforce_seat_capacity` now refuses both over-assignment and assignment by anyone who is
+  not the team admin (`service_role` is exempt — it is what Stripe's webhook will use in
+  Sprint 10). `MemberManager` disables the control for non-admins, but that screen is a
+  Sprint 6 rewrite: the real admin console is where seat assignment gets a proper flow,
+  including showing "12 of 15 seats" from `team_entitlement` rather than a per-row toggle
+  with no total in sight.
+- **`platform_operators` starts empty and there is no UI for it.** Kevin must insert his own
+  row with the service key before `grant_team_license` will do anything; the SQL is in
+  `docs/v2-schema.md`. Sprint 6 owns the operator gifting UI.
+- **Guardian visibility is deliberately narrow, and depends on two predicates agreeing.**
+  `get_user_team_ids` and `is_team_member` both exclude managed rows; both have to be wrong
+  before anything leaks, which is why breaking only one of them left the guardian tests
+  green during adversarial verification. Widening guardian access is a product decision for
+  Sprint 9 — if it is widened, change both and re-check the roster assertion.
+- **`meetings`, `meeting_attendance`, `managed_profiles`, `guardian_consents` and
+  `license_grants` are not in the entity registry.** They have no client consumers yet, and
+  a registry entry with nothing reading it is dead code. Sprint 6 (licensing UI), Sprint 8
+  (meetings) and Sprint 9 (guardians) add them — with round-trip tests, like every other
+  entity.
+- **The store's per-season checklist has no UI for switching seasons yet.** `checklistsBySeason`
+  is keyed correctly and the read path fills every season it receives, so switching seasons
+  is instant — but the only season control is the sidebar picker, and Sprint 4's rollover work
+  is what will exercise it properly.
+- **`transfer_team_admin` has no caller.** Written because the one-admin unique index makes
+  a client-side promote-then-demote impossible, and tested at the SQL level, but nothing in
+  the UI calls it until the Sprint 6 admin console.
+
 *From Sprint 2:*
-- **🔴 READ BEFORE SQUASHING MIGRATIONS (Sprint 3).** Our migrations create tables with **no
+- **✅ RESOLVED IN SPRINT 3** — was: **🔴 READ BEFORE SQUASHING MIGRATIONS (Sprint 3).** Our migrations create tables with **no
   DML grants for the API roles**. Supabase used to configure default privileges so anything
   created in `public` was granted to `anon`/`authenticated`/`service_role` automatically;
   newer stack versions do not, so tables came out with only REFERENCES/TRIGGER/TRUNCATE and
@@ -327,9 +376,10 @@ the final walkthrough and tags `v2.0.0-beta`.
   `supabase/migrations/` produced a database the app could not read a single row of. The
   hosted project predates the change and has the grants, so nothing was visibly broken —
   the gap was only ever in a rebuild, which is exactly what the Sprint 3 squash is.
-  Fixed by `20260815000000_api_role_grants.sql`; **that file's contents must survive the
-  squash**, including the `ALTER DEFAULT PRIVILEGES` half, or every table Sprint 3 adds
-  will have the same problem. Assertion 6 in `schema_assertions.sql` now fails if any
+  Fixed by `20260815000000_api_role_grants.sql`; that file's contents had to survive the
+  squash, including the `ALTER DEFAULT PRIVILEGES` half, or every table Sprint 3 adds
+  would have had the same problem. **They did** — `20260816000500_v2_grants.sql` carries
+  them, keeps the note, and is documented as having to stay last in the file order. Assertion 6 in `schema_assertions.sql` now fails if any
   public table is missing SELECT/INSERT/UPDATE/DELETE for any of the three roles.
   Note the coupling: granting DML to `anon` is safe *only* because RLS is enabled
   everywhere and default-deny (assertion 1, plus the anon block of the RLS suite). Do not
@@ -364,9 +414,10 @@ the final walkthrough and tags `v2.0.0-beta`.
   which needs a stub, and it is per-file and visible rather than a hidden global. The real
   drain and pull are covered against Postgres now. Worth deleting when the hook's scheduling
   is reworked for the retry bug above.
-- **`team_members` has no `updated_at`,** so it can never take part in delta pulls and is
-  deliberately excluded from the background sync loop — the roster only refreshes on team
-  switch. Add the column in Sprint 3 if live roster updates are wanted.
+- **✅ FIXED in Sprint 3** — was: `team_members` has no `updated_at`, so it can never take
+  part in delta pulls. The column and its trigger exist now and assertion 4 covers it. The
+  table is still excluded from the background sync loop; wiring it in is a separate change
+  and belongs wherever live roster updates are actually wanted.
 - **`transformers.ts` is now a thin shim** over the registry with two remaining callers'
   worth of value. Delete it when Sprint 5 touches the components that import it.
 - **The demo/dev flow needs a seed script.** Setting up a local team to click through took a

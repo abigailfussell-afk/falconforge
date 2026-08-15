@@ -30,6 +30,7 @@ const mockTasks: Task[] = [
         checklist: [],
         timeline: [],
         createdAt: Date.now(),
+        seasonId: 'season-1',
     },
     {
         id: 'task-2',
@@ -43,6 +44,7 @@ const mockTasks: Task[] = [
         checklist: [{ id: 'c1', text: 'Test path', completed: false }],
         timeline: [],
         createdAt: Date.now(),
+        seasonId: 'season-1',
     },
     {
         id: 'task-3',
@@ -56,17 +58,18 @@ const mockTasks: Task[] = [
         checklist: [],
         timeline: [],
         createdAt: Date.now(),
+        seasonId: 'season-1',
     },
 ];
 
 const mockTeamMembers: TeamMember[] = [
-    { id: 'member-1', teamId: 'team-1', userId: 'user-1', fullName: 'John Doe', email: 'john@test.com', role: 'student', status: 'approved', isBillingActive: false, avatarUrl: null, joinedAt: Date.now() },
-    { id: 'member-2', teamId: 'team-1', userId: 'user-2', fullName: 'Jane Smith', email: 'jane@test.com', role: 'coach', status: 'approved', isBillingActive: true, avatarUrl: null, joinedAt: Date.now() },
+    { id: 'member-1', teamId: 'team-1', userId: 'user-1', fullName: 'John Doe', email: 'john@test.com', role: 'student', status: 'approved', seatAssigned: false, avatarUrl: null, joinedAt: Date.now() },
+    { id: 'member-2', teamId: 'team-1', userId: 'user-2', fullName: 'Jane Smith', email: 'jane@test.com', role: 'coach', status: 'approved', seatAssigned: true, avatarUrl: null, joinedAt: Date.now() },
 ];
 
 const mockSubTeams: SubTeam[] = [
-    { id: 'subteam-1', name: 'Build Team', memberIds: ['member-1'] },
-    { id: 'subteam-2', name: 'Programming', memberIds: ['member-2'] },
+    { id: 'subteam-1', name: 'Build Team', memberIds: ['member-1'], seasonId: 'season-1' },
+    { id: 'subteam-2', name: 'Programming', memberIds: ['member-2'], seasonId: 'season-1' },
 ];
 
 const mockStore = {

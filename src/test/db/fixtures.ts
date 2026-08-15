@@ -1,15 +1,20 @@
 /**
- * Two tenants, five real users, and the rows they own — built against the real database.
+ * Two tenants, their people, and the rows they own — built against the real database.
  *
  * Fixtures are created with the service-role client, which bypasses RLS. That is the only
  * legitimate use for it: a test has to be able to create the row it then proves somebody
  * else cannot reach. Assertions always run through {@link TestUser.client}, which carries
  * a real JWT and is subject to policies exactly as the browser is.
  *
+ * Note that bypassing RLS does NOT bypass triggers. `enforce_member_role_eligibility` and
+ * `enforce_seat_capacity` fire on these inserts just as they would on a real one, which is
+ * why the attestation and the licence below are created before the members who need them.
+ * If a fixture starts failing, the schema has usually just told you something true.
+ *
  * ON MINTING JWTS RATHER THAN SIGNING IN
  *
  * GoTrue's local rate limits (30 sign-ins per window) are low enough that a suite creating
- * ~10 users would start failing on the third run of the afternoon, and a flaky security
+ * ~12 users would start failing on the third run of the afternoon, and a flaky security
  * suite is a security suite people learn to ignore. The tokens here are signed with the
  * stack's own JWT secret and carry the claim set GoTrue emits, so PostgREST validates them
  * identically and `auth.uid()` / `auth.role()` see exactly what they would in production.
@@ -21,7 +26,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
 import { serviceClient, userClient, stackCredentials, assertLocalStack } from './stack';
 
-export type Role = 'coach' | 'assistant_coach' | 'mentor' | 'student';
+export type Role = 'admin' | 'coach' | 'mentor' | 'student';
 
 export interface TestUser {
     /** auth.users.id, and therefore `auth.uid()` inside every policy. */
@@ -45,10 +50,27 @@ export interface TestTeam {
     checklistId: string;
     inviteId: string;
     inviteCode: string;
+    licenseGrantId: string;
+    meetingId: string;
+    attendanceId: string;
     /** One signed-in user per role. */
     users: Record<Role, TestUser>;
-    /** Any member — used where the specific role does not matter. */
+    /** The primary administrator — one per team, and the only one who touches licensing. */
+    admin: TestUser;
+    /** A coach. Used where "an elevated member who is not the admin" is the point. */
     coach: TestUser;
+    /**
+     * A guardian: an account with a managed child on this team and NO membership of their
+     * own. They are the test of the COPPA model — they must reach their child and nothing
+     * else.
+     */
+    guardian: {
+        user: { id: string; email: string; client: SupabaseClient<Database> };
+        profileId: string;
+        /** The child's team_members row: user_id is the guardian, managed_profile_id is set. */
+        memberId: string;
+        consentId: string;
+    };
 }
 
 const base64url = (input: Buffer | string): string =>
@@ -105,21 +127,43 @@ export class Fixtures {
         return { id: data.user.id, email, token: mintAccessToken(data.user.id, email) };
     }
 
+    /** Record an attestation. The admin role is refused without one. */
+    async attest(userId: string, type = 'coach_terms'): Promise<void> {
+        const { error } = await this.svc
+            .from('user_attestations')
+            .insert({ user_id: userId, attestation_type: type } as never);
+        if (error) throw new Error(`attest(${type}) failed: ${error.message}`);
+    }
+
     /**
-     * A complete tenant: a team, one member per role, a season, and one row in every
-     * season-scoped table so the isolation suite has something concrete to fail to reach.
+     * A complete tenant: a team, one member per role, a licence, a guardian with a managed
+     * child, a season, and one row in every season-scoped table so the isolation suite has
+     * something concrete to fail to reach.
      */
     async createTeam(label: string): Promise<TestTeam> {
-        const roles: Role[] = ['coach', 'assistant_coach', 'mentor', 'student'];
+        const roles: Role[] = ['admin', 'coach', 'mentor', 'student'];
         const accounts = await Promise.all(roles.map((role) => this.createUser(`${label}-${role}`)));
 
         const owner = accounts[0];
+        // The admin role is refused to an account that has not accepted the terms.
+        await this.attest(owner.id);
+
         const team = await this.insert('teams', {
             name: `${label} Robotics`,
             team_number: '9999',
             owner_id: owner.id,
         });
         this.created.teamIds.push(team.id);
+
+        // Before any member: `enforce_seat_capacity` consults the team's entitlement, and
+        // every content write policy requires one. A team with no licence is read-only.
+        const grant = await this.insert('license_grants', {
+            team_id: team.id,
+            source: 'gift',
+            seats: null,
+            created_by: owner.id,
+            notes: `${label} test licence`,
+        });
 
         const users = {} as Record<Role, TestUser>;
         for (const [index, role] of roles.entries()) {
@@ -129,6 +173,7 @@ export class Fixtures {
                 user_id: account.id,
                 role,
                 status: 'approved',
+                seat_assigned: true,
                 full_name: `${label} ${role}`,
                 email: account.email,
             });
@@ -166,11 +211,31 @@ export class Fixtures {
             title: `${label} plan`,
             match_number: 3,
         });
+        // The row id IS the season id — see `updateChecklist` in store.ts. Fixtures follow
+        // the same convention the client does, so a test that pushes a checklist through
+        // the real drain lands on this row rather than creating a second one.
         const checklist = await this.insert('checklists', {
+            id: season.id,
             team_id: team.id,
             season_id: season.id,
             name: `${label} checklist`,
             items: [{ id: '1', text: 'Charge battery', checked: false }],
+        });
+        const meeting = await this.insert('meetings', {
+            team_id: team.id,
+            season_id: season.id,
+            title: `${label} build session`,
+            starts_at: new Date('2026-09-01T18:00:00Z').toISOString(),
+            ends_at: new Date('2026-09-01T20:00:00Z').toISOString(),
+            created_by: users.coach.memberId,
+        });
+        const attendance = await this.insert('meeting_attendance', {
+            meeting_id: meeting.id,
+            team_id: team.id,
+            team_member_id: users.student.memberId,
+            status: 'present',
+            attested_by: users.coach.memberId,
+            attested_at: new Date('2026-09-01T18:05:00Z').toISOString(),
         });
         const inviteCode = `INV${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
         const invite = await this.insert('invites', {
@@ -178,6 +243,8 @@ export class Fixtures {
             code: inviteCode,
             created_by: owner.id,
         });
+
+        const guardian = await this.createGuardian(label, team.id);
 
         return {
             id: team.id,
@@ -190,9 +257,76 @@ export class Fixtures {
             checklistId: checklist.id,
             inviteId: invite.id,
             inviteCode,
+            licenseGrantId: grant.id,
+            meetingId: meeting.id,
+            attendanceId: attendance.id,
             users,
+            admin: users.admin,
             coach: users.coach,
+            guardian,
         };
+    }
+
+    /**
+     * A guardian account holding one managed child on the given team.
+     *
+     * The guardian has NO membership of their own, which is the interesting case: the
+     * child's `team_members` row carries the guardian's `user_id`, so every
+     * `user_id = auth.uid()` policy reaches it — while `get_user_team_ids` deliberately
+     * excludes managed rows, so the guardian is not thereby a member of the team.
+     */
+    private async createGuardian(label: string, teamId: string): Promise<TestTeam['guardian']> {
+        const account = await this.createUser(`${label}-guardian`);
+
+        const profile = await this.insert('managed_profiles', {
+            guardian_user_id: account.id,
+            full_name: `${label} child`,
+            birth_year: 2016,
+        });
+        const consent = await this.insert('guardian_consents', {
+            managed_profile_id: profile.id,
+            guardian_user_id: account.id,
+            consent_type: 'coppa_data_collection',
+        });
+        const member = await this.insert('team_members', {
+            team_id: teamId,
+            user_id: account.id,
+            managed_profile_id: profile.id,
+            role: 'student',
+            status: 'approved',
+            full_name: `${label} child`,
+        });
+
+        return {
+            user: { id: account.id, email: account.email, client: userClient(account.token) },
+            profileId: profile.id,
+            memberId: member.id,
+            consentId: consent.id,
+        };
+    }
+
+    /**
+     * Take a team's licence away, leaving it read-only.
+     *
+     * Revocation rather than deletion, because that is what the product does: an expired or
+     * withdrawn licence never removes data, and the grant row is the audit trail behind
+     * "why can my team suddenly not edit anything".
+     */
+    async revokeLicense(teamId: string): Promise<void> {
+        const { error } = await this.svc
+            .from('license_grants')
+            .update({ revoked_at: new Date().toISOString() } as never)
+            .eq('team_id', teamId);
+        if (error) throw new Error(`revokeLicense failed: ${error.message}`);
+    }
+
+    /** Restore a revoked licence, so one test's revocation does not leak into the next. */
+    async restoreLicense(teamId: string): Promise<void> {
+        const { error } = await this.svc
+            .from('license_grants')
+            .update({ revoked_at: null } as never)
+            .eq('team_id', teamId);
+        if (error) throw new Error(`restoreLicense failed: ${error.message}`);
     }
 
     /** Service-role insert returning the created row. Fixture setup only. */

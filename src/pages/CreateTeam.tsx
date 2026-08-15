@@ -8,9 +8,22 @@ import { recordAttestation } from '../lib/attestations';
 type Step = 'attestation' | 'details' | 'complete';
 
 const STEPS: { id: Step; title: string; }[] = [
-    { id: 'attestation', title: 'Coach Agreement' },
+    { id: 'attestation', title: 'Admin Agreement' },
     { id: 'details', title: 'Team Details' },
 ];
+
+/**
+ * A sensible first-season name, which the admin can edit.
+ *
+ * `create_team_as_admin` REQUIRES a season name; V1 hardcoded `'Demo Season'` inside the
+ * function, which is how a number of real teams ended up with a season called that. FTC
+ * seasons run across a calendar-year boundary, so the current year and the next is the
+ * right default to offer.
+ */
+function defaultSeasonName(): string {
+    const year = new Date().getFullYear();
+    return `${year}-${year + 1} Season`;
+}
 
 export default function CreateTeam() {
     const navigate = useNavigate();
@@ -23,6 +36,7 @@ export default function CreateTeam() {
     const [coachTermsAccepted, setCoachTermsAccepted] = useState(false);
     const [teamName, setTeamName] = useState('');
     const [teamNumber, setTeamNumber] = useState('');
+    const [seasonName, setSeasonName] = useState(defaultSeasonName);
 
     // Created team info
     const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -74,7 +88,7 @@ export default function CreateTeam() {
     const canProceed = () => {
         switch (currentStep) {
             case 'attestation': return coachTermsAccepted;
-            case 'details': return teamName.trim().length >= 3;
+            case 'details': return teamName.trim().length >= 3 && seasonName.trim().length > 0;
             default: return false;
         }
     };
@@ -117,8 +131,9 @@ export default function CreateTeam() {
             }
 
             // Call the create team function
-            const { data, error: rpcError } = await supabase.rpc('create_team_as_coach', {
+            const { data, error: rpcError } = await supabase.rpc('create_team_as_admin', {
                 team_name: teamName.trim(),
+                season_name: seasonName.trim(),
                 // undefined omits the argument so the function's `DEFAULT NULL` applies.
                 // Passing null explicitly is equivalent at runtime but does not match the
                 // generated signature (`team_number?: string`).
@@ -132,7 +147,13 @@ export default function CreateTeam() {
                 return;
             }
 
-            const result = data as { success: boolean; team_id?: string; invite_code?: string; error?: string };
+            const result = data as {
+                success: boolean;
+                team_id?: string;
+                season_id?: string;
+                invite_code?: string;
+                error?: string;
+            };
 
             if (!result.success) {
                 setError(result.error || 'Failed to create team');
@@ -198,6 +219,21 @@ export default function CreateTeam() {
                                 minLength={3}
                             />
                             <p className="text-slate-400 text-xs mt-1">Minimum 3 characters</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                First Season *
+                            </label>
+                            <input
+                                type="text"
+                                value={seasonName}
+                                onChange={(e) => setSeasonName(e.target.value)}
+                                placeholder="e.g., 2026-2027 Season"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                            <p className="text-slate-400 text-xs mt-1">
+                                Your sprint board, scouting data and checklist all start fresh each season.
+                            </p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-2">

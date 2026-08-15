@@ -1,4 +1,4 @@
-import { TaskStatus, SubTeam } from './types';
+import { TaskStatus } from './types';
 
 export const STATUS_COLUMNS = [
   TaskStatus.Backlog,
@@ -9,25 +9,25 @@ export const STATUS_COLUMNS = [
 ];
 
 /**
- * Default sub-teams (working groups within a Team), used as seed data.
+ * THERE ARE NO CLIENT-SIDE SEED CONSTANTS ANY MORE.
  *
- * The ids are real UUIDs because every id in this app is a Postgres `uuid` column (C5).
- * They used to read `'subteam-programming'`, which is friendlier to a human and fatal to
- * a sync: the push fails on `invalid input syntax for type uuid`, retries five times and
- * parks in the dead-letter store. The user sees their sub-team locally and it never
- * reaches the server — and because sub_teams is the FK target for `tasks.sub_team_id`,
- * every task assigned to one fails too.
+ * `DEFAULT_SUBTEAMS` used to live here as five hardcoded UUIDs, and `store.ts` held a
+ * `DEFAULT_SEASON` and a `DEFAULT_CHECKLIST_ITEMS` alongside it. Sprint 2 made the ids real
+ * UUIDs (C5), which fixed the cast failures but not the deeper problem: the ids were the
+ * SAME on every device of every team.
  *
- * They are hardcoded rather than generated so that a record created on one device names
- * the same sub-team as on another. Do not regenerate them.
+ * Two teams seeding sub-team `657c8820-…` both push it. The second push is an upsert onto a
+ * row that belongs to the first team, so RLS refuses the UPDATE branch and the whole thing
+ * dead-letters — the second team's sub-teams simply never sync, with an error nobody can
+ * act on. And under the V2 schema a seeded season is worse still: `season_id` is NOT NULL
+ * with a composite FK, so every task created under a season that exists only on the client
+ * is unpushable too.
+ *
+ * Seeding is now the server's job. `create_team_as_admin` creates the team's first season,
+ * its sub-teams and its pre-match checklist, with fresh per-team uuids, inside the same
+ * transaction that creates the team. The client's copy arrives on the first pull like every
+ * other row, which means it is real before the user can touch it.
  */
-export const DEFAULT_SUBTEAMS: SubTeam[] = [
-  { id: '657c8820-9d8b-4bba-89ea-15e97d787cc0', name: 'Programming', memberIds: [] },
-  { id: '2a426522-1d27-4401-9b1d-1fd37d10e165', name: 'Build', memberIds: [] },
-  { id: '46ee5d75-6342-4837-9e77-2044e64e2851', name: 'Drive', memberIds: [] },
-  { id: 'e06d09b1-5348-43dc-8db0-ba4d5911b4dc', name: 'Scouting', memberIds: [] },
-  { id: '5c4ca480-e1cc-459b-8435-6a79ff365672', name: 'Outreach', memberIds: [] },
-];
 
 // The field image filename - MatchPlanner will prepend BASE_URL when using this
 export const FIELD_IMAGE_URL = "DecodeField.png";

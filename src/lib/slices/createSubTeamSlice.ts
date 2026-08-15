@@ -16,6 +16,12 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
 
     addSubTeam: (name: string) => {
         const { currentSeasonId, currentTeamId } = get();
+        // `sub_teams.season_id` is NOT NULL and referenced compositely with team_id. A
+        // sub-team with no season is unpushable, so it is not created.
+        if (!currentSeasonId) {
+            console.warn('[store] addSubTeam ignored: no season is selected');
+            return;
+        }
         const newSubTeam: SubTeam = {
             id: generateId(),
             name,

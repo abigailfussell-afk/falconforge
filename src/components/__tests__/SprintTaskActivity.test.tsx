@@ -23,7 +23,7 @@ const member = (over: Partial<TeamMember> = {}): TeamMember => ({
     userId: 'user-1',
     role: 'student',
     status: 'approved',
-    isBillingActive: false,
+    seatAssigned: false,
     fullName: 'Ada Lovelace',
     email: 'ada@example.com',
     avatarUrl: null,

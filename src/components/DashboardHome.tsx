@@ -20,9 +20,11 @@ export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     const { tasks: allTasks, matchPlans: allMatchPlans, scoutingReports: allScoutingReports, currentSeasonId } = useAppStore();
 
     // Filter data by current season
-    const tasks = allTasks.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
-    const matchPlans = allMatchPlans.filter(p => !p.seasonId || p.seasonId === currentSeasonId);
-    const scoutingReports = allScoutingReports.filter(r => !r.seasonId || r.seasonId === currentSeasonId);
+    // Season-scoped, with no `!x.seasonId ||` escape hatch: season_id is NOT NULL in the
+    // schema, so a record with no season no longer exists to be tolerated.
+    const tasks = allTasks.filter(t => t.seasonId === currentSeasonId);
+    const matchPlans = allMatchPlans.filter(p => p.seasonId === currentSeasonId);
+    const scoutingReports = allScoutingReports.filter(r => r.seasonId === currentSeasonId);
 
     const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'Team Member';
 

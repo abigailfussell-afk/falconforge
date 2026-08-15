@@ -7,7 +7,7 @@
  * writes go onto the queue, which is exactly what is under test here.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useAppStore } from '../store';
+import { useAppStore, selectChecklist } from '../store';
 import { db } from '../offline-db';
 
 /** Store actions queue without awaiting; give the Dexie transaction time to commit. */
@@ -21,7 +21,7 @@ describe('Store → Sync Queue Integration', () => {
             currentSeasonId: 'test-season-456',
             tasks: [],
             scoutingReports: [],
-            checklist: [],
+            checklistsBySeason: {},
             matchPlans: [],
             subTeams: [],
             teamMembers: [],
@@ -221,7 +221,7 @@ describe('Store → Sync Queue Integration', () => {
 
             await waitForAsync(150);
 
-            const checklist = useAppStore.getState().checklist;
+            const checklist = selectChecklist(useAppStore.getState());
             expect(checklist.length).toBeGreaterThan(0);
 
             // Find the newly added item
@@ -244,7 +244,7 @@ describe('Store → Sync Queue Integration', () => {
 
             await waitForAsync(150);
 
-            const itemId = useAppStore.getState().checklist.find(
+            const itemId = selectChecklist(useAppStore.getState()).find(
                 item => item.text === 'Toggle this item'
             )?.id;
 
@@ -256,7 +256,7 @@ describe('Store → Sync Queue Integration', () => {
 
             await waitForAsync(150);
 
-            const toggledItem = useAppStore.getState().checklist.find(item => item.id === itemId);
+            const toggledItem = selectChecklist(useAppStore.getState()).find(item => item.id === itemId);
             expect(toggledItem?.checked).toBe(true);
 
             const queueItems = await db.syncQueue.toArray();

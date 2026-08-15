@@ -97,7 +97,7 @@ describe('CreateTeam', () => {
         it('renders attestation step and requires checkbox to proceed', () => {
             render(<CreateTeam />, { wrapper: TestWrapper });
             
-            expect(screen.getByText('Coach Agreement')).toBeDefined();
+            expect(screen.getByText('Admin Agreement')).toBeDefined();
             
             const nextButton = screen.getByRole('button', { name: /next/i }) as HTMLButtonElement;
             expect(nextButton.disabled).toBe(true);
@@ -124,7 +124,7 @@ describe('CreateTeam', () => {
             expect(screen.getByText('Team Details')).toBeDefined();
             
             fireEvent.click(screen.getByRole('button', { name: /back/i }));
-            expect(screen.getByText('Coach Agreement')).toBeDefined();
+            expect(screen.getByText('Admin Agreement')).toBeDefined();
         });
 
         it('requires team name of at least 3 characters to submit', () => {
@@ -192,13 +192,18 @@ describe('CreateTeam', () => {
             fireEvent.click(screen.getByRole('button', { name: /next/i }));
             
             fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), { target: { value: 'Valid Team' } });
+            fireEvent.change(screen.getByPlaceholderText('e.g., 2026-2027 Season'), { target: { value: '2026-2027 Season' } });
             fireEvent.change(screen.getByPlaceholderText('e.g., 12345'), { target: { value: '9999' } });
             fireEvent.click(screen.getByRole('button', { name: /create team/i }));
             
             await waitFor(() => {
                 expect(recordAttestation).toHaveBeenCalledWith('coach_terms');
-                expect(supabase!.rpc).toHaveBeenCalledWith('create_team_as_coach', {
+                // Renamed: the person who registers a team is the primary ADMIN, and the
+                // season name is now an argument rather than a 'Demo Season' hardcode
+                // inside the function.
+                expect(supabase!.rpc).toHaveBeenCalledWith('create_team_as_admin', {
                     team_name: 'Valid Team',
+                    season_name: '2026-2027 Season',
                     team_number: '9999'
                 });
             });

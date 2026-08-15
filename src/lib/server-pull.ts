@@ -134,10 +134,16 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
 
             let query = supabaseSync.from(table as RemoteTable).select('*').eq('team_id', teamId);
 
-            // `updateLocalDatabase` takes records[0] for the checklist blob, and Postgres
-            // row order is otherwise unspecified -- so the active checklist could flip
-            // between syncs when more than one row existed (B12). Order explicitly and
-            // ignore templates, which are not the team's working checklist.
+            // Checklists are one row per SEASON now (C6), and every one of them is pulled:
+            // the store keys them by season, so switching seasons does not have to wait for
+            // a round trip. Templates are a team-level library, not a working checklist, and
+            // are excluded.
+            //
+            // (B12 was "the active checklist flips between syncs because row order is
+            // unspecified and the code took records[0]". Nothing takes records[0] any more —
+            // each row is filed under its own season — so the ambiguity is gone rather than
+            // ordered around. The explicit order is kept because it costs nothing and makes
+            // the delta cursor deterministic.)
             if (table === 'checklists') {
                 query = query.eq('is_template', false).order('created_at', { ascending: true });
             }
@@ -284,23 +290,25 @@ export function updateLocalDatabase(
     }
 
     if (tableName === 'checklists') {
-        // Blob-synced: the first row IS the team's checklist. The query orders explicitly
-        // and excludes templates, so "first" is deterministic (B12).
-        if (records.length > 0 && Array.isArray(records[0]?.items)) {
-            store.setChecklist(records[0].items);
+        // Blob-synced, one row per season (C6). Each row is filed under its own season, so
+        // a team with three seasons ends up with three lists and switching between them is
+        // instant rather than a round trip.
+        for (const row of records) {
+            if (row?.season_id && Array.isArray(row.items)) {
+                store.setChecklistForSeason(row.season_id, row.items);
+            }
         }
 
         // NO ROWS IS NOT AN EMPTY CHECKLIST (B20).
         //
         // This used to `setChecklist([])`, reading zero rows as "cleared on another
-        // client". For a team that has never pushed a checklist there is no row to find,
-        // and `create_team_as_coach` does not make one -- so every brand-new team had its
-        // eight seeded pre-match items deleted the first time the dashboard loaded, with
-        // nothing to replace them.
+        // client". For a team that has never pushed a checklist there was no row to find --
+        // so every brand-new team had its eight seeded pre-match items deleted the first
+        // time the dashboard loaded, with nothing to replace them. Iterating over the rows
+        // received keeps that fixed by construction: zero rows is zero writes.
         //
-        // A checklist genuinely emptied elsewhere still propagates: the row continues to
-        // exist with `items: []`, which is one record, and the branch above applies it.
-        // Nothing in the app deletes the row itself.
+        // A checklist genuinely emptied elsewhere still propagates, because the row
+        // continues to exist with `items: []`. Nothing in the app deletes the row itself.
         return;
     }
 }

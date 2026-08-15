@@ -28,7 +28,7 @@ describe('AdminSettings', () => {
         useAppStore.setState({
             teams: [{ id: 'team-1', name: 'Test Team', teamNumber: '1234', ownerId: 'user-1', createdAt: 1000 }],
             currentTeamId: 'team-1',
-            teamMembers: [{ id: 'tm-1', teamId: 'team-1', userId: 'user-1', role: 'coach', status: 'approved', joinedAt: 1000, fullName: 'Test User', email: 'test@test.com', isBillingActive: false, avatarUrl: null }],
+            teamMembers: [{ id: 'tm-1', teamId: 'team-1', userId: 'user-1', role: 'coach', status: 'approved', joinedAt: 1000, fullName: 'Test User', email: 'test@test.com', seatAssigned: false, avatarUrl: null }],
             subTeams: [],
             seasons: [],
             currentSeasonId: null,
