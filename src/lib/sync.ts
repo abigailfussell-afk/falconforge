@@ -51,6 +51,41 @@ export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 /** Attempts before a change is parked in the dead-letter store (B2). */
 export const MAX_SYNC_RETRIES = 5;
 
+/**
+ * How long to wait before re-attempting a queue that still has work in it, indexed by how
+ * many consecutive drains have failed (B19).
+ *
+ * WHY THIS EXISTS
+ *
+ * Retrying used to be left entirely to the auto-sync effect, which fires only when one of
+ * its dependencies CHANGES. After a failed push nothing does: the failure is caught inside
+ * `drainSyncQueue`, so `sync()` still resolves, `syncStatus` returns to `'idle'`, and
+ * `pendingChanges` holds steady at the same number. An `online` event does not help either
+ * -- `isOnline` is already `true` and `syncStatus` already `'idle'`, so React bails out of
+ * both `setState` calls and no dependency changes.
+ *
+ * The result, reproduced in the browser: a task created while requests were failing stayed
+ * queued for over a minute after connectivity returned, across several `online` events, and
+ * only went up when the sync indicator was clicked by hand. At a competition that reads as
+ * "my scouting report never uploaded" long after the WiFi came back -- the exact failure
+ * this engine exists to prevent.
+ *
+ * Backoff rather than a fixed interval because a change is dead-lettered after
+ * MAX_SYNC_RETRIES attempts. A tight retry loop would burn all five inside half a minute
+ * and park work that a slightly longer wait would have pushed successfully. This schedule
+ * spends those five attempts over roughly nine minutes instead.
+ *
+ * Genuine offline periods do not consume attempts at all: `sync()` returns early when
+ * `navigator.onLine` is false, without touching the queue. What this schedule covers is the
+ * harder case -- a network that claims to be up and is not, which is what venue WiFi and
+ * captive portals actually look like.
+ */
+const RETRY_BACKOFF_MS = [3_000, 15_000, 60_000, 180_000, 300_000] as const;
+
+function retryDelayFor(consecutiveFailures: number): number {
+    return RETRY_BACKOFF_MS[Math.min(consecutiveFailures, RETRY_BACKOFF_MS.length - 1)];
+}
+
 interface UseSyncResult {
     isOnline: boolean;
     syncStatus: SyncStatus;
@@ -72,6 +107,8 @@ export function useSync(): UseSyncResult {
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
+    /** Consecutive drains that left work behind. Drives the retry backoff (B19). */
+    const failedDrainsRef = useRef(0);
 
     // Derive auth readiness from the AuthProvider context.
     // The AuthProvider already handles session restoration, token refresh,
@@ -126,13 +163,16 @@ export function useSync(): UseSyncResult {
         return () => clearInterval(interval);
     }, []);
 
-    // Auto-sync when coming back online, when pending changes increase,
-    // or when auth becomes ready (e.g., after Ctrl+F5 token refresh completes).
+    // Auto-sync when coming back online, when pending changes increase, or when auth
+    // becomes ready (e.g. after Ctrl+F5 token refresh completes). This is the fast path:
+    // it reacts to something changing. It is NOT the retry path -- see below for why it
+    // cannot be (B19).
     useEffect(() => {
         if (authReady && isOnline && pendingChanges > 0 && syncStatus === 'idle' && !syncingRef.current) {
             sync();
         }
     }, [authReady, isOnline, pendingChanges, syncStatus]);
+
 
     const sync = useCallback(async () => {
         if (syncingRef.current) return;
@@ -162,7 +202,18 @@ export function useSync(): UseSyncResult {
             // Overall sync timeout to prevent hanging forever
             await withTimeout(
                 (async () => {
-                    await drainSyncQueue(token);
+                    const drain = await drainSyncQueue(token);
+
+                    // Widen the retry backoff while pushes keep failing, and collapse it
+                    // back the moment one succeeds. Counting drains rather than individual
+                    // items keeps one permanently-broken record (which dead-letters after
+                    // MAX_SYNC_RETRIES anyway) from slowing down everyone else's retries.
+                    if (drain.retried > 0 && drain.pushed === 0) {
+                        failedDrainsRef.current += 1;
+                    } else {
+                        failedDrainsRef.current = 0;
+                    }
+
                     await pullChangesFromServer(token);
                 })(),
                 OVERALL_SYNC_TIMEOUT_MS,
@@ -191,6 +242,43 @@ export function useSync(): UseSyncResult {
         }
         // FIX: No deps on isOnline - we read navigator.onLine directly
     }, []);
+
+    // Retry queued work that failed to push, without the user having to do anything.
+    //
+    // Reads the QUEUE rather than React state on purpose: `pendingChanges` staying at the
+    // same number is exactly the case that needs a retry, and a dependency that does not
+    // change cannot trigger one. The timer re-arms itself after each attempt rather than
+    // relying on an effect re-run, for the same reason.
+    useEffect(() => {
+        if (!authReady || !isOnline) return;
+
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout>;
+
+        const attempt = async () => {
+            if (cancelled) return;
+            try {
+                // navigator.onLine directly: `isOnline` is captured from the render that
+                // armed this timer and may be minutes stale.
+                if (!syncingRef.current && navigator.onLine && (await getPendingSyncCount()) > 0) {
+                    await sync();
+                }
+            } catch {
+                // sync() handles its own errors; a throw here must not kill the schedule.
+            }
+            if (!cancelled) schedule();
+        };
+
+        const schedule = () => {
+            timer = setTimeout(attempt, retryDelayFor(failedDrainsRef.current));
+        };
+
+        schedule();
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [authReady, isOnline, sync]);
 
     const retryFailedChanges = useCallback(async () => {
         const restored = await retrySyncFailures();

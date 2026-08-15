@@ -317,7 +317,13 @@ the final walkthrough and tags `v2.0.0-beta`.
 **Discovered / parking lot:**
 
 *From Sprint 2:*
-- **🔴 A failed push is never retried automatically (found in the browser, not the suite).**
+- **`Onboarding.test.tsx` is flaky under load.** "shows the Complete Setup form when the
+  account has no age classification" failed once in 8 full-suite runs, immediately after the
+  db suite had loaded the machine, and passes in isolation every time. It is a `waitFor`
+  timing sensitivity, not a product bug, and predates Sprint 2 (reproduced on the sprint-2
+  branch without the retry fix). Worth tightening when Sprint 5 touches Onboarding.
+- **✅ FIXED on `v2/sync-retry-schedule`** — was: **A failed push is never retried
+  automatically (found in the browser, not the suite).**
   `useSync`'s auto-sync effect is `useEffect(..., [authReady, isOnline, pendingChanges,
   syncStatus])` and only fires when a dep *changes*. An item that fails to push is caught
   inside `drainSyncQueue`, so `sync()` still resolves and `syncStatus` returns to `'idle'`
@@ -327,9 +333,9 @@ the final walkthrough and tags `v2.0.0-beta`.
   when the sync indicator was clicked. (`online` events do not help — `isOnline` and
   `syncStatus` are already `true`/`'idle'`, so React bails out of both `setState` calls.)
   At a venue this reads as "my scouting report never uploaded" long after the WiFi came
-  back. Fix is a real retry schedule (interval or backoff timer) rather than a dependency
-  edge; out of Sprint 2's scope, but it should land before beta — suggest Sprint 7 at the
-  latest, and arguably sooner.
+  back. Fixed as B19 by a self-re-arming backoff schedule (3s/15s/60s/3m/5m) that reads the
+  queue rather than React state; genuine offline periods do not consume retry attempts.
+  Verified in the browser: the same scenario now heals itself in ~20s with no interaction.
 - **`update` on a non-checklist table pushes with no `WITH CHECK` awareness.** Not a hole
   (Postgres applies SELECT policies to rows an UPDATE's WHERE touches, verified), but worth
   knowing when Sprint 3 consolidates policies: SELECT is the load-bearing policy on every
