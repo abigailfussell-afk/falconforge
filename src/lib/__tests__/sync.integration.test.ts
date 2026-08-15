@@ -64,7 +64,7 @@ describe('sync.integration', () => {
             scoutingReports: [],
             matchPlans: [],
             subTeams: [],
-            checklist: [],
+            checklistsBySeason: {},
         });
         
         (useAuth as any).mockReturnValue({

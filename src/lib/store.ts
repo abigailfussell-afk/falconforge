@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { generateId, queueForSync, indexedDBStorage } from './offline-db';
-import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
 import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
@@ -28,43 +27,21 @@ export type {
     Task, ScoutingReport, ChecklistItem, MatchPlan,
 };
 
-/**
- * Default season.
+/*
+ * NO SEED DATA LIVES HERE ANY MORE.
  *
- * A real UUID, not `'season-2025-2026'` (C5). `seasons.id` is a Postgres `uuid`, and
- * every season-scoped table carries a `season_id` FK to it, so a non-uuid seed id does
- * not fail on its own — it takes every task, sub-team, scouting report, match plan and
- * checklist created under it down with it, all parked in the dead-letter store with a
- * cast error the user cannot act on.
+ * There used to be a `DEFAULT_SEASON`, a `DEFAULT_CHECKLIST_ITEMS` and (in constants.ts) a
+ * `DEFAULT_SUBTEAMS`, all with hardcoded uuids so every device would agree on them. Every
+ * TEAM agreed on them too, which is the bug: the second team to push sub-team
+ * `657c8820-…` upserts onto the first team's row, RLS refuses it, and their sub-teams
+ * dead-letter permanently. A seeded SEASON is worse under the V2 schema — `season_id` is
+ * NOT NULL with a composite foreign key, so every task created under a season that exists
+ * only in local state is unpushable too.
  *
- * Hardcoded rather than generated, so the same default season is the same season on
- * every device. Do not regenerate it.
+ * `create_team_as_admin` now creates the first season, its sub-teams and its checklist
+ * server-side, with per-team uuids, in the transaction that creates the team. They arrive
+ * on the first pull like any other row.
  */
-const DEFAULT_SEASON: Season = {
-    id: '1229793f-4feb-4944-bc1b-c24985f84fea',
-    name: '2025-2026 Decode',
-    fieldImageData: '',
-    createdAt: Date.now(),
-};
-
-/**
- * Default checklist.
- *
- * These ids live inside a jsonb array rather than a uuid column, so `'1'` would not have
- * failed a push — but items added later get `generateId()` UUIDs, and a list where the
- * seeded items and the added ones use different id shapes is a trap for anything that
- * ever needs to tell them apart.
- */
-const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
-    { id: '98dfc681-a3b2-4afa-9086-414cd9d5c916', text: 'Turn off robot', checked: false },
-    { id: 'cc66cb36-daa0-4f28-8dda-27f86dda0c4a', text: 'Swap main battery', checked: false },
-    { id: '2e55e450-5b34-44fc-8943-4853a659ae9b', text: 'Charge old battery', checked: false },
-    { id: 'ff29cbf8-e57d-431e-a21b-52d71b36986a', text: 'Charge Driver Hub', checked: false },
-    { id: '3f2b1c7a-5f0e-4c8d-9a1b-6d4e2f8c0a53', text: 'Tighten chassis screws', checked: false },
-    { id: '7c9d4e21-8b3a-4f6c-95e7-1a2b3c4d5e6f', text: 'Check wiring connections', checked: false },
-    { id: 'b41e6a08-2c5d-4739-8e1f-9a0b7c6d5e4a', text: 'Clean wheels', checked: false },
-    { id: 'd8072f13-6e4b-4a29-bc35-0f1e2d3c4b5a', text: 'Reset servo positions', checked: false },
-];
 
 export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     // Team context (top-level organization)
@@ -77,7 +54,15 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     tasks: Task[];
     subTeams: SubTeam[];  // Renamed from teams
     scoutingReports: ScoutingReport[];
-    checklist: ChecklistItem[];
+    /**
+     * Checklists keyed by season id — one list per season (C6).
+     *
+     * V1 held a single `checklist` array for the whole team, so a new season inherited the
+     * previous one's items and the "fresh start" was not one. Read it with
+     * {@link selectChecklist} rather than reaching in: nothing outside this module should
+     * have to remember which season is current.
+     */
+    checklistsBySeason: Record<string, ChecklistItem[]>;
     matchPlans: MatchPlan[];
     seasons: Season[];
     currentSeasonId: string | null;
@@ -95,23 +80,24 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     setTeams: (teams: Team[]) => void;
     setTeamMembers: (members: TeamMember[]) => void;
 
-    // Scouting actions
-    addScoutingReport: (report: Omit<ScoutingReport, 'id'>) => void;
+    // Scouting actions. Like tasks, the season comes from the store rather than the caller.
+    addScoutingReport: (report: Omit<ScoutingReport, 'id' | 'seasonId'>) => void;
     updateScoutingReport: (id: string, updates: Partial<ScoutingReport>) => void;
     deleteScoutingReport: (id: string) => void;
     setScoutingReports: (reports: ScoutingReport[]) => void;
 
-    // Checklist actions
+    // Checklist actions. All of them act on the CURRENT season and do nothing without one.
     toggleChecklistItem: (id: string) => void;
     resetChecklist: () => void;
     addChecklistItem: (text: string) => void;
     deleteChecklistItem: (id: string) => void;
     updateChecklistAssignment: (id: string, assignedTo: string) => void;
     moveChecklistItem: (id: string, direction: 'up' | 'down') => void;
-    setChecklist: (items: ChecklistItem[]) => void;
+    /** Replace one season's checklist. The read path calls this per row it receives. */
+    setChecklistForSeason: (seasonId: string, items: ChecklistItem[]) => void;
 
     // Match Plan actions
-    addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt'>) => void;
+    addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt' | 'seasonId'>) => void;
     deleteMatchPlan: (id: string) => void;
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
     setMatchPlans: (plans: MatchPlan[]) => void;
@@ -128,22 +114,57 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
 }
 
 /**
- * Queue the whole checklist for the server.
+ * The current season's checklist.
  *
- * Checklists are blob-synced: one row per team holding the entire array, so the row id IS
- * the team id. Every checklist action used to spell this out itself, with
- * `state.currentTeamId || 'default'` as the record id -- and `'default'` is not a uuid
- * (C5). With no team selected, every toggle queued a push that fails its cast, retries
- * five times and parks in the dead-letter store, so the user collects a growing pile of
- * "failed changes" for a checklist that has nowhere to go. There is nothing to sync
- * without a team, so nothing is queued.
+ * Use this rather than reading `checklistsBySeason` directly, so that "which season am I
+ * looking at" is answered in exactly one place.
  */
-function queueChecklist(state: AppState, items: ChecklistItem[]): void {
+export function selectChecklist(state: AppState): ChecklistItem[] {
+    return (state.currentSeasonId && state.checklistsBySeason[state.currentSeasonId]) || EMPTY_CHECKLIST;
+}
+
+/**
+ * A shared frozen empty array.
+ *
+ * `selectChecklist` is used as a Zustand selector, and returning a fresh `[]` on every call
+ * would make the component re-render on every store change — the selector's result is
+ * compared by reference.
+ */
+const EMPTY_CHECKLIST: ChecklistItem[] = [];
+
+/**
+ * Apply a change to the current season's checklist and queue the result.
+ *
+ * WHY THE RECORD ID IS THE SEASON ID
+ *
+ * Checklists are blob-synced: the whole item array is one row, so there is no per-record
+ * identity to merge on and two devices editing offline must agree on the row id without
+ * being able to talk to each other. Deriving it from the season is what makes their upserts
+ * converge on one row rather than racing to create two, and `checklists_one_per_season` in
+ * the schema is the other half of that promise.
+ *
+ * V1 used the TEAM id, which is the same trick one level too high: it gave every season the
+ * same checklist (C6). It also wrote `seasonId || null` into a NOT NULL column, so a change
+ * made with no season selected queued a push that could never succeed, retried five times
+ * and parked in the dead-letter store. Now, with nowhere to put a change, nothing is
+ * changed and nothing is queued.
+ */
+function updateChecklist(
+    state: AppState,
+    set: (partial: Partial<AppState>) => void,
+    change: (items: ChecklistItem[]) => ChecklistItem[],
+): void {
+    const seasonId = state.currentSeasonId;
+    if (!seasonId) return;
+
+    const items = change(state.checklistsBySeason[seasonId] || []);
+    set({ checklistsBySeason: { ...state.checklistsBySeason, [seasonId]: items } });
+
     if (!state.currentTeamId) return;
-    queueForSync('checklists', state.currentTeamId, 'update', {
+    queueForSync('checklists', seasonId, 'update', {
         items,
         teamId: state.currentTeamId,
-        seasonId: state.currentSeasonId,
+        seasonId,
     });
 }
 
@@ -161,7 +182,7 @@ export const useAppStore = create<AppState>()(
             teams: [],
             teamMembers: [],
             scoutingReports: [],
-            checklist: DEFAULT_CHECKLIST_ITEMS,
+            checklistsBySeason: {},
             matchPlans: [],
             theme: 'dark',
 
@@ -187,6 +208,10 @@ export const useAppStore = create<AppState>()(
             // Scouting
             addScoutingReport: (reportData) => {
                 const state = get();
+                if (!state.currentSeasonId) {
+                    console.warn('[store] addScoutingReport ignored: no season is selected');
+                    return;
+                }
                 // Resolve the team_members.id for the current auth user.
                 // The DB FK `scouting_reports_created_by_fkey` references
                 // team_members(id), NOT auth.users(id).
@@ -197,7 +222,7 @@ export const useAppStore = create<AppState>()(
                     ...reportData,
                     id: generateId(),
                     createdBy: currentMember?.id || undefined,
-                    seasonId: state.currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId,
                     createdAt: Date.now(),
                 };
                 set((s) => ({
@@ -234,78 +259,71 @@ export const useAppStore = create<AppState>()(
 
             setScoutingReports: (scoutingReports) => set({ scoutingReports }),
 
-            // Checklist
+            // Checklist. Every one of these is the same shape: describe the change, let
+            // `updateChecklist` decide which season it lands in and whether it can be
+            // queued. V1 spelled the season, the record id and the queue call out six
+            // times over, and they had drifted.
             toggleChecklistItem: (id) => {
-                const state = get();
-                const newChecklist = state.checklist.map((item) =>
-                    item.id === id ? { ...item, checked: !item.checked } : item
+                updateChecklist(get(), set, (items) =>
+                    items.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)),
                 );
-                set({ checklist: newChecklist });
-                queueChecklist(state, newChecklist);
             },
 
             resetChecklist: () => {
-                set((state) => ({
-                    checklist: state.checklist.map((item) => ({ ...item, checked: false })),
-                }));
-                const state = get();
-                queueChecklist(state, state.checklist);
+                updateChecklist(get(), set, (items) =>
+                    items.map((item) => ({ ...item, checked: false })),
+                );
             },
 
             addChecklistItem: (text) => {
-                const state = get();
-                const item: ChecklistItem = {
-                    id: generateId(),
-                    text,
-                    checked: false,
-                    seasonId: state.currentSeasonId || undefined,
-                };
-                const newChecklist = [...state.checklist, item];
-                set({ checklist: newChecklist });
-                queueChecklist(state, newChecklist);
+                updateChecklist(get(), set, (items) => [
+                    ...items,
+                    { id: generateId(), text, checked: false },
+                ]);
             },
 
             deleteChecklistItem: (id) => {
-                const state = get();
-                const newChecklist = state.checklist.filter((item) => item.id !== id);
-                set({ checklist: newChecklist });
-                queueChecklist(state, newChecklist);
+                updateChecklist(get(), set, (items) => items.filter((item) => item.id !== id));
             },
 
             updateChecklistAssignment: (id, assignedTo) => {
-                const state = get();
-                const newChecklist = state.checklist.map((item) =>
-                    item.id === id ? { ...item, assignedTo } : item
+                updateChecklist(get(), set, (items) =>
+                    items.map((item) => (item.id === id ? { ...item, assignedTo } : item)),
                 );
-                set({ checklist: newChecklist });
-                queueChecklist(state, newChecklist);
             },
 
             moveChecklistItem: (id, direction) => {
-                const state = get();
-                const index = state.checklist.findIndex(item => item.id === id);
-                if (index === -1) return;
-                if (direction === 'up' && index === 0) return;
-                if (direction === 'down' && index === state.checklist.length - 1) return;
+                updateChecklist(get(), set, (items) => {
+                    const index = items.findIndex((item) => item.id === id);
+                    if (index === -1) return items;
+                    const target = direction === 'up' ? index - 1 : index + 1;
+                    if (target < 0 || target >= items.length) return items;
 
-                const newChecklist = [...state.checklist];
-                const targetIndex = direction === 'up' ? index - 1 : index + 1;
-                [newChecklist[index], newChecklist[targetIndex]] = [newChecklist[targetIndex], newChecklist[index]];
-
-                set({ checklist: newChecklist });
-                queueChecklist(state, newChecklist);
+                    const next = [...items];
+                    [next[index], next[target]] = [next[target], next[index]];
+                    return next;
+                });
             },
 
-            setChecklist: (checklist) => set({ checklist }),
+            // Server writes, not user edits: this is how a pull lands, so it must NOT queue
+            // anything back to the server.
+            setChecklistForSeason: (seasonId, items) =>
+                set((state) => ({
+                    checklistsBySeason: { ...state.checklistsBySeason, [seasonId]: items },
+                })),
 
             // Match Plans
             addMatchPlan: (planData) => {
                 const state = get();
+                if (!state.currentSeasonId) {
+                    console.warn('[store] addMatchPlan ignored: no season is selected');
+                    return;
+                }
                 const plan: MatchPlan = {
                     ...planData,
                     id: generateId(),
                     updatedAt: Date.now(),
-                    seasonId: state.currentSeasonId || undefined,
+                    seasonId: state.currentSeasonId,
                 };
                 set((s) => ({ matchPlans: [...s.matchPlans, plan] }));
                 queueForSync('match_plans', plan.id, 'create', {
@@ -363,22 +381,47 @@ export const useAppStore = create<AppState>()(
                     currentUserId: null,
                     teams: [],
                     scoutingReports: [],
-                    checklist: DEFAULT_CHECKLIST_ITEMS,
+                    checklistsBySeason: {},
                     matchPlans: [],
                     teamMembers: [],
                     isLoading: false,
 
-                    // Reset slices to initial values
+                    // Reset slices to initial values. Empty, not seeded: a team's seasons,
+                    // sub-teams and checklist are created server-side by
+                    // `create_team_as_admin` and arrive on the first pull.
                     tasks: [],
-                    subTeams: DEFAULT_SUBTEAMS,
-                    seasons: [DEFAULT_SEASON],
-                    currentSeasonId: DEFAULT_SEASON.id,
+                    subTeams: [],
+                    seasons: [],
+                    currentSeasonId: null,
                 });
             },
         }),
         {
             name: 'falconforge-storage',
             storage: createJSONStorage(() => indexedDBStorage),
+            /**
+             * v1 -> v2: `checklist` (one array per team) becomes `checklistsBySeason`.
+             *
+             * Without this, everyone with the app already installed loses the pre-match
+             * checklist they have been maintaining — persisted state is read back as an
+             * object with a key the store no longer has, and the new key is simply absent.
+             * The old array belonged to whichever season was current when it was written,
+             * which is exactly where it is put back.
+             */
+            version: 2,
+            migrate: (persisted: any, version: number) => {
+                if (!persisted || version >= 2) return persisted;
+
+                const { checklist, currentSeasonId, ...rest } = persisted;
+                return {
+                    ...rest,
+                    currentSeasonId,
+                    checklistsBySeason:
+                        currentSeasonId && Array.isArray(checklist)
+                            ? { [currentSeasonId]: checklist }
+                            : {},
+                };
+            },
             partialize: (state) => ({
                 currentTeamId: state.currentTeamId,
                 teams: state.teams,
@@ -386,7 +429,7 @@ export const useAppStore = create<AppState>()(
                 tasks: state.tasks,
                 subTeams: state.subTeams,
                 scoutingReports: state.scoutingReports,
-                checklist: state.checklist,
+                checklistsBySeason: state.checklistsBySeason,
                 matchPlans: state.matchPlans,
                 seasons: state.seasons,
                 currentSeasonId: state.currentSeasonId,

@@ -361,6 +361,39 @@ BEGIN
     VALUES (v_team_id, trim(season_name))
     RETURNING id INTO v_season_id;
 
+    /*
+     * Seed the season SERVER-SIDE.
+     *
+     * The client used to hold these as constants — `DEFAULT_SUBTEAMS` in constants.ts and
+     * `DEFAULT_SEASON` / `DEFAULT_CHECKLIST_ITEMS` in the store — with ids hardcoded so that
+     * every device agreed on them. Which meant every TEAM agreed on them too: two teams both
+     * push sub-team `657c8820-…`, the second push upserts onto a row belonging to the first,
+     * RLS refuses the UPDATE branch, and the second team's sub-teams dead-letter forever.
+     *
+     * Creating them here gives each team its own uuids, inside the transaction that creates
+     * the team, before any client can reference one.
+     */
+    INSERT INTO sub_teams (team_id, season_id, name)
+    SELECT v_team_id, v_season_id, name
+    FROM unnest(ARRAY['Programming', 'Build', 'Drive', 'Scouting', 'Outreach']) AS name;
+
+    -- The checklist row's id IS the season id. Blob-synced records have no per-record
+    -- identity to merge on, so two offline devices need to agree on the row id without
+    -- talking to each other; deriving it from the season is what makes their upserts
+    -- converge on one row instead of racing to create two. `checklists_one_per_season` is
+    -- the schema-side half of the same promise.
+    INSERT INTO checklists (id, team_id, season_id, items)
+    VALUES (v_season_id, v_team_id, v_season_id, jsonb_build_array(
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Turn off robot', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Swap main battery', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Charge old battery', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Charge Driver Hub', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Tighten chassis screws', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Check wiring connections', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Clean wheels', 'checked', false),
+        jsonb_build_object('id', gen_random_uuid(), 'text', 'Reset servo positions', 'checked', false)
+    ));
+
     RETURN json_build_object(
         'success', true,
         'team_id', v_team_id,

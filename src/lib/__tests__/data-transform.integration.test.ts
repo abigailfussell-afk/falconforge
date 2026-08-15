@@ -202,25 +202,34 @@ describe('transformToSupabaseSchema', () => {
             });
         });
 
-        it('maps sub-team member ids and tolerates an unscoped sub-team', () => {
+        it('carries the season through, because a sub-team cannot be unscoped', () => {
+            // This used to assert `season_id` came out NULL for a sub-team with no season,
+            // which was the client half of C6: `sub_teams.season_id` is NOT NULL, so that
+            // row could only ever fail its constraint. The season is required on the type
+            // now and passed straight through.
             const row = transformToSupabaseSchema('subTeams', {
                 id: 'st-1', name: 'Programming', teamId: 'team-1', memberIds: ['m1', 'm2'],
+                seasonId: 'season-1',
             });
 
             expect(row.member_ids).toEqual(['m1', 'm2']);
-            expect(row.season_id).toBeNull();
+            expect(row.season_id).toBe('season-1');
         });
     });
 
     describe('checklists (blob-synced, not a registry entity)', () => {
-        it('uses the team id as the row id, since there is one row per team', () => {
+        it('uses the season id as the row id, since there is one row per season (C6)', () => {
+            // V1 keyed the blob on the TEAM, so every season shared one checklist and a new
+            // season was not the fresh start it is supposed to be. The id has to be
+            // derivable without a round trip -- two devices editing offline must arrive at
+            // the same row -- and the season is the thing they already agree on.
             const row = transformToSupabaseSchema('checklists', {
                 teamId: 'team-456',
                 seasonId: 'season-789',
                 items: [{ id: '1', text: 'Swap battery', checked: false }],
             });
 
-            expect(row.id).toBe('team-456');
+            expect(row.id).toBe('season-789');
             expect(row.team_id).toBe('team-456');
             expect(row.season_id).toBe('season-789');
             expect(row.items).toEqual([{ id: '1', text: 'Swap battery', checked: false }]);

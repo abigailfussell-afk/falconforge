@@ -17,18 +17,20 @@ describe('DashboardHome', () => {
         // Default mock state for store matching the component's expectations
         useAppStore.setState({
             tasks: [
-                { id: '1', title: 'Task 1', description: '', assignedTo: '', status: 'To Do', department: 'Build', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [] },
-                { id: '2', title: 'Task 2', description: '', assignedTo: '', status: 'Done', department: 'Programming', type: 'Bug', checklist: [], timeline: [], createdAt: 1000, tags: [] },
+                { id: '1', title: 'Task 1', description: '', assignedTo: '', status: 'To Do', department: 'Build', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
+                { id: '2', title: 'Task 2', description: '', assignedTo: '', status: 'Done', department: 'Programming', type: 'Bug', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
             ],
             scoutingReports: [
-                { id: '1', teamNumber: '123', matchNumber: 1, hasAutonomous: true, autoScore: 10, intakeType: 'Automatic', autoAim: true, farShooting: false, shotsTaken: 5, shotsMissed: 1, parking: 'No Park', rating: 4, endGameNotes: '', createdAt: 2000 },
-                { id: '2', teamNumber: '456', matchNumber: 2, hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'Full Park', rating: 3, endGameNotes: '', createdAt: 3000 },
+                { id: '1', teamNumber: '123', matchNumber: 1, hasAutonomous: true, autoScore: 10, intakeType: 'Automatic', autoAim: true, farShooting: false, shotsTaken: 5, shotsMissed: 1, parking: 'No Park', rating: 4, endGameNotes: '', createdAt: 2000, seasonId: 'season-1' },
+                { id: '2', teamNumber: '456', matchNumber: 2, hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'Full Park', rating: 3, endGameNotes: '', createdAt: 3000, seasonId: 'season-1' },
             ],
-            checklist: [
-                { id: '1', text: 'Item 1', checked: true },
-                { id: '2', text: 'Item 2', checked: false },
-                { id: '3', text: 'Item 3', checked: false },
-            ],
+            checklistsBySeason: {
+                'season-1': [
+                    { id: '1', text: 'Item 1', checked: true },
+                    { id: '2', text: 'Item 2', checked: false },
+                    { id: '3', text: 'Item 3', checked: false },
+                ],
+            },
             currentSeasonId: 'season-1',
             seasons: [{ id: 'season-1', name: 'Test Season', fieldImageData: '', createdAt: 1000 }]
         });
@@ -62,7 +64,7 @@ describe('DashboardHome', () => {
         useAppStore.setState({
             tasks: [],
             scoutingReports: [],
-            checklist: [],
+            checklistsBySeason: {},
             matchPlans: [],
         });
 
@@ -83,14 +85,14 @@ describe('DashboardHome', () => {
     it('renders recent activity in descending chronological order', () => {
         useAppStore.setState({
             tasks: [
-                { id: 't1', title: 'Oldest Task', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [] },
-                { id: 't2', title: 'Newest Task', description: '', assignedTo: '', status: 'In Progress', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 5000, tags: [] },
+                { id: 't1', title: 'Oldest Task', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
+                { id: 't2', title: 'Newest Task', description: '', assignedTo: '', status: 'In Progress', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 5000, tags: [], seasonId: 'season-1' },
             ],
             scoutingReports: [
-                { id: 's1', teamNumber: '999', matchNumber: 1, hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '', createdAt: 3000 },
+                { id: 's1', teamNumber: '999', matchNumber: 1, hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '', createdAt: 3000, seasonId: 'season-1' },
             ],
             matchPlans: [
-                { id: 'm1', title: 'Mid Plan', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 2000 },
+                { id: 'm1', title: 'Mid Plan', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 2000, seasonId: 'season-1' },
             ],
             currentSeasonId: 'season-1',
             seasons: [{ id: 'season-1', name: 'Test Season', fieldImageData: '', createdAt: 1000 }],

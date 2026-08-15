@@ -165,13 +165,16 @@ const subTeams: EntityDefinition<SubTeam> = {
         team_id: st.teamId,
         name: st.name,
         member_ids: st.memberIds || [],
-        season_id: st.seasonId || null,
+        // NOT NULL in the schema, and required on the type. The `|| null` that used to be
+        // here was the client half of C6: it turned "no season selected" into a push that
+        // could only ever fail its not-null constraint.
+        season_id: st.seasonId,
     }),
     fromRemote: (r) => ({
         id: r.id,
         name: r.name,
         memberIds: r.member_ids || [],
-        seasonId: r.season_id ?? undefined,
+        seasonId: r.season_id,
     }),
     getFromStore: (s) => s.subTeams,
     setInStore: (s, items) => s.setSubTeams(items),
@@ -281,9 +284,10 @@ const teamMembers: EntityDefinition<TeamMember> = {
         id: m.id,
         team_id: m.teamId,
         user_id: m.userId,
+        managed_profile_id: m.managedProfileId ?? null,
         role: m.role,
         status: m.status,
-        is_billing_active: m.isBillingActive,
+        seat_assigned: m.seatAssigned,
         full_name: m.fullName,
         email: m.email,
         avatar_url: m.avatarUrl,
@@ -292,9 +296,10 @@ const teamMembers: EntityDefinition<TeamMember> = {
         id: r.id,
         teamId: r.team_id,
         userId: r.user_id,
+        managedProfileId: r.managed_profile_id ?? null,
         role: toMemberRole(r.role),
         status: toMemberStatus(r.status),
-        isBillingActive: r.is_billing_active ?? false,
+        seatAssigned: r.seat_assigned ?? false,
         fullName: r.full_name ?? null,
         email: r.email,
         avatarUrl: r.avatar_url ?? null,
@@ -304,7 +309,7 @@ const teamMembers: EntityDefinition<TeamMember> = {
     setInStore: (s, items) => s.setTeamMembers(items),
 };
 
-const MEMBER_ROLES: readonly string[] = ['coach', 'assistant_coach', 'mentor', 'student'];
+const MEMBER_ROLES: readonly string[] = ['admin', 'coach', 'mentor', 'student'];
 const MEMBER_STATUSES: readonly string[] = ['pending', 'approved', 'removed'];
 
 /**

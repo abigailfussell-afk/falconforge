@@ -83,8 +83,10 @@ export function handleRealtimeDelete(tableName: string, recordId: string): void 
     }
 
     if (tableName === 'checklists') {
-        // Blob-synced; a delete means the whole checklist was removed.
-        store.setChecklist([]);
+        // Blob-synced, one row per season, and the row id IS the season id (see
+        // `updateChecklist` in store.ts). So the deleted record's id names the season whose
+        // checklist just went away, and no extra lookup is needed.
+        store.setChecklistForSeason(recordId, []);
     }
 }
 

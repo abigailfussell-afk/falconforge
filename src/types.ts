@@ -35,16 +35,40 @@ export interface Team {
 }
 
 /**
- * TeamMember - A Supabase user who belongs to a Team
+ * MemberRole — who can do what.
+ *
+ * `admin` is the primary administrator: exactly one per team, 18+, attested, and the only
+ * role that touches licensing. `assistant_coach` is gone — it was a fourth name for "not
+ * quite a coach" that the UI exposed and no code ever branched on, while `mentor` existed
+ * in the schema and was unreachable from the interface.
+ *
+ * These names are enforced by a CHECK constraint and by `enforce_member_role_eligibility`,
+ * which refuses admin/coach/mentor to an account that is not 18+. Client-side role checks
+ * are UX; the database is the boundary.
+ */
+export type MemberRole = 'admin' | 'coach' | 'mentor' | 'student';
+
+/**
+ * TeamMember - A person who belongs to a Team
  * Managed in Admin Settings → "Team Roster" section
  */
 export interface TeamMember {
   id: string;
   teamId: string;
+  /**
+   * The LOGIN that acts for this membership. For a guardian-managed profile this is the
+   * guardian's account, not the child's — a child under 13 has no credentials at all.
+   */
   userId: string;
-  role: 'coach' | 'assistant_coach' | 'mentor' | 'student';
+  /** Set when this row is a child a guardian is responsible for. Always a student. */
+  managedProfileId?: string | null;
+  role: MemberRole;
   status: 'pending' | 'approved' | 'removed';
-  isBillingActive: boolean;
+  /**
+   * Whether the admin has given this member one of the team's licensed seats. Called
+   * `isBillingActive` in V1, which described neither what it was nor who set it.
+   */
+  seatAssigned: boolean;
   // User display info (populated from Supabase users table)
   fullName: string | null;
   email: string;
@@ -82,8 +106,19 @@ export interface SubTeam {
   id: string;
   name: string;
   memberIds: string[];  // TeamMember IDs assigned to this SubTeam
-  seasonId?: string;    // Scoped to a specific Season
+  seasonId: string;     // Scoped to a specific Season
 }
+
+/**
+ * SEASON SCOPING IS NOT OPTIONAL.
+ *
+ * `seasonId` is required on every season-scoped type below, mirroring `season_id NOT NULL`
+ * in the schema. It used to be optional, and the client compensated with
+ * `!x.seasonId || x.seasonId === currentSeasonId` written out in five places — a filter
+ * that lets a row with no season leak into EVERY season, which is the exact opposite of the
+ * fresh start a new season is supposed to be. Those filters are gone; the type is what
+ * stops them coming back.
+ */
 
 
 // ============================================
@@ -111,7 +146,7 @@ export interface Task {
   timeline: TimelineEvent[];
   createdAt: number;
   dueDate?: number;
-  seasonId?: string;
+  seasonId: string;
   archivedAt?: number;
 }
 
@@ -132,16 +167,22 @@ export interface ScoutingReport {
   rating: number; // 1-5
   endGameNotes: string;
   createdBy?: string;   // TeamMember ID who created this report
-  seasonId?: string;    // Scoped to a specific Season
+  seasonId: string;     // Scoped to a specific Season
   createdAt?: number;
 }
 
+/**
+ * One line of a pre-match checklist.
+ *
+ * No `seasonId` here: the checklist is stored as one row PER SEASON and the whole item
+ * array lives in that row's `items` column, so the season is a property of the list rather
+ * than of each line. V1 carried it per item and per row at once, and the two disagreed.
+ */
 export interface ChecklistItem {
   id: string;
   text: string;
   checked: boolean;
   assignedTo?: string; // TeamMember ID or SubTeam ID
-  seasonId?: string;   // Scoped to a specific Season
 }
 
 export interface MatchPlan {
@@ -159,7 +200,7 @@ export interface MatchPlan {
   partnerAutonomous: boolean;
   partnerPark: boolean;
   updatedAt: number;
-  seasonId?: string;
+  seasonId: string;
 }
 
 export interface Season {

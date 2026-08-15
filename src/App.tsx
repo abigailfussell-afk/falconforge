@@ -44,10 +44,16 @@ function Dashboard() {
     } = useAppStore();
     const navigate = useNavigate();
 
-    // Filter data by current season (include items with no seasonId for backwards compatibility)
-    const tasks = allTasks.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
+    // Filter data by current season.
+    //
+    // The `!t.seasonId ||` half of this filter is gone. It was there to tolerate records
+    // with no season, and what it actually did was leak every one of them into EVERY
+    // season — the opposite of the fresh start a new season is meant to be. `season_id` is
+    // NOT NULL in the schema and `seasonId` is required on the type, so there is nothing
+    // left for it to tolerate.
+    const tasks = allTasks.filter(t => t.seasonId === currentSeasonId);
     const teamMembers = allTeamMembers.filter(m => m.teamId === useAppStore.getState().currentTeamId);
-    const subTeams = allSubTeams.filter(t => !t.seasonId || t.seasonId === currentSeasonId);
+    const subTeams = allSubTeams.filter(t => t.seasonId === currentSeasonId);
 
     // Adapt store data to component props format
     const tasksForComponents = tasks.map(t => ({
@@ -60,9 +66,14 @@ function Dashboard() {
 
     const handleSignOut = () => performSignOut(signOut);
 
-    // Calculate role for permissions
+    // Who can reach the admin screens.
+    //
+    // Mirrors the server's `can_manage_roster` capability (admin or coach) rather than the
+    // V1 `isCoach` boolean, which branched on one of the schema's four roles and left
+    // mentors indistinguishable from students. This is UX only: the database refuses the
+    // writes regardless of what the sidebar renders.
     const currentUserRole = teamMembers.find(m => m.userId === user?.id)?.role;
-    const isCoach = currentUserRole === 'coach';
+    const canManageTeam = currentUserRole === 'admin' || currentUserRole === 'coach';
 
     // Fetch team data when team changes
     useEffect(() => {
@@ -107,7 +118,7 @@ function Dashboard() {
                 setActiveTab={setActiveTab}
                 isMobileMenuOpen={isMobileMenuOpen}
                 setIsMobileMenuOpen={setIsMobileMenuOpen}
-                isCoach={isCoach}
+                canManageTeam={canManageTeam}
                 user={user}
                 isConfigured={isConfigured ?? false}
                 onSignOut={handleSignOut}
@@ -138,7 +149,7 @@ function Dashboard() {
                     {activeTab === 'planner' && <MatchPlanner />}
                     {activeTab === 'profile' && <EditProfile />}
                     {activeTab === 'admin' && (
-                        isCoach ? (
+                        canManageTeam ? (
                             <AdminSettings
                                 teamMembers={teamMembers}
                                 subTeams={subTeams}
@@ -150,7 +161,7 @@ function Dashboard() {
                                 </div>
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Access Denied</h2>
                                 <p className="text-slate-600 dark:text-slate-400 max-w-md">
-                                    Only team coaches have access to the Admin Settings page. Please contact your coach if you believe this is an error.
+                                    Only the team admin and coaches have access to the Admin Settings page. Please contact them if you believe this is an error.
                                 </p>
                             </div>
                         )

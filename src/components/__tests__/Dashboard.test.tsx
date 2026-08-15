@@ -81,11 +81,11 @@ function setupStore(overrides: Record<string, any> = {}) {
         teams: [{ id: 'team-1', name: 'Test Team', teamNumber: '1234', ownerId: 'user-1', createdAt: 1000 }],
         currentTeamId: 'team-1',
         teamMembers: [
-            { id: 'tm-1', teamId: 'team-1', userId: 'user-1', role: 'coach', status: 'approved', joinedAt: 1000, fullName: 'Test User', email: 'test@test.com', isBillingActive: false, avatarUrl: null },
+            { id: 'tm-1', teamId: 'team-1', userId: 'user-1', role: 'coach', status: 'approved', joinedAt: 1000, fullName: 'Test User', email: 'test@test.com', seatAssigned: false, avatarUrl: null },
         ],
         subTeams: [],
         tasks: [],
-        checklist: [],
+        checklistsBySeason: {},
         scoutingReports: [],
         matchPlans: [],
         seasons: [{ id: 'season-1', name: '2025-2026', fieldImageData: '', createdAt: 1000 }],

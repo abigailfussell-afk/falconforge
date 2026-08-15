@@ -135,8 +135,10 @@ describe('transformToSupabaseSchema', () => {
 
         const result = transformToSupabaseSchema('checklists', checklist);
 
-        // id is set to teamId for blob sync
-        expect(result.id).toBe('team-1');
+        // The row id is the SEASON id, not the team id (C6): one checklist per season, and
+        // an id two offline devices can both arrive at without talking to each other.
+        expect(result.id).toBe('season-1');
+        expect(result.season_id).toBe('season-1');
         expect(result.team_id).toBe('team-1');
         expect(result.name).toBe('Pre-Match Checklist');
         expect(result.items).toHaveLength(1);
@@ -178,10 +180,11 @@ describe('updateLocalDatabase', () => {
                     timeline: [],
                     createdAt: 1000,
                     dueDate: undefined,
+                    seasonId: 'season-1',
                 },
             ],
             scoutingReports: [],
-            checklist: [],
+            checklistsBySeason: {},
             matchPlans: [],
         });
     });

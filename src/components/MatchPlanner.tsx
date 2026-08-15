@@ -28,7 +28,7 @@ const MatchPlanner: React.FC = () => {
       : `${import.meta.env.BASE_URL}${customFieldImage}`)
     : `${import.meta.env.BASE_URL}${FIELD_IMAGE_URL}`;
   // Filter match plans by current season
-  const matchPlans = allMatchPlans.filter(p => !p.seasonId || p.seasonId === currentSeasonId);
+  const matchPlans = allMatchPlans.filter(p => p.seasonId === currentSeasonId);
   const [paths, setPaths] = useState<{ d: string, stroke: string, width: number }[]>([]);
   const [undoHistory, setUndoHistory] = useState<{ d: string, stroke: string, width: number }[]>([]);
   const [currentPath, setCurrentPath] = useState('');

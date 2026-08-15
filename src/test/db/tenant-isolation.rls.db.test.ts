@@ -24,7 +24,7 @@ import type { Database } from '@/lib/database.types';
 import { Fixtures, type TestTeam, type Role } from './fixtures';
 import { anonClient } from './stack';
 
-const ROLES: Role[] = ['coach', 'assistant_coach', 'mentor', 'student'];
+const ROLES: Role[] = ['admin', 'coach', 'mentor', 'student'];
 
 let fixtures: Fixtures;
 let teamA: TestTeam;
@@ -128,6 +128,34 @@ function crossTenantCases() {
             id: () => teamB.inviteId,
             update: { code: 'STOLEN01' },
             insert: () => ({ team_id: teamB.id, code: 'INJECTED', created_by: teamB.coach.id }),
+        },
+        {
+            table: 'license_grants',
+            id: () => teamB.licenseGrantId,
+            update: { notes: 'stolen' },
+            insert: () => ({ team_id: teamB.id, source: 'gift', seats: 99 }),
+        },
+        {
+            table: 'meetings',
+            id: () => teamB.meetingId,
+            update: { title: 'stolen' },
+            insert: () => ({
+                team_id: teamB.id,
+                season_id: teamB.seasonId,
+                title: 'injected meeting',
+                starts_at: new Date('2026-10-01T18:00:00Z').toISOString(),
+            }),
+        },
+        {
+            table: 'meeting_attendance',
+            id: () => teamB.attendanceId,
+            update: { status: 'absent' },
+            insert: () => ({
+                meeting_id: teamB.meetingId,
+                team_id: teamB.id,
+                team_member_id: teamB.users.student.memberId,
+                status: 'absent',
+            }),
         },
     ] as const;
 }
@@ -240,6 +268,9 @@ describe('cross-tenant isolation: a member of team A cannot reach team B', () =>
             ['teams', teamB.id],
             ['invites', teamB.inviteId],
             ['team_members', teamB.users.student.memberId],
+            ['license_grants', teamB.licenseGrantId],
+            ['meetings', teamB.meetingId],
+            ['meeting_attendance', teamB.attendanceId],
         ];
 
         for (const [table, id] of survivors) {
@@ -365,8 +396,9 @@ describe('same-team access still works (the control that stops this suite being 
             const team = await client.from('teams').select('id').eq('id', teamA.id);
             expect(team.data, `${role} cannot read their own team`).toHaveLength(1);
 
+            // Four roles plus the guardian-managed child, who is a person on the roster.
             const members = await client.from('team_members').select('id').eq('team_id', teamA.id);
-            expect(members.data?.length, `${role} cannot read their own roster`).toBe(ROLES.length);
+            expect(members.data?.length, `${role} cannot read their own roster`).toBe(ROLES.length + 1);
         }
     });
 
@@ -402,5 +434,319 @@ describe('same-team access still works (the control that stops this suite being 
 
         const tasks = await client.from('tasks').select('id').eq('id', teamA.taskId);
         expect(tasks.data, 'an unapproved user could read team data').toEqual([]);
+    });
+});
+
+describe('B21 — a user cannot insert themselves into somebody else’s team', () => {
+    /*
+     * THE HOLE THIS REPO SHIPPED, AND THE ONE THE FIRST VERSION OF THIS SUITE MISSED.
+     *
+     * V1's policy was `WITH CHECK (user_id = auth.uid() OR is_team_coach(...))`. The first
+     * branch let ANY authenticated user insert a row naming THEMSELVES, into ANY team, with
+     * any role and status = 'approved'. Knowing a team's uuid was the whole attack.
+     *
+     * Every cross-tenant INSERT case above names the VICTIM's user id, which the policy
+     * correctly refused — which is exactly why 180 assertions went green over a schema
+     * anyone could join if they could read a team id out of a URL.
+     *
+     * Verified against the V1 schema before it was replaced: this INSERT succeeded, and the
+     * next SELECT returned team B's tasks.
+     */
+    it('cannot join a team by inserting their own membership row', async () => {
+        const attacker = teamA.users.student;
+
+        const { error } = await attacker.client.from('team_members').insert({
+            team_id: teamB.id,
+            user_id: attacker.id,
+            role: 'coach',
+            status: 'approved',
+        } as never);
+
+        expect(error, 'a user inserted themselves into another team').not.toBeNull();
+
+        // And the escalation it was for did not happen.
+        const tasks = await attacker.client.from('tasks').select('id').eq('team_id', teamB.id);
+        expect(tasks.data, "team B's tasks were readable after a self-insert").toEqual([]);
+    });
+
+    it('cannot promote themselves inside their own team either', async () => {
+        // The same shape one level down: a student is not a coach, so `can_manage_roster`
+        // refuses the UPDATE and the role stays put.
+        const student = teamA.users.student;
+
+        await student.client
+            .from('team_members')
+            .update({ role: 'coach' } as never)
+            .eq('id', student.memberId);
+
+        const { serviceClient } = await import('./stack');
+        const after = await serviceClient()
+            .from('team_members')
+            .select('role')
+            .eq('id', student.memberId)
+            .single();
+        expect(after.data?.role, 'a student promoted themselves').toBe('student');
+    });
+});
+
+describe('capabilities are enforced by the database, not by the sidebar', () => {
+    it('a student cannot create a season or a sub-team (can_manage_structure)', async () => {
+        await expectDenied(
+            'student INSERT into seasons',
+            teamA.users.student.client
+                .from('seasons')
+                .insert({ team_id: teamA.id, name: 'student season' } as never)
+                .select(),
+        );
+
+        await expectDenied(
+            'student INSERT into sub_teams',
+            teamA.users.student.client
+                .from('sub_teams')
+                .insert({ team_id: teamA.id, season_id: teamA.seasonId, name: 'student sub-team' } as never)
+                .select(),
+        );
+    });
+
+    it('a coach can — the control that stops the assertion above being vacuous', async () => {
+        const { data, error } = await teamA.coach.client
+            .from('sub_teams')
+            .insert({ team_id: teamA.id, season_id: teamA.seasonId, name: 'coach sub-team' } as never)
+            .select()
+            .single();
+
+        expect(error).toBeNull();
+        expect(data).not.toBeNull();
+        await teamA.coach.client.from('sub_teams').delete().eq('id', (data as any).id);
+    });
+
+    it('a mentor is elevated but does not manage the roster', async () => {
+        await expectDenied(
+            'mentor UPDATE of a teammate',
+            teamA.users.mentor.client
+                .from('team_members')
+                .update({ role: 'coach' } as never)
+                .eq('id', teamA.users.student.memberId)
+                .select(),
+        );
+    });
+
+    it('nobody can grant their own team a licence, not even the admin', async () => {
+        // license_grants has a SELECT policy and no write policy at all. Gifting goes
+        // through grant_team_license, which checks is_platform_operator(); Stripe will
+        // write with the service role. An admin who can licence themselves is not a
+        // licensing model.
+        await expectDenied(
+            'admin INSERT into license_grants',
+            teamA.admin.client
+                .from('license_grants')
+                .insert({ team_id: teamA.id, source: 'gift', seats: 100 } as never)
+                .select(),
+        );
+
+        await expectDenied(
+            'admin UPDATE of their own licence',
+            teamA.admin.client
+                .from('license_grants')
+                .update({ valid_until: null } as never)
+                .eq('id', teamA.licenseGrantId)
+                .select(),
+        );
+    });
+
+    it('the operator table cannot be joined through the API', async () => {
+        await expectDenied(
+            'admin INSERT into platform_operators',
+            teamA.admin.client
+                .from('platform_operators')
+                .insert({ user_id: teamA.admin.id } as never)
+                .select(),
+        );
+
+        const { data } = await teamA.admin.client.from('platform_operators').select('*');
+        expect(data ?? [], 'a non-operator could see the operator list').toEqual([]);
+    });
+
+    it('grant_team_license refuses a caller who is not the platform operator', async () => {
+        const { data } = await teamA.admin.client.rpc('grant_team_license', {
+            p_team_id: teamA.id,
+            p_seats: 500,
+        });
+
+        expect((data as any)?.success, 'a team admin gifted themselves a licence').toBe(false);
+    });
+});
+
+describe('an unlicensed team is read-only, and loses nothing', () => {
+    // "Expiry behaviour: read-only grace mode, never data deletion." Enforced by
+    // `team_can_write`, which every content write policy consults — not by a banner.
+    beforeAll(async () => {
+        await fixtures.revokeLicense(teamA.id);
+    });
+
+    afterAll(async () => {
+        await fixtures.restoreLicense(teamA.id);
+    });
+
+    it('reports read_only through team_entitlement', async () => {
+        const { data } = await teamA.admin.client
+            .from('team_entitlement')
+            .select('status')
+            .eq('team_id', teamA.id)
+            .single();
+
+        expect((data as any)?.status).toBe('read_only');
+    });
+
+    it('refuses every content write', async () => {
+        await expectDenied(
+            'INSERT a task into an unlicensed team',
+            teamA.users.student.client
+                .from('tasks')
+                .insert({ team_id: teamA.id, season_id: teamA.seasonId, title: 'unlicensed' } as never)
+                .select(),
+        );
+
+        await expectDenied(
+            'UPDATE a task in an unlicensed team',
+            teamA.users.student.client
+                .from('tasks')
+                .update({ title: 'unlicensed edit' } as never)
+                .eq('id', teamA.taskId)
+                .select(),
+        );
+
+        await expectDenied(
+            'DELETE a task from an unlicensed team',
+            teamA.users.student.client.from('tasks').delete().eq('id', teamA.taskId).select(),
+        );
+    });
+
+    it('still allows every read — the data is all still there', async () => {
+        const tasks = await teamA.users.student.client
+            .from('tasks')
+            .select('id, title')
+            .eq('id', teamA.taskId);
+
+        expect(tasks.error).toBeNull();
+        expect(tasks.data, 'an unlicensed team lost access to its own data').toHaveLength(1);
+        expect((tasks.data as any)[0].title).toBe('alpha task');
+    });
+
+    it('still allows the admin to manage the roster, so the problem is fixable', async () => {
+        // can_manage_roster is deliberately NOT gated on entitlement. Locking an admin out
+        // of their own membership list is how a billing problem becomes a support ticket
+        // nobody can resolve.
+        const { error } = await teamA.admin.client
+            .from('team_members')
+            .update({ full_name: 'Renamed while unlicensed' } as never)
+            .eq('id', teamA.users.student.memberId)
+            .select();
+
+        expect(error).toBeNull();
+    });
+});
+
+describe('guardians reach their own child, and nothing else', () => {
+    /*
+     * The COPPA model: a child under 13 has no login. Their membership row carries the
+     * GUARDIAN's user_id plus a managed_profile_id, which is what lets every existing
+     * `user_id = auth.uid()` policy do the right thing for them.
+     *
+     * The other half is that being responsible for a child on a team does not make the
+     * guardian a member of it — `get_user_team_ids` excludes managed rows on purpose.
+     */
+    it('can read their own managed profile and consent', async () => {
+        const profile = await teamA.guardian.user.client
+            .from('managed_profiles')
+            .select('id, full_name')
+            .eq('id', teamA.guardian.profileId);
+
+        expect(profile.error).toBeNull();
+        expect(profile.data, 'a guardian could not read their own child profile').toHaveLength(1);
+
+        const consent = await teamA.guardian.user.client
+            .from('guardian_consents')
+            .select('id')
+            .eq('id', teamA.guardian.consentId);
+        expect(consent.data).toHaveLength(1);
+    });
+
+    it('can see their child’s membership row', async () => {
+        const { data } = await teamA.guardian.user.client
+            .from('team_members')
+            .select('id')
+            .eq('id', teamA.guardian.memberId);
+
+        expect(data, 'a guardian could not see their child’s membership').toHaveLength(1);
+    });
+
+    it('cannot read the team’s content just because their child is on it', async () => {
+        const tasks = await teamA.guardian.user.client
+            .from('tasks')
+            .select('id')
+            .eq('id', teamA.taskId);
+        expect(tasks.data, 'a guardian read the team’s tasks').toEqual([]);
+
+        const reports = await teamA.guardian.user.client.from('scouting_reports').select('id');
+        expect(reports.data ?? []).toEqual([]);
+
+        const invites = await teamA.guardian.user.client.from('invites').select('code');
+        expect(invites.data ?? [], 'a guardian read the team’s invite codes').toEqual([]);
+    });
+
+    it('cannot read another guardian’s profiles or consents', async () => {
+        const profiles = await teamA.guardian.user.client
+            .from('managed_profiles')
+            .select('id')
+            .eq('id', teamB.guardian.profileId);
+        expect(profiles.data, 'another family’s child profile leaked').toEqual([]);
+
+        const consents = await teamA.guardian.user.client
+            .from('guardian_consents')
+            .select('id')
+            .eq('id', teamB.guardian.consentId);
+        expect(consents.data).toEqual([]);
+    });
+
+    it('owns the profile: the child’s own team can see it but not change it', async () => {
+        const visible = await teamA.coach.client
+            .from('managed_profiles')
+            .select('id')
+            .eq('id', teamA.guardian.profileId);
+        expect(visible.data, 'the roster could not see a managed member').toHaveLength(1);
+
+        await expectDenied(
+            'coach UPDATE of a managed profile',
+            teamA.coach.client
+                .from('managed_profiles')
+                .update({ full_name: 'renamed by the coach' } as never)
+                .eq('id', teamA.guardian.profileId)
+                .select(),
+        );
+    });
+
+    it('is not thereby a member of the team', async () => {
+        const teams = await teamA.guardian.user.client.from('teams').select('id');
+        expect(teams.data ?? [], 'a guardian became a member of their child’s team').toEqual([]);
+    });
+});
+
+describe('team_entitlement does not leak across tenants', () => {
+    it('shows a member only their own team', async () => {
+        const { data, error } = await teamA.users.student.client
+            .from('team_entitlement')
+            .select('team_id');
+
+        expect(error).toBeNull();
+        const ids = (data ?? []).map((row: any) => row.team_id);
+        expect(ids, 'the entitlement view leaked another team’s licensing state')
+            .not.toContain(teamB.id);
+        expect(ids).toContain(teamA.id);
+    });
+
+    it('shows an anonymous client nothing', async () => {
+        const { data, error } = await anon.from('team_entitlement').select('team_id');
+        if (!error) expect(data ?? []).toEqual([]);
     });
 });

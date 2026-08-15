@@ -17,8 +17,11 @@ import { updateLocalDatabase, mergeIntoStore } from '@/lib/server-pull';
 import { useAppStore } from '@/lib/store';
 import type { Task } from '@/types';
 
+const SEASON_ID = 'ce0a9d5c-6b1f-4a3e-8f0b-2c1d3e4f5a6b';
+
 const localTask = (id: string, title: string): Task => ({
     id,
+    seasonId: SEASON_ID,
     title,
     description: '',
     status: 'Backlog',
@@ -97,7 +100,7 @@ describe('full pull preserves unpushed local records (B3)', () => {
 
     it('protects sub-teams, scouting reports and match plans too, not just tasks', () => {
         useAppStore.setState({
-            subTeams: [{ id: 'st-local', name: 'Drive', memberIds: [] }],
+            subTeams: [{ id: 'st-local', name: 'Drive', memberIds: [], seasonId: SEASON_ID }],
         });
 
         updateLocalDatabase('subTeams', [{ id: 'st-server', name: 'Build', member_ids: [] }],

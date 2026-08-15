@@ -9,7 +9,8 @@ interface SidebarProps {
     setActiveTab: (tab: string) => void;
     isMobileMenuOpen: boolean;
     setIsMobileMenuOpen: (open: boolean) => void;
-    isCoach: boolean;
+    /** Mirrors the server's `can_manage_roster` capability: the admin or a coach. */
+    canManageTeam: boolean;
     user: SupabaseUser | null;
     isConfigured: boolean;
     onSignOut: () => void;
@@ -29,7 +30,7 @@ export default function Sidebar({
     setActiveTab,
     isMobileMenuOpen,
     setIsMobileMenuOpen,
-    isCoach,
+    canManageTeam,
     user,
     isConfigured,
     onSignOut,
@@ -96,7 +97,7 @@ export default function Sidebar({
                     <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                     <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                     <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
-                    {isCoach && (
+                    {canManageTeam && (
                         <>
                             <div className="my-4 border-t border-slate-100 dark:border-slate-700"></div>
                             <NavItem id="admin" label="Admin Settings" icon={Settings} />
@@ -244,7 +245,7 @@ export default function Sidebar({
                         <NavItem id="checklist" label="Pre-Match Checklist" icon={CheckSquare} />
                         <NavItem id="scouting" label="Scouting Reports" icon={ClipboardCheck} />
                         <NavItem id="planner" label="Match Planner" icon={Gamepad2} />
-                        {isCoach && <NavItem id="admin" label="Admin Settings" icon={Settings} />}
+                        {canManageTeam && <NavItem id="admin" label="Admin Settings" icon={Settings} />}
                     </nav>
 
                     {isConfigured && user && (

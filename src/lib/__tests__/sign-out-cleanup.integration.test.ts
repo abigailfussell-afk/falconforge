@@ -92,7 +92,7 @@ describe('performSignOut leaves nothing behind for the next user (B5)', () => {
                     userId: 'user-1',
                     role: 'coach',
                     status: 'approved',
-                    isBillingActive: true,
+                    seatAssigned: true,
                     fullName: 'The Coach',
                     email: 'coach@example.com',
                     avatarUrl: null,

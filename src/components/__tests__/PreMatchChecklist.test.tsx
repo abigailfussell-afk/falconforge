@@ -3,17 +3,25 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import PreMatchChecklist from '../PreMatchChecklist';
 import { useAppStore } from '../../lib/store';
 
-// Mock the store
-vi.mock('../../lib/store', () => ({
+// Mock the store hook, but keep the REAL `selectChecklist`. The component reads its list
+// through that selector, and a stubbed copy of it would let the store's per-season keying
+// (C6) drift away from what this test believes without anything failing.
+vi.mock('../../lib/store', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../lib/store')>()),
     useAppStore: vi.fn(),
 }));
 
+const SEASON_ID = 'season-1';
+
 const mockStore = {
-    checklist: [
-        { id: '1', text: 'Check batteries', checked: false },
-        { id: '2', text: 'Tighten screws', checked: true },
-        { id: '3', text: 'Test motors', checked: false },
-    ],
+    currentSeasonId: SEASON_ID,
+    checklistsBySeason: {
+        [SEASON_ID]: [
+            { id: '1', text: 'Check batteries', checked: false },
+            { id: '2', text: 'Tighten screws', checked: true },
+            { id: '3', text: 'Test motors', checked: false },
+        ],
+    },
     teamMembers: [
         { id: 'member-1', fullName: 'John Doe', email: 'john@test.com', role: 'student' },
         { id: 'member-2', fullName: 'Jane Smith', email: 'jane@test.com', role: 'coach' },

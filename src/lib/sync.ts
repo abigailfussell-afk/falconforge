@@ -433,12 +433,18 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
 
     switch (tableName) {
         case 'checklists':
-            // Blob-synced: one row per team holding the whole array, so the row id IS the
-            // team id. Not an entity in the registry sense -- it has no per-record identity.
+            // Blob-synced: one row per SEASON holding the whole array, so the row id IS the
+            // season id. Not an entity in the registry sense -- it has no per-record
+            // identity, which is exactly why the id has to be derived from something two
+            // offline devices already agree on rather than generated.
+            //
+            // V1 used the team id here and wrote `seasonId || null` into a NOT NULL column
+            // (C6): one checklist shared by every season, and an unpushable row whenever no
+            // season was selected.
             return {
-                id: data.teamId || data.id,
+                id: data.seasonId,
                 team_id: data.teamId,
-                season_id: data.seasonId || null,
+                season_id: data.seasonId,
                 name: data.name || 'Pre-Match Checklist',
                 items: data.items || data.checklist || [],
                 is_template: data.isTemplate || false,

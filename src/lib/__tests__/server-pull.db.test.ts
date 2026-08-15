@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Fixtures, type TestTeam } from '@/test/db/fixtures';
 import { serviceClient } from '@/test/db/stack';
 import { signInAppClientAs, signOutAppClient } from '@/test/db/setup';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, selectChecklist } from '@/lib/store';
 import { queueForSync, getSyncMeta, db } from '@/lib/offline-db';
 import { pullFromServer, fetchTeamData } from '@/lib/server-pull';
 
@@ -62,7 +62,7 @@ beforeEach(() => {
         scoutingReports: [],
         matchPlans: [],
         teamMembers: [],
-        checklist: [],
+        checklistsBySeason: {},
     });
 });
 
@@ -77,7 +77,7 @@ describe('pullFromServer', () => {
         expect(state.subTeams.map((s) => s.name)).toEqual(['Build']);
         expect(state.matchPlans).toHaveLength(1);
         expect(state.scoutingReports).toHaveLength(1);
-        expect(state.checklist).toEqual([{ id: '1', text: 'Charge battery', checked: false }]);
+        expect(selectChecklist(state)).toEqual([{ id: '1', text: 'Charge battery', checked: false }]);
     });
 
     it('preserves a task created offline that the server has never seen (C3/B3)', async () => {
@@ -185,13 +185,20 @@ describe('pullFromServer', () => {
     });
 
     it('skips the checklist pull entirely while a checklist change is queued (B12)', async () => {
-        useAppStore.setState({ checklist: [{ id: 'local', text: 'Not yet pushed', checked: true }] });
-        await queueForSync('checklists', team.id, 'update', { teamId: team.id, items: [] });
+        useAppStore.setState({
+            checklistsBySeason: { [team.seasonId]: [{ id: 'local', text: 'Not yet pushed', checked: true }] },
+        });
+        // The record id is the season id — that is the blob's identity now (C6).
+        await queueForSync('checklists', team.seasonId, 'update', {
+            teamId: team.id,
+            seasonId: team.seasonId,
+            items: [],
+        });
 
         const received = await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
 
         expect(received.checklists, 'the checklist was pulled despite a queued change').toBeUndefined();
-        expect(useAppStore.getState().checklist).toEqual([
+        expect(selectChecklist(useAppStore.getState())).toEqual([
             { id: 'local', text: 'Not yet pushed', checked: true },
         ]);
     });
@@ -227,14 +234,24 @@ describe('fetchTeamData', () => {
         await fetchTeamData(team.id);
 
         const members = useAppStore.getState().teamMembers;
-        expect(members).toHaveLength(4);
+        // Four roles plus the guardian-managed child, who is a student on the roster.
+        expect(members).toHaveLength(5);
         expect(members.every((m) => m.status === 'approved')).toBe(true);
         expect(members.map((m) => m.role).sort()).toEqual([
-            'assistant_coach',
+            'admin',
             'coach',
             'mentor',
             'student',
+            'student',
         ]);
+
+        // A managed profile comes through as a member whose `userId` is the GUARDIAN's
+        // account -- the child has no login of their own. The registry has to carry
+        // `managedProfileId` or the roster cannot tell the two students apart.
+        const managed = members.find((m) => m.managedProfileId)!;
+        expect(managed, 'the managed child was dropped by the read path').toBeDefined();
+        expect(managed.userId).toBe(team.guardian.user.id);
+        expect(managed.role).toBe('student');
         // Mapped through the registry, not an inline `as any` transform.
         const coach = members.find((m) => m.role === 'coach')!;
         expect(coach.teamId).toBe(team.id);
@@ -346,21 +363,26 @@ describe('the React Query hooks are the third caller of the same read path', () 
 
 describe('the checklist blob', () => {
     it('does not wipe a new team’s seeded checklist when the server has no row (B20)', async () => {
-        // `create_team_as_coach` creates a team, a member, an invite and a season -- but no
-        // checklist. So on a brand-new team the first dashboard load finds zero rows, and
-        // reading that as "cleared on another device" deleted the eight seeded pre-match
-        // items with nothing to replace them.
+        // The original defect: V1's `create_team_as_coach` created a team, a member, an
+        // invite and a season -- but no checklist. So on a brand-new team the first
+        // dashboard load found zero rows, and reading that as "cleared on another device"
+        // deleted the eight seeded pre-match items with nothing to replace them.
+        //
+        // `create_team_as_admin` seeds a checklist now, so the original trigger is gone.
+        // The rule it taught still has to hold, because "zero rows" also happens to a
+        // season whose checklist has not been created yet, and to any pull that races a
+        // deletion: ZERO ROWS IS NOT AN EMPTY CHECKLIST.
         await svc.from('checklists').delete().eq('team_id', team.id);
 
         const seeded = [
             { id: 'a', text: 'Turn off robot', checked: false },
             { id: 'b', text: 'Swap main battery', checked: false },
         ];
-        useAppStore.setState({ checklist: seeded });
+        useAppStore.setState({ checklistsBySeason: { [team.seasonId]: seeded } });
 
         await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
 
-        expect(useAppStore.getState().checklist, 'a new team lost its default checklist')
+        expect(selectChecklist(useAppStore.getState()), 'a new team lost its default checklist')
             .toEqual(seeded);
     });
 
@@ -369,34 +391,36 @@ describe('the checklist blob', () => {
         // empty array -- which is one record, not zero, so it is applied.
         await svc.from('checklists').delete().eq('team_id', team.id);
         await svc.from('checklists').insert({
-            id: team.id,
+            id: team.seasonId,
             team_id: team.id,
             season_id: team.seasonId,
             name: 'Pre-Match Checklist',
             items: [],
         });
 
-        useAppStore.setState({ checklist: [{ id: 'a', text: 'Stale local item', checked: true }] });
+        useAppStore.setState({
+            checklistsBySeason: { [team.seasonId]: [{ id: 'a', text: 'Stale local item', checked: true }] },
+        });
 
         await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
 
-        expect(useAppStore.getState().checklist).toEqual([]);
+        expect(selectChecklist(useAppStore.getState())).toEqual([]);
     });
 
     it('applies the items when the server has them', async () => {
         await svc.from('checklists').delete().eq('team_id', team.id);
         await svc.from('checklists').insert({
-            id: team.id,
+            id: team.seasonId,
             team_id: team.id,
             season_id: team.seasonId,
             name: 'Pre-Match Checklist',
             items: [{ id: 'x', text: 'Charge driver hub', checked: true }],
         });
 
-        useAppStore.setState({ checklist: [] });
+        useAppStore.setState({ checklistsBySeason: {} });
         await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
 
-        expect(useAppStore.getState().checklist).toEqual([
+        expect(selectChecklist(useAppStore.getState())).toEqual([
             { id: 'x', text: 'Charge driver hub', checked: true },
         ]);
     });

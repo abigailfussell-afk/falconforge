@@ -99,7 +99,8 @@ const teamMember: TeamMember = {
     userId: 'user-1',
     role: 'mentor',
     status: 'approved',
-    isBillingActive: true,
+    managedProfileId: null,
+    seatAssigned: true,
     fullName: 'Sam Rivera',
     email: 'sam@example.com',
     avatarUrl: 'https://example.com/sam.png',
@@ -221,11 +222,15 @@ describe('team_members narrows server strings instead of casting them', () => {
 
     it('keeps a role it recognises', () => {
         expect(members.fromRemote({ id: 'm', role: 'coach' }).role).toBe('coach');
-        expect(members.fromRemote({ id: 'm', role: 'assistant_coach' }).role).toBe('assistant_coach');
+        expect(members.fromRemote({ id: 'm', role: 'admin' }).role).toBe('admin');
+        expect(members.fromRemote({ id: 'm', role: 'mentor' }).role).toBe('mentor');
     });
 
     it('falls back to the least-privileged role for anything else', () => {
         expect(members.fromRemote({ id: 'm', role: 'superuser' }).role).toBe('student');
+        // 'assistant_coach' is a V1 role that no longer exists. A client that has not been
+        // reloaded since the schema changed must not treat it as elevated.
+        expect(members.fromRemote({ id: 'm', role: 'assistant_coach' }).role).toBe('student');
         expect(members.fromRemote({ id: 'm', role: null }).role).toBe('student');
         expect(members.fromRemote({ id: 'm' }).role).toBe('student');
     });
