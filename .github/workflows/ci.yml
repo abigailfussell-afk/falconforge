@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, refactor/data-layer]
+
+# A newer push to the same branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Ordered cheapest-first so an obvious break fails in seconds, not minutes.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Build
+        run: npm run build
+
+  schema:
+    name: Schema rebuilds from migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # The point of this job: prove supabase/migrations/ alone can reconstruct the
+      # database. Until 2026-08-09 it could not -- migrations began at 009 and the
+      # 001-008 that created the tables were never committed. If this job goes red,
+      # the repo has stopped being the source of truth for the schema again.
+      - name: Start local stack (applies all migrations)
+        run: supabase start
+
+      - name: Rebuild from scratch
+        run: supabase db reset
+
+      # Assertions live in supabase/tests/schema_assertions.sql so they can be run locally
+      # with the same command. `supabase db execute` does not exist -- psql is preinstalled
+      # on ubuntu-latest runners and the local stack exposes Postgres on 54322.
+      - name: Assert schema invariants
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f supabase/tests/schema_assertions.sql
