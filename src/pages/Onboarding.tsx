@@ -15,7 +15,7 @@ interface PendingTeam {
 
 export default function Onboarding() {
     const navigate = useNavigate();
-    const { user, signOut, ageClassification } = useAuth();
+    const { user, signOut, ageClassification, updateAgeClassification } = useAuth();
     const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -176,8 +176,10 @@ export default function Onboarding() {
         setProfileCompleteError(null);
 
         try {
-            // Need to update the age via API since user is already created
-            const { error, success } = await useAuth().updateAgeClassification(selectedAge);
+            // Need to update the age via API since user is already created.
+            // `updateAgeClassification` comes from the hook call in the component body --
+            // calling useAuth() here would break the rules of hooks and throw (C2).
+            const { error, success } = await updateAgeClassification(selectedAge);
 
             if (!success || error) {
                 setProfileCompleteError(error?.message || 'Failed to update profile');
