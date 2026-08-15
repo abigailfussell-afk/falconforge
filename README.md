@@ -78,6 +78,14 @@ For local development, `npm run db:start` brings up the whole stack (Postgres, P
 Auth, Realtime) in Docker with every migration applied. `npm run db:verify` rebuilds it
 from scratch and asserts the schema invariants in `supabase/tests/schema_assertions.sql`.
 
+**[`docs/v2-schema.md`](docs/v2-schema.md) is the schema reference** — the entity diagram,
+what each table is for, the capability model behind the RLS policies, and where each
+invariant is enforced. The schema froze at the end of Sprint 3; everything after it is a
+forward migration.
+
+To gift a team access, or to make yourself the platform operator in the first place, see the
+licensing section of that document.
+
 > An earlier version of this section listed `CREATE TABLE` statements for a `users` and
 > `organizations` schema. There is no `organizations` table; the tenant table is `teams`.
 > Following those instructions would have produced a database the app cannot talk to.
@@ -191,9 +199,11 @@ npm run test:coverage    # all three suites, merged, with thresholds
 
 `test:db` runs the data layer against a real local Supabase stack: the sync drain and pull
 against real PostgREST, and a behavioural tenant-isolation suite that asserts, with real
-JWTs for two teams and all four roles, that nobody can reach another team's rows. It fails
-loudly if the stack is not running rather than skipping — a security suite that passes with
-no database is worse than none.
+JWTs for two teams and all four roles plus a guardian and an anonymous client, that nobody
+can reach another team's rows. It also asserts what the capability model permits, that a
+guardian reaches their child and nothing else, and that a team whose licence has lapsed can
+read everything and write nothing. It fails loudly if the stack is not running rather than
+skipping — a security suite that passes with no database is worse than none.
 
 ## Project Structure
 
@@ -223,10 +233,11 @@ falconforge/
 
 ## Roadmap
 
-- [ ] Team invite system with shareable links
-- [ ] Subscription management with Stripe
-- [ ] Real-time collaboration
-- [ ] Image/video uploads for task documentation
+Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. In short: season lifecycle
+and the new-season wizard, then the UI density and routing pass, then the licensing and admin
+console with the legal pages, then beta hardening for FTC kickoff. After beta: meetings and
+attendance UI, guardian accounts, Stripe billing, and team data export — the schema for the
+first three is already live.
 
 ## License
 

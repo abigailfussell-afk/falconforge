@@ -103,8 +103,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
                 .update({ status: 'approved' })
                 .eq('id', memberId);
 
@@ -158,8 +158,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
                 .update({ role: newRole })
                 .eq('id', memberId);
 
@@ -184,8 +184,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: updateError } = await (supabaseSync
-                .from('team_members') as any)
+            const { error: updateError } = await supabaseSync
+                .from('team_members')
                 .update({ seat_assigned: !currentlyAssigned })
                 .eq('id', memberId);
 

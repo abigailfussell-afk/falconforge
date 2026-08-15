@@ -512,12 +512,12 @@ describe('capabilities are enforced by the database, not by the sidebar', () => 
         const { data, error } = await teamA.coach.client
             .from('sub_teams')
             .insert({ team_id: teamA.id, season_id: teamA.seasonId, name: 'coach sub-team' } as never)
-            .select()
-            .single();
+            .select('id')
+            .single<{ id: string }>();
 
         expect(error).toBeNull();
         expect(data).not.toBeNull();
-        await teamA.coach.client.from('sub_teams').delete().eq('id', (data as any).id);
+        await teamA.coach.client.from('sub_teams').delete().eq('id', data!.id);
     });
 
     it('a mentor is elevated but does not manage the roster', async () => {
@@ -573,7 +573,9 @@ describe('capabilities are enforced by the database, not by the sidebar', () => 
             p_seats: 500,
         });
 
-        expect((data as any)?.success, 'a team admin gifted themselves a licence').toBe(false);
+        // The RPC returns json, which the generated types widen to `Json`.
+        const result = data as { success: boolean; error?: string } | null;
+        expect(result?.success, 'a team admin gifted themselves a licence').toBe(false);
     });
 });
 
@@ -593,9 +595,9 @@ describe('an unlicensed team is read-only, and loses nothing', () => {
             .from('team_entitlement')
             .select('status')
             .eq('team_id', teamA.id)
-            .single();
+            .single<{ status: string }>();
 
-        expect((data as any)?.status).toBe('read_only');
+        expect(data?.status).toBe('read_only');
     });
 
     it('refuses every content write', async () => {
@@ -626,11 +628,12 @@ describe('an unlicensed team is read-only, and loses nothing', () => {
         const tasks = await teamA.users.student.client
             .from('tasks')
             .select('id, title')
-            .eq('id', teamA.taskId);
+            .eq('id', teamA.taskId)
+            .returns<{ id: string; title: string }[]>();
 
         expect(tasks.error).toBeNull();
         expect(tasks.data, 'an unlicensed team lost access to its own data').toHaveLength(1);
-        expect((tasks.data as any)[0].title).toBe('alpha task');
+        expect(tasks.data![0].title).toBe('alpha task');
     });
 
     it('still allows the admin to manage the roster, so the problem is fixable', async () => {
@@ -729,6 +732,36 @@ describe('guardians reach their own child, and nothing else', () => {
     it('is not thereby a member of the team', async () => {
         const teams = await teamA.guardian.user.client.from('teams').select('id');
         expect(teams.data ?? [], 'a guardian became a member of their child’s team').toEqual([]);
+    });
+
+    it('cannot read the other people on the team', async () => {
+        /*
+         * FOUND BY ADVERSARIAL VERIFICATION, not by writing the test first.
+         *
+         * The guardian exclusion lives in TWO predicates — `get_user_team_ids` and
+         * `is_team_member` — and both have to be wrong before anything leaks, which is why
+         * dropping the `managed_profile_id IS NULL` clause from one of them left every
+         * assertion above green.
+         *
+         * Drop it from both, which is what a tidy-up of "these two functions are nearly the
+         * same" would do, and this is what goes: `users_select_teammates` and
+         * `managed_profiles_select_teammates` would hand a guardian the name and email
+         * address of every adult and every child on their child's team. The other guardian
+         * tests here catch the content side; nothing was watching the roster side.
+         */
+        const teammates = await teamA.guardian.user.client
+            .from('users')
+            .select('id, email')
+            .eq('id', teamA.coach.id);
+        expect(teammates.data, 'a guardian read a teammate’s profile and email').toEqual([]);
+
+        // And their own membership row is the only one they can see on the roster.
+        const roster = await teamA.guardian.user.client
+            .from('team_members')
+            .select('id')
+            .eq('team_id', teamA.id);
+        expect(roster.data?.map((r: { id: string }) => r.id), 'a guardian read the whole roster')
+            .toEqual([teamA.guardian.memberId]);
     });
 });
 
