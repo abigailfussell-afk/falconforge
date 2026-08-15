@@ -5,9 +5,12 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 ## Features
 
 - **Sprint Planning / Kanban Board** - Agile-style task management with Board, List, and Calendar views
-- **Pre-Match Checklist** - Customizable checklists for competition day
+- **Pre-Match Checklist** - Customizable checklists for competition day, saveable as team templates
 - **Scouting Reports** - Track opponent capabilities during competitions
 - **Match Planner** - Draw autonomous paths and game strategies on the field
+- **Seasons** - Each year starts fresh: a new-season wizard clones your sub-team structure
+  (never its member assignments), empties the board, scouting log and match plans, and makes
+  the previous season read-only while keeping every row of it browsable
 
 ## Tech Stack
 
@@ -172,6 +175,26 @@ Historically there were three read paths and two of them clobbered offline work;
 regression test named `preserves a task created offline (C3/B3)` is what stops that
 coming back.
 
+### Everything is scoped to a season
+
+Every season-scoped table carries `season_id NOT NULL`, referenced compositely as
+`(season_id, team_id)`. On the client, `useSeasonScope()` and `useSeasonScoped()` in
+`src/lib/season-scope.ts` are the one definition of "belongs to the season on screen" —
+that filter used to be copy-pasted per component, and the one component that forgot it
+silently mixed last season's scouting reports into this season's list.
+
+**A prior season is read-only, and that is a database rule.** `season_is_open()` gates the
+INSERT, UPDATE and DELETE policy of every season-scoped table; SELECT is untouched, so the
+history stays fully browsable. The client's disabled controls and archived-season banner
+exist so the app does not QUEUE a write the server is going to refuse — not as the
+enforcement itself. The client that matters is the one that was offline when the season
+rolled over and still thinks last season is current.
+
+A rollover is composed from the ordinary write path rather than an RPC, because it has to
+work with no network: the season is queued first (its children reference it), then the
+cloned sub-teams, then the checklist, then the archive of the outgoing season. One drain
+satisfies the foreign keys because the queue drains in the order the user acted.
+
 ### Realtime is an enhancement, never a source of truth
 
 Postgres change events merge into the store through the same `mergeIntoStore` /
@@ -233,10 +256,10 @@ falconforge/
 
 ## Roadmap
 
-Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. In short: season lifecycle
-and the new-season wizard, then the UI density and routing pass, then the licensing and admin
-console with the legal pages, then beta hardening for FTC kickoff. After beta: meetings and
-attendance UI, guardian accounts, Stripe billing, and team data export — the schema for the
+Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle and the
+new-season wizard have landed; next is the UI density and routing pass, then the licensing and
+admin console with the legal pages, then beta hardening for FTC kickoff. After beta: meetings
+and attendance UI, guardian accounts, Stripe billing, and team data export — the schema for the
 first three is already live.
 
 ## License
