@@ -26,9 +26,24 @@ export interface AppStateRow {
     value: string;
 }
 
+/**
+ * A change that exhausted its retries and could not be pushed to the server.
+ *
+ * Previously these were deleted from the queue outright, so the user's work was destroyed
+ * with nothing but a console.error to show for it (B2). They are parked here instead, so
+ * the change still exists and the UI can tell somebody about it.
+ */
+export interface SyncFailure extends SyncQueueItem {
+    /** When the change was moved out of the retry queue. */
+    failedAt: number;
+    /** Error text from the final attempt. */
+    lastError: string;
+}
+
 class FalconForgeDatabase extends Dexie {
     syncQueue!: Table<SyncQueueItem, string>;
     appState!: Table<AppStateRow, string>;
+    syncFailures!: Table<SyncFailure, string>;
 
     constructor() {
         super('FalconForgeDB');
@@ -61,6 +76,13 @@ class FalconForgeDatabase extends Dexie {
         this.version(3).stores({
             syncQueue: 'id, tableName, timestamp, retryCount',
             appState: 'key',
+        });
+
+        // Version 4: Dead-letter store for changes that exhausted their retries (B2).
+        this.version(4).stores({
+            syncQueue: 'id, tableName, timestamp, retryCount',
+            appState: 'key',
+            syncFailures: 'id, tableName, failedAt',
         });
     }
 }
@@ -135,9 +157,57 @@ export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
     return await db.syncQueue.orderBy('timestamp').toArray();
 }
 
+/**
+ * Park a change that exhausted its retries, instead of deleting it.
+ *
+ * The queue entry is removed so the drain can make progress, but the change itself is
+ * preserved so it can be retried later or inspected. Losing a scouting report entered at a
+ * competition because five pushes happened to fail is not an acceptable outcome (B2).
+ */
+export async function moveToDeadLetter(item: SyncQueueItem, error: unknown): Promise<void> {
+    await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
+        await db.syncFailures.put({
+            ...item,
+            failedAt: Date.now(),
+            lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+        });
+        await db.syncQueue.delete(item.id);
+    });
+}
+
+export async function getSyncFailureCount(): Promise<number> {
+    return await db.syncFailures.count();
+}
+
+export async function getSyncFailures(): Promise<SyncFailure[]> {
+    return await db.syncFailures.orderBy('failedAt').toArray();
+}
+
+/**
+ * Put every parked change back on the queue with its retry count reset.
+ * Ordering is preserved because the original `timestamp` travels with the item.
+ */
+export async function retrySyncFailures(): Promise<number> {
+    return await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
+        const failures = await db.syncFailures.toArray();
+        for (const failure of failures) {
+            const { failedAt: _failedAt, lastError: _lastError, ...item } = failure;
+            await db.syncQueue.put({ ...item, retryCount: 0 });
+        }
+        await db.syncFailures.clear();
+        return failures.length;
+    });
+}
+
+/** Give up on parked changes. Only ever called from an explicit user action. */
+export async function discardSyncFailures(): Promise<void> {
+    await db.syncFailures.clear();
+}
+
 // Clear sync queue (for logout)
 export async function clearLocalDatabase() {
     await db.syncQueue.clear();
+    await db.syncFailures.clear();
 }
 
 // Clear persisted app state from IndexedDB (for logout)

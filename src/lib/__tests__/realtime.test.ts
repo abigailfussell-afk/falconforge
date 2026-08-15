@@ -39,8 +39,10 @@ vi.mock('@/lib/sync', () => ({
         isOnline: true,
         syncStatus: 'idle',
         pendingChanges: 0,
+        failedChanges: 0,
         lastSyncTime: null,
         sync: vi.fn(),
+        retryFailedChanges: vi.fn().mockResolvedValue(0),
         error: null,
     })),
 }));

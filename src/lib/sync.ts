@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, getPendingSyncCount, getPendingSyncItems, SyncQueueItem } from './offline-db';
+import {
+    db,
+    getPendingSyncCount,
+    getPendingSyncItems,
+    getSyncFailureCount,
+    moveToDeadLetter,
+    retrySyncFailures,
+    SyncQueueItem,
+} from './offline-db';
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
@@ -17,6 +25,9 @@ export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 const PER_QUERY_TIMEOUT_MS = 10_000;  // 10s per Supabase query
 const OVERALL_SYNC_TIMEOUT_MS = 30_000; // 30s for entire sync operation
 
+/** Attempts before a change is parked in the dead-letter store (B2). */
+export const MAX_SYNC_RETRIES = 5;
+
 /**
  * Race a promise against a timeout. Rejects with a descriptive error if timeout fires first.
  */
@@ -33,8 +44,12 @@ interface UseSyncResult {
     isOnline: boolean;
     syncStatus: SyncStatus;
     pendingChanges: number;
+    /** Changes that exhausted their retries and are parked, not lost (B2). */
+    failedChanges: number;
     lastSyncTime: Date | null;
     sync: () => Promise<void>;
+    /** Re-queue every parked change. Resolves to how many were restored. */
+    retryFailedChanges: () => Promise<number>;
     error: string | null;
 }
 
@@ -42,6 +57,7 @@ export function useSync(): UseSyncResult {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
     const [pendingChanges, setPendingChanges] = useState(0);
+    const [failedChanges, setFailedChanges] = useState(0);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
@@ -84,8 +100,12 @@ export function useSync(): UseSyncResult {
     // Update pending changes count
     useEffect(() => {
         const updatePendingCount = async () => {
-            const count = await getPendingSyncCount();
-            setPendingChanges(count);
+            const [pending, failed] = await Promise.all([
+                getPendingSyncCount(),
+                getSyncFailureCount(),
+            ]);
+            setPendingChanges(pending);
+            setFailedChanges(failed);
         };
 
         updatePendingCount();
@@ -138,10 +158,16 @@ export function useSync(): UseSyncResult {
                             // Update retry count
                             const newRetryCount = (item.retryCount || 0) + 1;
 
-                            // If too many retries, log error and remove from queue to prevent stuck state
-                            if (newRetryCount >= 5) {
-                                console.error(`Sync item ${item.id} failed after 5 retries. Removing from queue.`, err);
-                                await db.syncQueue.delete(item.id);
+                            // Out of retries: park the change in the dead-letter store rather
+                            // than deleting it (B2). The queue still drains, but the user's
+                            // work survives and the UI can report it.
+                            if (newRetryCount >= MAX_SYNC_RETRIES) {
+                                console.error(
+                                    `Sync item ${item.id} failed after ${MAX_SYNC_RETRIES} retries. ` +
+                                    `Moved to failed changes.`,
+                                    err,
+                                );
+                                await moveToDeadLetter(item, err);
                             } else {
                                 await db.syncQueue.update(item.id, {
                                     retryCount: newRetryCount,
@@ -161,9 +187,13 @@ export function useSync(): UseSyncResult {
             setLastSyncTime(new Date());
             setSyncStatus('idle');
 
-            // Update pending count
-            const count = await getPendingSyncCount();
-            setPendingChanges(count);
+            // Update pending + failed counts
+            const [pending, failed] = await Promise.all([
+                getPendingSyncCount(),
+                getSyncFailureCount(),
+            ]);
+            setPendingChanges(pending);
+            setFailedChanges(failed);
         } catch (err) {
             console.error('Sync failed:', err);
             setError(err instanceof Error ? err.message : 'Sync failed');
@@ -174,12 +204,21 @@ export function useSync(): UseSyncResult {
         // FIX: No deps on isOnline - we read navigator.onLine directly
     }, []);
 
+    const retryFailedChanges = useCallback(async () => {
+        const restored = await retrySyncFailures();
+        setFailedChanges(await getSyncFailureCount());
+        setPendingChanges(await getPendingSyncCount());
+        return restored;
+    }, []);
+
     return {
         isOnline,
         syncStatus,
         pendingChanges,
+        failedChanges,
         lastSyncTime,
         sync,
+        retryFailedChanges,
         error,
     };
 }

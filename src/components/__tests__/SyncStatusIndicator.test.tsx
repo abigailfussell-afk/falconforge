@@ -5,6 +5,7 @@ import SyncStatusIndicator from '../SyncStatusIndicator';
 // Mock sync hook
 const mockSync = vi.fn();
 const mockUseSync = vi.fn();
+const mockRetryFailed = vi.fn().mockResolvedValue(1);
 
 vi.mock('../../lib/sync', () => ({
     useSync: (...args: any[]) => mockUseSync(...args),
@@ -26,8 +27,10 @@ describe('SyncStatusIndicator', () => {
             isOnline: true,
             syncStatus: 'idle',
             pendingChanges: 0,
+            failedChanges: 0,
             lastSyncTime: new Date(),
             sync: mockSync,
+            retryFailedChanges: mockRetryFailed,
             error: null,
             ...overrides,
         });
@@ -129,4 +132,56 @@ describe('SyncStatusIndicator', () => {
         vi.mocked(getRealtimeStatus).mockReturnValue('disconnected');
         vi.mocked(onRealtimeStatusChange).mockImplementation(() => () => { });
     });
-});
+
+    describe('failed changes notice (B2)', () => {
+        it('says nothing when no changes have failed', () => {
+            setupSync({ failedChanges: 0 });
+            render(<SyncStatusIndicator />);
+
+            expect(screen.queryByRole('alert')).toBeNull();
+        });
+
+        it('tells the user when changes could not be saved', () => {
+            setupSync({ failedChanges: 3 });
+            render(<SyncStatusIndicator />);
+
+            const alert = screen.getByRole('alert');
+            expect(alert.textContent).toContain("3 changes didn't save");
+            // The reassurance matters as much as the warning: the work still exists.
+            expect(alert.textContent).toContain('still stored on this device');
+        });
+
+        it('uses singular wording for a single failure', () => {
+            setupSync({ failedChanges: 1 });
+            render(<SyncStatusIndicator />);
+
+            expect(screen.getByRole('alert').textContent).toContain("1 change didn't save");
+        });
+
+        it('re-queues and syncs when the user retries', async () => {
+            setupSync({ failedChanges: 2 });
+            render(<SyncStatusIndicator />);
+
+            fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+
+            expect(mockRetryFailed).toHaveBeenCalled();
+            // The retry must actually push, not just move rows back onto the queue.
+            await vi.waitFor(() => expect(mockSync).toHaveBeenCalled());
+        });
+
+        it('cannot retry while offline', () => {
+            setupSync({ failedChanges: 2, isOnline: false });
+            render(<SyncStatusIndicator />);
+
+            expect((screen.getByRole('button', { name: /Retry/ }) as HTMLButtonElement).disabled).toBe(true);
+        });
+
+        it('shows a count badge in icon mode, where there is no room for the notice', () => {
+            setupSync({ failedChanges: 4 });
+            render(<SyncStatusIndicator variant="icon" />);
+
+            expect(screen.queryByRole('alert')).toBeNull();
+            expect(screen.getByText('4')).toBeDefined();
+        });
+    });
+})
