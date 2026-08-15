@@ -39,7 +39,7 @@ jobs:
         run: npm run build
 
   schema:
-    name: Schema rebuilds from migrations
+    name: Schema rebuilds from migrations, and enforces isolation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,3 +67,20 @@ jobs:
         run: |
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f supabase/tests/schema_assertions.sql
+
+      # Everything above proves the schema can be BUILT. This proves it BEHAVES: the
+      # tenant-isolation suite (C7) plus the sync drain and pull running against real
+      # PostgREST. `schema_assertions.sql` can only tell you a policy exists, not what it
+      # permits -- and this repo has shipped a policy that permitted everything.
+      #
+      # In the same job as `supabase start` because these need that stack. There is no
+      # skip-if-absent path: if the database is missing, `npm run test:db` fails.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Behavioural database tests (RLS + data layer)
+        run: npm run test:db

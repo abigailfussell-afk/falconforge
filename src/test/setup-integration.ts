@@ -1,34 +1,27 @@
 /**
- * Integration Test Setup
- * 
- * This setup is for integration tests that need real IndexedDB 
- * but mock network calls to Supabase.
+ * Integration test setup: real IndexedDB, real store, real sync queue.
+ *
+ * WHAT USED TO BE HERE, AND WHY IT ISN'T
+ *
+ * A global `vi.mock('@/lib/supabase')` returning a hand-written query builder. It had
+ * drifted: it stubbed `.gt()` while sync.ts calls `.gte()`, so the delta-pull path threw on
+ * contact and had never once been exercised by the suite that claimed to cover it. It also
+ * mocked `supabase` but not `supabaseSync`, which is the client every sync query actually
+ * uses — so the mock was not even in the path most of the time.
+ *
+ * A hand-rolled mock of a query builder is a second, worse implementation of PostgREST
+ * that nothing keeps in step with the real one. Tests that genuinely need a server now run
+ * against a real Postgres (`npm run test:db`); tests that need a *specific* server
+ * response declare their own mock in the file that needs it, where the drift is visible.
+ *
+ * Without a global mock, `@/lib/supabase` resolves for real and both clients are `null`
+ * (no VITE_ credentials in the test environment), which is the honest offline case these
+ * tests are mostly about anyway.
  */
 import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { db } from '@/lib/offline-db';
-
-// Mock only Supabase network calls
-vi.mock('@/lib/supabase', () => ({
-    supabase: {
-        from: vi.fn(() => ({
-            select: vi.fn().mockReturnThis(),
-            insert: vi.fn().mockReturnThis(),
-            update: vi.fn().mockReturnThis(),
-            upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
-            delete: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            gt: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        })),
-        auth: {
-            getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
-            onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-        },
-    },
-    isSupabaseConfigured: () => true,
-}));
 
 // Clear IndexedDB tables before each test
 beforeEach(async () => {
@@ -38,18 +31,4 @@ beforeEach(async () => {
 // Cleanup after each test
 afterEach(async () => {
     vi.clearAllMocks();
-});
-
-// Helper to wait for async operations
-export const waitForAsync = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Helper to create a mock Supabase response
-export const mockSupabaseResponse = <T>(data: T, error: null = null) => ({
-    data,
-    error,
-});
-
-export const mockSupabaseError = (message: string) => ({
-    data: null,
-    error: { message, code: 'ERROR' },
 });

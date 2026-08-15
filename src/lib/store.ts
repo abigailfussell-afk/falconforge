@@ -1,18 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { generateId, queueForSync, indexedDBStorage } from './offline-db';
-import { supabaseSync, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
 import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
-import {
-    transformTaskFromSupabase,
-    transformScoutingReportFromSupabase,
-    transformMatchPlanFromSupabase,
-    transformSeasonFromSupabase,
-    transformSubTeamFromSupabase,
-} from './transformers';
 import type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, MatchPlan,
@@ -36,24 +28,42 @@ export type {
     Task, ScoutingReport, ChecklistItem, MatchPlan,
 };
 
-// Default season for migration
+/**
+ * Default season.
+ *
+ * A real UUID, not `'season-2025-2026'` (C5). `seasons.id` is a Postgres `uuid`, and
+ * every season-scoped table carries a `season_id` FK to it, so a non-uuid seed id does
+ * not fail on its own — it takes every task, sub-team, scouting report, match plan and
+ * checklist created under it down with it, all parked in the dead-letter store with a
+ * cast error the user cannot act on.
+ *
+ * Hardcoded rather than generated, so the same default season is the same season on
+ * every device. Do not regenerate it.
+ */
 const DEFAULT_SEASON: Season = {
-    id: 'season-2025-2026',
+    id: '1229793f-4feb-4944-bc1b-c24985f84fea',
     name: '2025-2026 Decode',
     fieldImageData: '',
     createdAt: Date.now(),
 };
 
-// Default data for new users/demo mode
+/**
+ * Default checklist.
+ *
+ * These ids live inside a jsonb array rather than a uuid column, so `'1'` would not have
+ * failed a push — but items added later get `generateId()` UUIDs, and a list where the
+ * seeded items and the added ones use different id shapes is a trap for anything that
+ * ever needs to tell them apart.
+ */
 const DEFAULT_CHECKLIST_ITEMS: ChecklistItem[] = [
-    { id: '1', text: 'Turn off robot', checked: false },
-    { id: '2', text: 'Swap main battery', checked: false },
-    { id: '3', text: 'Charge old battery', checked: false },
-    { id: '4', text: 'Charge Driver Hub', checked: false },
-    { id: '5', text: 'Tighten chassis screws', checked: false },
-    { id: '6', text: 'Check wiring connections', checked: false },
-    { id: '7', text: 'Clean wheels', checked: false },
-    { id: '8', text: 'Reset servo positions', checked: false },
+    { id: '98dfc681-a3b2-4afa-9086-414cd9d5c916', text: 'Turn off robot', checked: false },
+    { id: 'cc66cb36-daa0-4f28-8dda-27f86dda0c4a', text: 'Swap main battery', checked: false },
+    { id: '2e55e450-5b34-44fc-8943-4853a659ae9b', text: 'Charge old battery', checked: false },
+    { id: 'ff29cbf8-e57d-431e-a21b-52d71b36986a', text: 'Charge Driver Hub', checked: false },
+    { id: '3f2b1c7a-5f0e-4c8d-9a1b-6d4e2f8c0a53', text: 'Tighten chassis screws', checked: false },
+    { id: '7c9d4e21-8b3a-4f6c-95e7-1a2b3c4d5e6f', text: 'Check wiring connections', checked: false },
+    { id: 'b41e6a08-2c5d-4739-8e1f-9a0b7c6d5e4a', text: 'Clean wheels', checked: false },
+    { id: 'd8072f13-6e4b-4a29-bc35-0f1e2d3c4b5a', text: 'Reset servo positions', checked: false },
 ];
 
 export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
@@ -106,11 +116,35 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
     setMatchPlans: (plans: MatchPlan[]) => void;
 
-    // Data management
+    // Data management.
+    //
+    // Loading team data is deliberately NOT an action here. It used to be `fetchTeamData`,
+    // 145 lines of copy-pasted fetches that replaced every collection wholesale and had
+    // never heard of the sync queue -- a second read path that silently discarded offline
+    // work (C3). It now lives in `server-pull.ts` with every other server read.
     setIsLoading: (isLoading: boolean) => void;
-    fetchTeamData: (teamId: string) => Promise<void>;
     initializeStore: () => Promise<void>;
     resetToDefaults: () => void;
+}
+
+/**
+ * Queue the whole checklist for the server.
+ *
+ * Checklists are blob-synced: one row per team holding the entire array, so the row id IS
+ * the team id. Every checklist action used to spell this out itself, with
+ * `state.currentTeamId || 'default'` as the record id -- and `'default'` is not a uuid
+ * (C5). With no team selected, every toggle queued a push that fails its cast, retries
+ * five times and parks in the dead-letter store, so the user collects a growing pile of
+ * "failed changes" for a checklist that has nowhere to go. There is nothing to sync
+ * without a team, so nothing is queued.
+ */
+function queueChecklist(state: AppState, items: ChecklistItem[]): void {
+    if (!state.currentTeamId) return;
+    queueForSync('checklists', state.currentTeamId, 'update', {
+        items,
+        teamId: state.currentTeamId,
+        seasonId: state.currentSeasonId,
+    });
 }
 
 export const useAppStore = create<AppState>()(
@@ -149,155 +183,6 @@ export const useAppStore = create<AppState>()(
 
             // Data management
             setIsLoading: (isLoading) => set({ isLoading }),
-
-            fetchTeamData: async (teamId) => {
-                // Ensure Supabase is available and not null for TS
-                if (!teamId || !isSupabaseConfigured() || !supabaseSync) return;
-
-                set({ isLoading: true });
-
-                try {
-                    // 1. Fetch Team Members (required - should always exist)
-                    try {
-                        const { data: members, error: membersError } = await supabaseSync
-                            .from('team_members')
-                            .select('*')
-                            .eq('team_id', teamId)
-                            .eq('status', 'approved');
-
-                        if (!membersError && members) {
-                            set({
-                                teamMembers: members.map((m: any) => ({
-                                    id: m.id,
-                                    teamId: m.team_id,
-                                    userId: m.user_id,
-                                    role: m.role as any,
-                                    status: m.status as any,
-                                    joinedAt: new Date(m.joined_at).getTime(),
-                                    fullName: m.full_name,
-                                    email: m.email,
-                                    avatarUrl: m.avatar_url,
-                                    isBillingActive: m.is_billing_active
-                                }))
-                            });
-                        } else if (membersError) {
-                            console.warn('Failed to fetch team_members:', membersError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching team_members:', err);
-                    }
-
-                    // 2. Fetch SubTeams
-                    try {
-                        const { data: subTeams, error: subTeamsError } = await supabaseSync
-                            .from('sub_teams')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!subTeamsError && subTeams) {
-                            set({ subTeams: subTeams.map(transformSubTeamFromSupabase) });
-                        } else if (subTeamsError) {
-                            console.warn('Failed to fetch sub_teams:', subTeamsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching sub_teams:', err);
-                    }
-
-                    // 3. Fetch Seasons
-                    try {
-                        const { data: seasons, error: seasonsError } = await supabaseSync
-                            .from('seasons')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!seasonsError && seasons && seasons.length > 0) {
-                            set({ seasons: seasons.map(transformSeasonFromSupabase) });
-                        } else if (seasonsError) {
-                            console.warn('Failed to fetch seasons:', seasonsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching seasons:', err);
-                    }
-
-                    // 4. Fetch Tasks (may not exist if migration not run)
-                    try {
-                        const { data: tasks, error: tasksError } = await supabaseSync
-                            .from('tasks')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!tasksError && tasks) {
-                            set({ tasks: tasks.map(transformTaskFromSupabase) });
-                        } else if (tasksError) {
-                            // Table may not exist yet - this is expected before migration
-                            console.warn('Failed to fetch tasks (table may not exist yet):', tasksError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching tasks:', err);
-                    }
-
-                    // 5. Fetch Scouting Reports (may not exist if migration not run)
-                    try {
-                        const { data: reports, error: reportsError } = await supabaseSync
-                            .from('scouting_reports')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!reportsError && reports) {
-                            set({ scoutingReports: reports.map(transformScoutingReportFromSupabase) });
-                        } else if (reportsError) {
-                            console.warn('Failed to fetch scouting_reports (table may not exist yet):', reportsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching scouting_reports:', err);
-                    }
-
-                    // 6. Fetch Match Plans (may not exist if migration not run)
-                    try {
-                        const { data: plans, error: plansError } = await supabaseSync
-                            .from('match_plans')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!plansError && plans) {
-                            set({ matchPlans: plans.map(transformMatchPlanFromSupabase) });
-                        } else if (plansError) {
-                            console.warn('Failed to fetch match_plans (table may not exist yet):', plansError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching match_plans:', err);
-                    }
-
-                    // 7. Fetch Checklist (may not exist if migration not run)
-                    try {
-                        const { data: checklists, error: checklistError } = await supabaseSync
-                            .from('checklists')
-                            .select('*')
-                            .eq('team_id', teamId)
-                            .limit(1);
-
-                        if (!checklistError && checklists && checklists.length > 0) {
-                            const items = (checklists[0] as any).items;
-                            if (Array.isArray(items)) {
-                                set({ checklist: items });
-                            }
-                        } else if (checklistError) {
-                            console.warn('Failed to fetch checklists (table may not exist yet):', checklistError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching checklists:', err);
-                    }
-
-                } catch (err) {
-                    console.error('Error fetching team data:', err);
-                } finally {
-                    set({ isLoading: false });
-                }
-            },
-
-
-
-
 
             // Scouting
             addScoutingReport: (reportData) => {
@@ -356,25 +241,15 @@ export const useAppStore = create<AppState>()(
                     item.id === id ? { ...item, checked: !item.checked } : item
                 );
                 set({ checklist: newChecklist });
-                // Sync entire checklist as blob
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: newChecklist,
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, newChecklist);
             },
 
             resetChecklist: () => {
                 set((state) => ({
                     checklist: state.checklist.map((item) => ({ ...item, checked: false })),
                 }));
-                // Sync entire checklist as blob
                 const state = get();
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: state.checklist.map((item) => ({ ...item, checked: false })),
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, state.checklist);
             },
 
             addChecklistItem: (text) => {
@@ -387,24 +262,14 @@ export const useAppStore = create<AppState>()(
                 };
                 const newChecklist = [...state.checklist, item];
                 set({ checklist: newChecklist });
-                // Sync entire checklist as blob
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: newChecklist,
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, newChecklist);
             },
 
             deleteChecklistItem: (id) => {
                 const state = get();
                 const newChecklist = state.checklist.filter((item) => item.id !== id);
                 set({ checklist: newChecklist });
-                // Sync entire checklist as blob
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: newChecklist,
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, newChecklist);
             },
 
             updateChecklistAssignment: (id, assignedTo) => {
@@ -413,12 +278,7 @@ export const useAppStore = create<AppState>()(
                     item.id === id ? { ...item, assignedTo } : item
                 );
                 set({ checklist: newChecklist });
-                // Sync entire checklist as blob
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: newChecklist,
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, newChecklist);
             },
 
             moveChecklistItem: (id, direction) => {
@@ -433,12 +293,7 @@ export const useAppStore = create<AppState>()(
                 [newChecklist[index], newChecklist[targetIndex]] = [newChecklist[targetIndex], newChecklist[index]];
 
                 set({ checklist: newChecklist });
-                // Sync entire checklist as blob
-                queueForSync('checklists', state.currentTeamId || 'default', 'update', {
-                    items: newChecklist,
-                    teamId: state.currentTeamId,
-                    seasonId: state.currentSeasonId,
-                });
+                queueChecklist(state, newChecklist);
             },
 
             setChecklist: (checklist) => set({ checklist }),

@@ -21,7 +21,7 @@ import {
     clearAppState,
 } from '@/lib/offline-db';
 
-const { newestUpdatedAt } = await vi.importActual<typeof import('@/lib/sync')>('@/lib/sync');
+const { newestUpdatedAt } = await vi.importActual<typeof import('@/lib/server-pull')>('@/lib/server-pull');
 
 beforeEach(async () => {
     await db.appState.clear();

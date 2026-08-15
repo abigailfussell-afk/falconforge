@@ -28,13 +28,16 @@ vi.mock('@/lib/supabase', () => ({
     isSupabaseConfigured: () => true,
 }));
 
-// Mock sync module functions
+// Realtime writes to the store through the shared read path, not through sync.ts (C3).
 const mockMergeIntoStore = vi.fn();
 const mockUpdateLocalDatabase = vi.fn();
 
-vi.mock('@/lib/sync', () => ({
+vi.mock('@/lib/server-pull', () => ({
     mergeIntoStore: (...args: any[]) => mockMergeIntoStore(...args),
     updateLocalDatabase: (...args: any[]) => mockUpdateLocalDatabase(...args),
+}));
+
+vi.mock('@/lib/sync', () => ({
     useSync: vi.fn(() => ({
         isOnline: true,
         syncStatus: 'idle',
@@ -78,6 +81,9 @@ import {
 } from '../realtime';
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
+
+// The queue is not this suite's subject: `getPendingRecordIds` is driven through the mock.
+vi.mock('@/lib/offline-db');
 
 describe('realtime', () => {
     beforeEach(() => {

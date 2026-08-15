@@ -67,40 +67,20 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 
 ### 3. Set up Database Schema
 
-Run these SQL commands in the Supabase SQL editor:
+The schema lives in `supabase/migrations/` and is the source of truth — do not hand-write
+SQL in the dashboard. Apply it with the Supabase CLI:
 
-```sql
--- Users table (extends Supabase auth.users)
-CREATE TABLE public.users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
-  full_name TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Organizations (FTC Teams)
-CREATE TABLE public.organizations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  team_number TEXT,
-  invite_code TEXT UNIQUE DEFAULT substr(md5(random()::text), 1, 8),
-  owner_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Add Row Level Security
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
-
--- Users can read/update their own profile
-CREATE POLICY "Users can view own profile" ON public.users
-  FOR SELECT USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" ON public.users
-  FOR UPDATE USING (auth.uid() = id);
+```bash
+supabase link --project-ref <your-project-ref> && supabase db push
 ```
+
+For local development, `npm run db:start` brings up the whole stack (Postgres, PostgREST,
+Auth, Realtime) in Docker with every migration applied. `npm run db:verify` rebuilds it
+from scratch and asserts the schema invariants in `supabase/tests/schema_assertions.sql`.
+
+> An earlier version of this section listed `CREATE TABLE` statements for a `users` and
+> `organizations` schema. There is no `organizations` table; the tenant table is `teams`.
+> Following those instructions would have produced a database the app cannot talk to.
 
 ### 4. Enable Auth Providers (Optional)
 
@@ -129,29 +109,116 @@ The app can be installed as a standalone app:
 2. **iOS Safari**: Tap Share > Add to Home Screen
 3. **Android Chrome**: Tap the menu > Add to Home Screen
 
+## How data flows
+
+FalconForge is offline-first: venue WiFi is unreliable, so the local device is always the
+thing the UI reads from, and the network is something that happens later. Three rules keep
+that from becoming three different implementations.
+
+### One write path
+
+A user action mutates the Zustand store and queues a change. Nothing writes to Supabase
+directly.
+
+```
+component → store action ──┬─→ Zustand store (IndexedDB-persisted) → UI re-renders now
+                           └─→ queueForSync() → Dexie syncQueue
+```
+
+`queueForSync` coalesces redundant entries, so twenty edits to one task are one upsert.
+Queue order is by the timestamp the user acted, never by primary key.
+
+When online and authenticated, `useSync` drains the queue in that order:
+
+```
+drainSyncQueue() → processSyncItem() → entity.toRemote() → supabase upsert/update/delete
+```
+
+A push that fails is retried. After five attempts the change is **parked in a dead-letter
+store, never discarded** — the user can see it and retry it. Losing a scouting report
+entered at a competition because five pushes happened to fail is not an acceptable outcome.
+
+### One read path
+
+Everything that reads from the server calls `pullFromServer` in `src/lib/server-pull.ts`.
+There is exactly one, and this is the rule it exists to enforce:
+
+> **A record with an unpushed local change keeps its LOCAL version.** It is newer by
+> definition — it has not been sent yet.
+
+```
+                    ┌── background sync loop  (mode: 'auto' — delta, cursor-driven)
+pullFromServer() ←──┼── team switch / mount   (mode: 'full')
+                    └── per-page refresh hooks (mode: 'full', one table)
+                             │
+                             ├─→ getPendingRecordIds()   ← the rule, applied once
+                             ├─→ entity.fromRemote()
+                             └─→ store setters
+```
+
+Delta pulls filter on a cursor taken from the server's own `updated_at`, never from the
+local clock. Every fifth pull is a full reconciliation, which is how deletions made on
+another device propagate.
+
+Historically there were three read paths and two of them clobbered offline work; the
+regression test named `preserves a task created offline (C3/B3)` is what stops that
+coming back.
+
+### Realtime is an enhancement, never a source of truth
+
+Postgres change events merge into the store through the same `mergeIntoStore` /
+`updateLocalDatabase` functions the pull uses, with the same pending-record protection.
+If the WebSocket drops, polling covers it and nothing is lost — realtime only makes
+updates arrive sooner.
+
+### One definition per entity
+
+`src/lib/entity-registry.ts` holds each entity's field mapping in both directions, and a
+property test asserts `fromRemote(toRemote(x))` deep-equals `x`. Three separate production
+bugs were the same defect — a field carried one way and not the other — so new entities go
+here, not into an ad-hoc transform.
+
+## Testing
+
+```bash
+npm run lint             # tsc --noEmit
+npm run test:run         # unit
+npm run test:integration # real IndexedDB, real store, no network
+npm run test:db          # real Postgres — needs `npm run db:start` (Docker)
+npm run test:rls         # the tenant-isolation subset of test:db
+npm run test:coverage    # all three suites, merged, with thresholds
+```
+
+`test:db` runs the data layer against a real local Supabase stack: the sync drain and pull
+against real PostgREST, and a behavioural tenant-isolation suite that asserts, with real
+JWTs for two teams and all four roles, that nobody can reach another team's rows. It fails
+loudly if the stack is not running rather than skipping — a security suite that passes with
+no database is worse than none.
+
 ## Project Structure
 
 ```
 falconforge/
 ├── src/
 │   ├── lib/
-│   │   ├── auth.tsx         # Authentication context
-│   │   ├── supabase.ts      # Supabase client
-│   │   ├── store.ts         # Zustand state management
-│   │   ├── offline-db.ts    # IndexedDB schema
-│   │   ├── sync.ts          # Offline sync logic
-│   │   └── database.types.ts
-│   ├── pages/
-│   │   └── Login.tsx        # Login page
-│   ├── components/
-│   │   └── SyncStatusIndicator.tsx
-│   ├── App.tsx              # Main app with routing
-│   ├── main.tsx             # Entry point
-│   └── index.css            # Global styles
-├── components/              # Feature components (legacy location)
-├── services/                # API services
-├── public/                  # Static assets
-└── index.html               # HTML template
+│   │   ├── auth.tsx           # Authentication context
+│   │   ├── supabase.ts        # Supabase clients (app + sync)
+│   │   ├── store.ts           # Zustand state, IndexedDB-persisted
+│   │   ├── slices/            # Store slices (tasks, sub-teams, seasons)
+│   │   ├── offline-db.ts      # Dexie: sync queue, dead letters, sync metadata
+│   │   ├── sync.ts            # The write path: queue drain, retry, dead-letter
+│   │   ├── server-pull.ts     # The read path: every server read, one rule
+│   │   ├── entity-registry.ts # One field mapping per entity, both directions
+│   │   ├── realtime.ts        # Postgres change events (enhancement only)
+│   │   ├── queries.ts         # Per-page background refresh hooks
+│   │   └── __mocks__/         # Manual mocks, opted into per test file
+│   ├── pages/                 # Login, Onboarding, CreateTeam, JoinTeam, legal
+│   ├── components/            # Feature UI
+│   └── test/db/               # Local-Postgres test harness + fixtures
+├── supabase/
+│   ├── migrations/            # The schema. Source of truth.
+│   └── tests/                 # schema_assertions.sql
+└── public/                    # Static assets
 ```
 
 ## Roadmap

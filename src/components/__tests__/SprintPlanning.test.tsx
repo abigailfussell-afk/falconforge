@@ -82,6 +82,10 @@ const mockStore = {
 // Import after mocks
 import { useAppStore } from '../../lib/store';
 
+// Opt in to the manual mock in src/lib/__mocks__: the board's background refresh hook
+// would otherwise need a real QueryClientProvider, which this suite is not about.
+vi.mock('@/lib/queries');
+
 describe('SprintPlanning', () => {
     beforeEach(() => {
         vi.clearAllMocks();

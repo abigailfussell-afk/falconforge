@@ -13,7 +13,7 @@
  * is newer by definition -- it has not been sent yet.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { updateLocalDatabase, mergeIntoStore } from '@/lib/sync';
+import { updateLocalDatabase, mergeIntoStore } from '@/lib/server-pull';
 import { useAppStore } from '@/lib/store';
 import type { Task } from '@/types';
 

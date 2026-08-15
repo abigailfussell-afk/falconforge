@@ -29,7 +29,7 @@
  * so they have no per-record identity and none of the array semantics below apply. They
  * stay special-cased in sync.ts, which is honest about what they are.
  */
-import type { Task, ScoutingReport, MatchPlan, Season, SubTeam } from '../types';
+import type { Task, ScoutingReport, MatchPlan, Season, SubTeam, TeamMember } from '../types';
 import type { AppState } from './store';
 import type { Database } from './database.types';
 
@@ -261,13 +261,88 @@ const matchPlans: EntityDefinition<MatchPlan> = {
     setInStore: (s, items) => s.setMatchPlans(items),
 };
 
+/**
+ * Roster rows.
+ *
+ * PULL-ONLY. The client never pushes team_members: membership is created and changed by
+ * the `create_team_as_coach` / `join_team_with_invite` RPCs and by the coach UI writing
+ * directly, never by the offline queue. It is registered here anyway because the mapping
+ * existed regardless -- as an inline `(m: any) => ({...})` in `store.fetchTeamData` with
+ * `role as any` / `status as any` casts, which is precisely the second read path this
+ * registry exists to prevent. `toRemote` is what Sprint 6's admin console will write
+ * through; until then its job is to keep the round-trip test honest about the mapping.
+ */
+const teamMembers: EntityDefinition<TeamMember> = {
+    // joined_at is a column default, so a client-sent value would overwrite the real one.
+    serverAssigned: ['joinedAt'] as const,
+    localKey: 'teamMembers',
+    remoteTable: 'team_members',
+    toRemote: (m) => ({
+        id: m.id,
+        team_id: m.teamId,
+        user_id: m.userId,
+        role: m.role,
+        status: m.status,
+        is_billing_active: m.isBillingActive,
+        full_name: m.fullName,
+        email: m.email,
+        avatar_url: m.avatarUrl,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        teamId: r.team_id,
+        userId: r.user_id,
+        role: toMemberRole(r.role),
+        status: toMemberStatus(r.status),
+        isBillingActive: r.is_billing_active ?? false,
+        fullName: r.full_name ?? null,
+        email: r.email,
+        avatarUrl: r.avatar_url ?? null,
+        joinedAt: toEpochMillis(r.joined_at) ?? 0,
+    }),
+    getFromStore: (s) => s.teamMembers,
+    setInStore: (s, items) => s.setTeamMembers(items),
+};
+
+const MEMBER_ROLES: readonly string[] = ['coach', 'assistant_coach', 'mentor', 'student'];
+const MEMBER_STATUSES: readonly string[] = ['pending', 'approved', 'removed'];
+
+/**
+ * Narrow a server string to the role union.
+ *
+ * The old inline transform wrote `role: m.role as any`, so a value outside the union --
+ * from a schema change, or a role added server-side before the client knows about it --
+ * flowed straight into code that compares against literals. Anything unrecognised falls
+ * back to the least-privileged role rather than being trusted.
+ */
+function toMemberRole(value: unknown): TeamMember['role'] {
+    return MEMBER_ROLES.includes(value as string) ? (value as TeamMember['role']) : 'student';
+}
+
+/** Same, for status. An unrecognised status is treated as not-yet-approved. */
+function toMemberStatus(value: unknown): TeamMember['status'] {
+    return MEMBER_STATUSES.includes(value as string) ? (value as TeamMember['status']) : 'pending';
+}
+
 // ---------------------------------------------------------------------------
 // Lookup
 // ---------------------------------------------------------------------------
 
-// Order is the pull order: parents (seasons, sub-teams) before the records that
-// reference them, matching what pullChangesFromServer did when the list was inline.
-export const ENTITIES = [seasons, subTeams, tasks, scoutingReports, matchPlans] as const;
+/**
+ * Entities the offline queue pushes to the server, in pull order: parents (seasons,
+ * sub-teams) before the records that reference them, matching what the pull did when the
+ * list was inline.
+ *
+ * `sync.ts` derives the set of tables the queue may touch from this list, so a pull-only
+ * entity being absent here is what makes it pull-only.
+ */
+export const SYNCED_ENTITIES = [seasons, subTeams, tasks, scoutingReports, matchPlans] as const;
+
+/** Read from the server, never pushed by the client. */
+export const PULL_ONLY_ENTITIES = [teamMembers] as const;
+
+/** Every registered entity, whichever direction it travels. */
+export const ENTITIES = [...SYNCED_ENTITIES, ...PULL_ONLY_ENTITIES] as const;
 
 /**
  * Resolve a definition from either naming convention.
@@ -285,6 +360,3 @@ for (const entity of ENTITIES) {
 export function findEntity(name: string): EntityDefinition<any> | undefined {
     return BY_NAME.get(name);
 }
-
-/** Tables pulled from the server, in the order they should be fetched. */
-export const SYNCED_ENTITIES = ENTITIES;

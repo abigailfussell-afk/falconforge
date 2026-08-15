@@ -312,8 +312,47 @@ the final walkthrough and tags `v2.0.0-beta`.
 |---|---|---|---|
 | 2026-08-15 | Plan written; AI feature reference captured (`docs/ai-features-reference.md`) | — | — |
 | 2026-08-15 | Sprint 1 — Purge & critical fixes (AI removal, C1, C2, C4, C8, C9, dead code, dedupe) | `v2/sprint-1-purge` | **Complete.** Gate green (lint / 257 unit / 80 integration / build). Main JS 882 → 385 kB; precache 5172 → 4737 KiB. Offline styling verified with the server killed. `as any` 95 → 82. Coverage thresholds active at 55/53/53/57. |
+| 2026-08-15 | Sprint 2 — Data-layer unification & test truth (C3, C5, C7, local-Postgres harness, drain/auth tests, mock narrowing) | `v2/sprint-2-data-layer` | **Complete.** Gate + `db:verify` + `test:rls` green (lint / 272 unit / 83 integration / 211 db / build). Three read paths → one (`server-pull.ts`). 180-assertion tenant-isolation suite against real Postgres. `sync.ts` branch coverage **13% → 84.6%**; merged coverage now measures all three suites (68.5/63.7/64.9/70.7). Global unit mocks → per-file opt-in. `as any` 82 → 66. C3 verified in the browser end-to-end. |
 
 **Discovered / parking lot:**
+
+*From Sprint 2:*
+- **🔴 A failed push is never retried automatically (found in the browser, not the suite).**
+  `useSync`'s auto-sync effect is `useEffect(..., [authReady, isOnline, pendingChanges,
+  syncStatus])` and only fires when a dep *changes*. An item that fails to push is caught
+  inside `drainSyncQueue`, so `sync()` still resolves and `syncStatus` returns to `'idle'`
+  while `pendingChanges` stays at the same number. Nothing changes, so the effect never
+  re-runs. Reproduced end-to-end: a task created with the network blocked stayed queued for
+  60+ seconds after connectivity returned, across several `online` events, and only pushed
+  when the sync indicator was clicked. (`online` events do not help — `isOnline` and
+  `syncStatus` are already `true`/`'idle'`, so React bails out of both `setState` calls.)
+  At a venue this reads as "my scouting report never uploaded" long after the WiFi came
+  back. Fix is a real retry schedule (interval or backoff timer) rather than a dependency
+  edge; out of Sprint 2's scope, but it should land before beta — suggest Sprint 7 at the
+  latest, and arguably sooner.
+- **`update` on a non-checklist table pushes with no `WITH CHECK` awareness.** Not a hole
+  (Postgres applies SELECT policies to rows an UPDATE's WHERE touches, verified), but worth
+  knowing when Sprint 3 consolidates policies: SELECT is the load-bearing policy on every
+  table, and an over-permissive DELETE policy alone is not exploitable.
+- **`sync.integration.test.ts` still hand-rolls a query-builder mock** (missing `.order()`,
+  so pulls log warnings). Left in place: it tests the `useSync` hook's offline/auth gating,
+  which needs a stub, and it is per-file and visible rather than a hidden global. The real
+  drain and pull are covered against Postgres now. Worth deleting when the hook's scheduling
+  is reworked for the retry bug above.
+- **`team_members` has no `updated_at`,** so it can never take part in delta pulls and is
+  deliberately excluded from the background sync loop — the roster only refreshes on team
+  switch. Add the column in Sprint 3 if live roster updates are wanted.
+- **`transformers.ts` is now a thin shim** over the registry with two remaining callers'
+  worth of value. Delete it when Sprint 5 touches the components that import it.
+- **The demo/dev flow needs a seed script.** Setting up a local team to click through took a
+  hand-written script; Sprint 7 already plans one, and the fixtures in `src/test/db/` are
+  most of it.
+- **A stale service worker serves the previous build indefinitely** on `npm run preview`
+  during local testing (cost ~20 minutes here: the app was silently running an old bundle
+  pointed at the *hosted production* project). Sprint 7's "visible update prompt" work
+  should cover the user-facing half; a `preview` that unregisters the SW would help devs.
+
+*From Sprint 1:*
 - **`main` had unrelated history.** The local `main` branch was a single stale "Initial commit"
   with the pre-refactor root-level layout and *no merge base* with `refactor/data-layer`.
   `origin/main` was already correct. Resolved by resetting local `main` to `origin/main` and

@@ -4,6 +4,12 @@ import { teardownRealtimeSubscription } from '../realtime';
 import { clearLocalDatabase, clearAppState } from '../offline-db';
 import { useAppStore } from '../store';
 
+// Sign-out's contract is *that it calls* each teardown step, so both collaborators are
+// mocked here to be observable. That it actually empties IndexedDB is asserted for real in
+// `sign-out-cleanup.integration.test.ts`.
+vi.mock('../realtime');
+vi.mock('../offline-db');
+
 /**
  * Sign-out used to be duplicated verbatim in App.tsx and Onboarding.tsx. On a shared team
  * laptop a step missed in one copy leaks the previous user's data into the next session, so

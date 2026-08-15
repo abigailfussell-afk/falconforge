@@ -12,7 +12,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { useAppStore } from './store';
-import { mergeIntoStore, updateLocalDatabase } from './sync';
+import { mergeIntoStore, updateLocalDatabase } from './server-pull';
 import { getPendingRecordIds } from './offline-db';
 import { findEntity, SYNCED_ENTITIES } from './entity-registry';
 

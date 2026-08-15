@@ -1,126 +1,21 @@
+/**
+ * Unit test setup.
+ *
+ * This file used to `vi.mock` six modules — supabase, auth, offline-db, realtime, queries
+ * and sync — for every unit test in the repo, whether it wanted them or not. The whole
+ * data layer was stubbed by default, so nothing could tell you which tests actually
+ * exercised it, and one of the stubs declared exports (`useSyncStatus`, `SyncProvider`)
+ * that have never existed in the real module.
+ *
+ * Those mocks now live in `src/lib/__mocks__/` and are opted into per file with a bare
+ * `vi.mock('@/lib/<name>')` — one line, at the top of the file that needs it, where the
+ * dependency is visible to whoever reads the test. See that directory's README.
+ *
+ * What is left here is genuinely ambient: matchers, and a browser API jsdom lacks.
+ */
+// jsdom has no IndexedDB, and Dexie throws `MissingAPIError` on contact. This used to be
+// stubbed with `{ open: vi.fn() }`, which is not an implementation — it just moved the
+// failure. A working in-memory one means an incidental import of anything in the Dexie
+// chain behaves, and a unit test that genuinely wants to look at the queue can.
+import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
-
-// Mock Supabase client for unit tests
-vi.mock('@/lib/supabase', () => ({
-    supabase: {
-        from: vi.fn(() => ({
-            select: vi.fn().mockReturnThis(),
-            insert: vi.fn().mockReturnThis(),
-            update: vi.fn().mockReturnThis(),
-            delete: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        })),
-        auth: {
-            getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
-            onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-        },
-    },
-    supabaseSync: {
-        from: vi.fn(() => ({
-            select: vi.fn().mockReturnThis(),
-            insert: vi.fn().mockReturnThis(),
-            update: vi.fn().mockReturnThis(),
-            delete: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        })),
-    },
-    isSupabaseConfigured: () => false,
-}));
-
-// Mock auth module (used by sync.ts to check auth readiness)
-vi.mock('@/lib/auth', () => ({
-    useAuth: vi.fn(() => ({
-        user: { id: 'test-user' },
-        session: { access_token: 'test-token' },
-        isLoading: false,
-        isConfigured: true,
-        ageClassification: null,
-    })),
-    AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-// Mock offline-db module
-vi.mock('@/lib/offline-db', () => ({
-    db: {
-        syncQueue: {
-            toArray: vi.fn().mockResolvedValue([]),
-            count: vi.fn().mockResolvedValue(0),
-        },
-        appState: {
-            get: vi.fn().mockResolvedValue(null),
-            put: vi.fn().mockResolvedValue(undefined),
-            delete: vi.fn().mockResolvedValue(undefined),
-            clear: vi.fn().mockResolvedValue(undefined),
-        },
-    },
-    generateId: vi.fn(() => `test-id-${Math.random().toString(36).substr(2, 9)}`),
-    queueForSync: vi.fn().mockResolvedValue(undefined),
-    getPendingSyncCount: vi.fn().mockResolvedValue(0),
-    getPendingSyncItems: vi.fn().mockResolvedValue([]),
-    // Nothing pending by default, so pulls and realtime events apply normally (B3/B8).
-    getPendingRecordIds: vi.fn().mockResolvedValue(new Set<string>()),
-    moveToDeadLetter: vi.fn().mockResolvedValue(undefined),
-    getSyncFailureCount: vi.fn().mockResolvedValue(0),
-    getSyncFailures: vi.fn().mockResolvedValue([]),
-    retrySyncFailures: vi.fn().mockResolvedValue(0),
-    discardSyncFailures: vi.fn().mockResolvedValue(undefined),
-    clearLocalDatabase: vi.fn().mockResolvedValue(undefined),
-    clearAppState: vi.fn().mockResolvedValue(undefined),
-    indexedDBStorage: {
-        getItem: vi.fn().mockResolvedValue(null),
-        setItem: vi.fn().mockResolvedValue(undefined),
-        removeItem: vi.fn().mockResolvedValue(undefined),
-    },
-}));
-
-// Mock realtime module
-vi.mock('@/lib/realtime', () => ({
-    getRealtimeStatus: vi.fn(() => 'disconnected'),
-    onRealtimeStatusChange: vi.fn(() => () => { }),
-    setupRealtimeSubscription: vi.fn(),
-    teardownRealtimeSubscription: vi.fn(),
-    handleRealtimeDelete: vi.fn(),
-}));
-
-// Mock queries module (React Query hooks for per-page refresh)
-vi.mock('@/lib/queries', () => ({
-    useTasksQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
-    useScoutingQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
-    useMatchPlansQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
-}));
-
-// Mock sync module.
-//
-// NOTE: this factory must stay in step with the real `src/lib/sync.ts` exports.
-// It previously declared `useSyncStatus` and `SyncProvider`, neither of which has
-// ever existed in the real module — proof that hand-written mocks drift silently.
-// `src/test/__tests__/mock-drift.test.ts` now fails CI when they diverge.
-//
-// The pure functions are re-exported from the real module rather than stubbed:
-// tests that assert on them should exercise the real implementation.
-vi.mock('@/lib/sync', async () => {
-    const actual = await vi.importActual<typeof import('@/lib/sync')>('@/lib/sync');
-    return {
-        ...actual,
-        useSync: vi.fn(() => ({
-            isOnline: true,
-            syncStatus: 'idle',
-            pendingChanges: 0,
-            failedChanges: 0,
-            lastSyncTime: null,
-            sync: vi.fn(),
-            retryFailedChanges: vi.fn().mockResolvedValue(0),
-            error: null,
-        })),
-    };
-});
-
-// Mock IndexedDB for any direct usage
-const mockIndexedDB = {
-    open: vi.fn(),
-};
-vi.stubGlobal('indexedDB', mockIndexedDB);
