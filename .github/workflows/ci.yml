@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, refactor/data-layer]
+    # Deploys are handled by deploy.yml on main; this is the gate for everything else.
+    branches: [main, 'refactor/**']
 
 # A newer push to the same branch makes the in-flight run irrelevant.
 concurrency:
