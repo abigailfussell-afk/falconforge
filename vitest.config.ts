@@ -7,7 +7,14 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
         include: ['src/**/*.{test,spec}.{ts,tsx}'],
-        exclude: ['node_modules', 'dist', 'e2e', 'src/**/*.integration.test.{ts,tsx}'],
+        exclude: [
+            'node_modules',
+            'dist',
+            'e2e',
+            'src/**/*.integration.test.{ts,tsx}',
+            // Require a running Postgres; they have their own config and npm scripts.
+            'src/**/*.db.test.{ts,tsx}',
+        ],
         coverage: {
             provider: 'v8',
             // json-summary writes coverage/coverage-summary.json, which is what a CI step or

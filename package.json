@@ -13,6 +13,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:db": "vitest run --config vitest.config.db.ts",
+    "test:rls": "vitest run --config vitest.config.db.ts rls",
     "test:all": "npm run lint && npm run test:run && npm run test:integration",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
