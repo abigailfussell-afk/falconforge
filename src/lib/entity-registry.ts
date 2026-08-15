@@ -31,6 +31,10 @@
  */
 import type { Task, ScoutingReport, MatchPlan, Season, SubTeam } from '../types';
 import type { AppState } from './store';
+import type { Database } from './database.types';
+
+/** Table names that actually exist in the database, straight from the generated types. */
+export type RemoteTable = keyof Database['public']['Tables'];
 
 // ---------------------------------------------------------------------------
 // Shared coercion
@@ -64,8 +68,8 @@ export type WithSyncContext<T> = T & { teamId?: string; seasonId?: string };
 export interface EntityDefinition<TLocal extends { id: string }> {
     /** Key in the Zustand store, camelCase. */
     localKey: string;
-    /** Supabase table, snake_case. */
-    remoteTable: string;
+    /** Supabase table, snake_case. Constrained to a real table by the generated types. */
+    remoteTable: RemoteTable;
     /** Local -> Supabase row. */
     toRemote: (local: WithSyncContext<TLocal>) => Record<string, unknown>;
     /** Supabase row -> local. */

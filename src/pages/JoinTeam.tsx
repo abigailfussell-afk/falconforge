@@ -47,7 +47,7 @@ export default function JoinTeam() {
 
         try {
             // Call the join team function - no extra params needed, age is already on user profile
-            const { data, error: rpcError } = await (supabase.rpc as any)('join_team_with_invite', {
+            const { data, error: rpcError } = await supabase.rpc('join_team_with_invite', {
                 invite_code: inviteCode.trim().toUpperCase(),
             });
 

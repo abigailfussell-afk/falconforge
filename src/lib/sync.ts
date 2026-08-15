@@ -15,7 +15,30 @@ import {
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
-import { findEntity, SYNCED_ENTITIES } from './entity-registry';
+import { findEntity, SYNCED_ENTITIES, type RemoteTable } from './entity-registry';
+
+/**
+ * Tables the sync queue is allowed to touch.
+ *
+ * The queue stores `tableName` as a plain string -- it is persisted data, so nothing stops
+ * a stale or corrupted entry naming something that does not exist. The generated database
+ * types narrow `.from()` to real tables, and this is the one place that boundary is
+ * crossed: validate once, loudly, instead of casting at each of the four call sites.
+ */
+const SYNCABLE_TABLES = new Set<string>([
+    ...SYNCED_ENTITIES.map((e) => e.remoteTable),
+    'checklists',
+]);
+
+function asSyncableTable(tableName: string): RemoteTable {
+    if (!SYNCABLE_TABLES.has(tableName)) {
+        // Throwing routes the item through the normal retry path and, after
+        // MAX_SYNC_RETRIES, into the dead-letter store where a human can see it -- rather
+        // than failing silently against a table that is not there.
+        throw new Error(`Refusing to sync unknown table "${tableName}"`);
+    }
+    return tableName as RemoteTable;
+}
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -240,6 +263,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
     if (!supabaseSync) throw new Error('Supabase not configured');
 
     const { tableName, operation, data, recordId } = item;
+    const table = asSyncableTable(tableName);
 
     // Transform local data to Supabase schema format
     const transformedData = transformToSupabaseSchema(tableName, data);
@@ -249,7 +273,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // Use upsert to handle cases where record already exists (409 conflict)
             // Wrap in async IIFE to convert Supabase thenable to a real Promise
             const result: any = await withTimeout(
-                (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                (async () => supabaseSync.from(table).upsert(transformedData as never, { onConflict: 'id' }))(),
                 PER_QUERY_TIMEOUT_MS,
                 `upsert ${tableName}`
             );
@@ -262,14 +286,14 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
             // so use upsert to create-or-update. Other entities use normal update.
             if (tableName === 'checklists') {
                 const result: any = await withTimeout(
-                    (async () => supabaseSync.from(tableName).upsert(transformedData, { onConflict: 'id' }))(),
+                    (async () => supabaseSync.from(table).upsert(transformedData as never, { onConflict: 'id' }))(),
                     PER_QUERY_TIMEOUT_MS,
                     `upsert ${tableName}`
                 );
                 if (result.error) throw result.error;
             } else {
                 const result: any = await withTimeout(
-                    (async () => (supabaseSync.from(tableName) as any).update(transformedData).eq('id', recordId))(),
+                    (async () => supabaseSync.from(table).update(transformedData as never).eq('id', recordId))(),
                     PER_QUERY_TIMEOUT_MS,
                     `update ${tableName}`
                 );
@@ -280,7 +304,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 
         case 'delete': {
             const result: any = await withTimeout(
-                (async () => supabaseSync.from(tableName).delete().eq('id', recordId))(),
+                (async () => supabaseSync.from(table).delete().eq('id', recordId))(),
                 PER_QUERY_TIMEOUT_MS,
                 `delete ${tableName}`
             );
@@ -430,7 +454,7 @@ async function pullChangesFromServer(token: SyncToken = { cancelled: false }): P
             }
 
             // Build the query
-            let query = supabaseSync.from(table).select('*').eq('team_id', currentTeamId);
+            let query = supabaseSync.from(table as RemoteTable).select('*').eq('team_id', currentTeamId);
 
             // updateLocalDatabase takes records[0] for the checklist blob, and Postgres row
             // order is otherwise unspecified -- so the active checklist could flip between

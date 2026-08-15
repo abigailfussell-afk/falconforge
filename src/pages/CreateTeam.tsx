@@ -117,9 +117,12 @@ export default function CreateTeam() {
             }
 
             // Call the create team function
-            const { data, error: rpcError } = await (supabase.rpc as any)('create_team_as_coach', {
+            const { data, error: rpcError } = await supabase.rpc('create_team_as_coach', {
                 team_name: teamName.trim(),
-                team_number: teamNumber.trim() || null,
+                // undefined omits the argument so the function's `DEFAULT NULL` applies.
+                // Passing null explicitly is equivalent at runtime but does not match the
+                // generated signature (`team_number?: string`).
+                team_number: teamNumber.trim() || undefined,
             });
 
             if (rpcError) {
