@@ -54,6 +54,34 @@ Sprint 3 context you cannot infer from the code alone:
     client does not. Check `deleteSeason` in createSeasonSlice against what the DB
     actually removes.
 
+ONE INHERITED DEFECT YOU MUST NOT SHIP AGAIN.
+
+Sprint 3 left a known gap, recorded in the parking lot, and rollover walks straight
+into it. An unlicensed team's writes fail SILENTLY: the row appears in the UI, the
+server refuses it (403 from `can_manage_content`, which requires `team_can_write`),
+and the sync indicator shows "1 pending" with no reason. Verified in a browser. The
+engine is behaving correctly — retry on the backoff schedule, then dead-letter — but
+the user is told nothing and the work never lands.
+
+Rollover is a write gated on entitlement, so a lapsed team pressing "new season"
+gets exactly this, and it would be the second feature to inherit it. Sprint 6 owns
+the full enforcement UX (`team_entitlement` -> read-only banner, lock screens). What
+is YOURS is narrower and non-negotiable:
+
+  1. A test that rollover is refused for an unlicensed team. Server-side, behavioural,
+     in src/test/db/ — the same shape as the "unlicensed team is read-only" block in
+     tenant-isolation.rls.db.test.ts.
+  2. The wizard must not silently queue a rollover it cannot complete. Disabling the
+     action when `team_entitlement.status = 'read_only'` is enough; you do not have to
+     build the banner. Follow the pattern already used for "New Item", which is
+     disabled when there is no current season.
+
+If you conclude the honest fix is bigger than that — for instance that `sync.ts`
+should classify an entitlement refusal as TERMINAL rather than burning five retries
+over nine minutes on something that cannot succeed — say so in your report and leave
+it for Sprint 6 rather than widening this sprint. That change touches the sync engine
+and needs its own regression tests under rule 6.
+
 Two things outside your scope that may bite you:
 
   - `.env.local` points at the HOSTED project. Do not overwrite it (Sprint 2 did,
