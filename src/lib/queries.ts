@@ -1,104 +1,49 @@
 /**
- * React Query hooks for per-page background data refresh.
+ * Per-page background refresh.
  *
- * These hooks complement the existing `fetchTeamData()` in store.ts.
- * `fetchTeamData` loads ALL entities on team switch (for offline cache fill).
- * These hooks add stale-while-revalidate freshness: when a user navigates to
- * a page, the hook triggers a background refresh for that page's data.
+ * When a user opens a page, the hook for that page triggers a background refresh of its
+ * data. Components still read from the Zustand store — React Query only decides *when* to
+ * refresh, never *how* to read.
  *
- * Data flows:  Supabase → query hook → store setter → Zustand store → component
- * Components still read from the Zustand store — React Query only manages the refresh.
+ * These hooks used to contain their own copy of the read: `.from(table).select('*')`
+ * followed by `setTasks(transformed)`, replacing the whole collection. That is a wholesale
+ * overwrite with no knowledge of the sync queue, so a background refetch on a 30s stale
+ * timer could discard tasks created offline and still waiting to be pushed (C3/B3).
+ *
+ * They now call `pullFromServer`, the single read path, which keeps pending records. The
+ * hooks are left as separate named exports because each page imports its own, and because
+ * the query keys keep React Query's per-page cache and stale timers distinct.
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { supabaseSync, isSupabaseConfigured } from './supabase';
-import { useAppStore } from './store';
-import {
-    transformTaskFromSupabase,
-    transformScoutingReportFromSupabase,
-    transformMatchPlanFromSupabase,
-} from './transformers';
+import { isSupabaseConfigured } from './supabase';
+import { pullFromServer, type PullResult } from './server-pull';
 
-// ---------------------------------------------------------------------------
-// Tasks — SprintPlanning page
-// ---------------------------------------------------------------------------
+/** Page-level refreshes are full pulls: the user is looking at the screen and expects
+ *  records deleted on another device to disappear. */
+function useEntityRefresh(table: string, teamId: string | null) {
+    return useQuery<PullResult | null>({
+        queryKey: [table, teamId],
+        queryFn: async () => {
+            if (!teamId) return null;
+            return pullFromServer({ teamId, tables: [table], mode: 'full' });
+        },
+        enabled: !!teamId && isSupabaseConfigured() && navigator.onLine,
+        staleTime: 30_000,
+    });
+}
 
+/** Tasks — SprintPlanning page. */
 export function useTasksQuery(teamId: string | null) {
-    const setTasks = useAppStore((s) => s.setTasks);
-
-    return useQuery({
-        queryKey: ['tasks', teamId],
-        queryFn: async () => {
-            if (!supabaseSync || !teamId) return null;
-
-            const { data, error } = await supabaseSync
-                .from('tasks')
-                .select('*')
-                .eq('team_id', teamId);
-
-            if (error) throw error;
-
-            const transformed = (data || []).map(transformTaskFromSupabase);
-            setTasks(transformed);
-            return transformed;
-        },
-        enabled: !!teamId && isSupabaseConfigured() && navigator.onLine,
-        staleTime: 30_000,
-    });
+    return useEntityRefresh('tasks', teamId);
 }
 
-// ---------------------------------------------------------------------------
-// Scouting Reports — ScoutingReports page
-// ---------------------------------------------------------------------------
-
+/** Scouting reports — ScoutingReports page. */
 export function useScoutingQuery(teamId: string | null) {
-    const setScoutingReports = useAppStore((s) => s.setScoutingReports);
-
-    return useQuery({
-        queryKey: ['scouting_reports', teamId],
-        queryFn: async () => {
-            if (!supabaseSync || !teamId) return null;
-
-            const { data, error } = await supabaseSync
-                .from('scouting_reports')
-                .select('*')
-                .eq('team_id', teamId);
-
-            if (error) throw error;
-
-            const transformed = (data || []).map(transformScoutingReportFromSupabase);
-            setScoutingReports(transformed);
-            return transformed;
-        },
-        enabled: !!teamId && isSupabaseConfigured() && navigator.onLine,
-        staleTime: 30_000,
-    });
+    return useEntityRefresh('scouting_reports', teamId);
 }
 
-// ---------------------------------------------------------------------------
-// Match Plans — MatchPlanner page
-// ---------------------------------------------------------------------------
-
+/** Match plans — MatchPlanner page. */
 export function useMatchPlansQuery(teamId: string | null) {
-    const setMatchPlans = useAppStore((s) => s.setMatchPlans);
-
-    return useQuery({
-        queryKey: ['match_plans', teamId],
-        queryFn: async () => {
-            if (!supabaseSync || !teamId) return null;
-
-            const { data, error } = await supabaseSync
-                .from('match_plans')
-                .select('*')
-                .eq('team_id', teamId);
-
-            if (error) throw error;
-
-            const transformed = (data || []).map(transformMatchPlanFromSupabase);
-            setMatchPlans(transformed);
-            return transformed;
-        },
-        enabled: !!teamId && isSupabaseConfigured() && navigator.onLine,
-        staleTime: 30_000,
-    });
+    return useEntityRefresh('match_plans', teamId);
 }

@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '../store';
-import { supabaseSync, isSupabaseConfigured } from '../supabase';
 
-vi.mock('../supabase', () => ({
-    supabaseSync: {
-        from: vi.fn(),
-    },
-    isSupabaseConfigured: vi.fn(),
-}));
+// No Supabase mock here any more: the store no longer talks to the server at all. Reads
+// moved to `server-pull.ts` (C3), writes go through the offline queue. If this file ever
+// needs a Supabase mock again, that is a sign a second read path has grown back.
 
 describe('AppStore', () => {
     beforeEach(() => {
@@ -453,83 +449,4 @@ describe('AppStore', () => {
         });
     });
 
-    describe('fetchTeamData', () => {
-        beforeEach(() => {
-            vi.clearAllMocks();
-            (isSupabaseConfigured as any).mockReturnValue(true);
-        });
-
-        it('should exit early if teamId is null or supabase is not configured', async () => {
-            (isSupabaseConfigured as any).mockReturnValue(false);
-            const store = useAppStore.getState();
-            await store.fetchTeamData('team-1');
-            expect(supabaseSync!.from).not.toHaveBeenCalled();
-            
-            (isSupabaseConfigured as any).mockReturnValue(true);
-            await store.fetchTeamData(null as any);
-            expect(supabaseSync!.from).not.toHaveBeenCalled();
-        });
-
-        it('should fetch and populate team data properly', async () => {
-            const mockFrom = supabaseSync!.from as any;
-            
-            mockFrom.mockImplementation((table: string) => {
-                const chain: any = {
-                    select: vi.fn().mockReturnThis(),
-                    eq: vi.fn().mockReturnThis(),
-                    limit: vi.fn().mockReturnThis(),
-                    then: function(resolve: any) {
-                        if (table === 'team_members') {
-                            resolve({ data: [{ id: 'm-1', team_id: 'team-1', status: 'approved' }], error: null });
-                        } else if (table === 'sub_teams') {
-                            resolve({ data: [{ id: 'st-1', name: 'Software', team_id: 'team-1' }], error: null });
-                        } else if (table === 'seasons') {
-                            resolve({ data: [{ id: 's-1', name: '2026', team_id: 'team-1' }], error: null });
-                        } else if (table === 'tasks') {
-                            resolve({ data: [{ id: 't-1', title: 'Task1', team_id: 'team-1' }], error: null });
-                        } else if (table === 'scouting_reports') {
-                            resolve({ data: [{ id: 'sr-1', opponent_team_number: '123', team_id: 'team-1' }], error: null });
-                        } else if (table === 'match_plans') {
-                            resolve({ data: [{ id: 'mp-1', title: 'Plan1', team_id: 'team-1' }], error: null });
-                        } else if (table === 'checklists') {
-                            resolve({ data: [{ items: [{ id: 'cl-1', text: 'Item1', checked: false }] }], error: null });
-                        } else {
-                            resolve({ data: [], error: null });
-                        }
-                    }
-                };
-                
-                return chain;
-            });
-
-            await useAppStore.getState().fetchTeamData('team-1');
-
-            const state = useAppStore.getState();
-            expect(state.teamMembers).toHaveLength(1);
-            expect(state.subTeams).toHaveLength(1);
-            expect(state.seasons).toHaveLength(1);
-            expect(state.tasks).toHaveLength(1);
-            expect(state.scoutingReports).toHaveLength(1);
-            expect(state.matchPlans).toHaveLength(1);
-            expect(state.checklist).toHaveLength(1);
-            expect(state.isLoading).toBe(false);
-        });
-
-        it('should handle errors gracefully without crashing', async () => {
-            const mockFrom = supabaseSync!.from as any;
-            mockFrom.mockImplementation(() => {
-                const chain: any = {
-                    select: vi.fn().mockReturnThis(),
-                    eq: vi.fn().mockReturnThis(),
-                    limit: vi.fn().mockReturnThis(),
-                    then: function(resolve: any) {
-                        resolve({ data: null, error: new Error('Network error') });
-                    }
-                };
-                return chain;
-            });
-            
-            await expect(useAppStore.getState().fetchTeamData('team-1')).resolves.not.toThrow();
-        });
-    });
 });

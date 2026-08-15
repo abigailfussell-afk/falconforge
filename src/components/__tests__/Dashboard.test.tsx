@@ -35,6 +35,9 @@ vi.mock('../../lib/sync', () => ({
 vi.mock('../../lib/supabase', () => ({
     isSupabaseConfigured: vi.fn(() => true),
     supabase: { auth: { onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })) } },
+    // Null client: the Dashboard's team-data pull short-circuits, which is what this suite
+    // wants. Declared explicitly because vitest throws on an export the mock omits.
+    supabaseSync: null,
 }));
 
 // Mock user context
@@ -85,7 +88,6 @@ function setupStore(overrides: Record<string, any> = {}) {
         theme: 'dark',
         isLoading: false,
         initializeStore: vi.fn(),
-        fetchTeamData: vi.fn(),
         setTheme: vi.fn(),
         setCurrentSeason: vi.fn(),
         addTask: vi.fn(),

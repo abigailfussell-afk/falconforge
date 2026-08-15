@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useSync, mergeIntoStore } from '../sync';
+import { useSync } from '../sync';
+import { mergeIntoStore } from '../server-pull';
 import { useAppStore } from '../store';
 import { db, queueForSync } from '../offline-db';
 import { supabaseSync } from '../supabase';

@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // (setup.ts globally mocks these, but we need the real exports here)
 vi.unmock('@/lib/sync');
 
-import { withTimeout, transformToSupabaseSchema, updateLocalDatabase } from '../sync';
+import { withTimeout, transformToSupabaseSchema } from '../sync';
+import { updateLocalDatabase } from '../server-pull';
 import { useAppStore } from '../store';
 
 describe('withTimeout', () => {

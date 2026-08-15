@@ -15,8 +15,15 @@
  * which is worth more than the three fixes, because it catches the fourth one.
  */
 import { describe, it, expect } from 'vitest';
-import { ENTITIES, findEntity, toEpochMillis, toISO } from '@/lib/entity-registry';
-import type { Task, ScoutingReport, MatchPlan, Season, SubTeam } from '@/types';
+import {
+    ENTITIES,
+    SYNCED_ENTITIES,
+    PULL_ONLY_ENTITIES,
+    findEntity,
+    toEpochMillis,
+    toISO,
+} from '@/lib/entity-registry';
+import type { Task, ScoutingReport, MatchPlan, Season, SubTeam, TeamMember } from '@/types';
 
 /** Contextual fields the server needs but the local types do not carry. */
 const CTX = { teamId: 'team-1', seasonId: 'season-1' };
@@ -86,12 +93,26 @@ const matchPlan: MatchPlan = {
     seasonId: 'season-1',
 };
 
+const teamMember: TeamMember = {
+    id: 'member-1',
+    teamId: 'team-1',
+    userId: 'user-1',
+    role: 'mentor',
+    status: 'approved',
+    isBillingActive: true,
+    fullName: 'Sam Rivera',
+    email: 'sam@example.com',
+    avatarUrl: 'https://example.com/sam.png',
+    joinedAt: 0, // server-assigned
+};
+
 const SAMPLES: Record<string, any> = {
     tasks: task,
     seasons: season,
     sub_teams: subTeam,
     scouting_reports: scoutingReport,
     match_plans: matchPlan,
+    team_members: teamMember,
 };
 
 describe('every entity survives a round trip', () => {
@@ -167,6 +188,51 @@ describe('date coercion is consistent across entities (B11)', () => {
                     .toBe(false);
             }
         }
+    });
+});
+
+describe('pull-only entities are never pushable', () => {
+    // sync.ts builds the set of tables the offline queue may touch from SYNCED_ENTITIES.
+    // A pull-only entity leaking into that list would make the queue able to push rows the
+    // client has no business writing.
+    it('keeps SYNCED and PULL_ONLY disjoint', () => {
+        const synced = new Set(SYNCED_ENTITIES.map((e) => e.remoteTable));
+        for (const entity of PULL_ONLY_ENTITIES) {
+            expect(synced.has(entity.remoteTable), `${entity.remoteTable} is pushable`).toBe(false);
+        }
+    });
+
+    it('ENTITIES is exactly the two lists together', () => {
+        expect(ENTITIES.map((e) => e.remoteTable)).toEqual([
+            ...SYNCED_ENTITIES.map((e) => e.remoteTable),
+            ...PULL_ONLY_ENTITIES.map((e) => e.remoteTable),
+        ]);
+    });
+
+    it('team_members is pull-only', () => {
+        expect(PULL_ONLY_ENTITIES.map((e) => e.remoteTable)).toContain('team_members');
+    });
+});
+
+describe('team_members narrows server strings instead of casting them', () => {
+    // The inline transform this replaced wrote `role: m.role as any`, so a value outside
+    // the union flowed straight into code that compares against role literals.
+    const members = findEntity('team_members')!;
+
+    it('keeps a role it recognises', () => {
+        expect(members.fromRemote({ id: 'm', role: 'coach' }).role).toBe('coach');
+        expect(members.fromRemote({ id: 'm', role: 'assistant_coach' }).role).toBe('assistant_coach');
+    });
+
+    it('falls back to the least-privileged role for anything else', () => {
+        expect(members.fromRemote({ id: 'm', role: 'superuser' }).role).toBe('student');
+        expect(members.fromRemote({ id: 'm', role: null }).role).toBe('student');
+        expect(members.fromRemote({ id: 'm' }).role).toBe('student');
+    });
+
+    it('treats an unrecognised status as not-yet-approved', () => {
+        expect(members.fromRemote({ id: 'm', status: 'approved' }).status).toBe('approved');
+        expect(members.fromRemote({ id: 'm', status: 'banned' }).status).toBe('pending');
     });
 });
 

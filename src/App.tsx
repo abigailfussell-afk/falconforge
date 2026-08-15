@@ -4,6 +4,7 @@ import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from './lib/realtime';
+import { fetchTeamData } from './lib/server-pull';
 import { performSignOut } from './lib/sign-out';
 import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
@@ -40,7 +41,6 @@ function Dashboard() {
         setCurrentSeason,
         currentTeamId,
         teams,
-        fetchTeamData
     } = useAppStore();
     const navigate = useNavigate();
 
@@ -79,7 +79,7 @@ function Dashboard() {
             
             return () => clearTimeout(timeout);
         }
-    }, [currentTeamId, fetchTeamData, navigate]);
+    }, [currentTeamId, navigate]);
 
     // Realtime subscription lifecycle — subscribe when team is selected & online
     useEffect(() => {

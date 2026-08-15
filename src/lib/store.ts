@@ -1,18 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { generateId, queueForSync, indexedDBStorage } from './offline-db';
-import { supabaseSync, isSupabaseConfigured } from './supabase';
 import { DEFAULT_SUBTEAMS } from '../constants';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
 import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
-import {
-    transformTaskFromSupabase,
-    transformScoutingReportFromSupabase,
-    transformMatchPlanFromSupabase,
-    transformSeasonFromSupabase,
-    transformSubTeamFromSupabase,
-} from './transformers';
 import type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, MatchPlan,
@@ -106,9 +98,13 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     updateMatchPlan: (id: string, updates: Partial<MatchPlan>) => void;
     setMatchPlans: (plans: MatchPlan[]) => void;
 
-    // Data management
+    // Data management.
+    //
+    // Loading team data is deliberately NOT an action here. It used to be `fetchTeamData`,
+    // 145 lines of copy-pasted fetches that replaced every collection wholesale and had
+    // never heard of the sync queue -- a second read path that silently discarded offline
+    // work (C3). It now lives in `server-pull.ts` with every other server read.
     setIsLoading: (isLoading: boolean) => void;
-    fetchTeamData: (teamId: string) => Promise<void>;
     initializeStore: () => Promise<void>;
     resetToDefaults: () => void;
 }
@@ -149,155 +145,6 @@ export const useAppStore = create<AppState>()(
 
             // Data management
             setIsLoading: (isLoading) => set({ isLoading }),
-
-            fetchTeamData: async (teamId) => {
-                // Ensure Supabase is available and not null for TS
-                if (!teamId || !isSupabaseConfigured() || !supabaseSync) return;
-
-                set({ isLoading: true });
-
-                try {
-                    // 1. Fetch Team Members (required - should always exist)
-                    try {
-                        const { data: members, error: membersError } = await supabaseSync
-                            .from('team_members')
-                            .select('*')
-                            .eq('team_id', teamId)
-                            .eq('status', 'approved');
-
-                        if (!membersError && members) {
-                            set({
-                                teamMembers: members.map((m: any) => ({
-                                    id: m.id,
-                                    teamId: m.team_id,
-                                    userId: m.user_id,
-                                    role: m.role as any,
-                                    status: m.status as any,
-                                    joinedAt: new Date(m.joined_at).getTime(),
-                                    fullName: m.full_name,
-                                    email: m.email,
-                                    avatarUrl: m.avatar_url,
-                                    isBillingActive: m.is_billing_active
-                                }))
-                            });
-                        } else if (membersError) {
-                            console.warn('Failed to fetch team_members:', membersError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching team_members:', err);
-                    }
-
-                    // 2. Fetch SubTeams
-                    try {
-                        const { data: subTeams, error: subTeamsError } = await supabaseSync
-                            .from('sub_teams')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!subTeamsError && subTeams) {
-                            set({ subTeams: subTeams.map(transformSubTeamFromSupabase) });
-                        } else if (subTeamsError) {
-                            console.warn('Failed to fetch sub_teams:', subTeamsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching sub_teams:', err);
-                    }
-
-                    // 3. Fetch Seasons
-                    try {
-                        const { data: seasons, error: seasonsError } = await supabaseSync
-                            .from('seasons')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!seasonsError && seasons && seasons.length > 0) {
-                            set({ seasons: seasons.map(transformSeasonFromSupabase) });
-                        } else if (seasonsError) {
-                            console.warn('Failed to fetch seasons:', seasonsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching seasons:', err);
-                    }
-
-                    // 4. Fetch Tasks (may not exist if migration not run)
-                    try {
-                        const { data: tasks, error: tasksError } = await supabaseSync
-                            .from('tasks')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!tasksError && tasks) {
-                            set({ tasks: tasks.map(transformTaskFromSupabase) });
-                        } else if (tasksError) {
-                            // Table may not exist yet - this is expected before migration
-                            console.warn('Failed to fetch tasks (table may not exist yet):', tasksError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching tasks:', err);
-                    }
-
-                    // 5. Fetch Scouting Reports (may not exist if migration not run)
-                    try {
-                        const { data: reports, error: reportsError } = await supabaseSync
-                            .from('scouting_reports')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!reportsError && reports) {
-                            set({ scoutingReports: reports.map(transformScoutingReportFromSupabase) });
-                        } else if (reportsError) {
-                            console.warn('Failed to fetch scouting_reports (table may not exist yet):', reportsError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching scouting_reports:', err);
-                    }
-
-                    // 6. Fetch Match Plans (may not exist if migration not run)
-                    try {
-                        const { data: plans, error: plansError } = await supabaseSync
-                            .from('match_plans')
-                            .select('*')
-                            .eq('team_id', teamId);
-
-                        if (!plansError && plans) {
-                            set({ matchPlans: plans.map(transformMatchPlanFromSupabase) });
-                        } else if (plansError) {
-                            console.warn('Failed to fetch match_plans (table may not exist yet):', plansError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching match_plans:', err);
-                    }
-
-                    // 7. Fetch Checklist (may not exist if migration not run)
-                    try {
-                        const { data: checklists, error: checklistError } = await supabaseSync
-                            .from('checklists')
-                            .select('*')
-                            .eq('team_id', teamId)
-                            .limit(1);
-
-                        if (!checklistError && checklists && checklists.length > 0) {
-                            const items = (checklists[0] as any).items;
-                            if (Array.isArray(items)) {
-                                set({ checklist: items });
-                            }
-                        } else if (checklistError) {
-                            console.warn('Failed to fetch checklists (table may not exist yet):', checklistError.message);
-                        }
-                    } catch (err) {
-                        console.warn('Error fetching checklists:', err);
-                    }
-
-                } catch (err) {
-                    console.error('Error fetching team data:', err);
-                } finally {
-                    set({ isLoading: false });
-                }
-            },
-
-
-
-
 
             // Scouting
             addScoutingReport: (reportData) => {
