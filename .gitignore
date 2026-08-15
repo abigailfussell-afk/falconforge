@@ -35,16 +35,21 @@ dev-dist/
 # Supabase
 .supabase/
 
-# Playwright / E2E
+# Test + coverage output. These were previously committed -- 58 coverage files and a
+# directory of Playwright traces and screenshots from an E2E setup that is not installed.
+# All of it regenerates from `npm run test:coverage`.
+coverage/
+test-results/
+test-results.json
 playwright-report/
 playwright/.auth/
-test-results/
 playwright_output*.txt
+vitest_output*.txt
 
-# Backup files & scripts (contain or access sensitive data)
-backup-full.mjs
-backup-database.mjs
+# Database backups and scratch dumps. Never commit these: they contain real user data
+# (names, email addresses). Use `supabase db dump` and keep the output outside the repo.
 backup_*.sql
 backup-*/
 auth_test_out.txt
+supabase_schema.txt
 .agent/scaling-remaining-items.md

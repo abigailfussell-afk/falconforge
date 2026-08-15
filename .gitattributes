@@ -1,0 +1,27 @@
+# Normalise line endings.
+#
+# Development happens on Windows (core.autocrlf=true) while CI runs on ubuntu-latest, so
+# without this the two disagree about every file. It also fixed a concrete problem: git's
+# "LF will be replaced by CRLF" warning was being parsed by lint-staged as the output of
+# `git stash create`, which broke the pre-commit hook with "fatal: Needed a single revision"
+# until `core.safecrlf=false` was set locally as a workaround.
+#
+# `text=auto` lets git decide what is text, storing LF in the repository and checking out
+# the platform's native ending. Existing files are NOT renormalised -- that would rewrite
+# nearly every file for no functional gain. This governs files from here on.
+* text=auto
+
+# Always LF: shell scripts and anything executed inside Linux containers or CI, where CRLF
+# is a syntax error rather than a cosmetic difference.
+*.sh text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary: never touch, never diff.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary
