@@ -32,24 +32,27 @@ tasks_of_B_visible_AFTER   1
 leaked_task                "B secret task"
 ```
 
-**This is live on falcon-forge.com right now.** No beta teams are onboarded and team ids are
-not exposed in the UI, so exploitation requires knowing a uuid — but the anon key ships in
-the bundle and a team id appears in every PostgREST request a member makes, so any member of
-any team can read one and use it.
+**✅ PATCHED ON PRODUCTION 2026-08-15**, before this branch was pushed. It was live until
+then: no beta teams are onboarded and team ids are not exposed in the UI, so exploitation
+required knowing a uuid — but the anon key ships in the bundle and a team id appears in every
+PostgREST request a member makes, so any member of any team could read one and use it.
 
-Sprint 3's schema closes it (there is no self-insert branch; joining goes through
-`join_team_with_invite`, which creates a PENDING member). If merging this sprint is going to
-take more than a day or two, **the one-line fix can be applied to the hosted project
-immediately**:
+The mitigation applied to the hosted project, as a single atomic statement so there was no
+window with no INSERT policy at all:
 
 ```sql
-drop policy team_members_insert_policy on team_members;
-create policy team_members_insert_policy on team_members for insert
+alter policy team_members_insert_policy on public.team_members
   with check (is_team_coach(team_id, auth.uid()));
 ```
 
+Verified before and after against `cvnonrjzshaawzxcjwmn`: the `with_check` expression is now
+`is_team_coach(team_id, auth.uid())` with no self-insert branch, it is the only INSERT policy
+on the table, and `is_team_coach` itself is SECURITY DEFINER with a pinned `search_path`.
 Nothing in the app self-inserts — `create_team_as_coach` and `join_team_with_invite` are both
-SECURITY DEFINER and bypass RLS — so that change breaks no existing flow.
+SECURITY DEFINER and bypass RLS — so the change broke no existing flow. No data was written.
+
+Sprint 3's schema carries the permanent fix: there is no self-insert branch, and joining goes
+through `join_team_with_invite`, which creates a PENDING member a coach must approve.
 
 **Why the C7 suite missed it, which matters more than the bug.** All 180 assertions passed
 over this schema. Every cross-tenant INSERT the suite tried named the *victim's* user id,

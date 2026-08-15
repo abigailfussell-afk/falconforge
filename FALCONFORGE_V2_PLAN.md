@@ -320,6 +320,12 @@ the final walkthrough and tags `v2.0.0-beta`.
 **Discovered / parking lot:**
 
 *From Sprint 3:*
+- **✅ B21 patched on production 2026-08-15** (`ALTER POLICY` on the hosted project, verified
+  before and after) and fixed permanently in the V2 policies. The V1 `team_members` INSERT
+  policy allowed `user_id = auth.uid()`, so any authenticated user could insert themselves
+  into any team as an approved coach. The lesson for future suites is in the sprint report:
+  every cross-tenant INSERT the C7 suite tried named the *victim's* user id, so 180
+  assertions passed over an escalation that only needed the attacker to name themselves.
 - **The trial licence in `create_team_as_admin` is temporary and must be removed when
   billing goes live.** A team with no licence is read-only, so self-serve registration has
   to leave the team entitled or the app is dead on arrival; the RPC therefore issues a
