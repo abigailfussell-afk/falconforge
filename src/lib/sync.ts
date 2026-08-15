@@ -337,16 +337,6 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 is_template: data.isTemplate || false,
             };
 
-        case 'portfolio_entries':
-        case 'portfolioHistory':
-            // Local-only today; kept so a queued payload from an older build still pushes.
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                content: data.content,
-                task_count: data.taskCount || 0,
-            };
 
         default:
             // Unknown table: pass through untouched rather than silently dropping fields.
@@ -424,7 +414,6 @@ async function pullChangesFromServer(token: SyncToken = { cancelled: false }): P
 
     // Derived from the registry rather than restated here -- adding an entity should mean
     // adding one definition, not remembering to update a second list (B16).
-    // portfolio_entries is intentionally local-only and so is absent from the registry.
     const entities = [
         ...SYNCED_ENTITIES.map((e) => ({ table: e.remoteTable, localTable: e.localKey })),
         // Blob-synced, not a registry entity: one row per team holding the whole array.

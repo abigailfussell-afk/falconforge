@@ -350,29 +350,6 @@ describe('AppStore', () => {
         });
     });
 
-    describe('PortfolioHistory', () => {
-        beforeEach(() => {
-            useAppStore.setState({ portfolioHistory: [] });
-        });
-
-        it('should add a portfolio entry', () => {
-            useAppStore.getState().addPortfolioEntry('Summary', 5);
-            const entries = useAppStore.getState().portfolioHistory;
-
-            expect(entries).toHaveLength(1);
-            expect(entries[0].content).toBe('Summary');
-            expect(entries[0].taskCount).toBe(5);
-        });
-
-        it('should delete a portfolio entry', () => {
-            useAppStore.getState().addPortfolioEntry('Summary', 5);
-            const entryId = useAppStore.getState().portfolioHistory[0].id;
-
-            useAppStore.getState().deletePortfolioEntry(entryId);
-            expect(useAppStore.getState().portfolioHistory).toHaveLength(0);
-        });
-    });
-
     describe('Seasons', () => {
         beforeEach(() => {
             useAppStore.setState({ seasons: [], currentSeasonId: null });
@@ -447,10 +424,7 @@ describe('AppStore', () => {
     describe('Top-level Setters', () => {
         it('sets basic state fields', () => {
             const store = useAppStore.getState();
-            
-            store.setGeminiApiKey('api-key');
-            expect(useAppStore.getState().geminiApiKey).toBe('api-key');
-            
+
             store.setCurrentTeam('team-1');
             expect(useAppStore.getState().currentTeamId).toBe('team-1');
             

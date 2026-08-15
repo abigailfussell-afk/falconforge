@@ -116,7 +116,7 @@ describe('Dashboard Navigation', () => {
         expect(screen.getAllByText('Scouting Reports').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Match Planner').length).toBeGreaterThan(0);
 
-        // AI features are disabled via feature flag — these should NOT be rendered
+        // AI features were removed (see docs/ai-features-reference.md) — guard against reintroduction
         expect(screen.queryByText('Portfolio Helper')).toBeNull();
         expect(screen.queryByText('Judging Prep')).toBeNull();
     });

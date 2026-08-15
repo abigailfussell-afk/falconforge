@@ -162,19 +162,6 @@ export interface MatchPlan {
   seasonId?: string;
 }
 
-export interface PortfolioEntry {
-  id: string;
-  content: string;
-  createdAt: number;
-  taskCount: number;
-  seasonId?: string;
-}
-
-export interface Flashcard {
-  question: string;
-  answer: string;
-}
-
 export interface Season {
   id: string;
   name: string;

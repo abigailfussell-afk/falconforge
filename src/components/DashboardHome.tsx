@@ -3,7 +3,6 @@ import {
     ClipboardCheck,
     Gamepad2,
     CheckSquare,
-    Sparkles,
     TrendingUp,
     PlusCircle,
     ArrowRight,
@@ -11,7 +10,6 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../lib/store';
 import { useAuth } from '../lib/auth';
-import { AI_FEATURES_ENABLED } from '../constants';
 
 interface DashboardHomeProps {
     setActiveTab: (tab: string) => void;
@@ -41,15 +39,12 @@ export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         { label: 'Match Plans', value: matchPlans.length, icon: Gamepad2, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', link: 'planner' },
     ];
 
-    const allQuickActions = [
+    const quickActions = [
         { id: 'kanban', label: 'Sprint Planning', desc: 'Track your team\'s progress', icon: LayoutDashboard, color: 'bg-blue-500' },
         { id: 'checklist', label: 'Pre-Match Checklist', desc: 'Always be competition ready', icon: CheckSquare, color: 'bg-teal-500' },
         { id: 'scouting', label: 'Scouting Reports', desc: 'Know your competition', icon: ClipboardCheck, color: 'bg-green-500' },
         { id: 'planner', label: 'Match Planner', desc: 'Plan with your allies', icon: Gamepad2, color: 'bg-orange-500' },
-        { id: 'portfolio', label: 'Portfolio Helper', desc: 'Summarize your team\'s accomplishments', icon: Sparkles, color: 'bg-pink-500', ai: true },
-        { id: 'judging', label: 'Judging Prep', desc: 'Be ready to answer any question', icon: Sparkles, color: 'bg-purple-500', ai: true },
     ];
-    const quickActions = AI_FEATURES_ENABLED ? allQuickActions : allQuickActions.filter(a => !a.ai);
 
     // Get 3 most recent activities
     const recentActivity = [
