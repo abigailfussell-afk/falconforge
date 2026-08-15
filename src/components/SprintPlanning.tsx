@@ -14,7 +14,6 @@ import ConfirmDialog from './ConfirmDialog';
 
 interface SprintPlanningProps {
     tasks: Task[];
-    setTasks: React.Dispatch<React.SetStateAction<Task[]>>; // Kept for backward compat but now unused
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
 }

@@ -34,49 +34,6 @@ export const COACH_REQUIRED_ATTESTATIONS: AttestationType[] = [
 export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [];
 
 /**
- * Check which attestations a user is missing
- */
-export async function getMissingAttestations(
-    userId: string,
-    requiredTypes: AttestationType[]
-): Promise<AttestationType[]> {
-    if (!supabase || !isSupabaseConfigured()) {
-        console.warn('Supabase not configured, cannot check attestations');
-        return [];
-    }
-
-    try {
-        const { data: existingAttestations, error } = await supabase
-            .from('user_attestations')
-            .select('attestation_type, version')
-            .eq('user_id', userId) as { data: { attestation_type: string; version: string }[] | null; error: any };
-
-        if (error) {
-            console.error('Error fetching attestations:', error);
-            return requiredTypes; // Assume all missing on error
-        }
-
-        const missing: AttestationType[] = [];
-
-        for (const type of requiredTypes) {
-            const existing = existingAttestations?.find(
-                (a) => a.attestation_type === type
-            );
-
-            // Missing if no record or version is outdated
-            if (!existing || existing.version !== ATTESTATION_VERSIONS[type]) {
-                missing.push(type);
-            }
-        }
-
-        return missing;
-    } catch (err) {
-        console.error('Exception checking attestations:', err);
-        return requiredTypes;
-    }
-}
-
-/**
  * Record an attestation for the current user
  */
 export async function recordAttestation(
@@ -115,20 +72,5 @@ export async function recordAttestation(
         console.error('Exception recording attestation:', err);
         return { success: false, error: err.message };
     }
-}
-
-/**
- * Record multiple attestations at once
- */
-export async function recordAttestations(
-    attestationTypes: AttestationType[]
-): Promise<{ success: boolean; error?: string }> {
-    for (const type of attestationTypes) {
-        const result = await recordAttestation(type);
-        if (!result.success) {
-            return result;
-        }
-    }
-    return { success: true };
 }
 

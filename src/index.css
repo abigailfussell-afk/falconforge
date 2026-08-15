@@ -97,51 +97,6 @@ h6 {
   outline-offset: 2px;
 }
 
-/* PWA install prompt styling */
-.pwa-install-prompt {
-  position: fixed;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid #334155;
-  border-radius: 1rem;
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(1rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* Offline indicator */
-.offline-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: #f59e0b;
-  color: #1e293b;
-  text-align: center;
-  padding: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  z-index: 9999;
-}
-
 /* Touch-friendly tap targets - only for primary action buttons, not text links */
 @media (pointer: coarse) {
 
@@ -208,23 +163,6 @@ h6 {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: rgba(156, 163, 175, 0.5);
   border-radius: 10px;
-}
-
-/* 3D Card Flip Utilities */
-.perspective-1000 {
-  perspective: 1000px;
-}
-
-.transform-style-3d {
-  transform-style: preserve-3d;
-}
-
-.backface-hidden {
-  backface-visibility: hidden;
-}
-
-.rotate-y-180 {
-  transform: rotateY(180deg);
 }
 
 /* Screensaver Background Animation */

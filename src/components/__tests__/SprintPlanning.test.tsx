@@ -98,7 +98,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -113,7 +112,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -127,7 +125,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -146,7 +143,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -163,7 +159,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -183,7 +178,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -207,7 +201,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -223,7 +216,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -241,7 +233,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -257,7 +248,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />
@@ -284,7 +274,6 @@ describe('SprintPlanning', () => {
             render(
                 <SprintPlanning
                     tasks={[]}
-                    setTasks={vi.fn()}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
                 />

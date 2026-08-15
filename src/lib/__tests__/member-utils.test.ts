@@ -25,11 +25,6 @@ describe('member-utils', () => {
             expect(getMemberDisplayName(null)).toBe('Unknown User');
             expect(getMemberDisplayName(undefined)).toBe('Unknown User');
         });
-
-        it('handles demo users correctly', () => {
-            expect(getMemberDisplayName({ ...defaultMember, role: 'demo' as any, fullName: 'Demo John' })).toBe('Demo John');
-            expect(getMemberDisplayName({ ...defaultMember, role: 'demo' as any })).toBe('Demo User');
-        });
     });
 
     describe('getMemberInitials', () => {
@@ -48,10 +43,6 @@ describe('member-utils', () => {
         it('returns "?" if null or undefined', () => {
             expect(getMemberInitials(null)).toBe('?');
             expect(getMemberInitials(undefined)).toBe('?');
-        });
-
-        it('handles demo users correctly', () => {
-            expect(getMemberInitials({ ...defaultMember, role: 'demo' as any, fullName: 'DJohn' })).toBe('DJ');
         });
     });
 });

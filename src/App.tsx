@@ -34,8 +34,6 @@ function Dashboard() {
         subTeams: allSubTeams,
         theme,
         setTheme,
-        addTask,
-        updateTask,
         seasons,
         currentSeasonId,
         setCurrentSeason,
@@ -174,25 +172,6 @@ function Dashboard() {
                     {activeTab === 'kanban' && (
                         <SprintPlanning
                             tasks={tasksForComponents}
-                            setTasks={(newTasks) => {
-                                // This bridges the old component API with the new store
-                                let updatedTasks = [];
-                                if (typeof newTasks === 'function') {
-                                    updatedTasks = newTasks(tasksForComponents);
-                                } else {
-                                    updatedTasks = newTasks;
-                                }
-
-                                // Update each task in store
-                                updatedTasks.forEach((t: any) => {
-                                    const existing = tasks.find(et => et.id === t.id);
-                                    if (!existing) {
-                                        addTask(t);
-                                    } else {
-                                        updateTask(t.id, t);
-                                    }
-                                });
-                            }}
                             teamMembers={teamMembers}
                             subTeams={subTeams}
                         />

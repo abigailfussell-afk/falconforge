@@ -8,10 +8,6 @@ import { TeamMember } from '../types';
 export const getMemberDisplayName = (member: TeamMember | null | undefined): string => {
     if (!member) return 'Unknown User';
 
-    if ((member.role as string) === 'demo') {
-        return member.fullName || 'Demo User';
-    }
-
     return member.fullName || member.email || 'Unknown User';
 };
 
@@ -21,11 +17,6 @@ export const getMemberDisplayName = (member: TeamMember | null | undefined): str
  */
 export const getMemberInitials = (member: TeamMember | null | undefined): string => {
     if (!member) return '?';
-
-    // Check if it's a demo user first
-    if ((member.role as string) === 'demo' && member.fullName) {
-        return member.fullName.substring(0, 2).toUpperCase();
-    }
 
     if (member.fullName) {
         const parts = member.fullName.trim().split(' ');
