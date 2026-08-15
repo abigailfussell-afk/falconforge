@@ -95,19 +95,21 @@ describe('realtime', () => {
             expect(mockSubscribe).toHaveBeenCalled();
         });
 
-        it('should subscribe to all 5 synced tables (INSERT, UPDATE, DELETE each)', () => {
+        it('should subscribe to every synced table (INSERT, UPDATE, DELETE each)', () => {
             setupRealtimeSubscription('team-123');
 
-            // 5 tables × 3 events = 15 calls to .on()
-            expect(mockOn).toHaveBeenCalledTimes(15);
-
-            // Verify table names are in the filter configs
+            // The subscription list is derived from the entity registry plus checklists,
+            // rather than being a second hand-maintained list that can drift from the
+            // first (B16). That added `seasons`, which was previously omitted -- so this
+            // is 6 tables x 3 events, not the old 5 x 3. Season renames now propagate live
+            // instead of waiting for the next pull; the table is tiny and rarely written.
             const tables = mockOn.mock.calls.map((call: any[]) => call[1]?.table);
-            expect(tables).toContain('tasks');
-            expect(tables).toContain('scouting_reports');
-            expect(tables).toContain('match_plans');
-            expect(tables).toContain('checklists');
-            expect(tables).toContain('sub_teams');
+            const distinct = [...new Set(tables)];
+
+            expect(distinct.sort()).toEqual([
+                'checklists', 'match_plans', 'scouting_reports', 'seasons', 'sub_teams', 'tasks',
+            ]);
+            expect(mockOn).toHaveBeenCalledTimes(distinct.length * 3);
         });
 
         it('should filter subscriptions by team_id', () => {

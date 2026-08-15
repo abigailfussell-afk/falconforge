@@ -14,6 +14,7 @@ import { supabase } from './supabase';
 import { useAppStore } from './store';
 import { mergeIntoStore, updateLocalDatabase } from './sync';
 import { getPendingRecordIds } from './offline-db';
+import { findEntity, SYNCED_ENTITIES } from './entity-registry';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,14 +33,14 @@ let currentTeamId: string | null = null;
 let status: RealtimeStatus = 'disconnected';
 const statusListeners = new Set<StatusListener>();
 
-// Tables we subscribe to + their local (camelCase) store key
+// Derived from the entity registry rather than restated here. Seasons are included
+// because the registry drives it; subscribing to one extra low-traffic table is cheaper
+// than maintaining a second list that can drift out of step with the first.
 const SYNCED_TABLES = [
-    { table: 'tasks', localTable: 'tasks' },
-    { table: 'scouting_reports', localTable: 'scoutingReports' },
-    { table: 'match_plans', localTable: 'matchPlans' },
+    ...SYNCED_ENTITIES.map((e) => ({ table: e.remoteTable, localTable: e.localKey })),
+    // Blob-synced, so not a registry entity, but still worth pushing live.
     { table: 'checklists', localTable: 'checklists' },
-    { table: 'sub_teams', localTable: 'subTeams' },
-] as const;
+];
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -67,30 +68,23 @@ export function onRealtimeStatusChange(listener: StatusListener): () => void {
 /**
  * Remove a single record by ID from the Zustand store.
  * Used exclusively by Realtime DELETE events.
+ *
+ * Accepts either the snake_case table or the camelCase store key. The loop below used to
+ * hand `localTable` to mergeIntoStore and `table` to this function on adjacent lines --
+ * correct at the time, and exactly the kind of thing that breaks on the next edit (B16).
  */
 export function handleRealtimeDelete(tableName: string, recordId: string): void {
     const store = useAppStore.getState();
 
+    const entity = findEntity(tableName);
+    if (entity) {
+        entity.setInStore(store, entity.getFromStore(store).filter((r: any) => r.id !== recordId));
+        return;
+    }
 
-    switch (tableName) {
-        case 'tasks':
-            store.setTasks(store.tasks.filter((t) => t.id !== recordId));
-            break;
-        case 'scouting_reports':
-            store.setScoutingReports(store.scoutingReports.filter((r) => r.id !== recordId));
-            break;
-        case 'match_plans':
-            store.setMatchPlans(store.matchPlans.filter((p) => p.id !== recordId));
-            break;
-        case 'sub_teams':
-            store.setSubTeams(store.subTeams.filter((st) => st.id !== recordId));
-            break;
-        case 'checklists':
-            // Checklists are blob-synced; a delete means the checklist was removed
-            store.setChecklist([]);
-            break;
-        default:
-            break;
+    if (tableName === 'checklists') {
+        // Blob-synced; a delete means the whole checklist was removed.
+        store.setChecklist([]);
     }
 }
 

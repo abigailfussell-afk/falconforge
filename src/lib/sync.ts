@@ -15,13 +15,7 @@ import {
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
-import {
-    transformTaskFromSupabase,
-    transformScoutingReportFromSupabase,
-    transformMatchPlanFromSupabase,
-    transformSeasonFromSupabase,
-    transformSubTeamFromSupabase,
-} from './transformers';
+import { findEntity, SYNCED_ENTITIES } from './entity-registry';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -36,12 +30,18 @@ export const MAX_SYNC_RETRIES = 5;
  * Race a promise against a timeout. Rejects with a descriptive error if timeout fires first.
  */
 export function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+    // The timer must be cleared when the promise settles first (B13). Previously every
+    // call left a pending timer alive for up to its full duration -- harmless in the
+    // browser, but it keeps the event loop busy and is a plausible source of slow test
+    // teardown, since a suite could accumulate hundreds of 10-30s timers.
+    let timer: ReturnType<typeof setTimeout>;
+
     return Promise.race([
         Promise.resolve(promise),
-        new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout: ${label} after ${ms}ms`)), ms)
-        ),
-    ]);
+        new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Timeout: ${label} after ${ms}ms`)), ms);
+        }),
+    ]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
 interface UseSyncResult {
@@ -297,73 +297,15 @@ async function processSyncItem(item: SyncQueueItem): Promise<void> {
 export function transformToSupabaseSchema(tableName: string, data: any): any {
     if (!data) return data;
 
+    const entity = findEntity(tableName);
+    if (entity) return entity.toRemote(data);
+
     switch (tableName) {
-        case 'tasks':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                sub_team_id: data.department || data.subTeamId || null,
-                title: data.title,
-                description: data.description,
-                status: data.status,
-                type: data.type,
-                assigned_to: data.assignedTo || null,
-                tags: data.tags || [],
-                checklist: data.checklist || [],
-                timeline: data.timeline || [],
-                due_date: data.dueDate ? new Date(data.dueDate).toISOString() : null,
-            };
-
-        case 'seasons':
-            return {
-                id: data.id,
-                name: data.name,
-                team_id: data.teamId,
-                field_image_data: data.fieldImageData || null,
-            };
-
-        case 'scoutingReports':
-        case 'scouting_reports':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                opponent_team_number: data.teamNumber,
-                // Undefined must become NULL, not 0 — the column is nullable now (B18).
-                match_number: data.matchNumber ?? null,
-                event_name: data.eventName || null,
-                created_by: data.createdBy || null,
-                data: {
-                    hasAutonomous: data.hasAutonomous,
-                    autoScore: data.autoScore,
-                    intakeType: data.intakeType,
-                    autoAim: data.autoAim,
-                    farShooting: data.farShooting,
-                    shotsTaken: data.shotsTaken,
-                    shotsMissed: data.shotsMissed,
-                    parking: data.parking,
-                    rating: data.rating,
-                    endGameNotes: data.endGameNotes,
-                },
-            };
-
-        case 'matchPlans':
-        case 'match_plans':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                season_id: data.seasonId,
-                title: data.title,
-                match_number: data.matchNumber || null,
-                alliance_team: data.allianceTeam || null,
-                drawing_data: data.drawingData,
-                notes: data.notes,
-            };
-
         case 'checklists':
+            // Blob-synced: one row per team holding the whole array, so the row id IS the
+            // team id. Not an entity in the registry sense -- it has no per-record identity.
             return {
-                id: data.teamId || data.id, // Use teamId as the row ID for blob sync
+                id: data.teamId || data.id,
                 team_id: data.teamId,
                 season_id: data.seasonId || null,
                 name: data.name || 'Pre-Match Checklist',
@@ -371,18 +313,9 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
                 is_template: data.isTemplate || false,
             };
 
-        case 'sub_teams':
-        case 'subTeams':
-            return {
-                id: data.id,
-                team_id: data.teamId,
-                name: data.name,
-                member_ids: data.memberIds || [],
-                season_id: data.seasonId || null,
-            };
-
         case 'portfolio_entries':
         case 'portfolioHistory':
+            // Local-only today; kept so a queued payload from an older build still pushes.
             return {
                 id: data.id,
                 team_id: data.teamId,
@@ -392,7 +325,7 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
             };
 
         default:
-            // Return as-is for unknown tables
+            // Unknown table: pass through untouched rather than silently dropping fields.
             return data;
     }
 }
@@ -465,14 +398,13 @@ async function pullChangesFromServer(token: SyncToken = { cancelled: false }): P
     const counter = await bumpSyncCounter(currentTeamId);
     const isFullPull = counter % FULL_SYNC_INTERVAL === 0;
 
+    // Derived from the registry rather than restated here -- adding an entity should mean
+    // adding one definition, not remembering to update a second list (B16).
+    // portfolio_entries is intentionally local-only and so is absent from the registry.
     const entities = [
-        { table: 'seasons', localTable: 'seasons' },
-        { table: 'sub_teams', localTable: 'subTeams' },
-        { table: 'tasks', localTable: 'tasks' },
-        { table: 'scouting_reports', localTable: 'scoutingReports' },
-        { table: 'match_plans', localTable: 'matchPlans' },
+        ...SYNCED_ENTITIES.map((e) => ({ table: e.remoteTable, localTable: e.localKey })),
+        // Blob-synced, not a registry entity: one row per team holding the whole array.
         { table: 'checklists', localTable: 'checklists' },
-        // Note: portfolio_entries is intentionally local-only (not synced)
     ];
 
     const meta = await getSyncMeta();
@@ -566,66 +498,40 @@ export function updateLocalDatabase(
     records: any[],
     /**
      * Ids with unpushed local changes. Their local version is kept and the server's copy is
-     * ignored, because the local one is newer by definition -- it has not been sent yet.
-     * Omitted by callers that already know nothing is pending (B3).
+     * ignored, because the local one is newer by definition -- it has not been sent yet (B3).
      */
     pendingIds: Set<string> = new Set(),
 ): void {
     if (!records) return;
 
-    // Get the store state directly using the imported useAppStore
     const store = useAppStore.getState();
 
-    /**
-     * A full pull REPLACES the collection, which is how deletions made on another device
-     * propagate. That is also how it used to delete records that had never been pushed:
-     * they are absent from the server, so a replace dropped them. Records with a pending
-     * queue entry are carried over instead.
-     */
-    function reconcile<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
-        if (pendingIds.size === 0) return incoming;
-        const preserved = existing.filter((e) => pendingIds.has(e.id));
-        const notPending = incoming.filter((r) => !pendingIds.has(r.id));
-        return [...notPending, ...preserved];
+    const entity = findEntity(tableName);
+    if (entity) {
+        const incoming = records.map((r) => entity.fromRemote(r));
+
+        // A full pull REPLACES the collection, which is how deletions made on another
+        // device propagate. Records with a pending queue entry are carried over so that
+        // replacement does not delete work that has never been sent.
+        let next = incoming;
+        if (pendingIds.size > 0) {
+            const preserved = entity.getFromStore(store).filter((e: any) => pendingIds.has(e.id));
+            next = [...incoming.filter((r: any) => !pendingIds.has(r.id)), ...preserved];
+        }
+
+        entity.setInStore(store, next);
+        return;
     }
 
-    switch (tableName) {
-        case 'tasks':
-            store.setTasks(reconcile(store.tasks, records.map(transformTaskFromSupabase)));
-            break;
-
-        case 'seasons':
-            store.setSeasons(reconcile(store.seasons, records.map(transformSeasonFromSupabase)));
-            break;
-
-        case 'scoutingReports':
-            store.setScoutingReports(
-                reconcile(store.scoutingReports, records.map(transformScoutingReportFromSupabase)),
-            );
-            break;
-
-        case 'matchPlans':
-            store.setMatchPlans(
-                reconcile(store.matchPlans, records.map(transformMatchPlanFromSupabase)),
-            );
-            break;
-
-        case 'checklists':
-            // Checklists are stored as a single blob per team
-            if (records.length > 0 && records[0]?.items && Array.isArray(records[0].items)) {
-                store.setChecklist(records[0].items);
-            } else if (records.length === 0) {
-                // Empty results = checklist was cleared/deleted on another client
-                store.setChecklist([]);
-            }
-            break;
-
-        case 'subTeams':
-            store.setSubTeams(reconcile(store.subTeams, records.map(transformSubTeamFromSupabase)));
-            break;
-
-        default:
-        // No handler for unknown tables
+    if (tableName === 'checklists') {
+        // Blob-synced: the first row IS the team's checklist. The query orders explicitly
+        // and excludes templates, so "first" is deterministic (B12).
+        if (records.length > 0 && Array.isArray(records[0]?.items)) {
+            store.setChecklist(records[0].items);
+        } else if (records.length === 0) {
+            // Empty results = checklist was cleared/deleted on another client
+            store.setChecklist([]);
+        }
     }
 }
 
@@ -647,51 +553,19 @@ export function mergeIntoStore(
 ): void {
     if (!records || records.length === 0) return;
 
+    const entity = findEntity(tableName);
+    // Checklists are always full-synced (blob), never delta, so they never reach here.
+    if (!entity) return;
+
     const store = useAppStore.getState();
+    const existing = entity.getFromStore(store);
 
-    // Generic upsert helper: merge new records into existing array by id
-    function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
-        const map = new Map(existing.map(item => [item.id, item]));
-        for (const item of incoming) {
-            if (pendingIds.has(item.id)) continue;
-            map.set(item.id, item);
-        }
-        return Array.from(map.values());
+    const byId = new Map(existing.map((item: any) => [item.id, item]));
+    for (const row of records) {
+        const item = entity.fromRemote(row);
+        if (pendingIds.has(item.id)) continue;
+        byId.set(item.id, item);
     }
 
-    switch (tableName) {
-        case 'tasks': {
-            const transformed = records.map(transformTaskFromSupabase);
-            store.setTasks(upsertById(store.tasks, transformed));
-            break;
-        }
-
-        case 'seasons': {
-            const transformed = records.map(transformSeasonFromSupabase);
-            store.setSeasons(upsertById(store.seasons, transformed));
-            break;
-        }
-
-        case 'scoutingReports': {
-            const transformed = records.map(transformScoutingReportFromSupabase);
-            store.setScoutingReports(upsertById(store.scoutingReports, transformed));
-            break;
-        }
-
-        case 'matchPlans': {
-            const transformed = records.map(transformMatchPlanFromSupabase);
-            store.setMatchPlans(upsertById(store.matchPlans, transformed));
-            break;
-        }
-
-        case 'subTeams': {
-            const transformed = records.map(transformSubTeamFromSupabase);
-            store.setSubTeams(upsertById(store.subTeams, transformed));
-            break;
-        }
-
-        // Note: checklists are always full-synced (blob), never delta
-        default:
-            break;
-    }
+    entity.setInStore(store, Array.from(byId.values()));
 }

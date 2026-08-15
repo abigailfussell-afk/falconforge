@@ -197,21 +197,93 @@ export function generateId(): string {
     return crypto.randomUUID();
 }
 
-// Helper to add item to sync queue
+/**
+ * Strictly increasing queue timestamps.
+ *
+ * The drain orders by `timestamp` (B1), but `Date.now()` has millisecond resolution and a
+ * burst of edits easily lands inside one tick. Equal timestamps mean the tie is broken
+ * arbitrarily -- which is the same undefined ordering B1 set out to remove, just narrower.
+ *
+ * Nudging forward on a collision keeps ordering deterministic without a second index. The
+ * value stays within a millisecond or two of wall-clock, and it is only ever used for
+ * relative ordering, never displayed or compared against server time.
+ */
+let lastIssuedTimestamp = 0;
+
+function nextQueueTimestamp(): number {
+    const now = Date.now();
+    lastIssuedTimestamp = now > lastIssuedTimestamp ? now : lastIssuedTimestamp + 1;
+    return lastIssuedTimestamp;
+}
+
+/**
+ * Queue a change for the server, coalescing redundant entries (B14).
+ *
+ * Every edit used to append a new row, so twenty tweaks to one task meant twenty full
+ * upserts of the same record. Checklist toggles were the pathological case -- each one
+ * queued the entire blob.
+ *
+ * Coalescing rules, in terms of what the server actually needs:
+ *
+ *   - `update` after a pending `create`  -> keep the create, with the newer data. The
+ *     server has never seen this record, so it still has to be an insert.
+ *   - `update` after a pending `update`  -> replace it. Only the latest state matters.
+ *   - `delete` after a pending `create`  -> drop both. The server never saw it, so there
+ *     is nothing to delete; sending a delete for an unknown id just fails and retries.
+ *   - `delete` after a pending `update`  -> replace with the delete.
+ *
+ * The surviving entry keeps the ORIGINAL timestamp, so relative ordering against other
+ * records is preserved and B1's drain order still holds.
+ */
 export async function queueForSync(
     tableName: string,
     recordId: string,
     operation: 'create' | 'update' | 'delete',
     data: any
 ) {
-    await db.syncQueue.add({
-        id: generateId(),
-        tableName,
-        recordId,
-        operation,
-        data,
-        timestamp: Date.now(),
-        retryCount: 0,
+    await db.transaction('rw', db.syncQueue, async () => {
+        const pending = await db.syncQueue
+            .where('tableName')
+            .equals(tableName)
+            .filter((i) => i.recordId === recordId)
+            .toArray();
+
+        if (pending.length === 0) {
+            await db.syncQueue.add({
+                id: generateId(),
+                tableName,
+                recordId,
+                operation,
+                data,
+                timestamp: nextQueueTimestamp(),
+                retryCount: 0,
+            });
+            return;
+        }
+
+        // Oldest entry defines the operation the server still needs and the ordering.
+        pending.sort((a, b) => a.timestamp - b.timestamp);
+        const first = pending[0];
+        const hadCreate = pending.some((i) => i.operation === 'create');
+
+        // A create that never reached the server, now deleted locally: nothing to send.
+        if (operation === 'delete' && hadCreate) {
+            await db.syncQueue.bulkDelete(pending.map((i) => i.id));
+            return;
+        }
+
+        // Collapse to a single entry carrying the latest data.
+        await db.syncQueue.bulkDelete(pending.map((i) => i.id));
+        await db.syncQueue.add({
+            id: first.id,
+            tableName,
+            recordId,
+            // A pending create stays a create -- the row still does not exist server-side.
+            operation: hadCreate && operation !== 'delete' ? 'create' : operation,
+            data,
+            timestamp: first.timestamp,
+            retryCount: 0,
+        });
     });
 }
 
