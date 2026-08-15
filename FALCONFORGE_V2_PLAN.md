@@ -311,6 +311,31 @@ the final walkthrough and tags `v2.0.0-beta`.
 | Date | Sprint | Branch | Result |
 |---|---|---|---|
 | 2026-08-15 | Plan written; AI feature reference captured (`docs/ai-features-reference.md`) | — | — |
+| 2026-08-15 | Sprint 1 — Purge & critical fixes (AI removal, C1, C2, C4, C8, C9, dead code, dedupe) | `v2/sprint-1-purge` | **Complete.** Gate green (lint / 257 unit / 80 integration / build). Main JS 882 → 385 kB; precache 5172 → 4737 KiB. Offline styling verified with the server killed. `as any` 95 → 82. Coverage thresholds active at 55/53/53/57. |
 
 **Discovered / parking lot:**
-- (agents append here)
+- **`main` had unrelated history.** The local `main` branch was a single stale "Initial commit"
+  with the pre-refactor root-level layout and *no merge base* with `refactor/data-layer`.
+  `origin/main` was already correct. Resolved by resetting local `main` to `origin/main` and
+  merging; the stale commit is preserved as tag `archive/local-main-stub` and can be deleted.
+- **`tsconfig.json` includes `components` and `services`** — root-level directories that no
+  longer exist in this layout. Harmless but misleading; clean up when convenient.
+- **`font-sans` never resolves to Inter.** `index.css` sets Inter on `body`, but `App.tsx`'s
+  `font-sans` re-applies Tailwind's default system stack over it. Pre-existing (the CDN behaved
+  identically) and deliberately not changed in Sprint 1 to avoid visual drift — belongs in the
+  Sprint 5 token pass, along with whether to add Inter to `tailwind.config`.
+- **Tailwind v4 deferred.** Sprint 1 installed v3 to preserve the exact class semantics the
+  markup was authored against. v4 renames/drops utilities in use (`shadow-sm`, `outline-none`,
+  `bg-opacity-*`, `flex-shrink`) and changes the default border colour and ring width. Weigh v4
+  in Sprint 5 where the design tokens are being reworked anyway and visual diffs are expected.
+- **Unused attestation constants.** `SIGNUP_REQUIRED_ATTESTATIONS`, `COACH_REQUIRED_ATTESTATIONS`
+  and `MEMBER_REQUIRED_ATTESTATIONS` in `lib/attestations.ts` have no consumers now that
+  `getMissingAttestations` is gone. Left in place as they look forward to the Sprint 6
+  registration flow — delete them there if that flow does not use them.
+- **Unused CSS survives:** `.calendar-grid` and `.transition-smooth` in `index.css` have no
+  consumers. Left alone as they were outside the named Sprint 1 sweep list.
+- **`vite build` warns the main chunk is >500 kB** and that `offline-db.ts` is both statically
+  and dynamically imported, defeating its own code-split. Sprint 5's `React.lazy` routing work
+  is the natural fix.
+- **`.claude/launch.json` added** with a `preview` config on port 4188 (4173 was occupied), used
+  to prove the offline-styling fix. Harmless to keep or delete.
