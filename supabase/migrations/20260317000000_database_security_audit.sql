@@ -51,22 +51,30 @@ ALTER TABLE tasks ADD CONSTRAINT tasks_assigned_to_team_fkey
 ALTER TABLE scouting_reports ADD CONSTRAINT scouting_reports_created_by_team_fkey 
   FOREIGN KEY (created_by, team_id) REFERENCES team_members(id, team_id) DEFERRABLE;
 
--- Sub Team Members: Ensure both sub_team and team_member belong to the SAME team
--- First we need to add a team_id column to sub_team_members for the check
-ALTER TABLE sub_team_members ADD COLUMN team_id uuid;
-
--- Backfill data based on the team_member's team_id
-UPDATE sub_team_members stm
-SET team_id = (SELECT team_id FROM team_members tm WHERE tm.id = stm.team_member_id);
-
--- Now enforce NOT NULL and the constraint
-ALTER TABLE sub_team_members ALTER COLUMN team_id SET NOT NULL;
-
--- Ensure sub_team and team_member share the same team_id
-ALTER TABLE sub_team_members ADD CONSTRAINT sub_team_members_sub_team_team_fkey 
-  FOREIGN KEY (sub_team_id, team_id) REFERENCES sub_teams(id, team_id) DEFERRABLE;
-  
-ALTER TABLE sub_team_members ADD CONSTRAINT sub_team_members_team_member_team_fkey 
-  FOREIGN KEY (team_member_id, team_id) REFERENCES team_members(id, team_id) DEFERRABLE;
+-- Sub Team Members: REMOVED 2026-08-09.
+--
+-- This block originally did:
+--     ALTER TABLE sub_team_members ADD COLUMN team_id uuid;
+--     UPDATE  sub_team_members ... backfill from team_members
+--     ALTER TABLE sub_team_members ALTER COLUMN team_id SET NOT NULL;
+--     ALTER TABLE sub_team_members ADD CONSTRAINT sub_team_members_sub_team_team_fkey ...
+--     ALTER TABLE sub_team_members ADD CONSTRAINT sub_team_members_team_member_team_fkey ...
+--
+-- The table does not exist in the hosted project. Probed 2026-08-09 via PostgREST:
+--     GET /rest/v1/sub_team_members?select=id
+--     -> PGRST205 "Could not find the table 'public.sub_team_members' in the schema cache"
+--
+-- 013_create_missing_entities.sql creates it, so that migration was evidently never applied
+-- to production in full. Which means THIS migration could not have applied cleanly either --
+-- it would have failed on the ALTER above. How much of the rest of this file actually reached
+-- production is UNKNOWN and cannot be determined with the anon key: CHECK constraints,
+-- composite UNIQUE keys and composite foreign keys are invisible to PostgREST.
+--
+-- >> Verify with `supabase db diff --linked --schema public` once authenticated, and expect
+-- >> to have to re-apply some of the constraints above. Do NOT assume the tenant-isolation
+-- >> guarantees in this file are live in production.
+--
+-- No application code references sub_team_members; the app models sub-team membership as the
+-- `sub_teams.member_ids` array. Nothing is lost by dropping the block.
 
 
