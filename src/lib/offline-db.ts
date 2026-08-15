@@ -120,6 +120,21 @@ export async function getPendingSyncCount(): Promise<number> {
     return await db.syncQueue.count();
 }
 
+/**
+ * Queued operations, in the order the user performed them.
+ *
+ * Must NOT be `db.syncQueue.toArray()`. Dexie returns rows in primary-key order, and the
+ * primary key is `generateId()` -> `crypto.randomUUID()`, so a plain toArray() drains the
+ * queue in an order unrelated to what the user did: a delete can be applied before its
+ * create (the record comes back), or an update before its create (it targets a row that
+ * does not exist, fails, and is eventually discarded).
+ *
+ * `timestamp` is indexed in the schema above precisely so this ordering is cheap.
+ */
+export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
+    return await db.syncQueue.orderBy('timestamp').toArray();
+}
+
 // Clear sync queue (for logout)
 export async function clearLocalDatabase() {
     await db.syncQueue.clear();

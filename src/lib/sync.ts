@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, getPendingSyncCount, SyncQueueItem } from './offline-db';
+import { db, getPendingSyncCount, getPendingSyncItems, SyncQueueItem } from './offline-db';
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
@@ -126,8 +126,8 @@ export function useSync(): UseSyncResult {
             // Overall sync timeout to prevent hanging forever
             await withTimeout(
                 (async () => {
-                    // Get all pending sync items
-                    const queueItems = await db.syncQueue.toArray();
+                    // Ordered by timestamp, NOT primary key — see getPendingSyncItems (B1).
+                    const queueItems = await getPendingSyncItems();
 
                     for (const item of queueItems) {
                         try {
