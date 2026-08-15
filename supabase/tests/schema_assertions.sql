@@ -128,4 +128,38 @@ BEGIN
     END IF;
 END $$;
 
+-- 6. API role grants: PostgREST connects as anon/authenticated/service_role, and those
+--    roles need ordinary SQL privileges before RLS is even consulted. A table without them
+--    answers every request with `permission denied`, which is a privilege error, not a
+--    policy denial -- the app is simply dead against it.
+--
+--    This is not hypothetical. Supabase used to grant these automatically on any table
+--    created in `public` and newer versions do not, so tables created by these migrations
+--    came out with only REFERENCES/TRIGGER/TRUNCATE. Rebuilding from migrations produced a
+--    schema the application could not read a single row of, and nothing here noticed --
+--    these assertions run as `postgres`, who has full rights regardless.
+--
+--    Granting to `anon` is safe only because assertion 1 above proves RLS is enabled on
+--    every one of these tables. The two go together; do not keep this and drop that.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s (%s)', t.tablename, r.role), ', ' ORDER BY t.tablename, r.role)
+      INTO offenders
+    FROM pg_tables t
+    CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(role)
+    WHERE t.schemaname = 'public'
+      AND NOT (
+          has_table_privilege(r.role, format('public.%I', t.tablename), 'SELECT')
+          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'INSERT')
+          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'UPDATE')
+          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'DELETE')
+      );
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'Tables the API roles cannot use (missing GRANTs): %', offenders;
+    END IF;
+END $$;
+
 SELECT 'schema assertions passed' AS result;

@@ -19,3 +19,19 @@
 // chain behaves, and a unit test that genuinely wants to look at the queue can.
 import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom';
+import { configure } from '@testing-library/react';
+
+/**
+ * Testing Library's `findBy*` / `waitFor` default to a 1s timeout.
+ *
+ * That is tight for components which kick off async work on mount -- Onboarding calls
+ * `loadTeams()` from an effect before it renders anything assertable -- and it produced a
+ * genuine flake: "shows the Complete Setup form" failed twice in eleven full-suite runs,
+ * both times immediately after the database suite had loaded the machine, and passed in
+ * isolation every time.
+ *
+ * A flaky test is worse than a missing one, because it teaches you to re-run the suite
+ * instead of reading it. Five seconds still fails a component that never settles; it just
+ * stops failing one that settles slowly because 200 other tests are sharing the CPU.
+ */
+configure({ asyncUtilTimeout: 5000 });
