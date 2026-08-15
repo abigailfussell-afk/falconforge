@@ -1,5 +1,6 @@
 import type { Task } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
+import { canWriteToSeason } from '../season-rules';
 
 export interface TaskSlice {
     tasks: Task[];
@@ -29,6 +30,11 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
             console.warn('[store] addTask ignored: no season is selected');
             return null;
         }
+        // A prior season is read-only (Sprint 4). `season_is_open` refuses this INSERT
+        // server-side, so creating the card locally would put a task on the board that can
+        // never sync — the silent-write failure this guard exists to avoid.
+        if (!canWriteToSeason(state.seasons, state.currentSeasonId, 'addTask')) return null;
+
         const newTask: Task = {
             ...taskData,
             id: generateId(),
@@ -57,8 +63,14 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
     },
 
     updateTask: (id, updates) => {
-        set((state: any) => ({
-            tasks: state.tasks.map((task: Task) =>
+        const state = get();
+        // The TASK's season, not the one on screen. Editing last year's task is editing
+        // last year's task whichever season the picker happens to be showing.
+        const existing = state.tasks.find((t: Task) => t.id === id);
+        if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'updateTask')) return;
+
+        set((s: any) => ({
+            tasks: s.tasks.map((task: Task) =>
                 task.id === id ? { ...task, ...updates } : task
             )
         }));
@@ -73,8 +85,12 @@ export const createTaskSlice = (set: any, get: any): TaskSlice => ({
     },
 
     deleteTask: (id) => {
-        set((state: any) => ({
-            tasks: state.tasks.filter((task: Task) => task.id !== id)
+        const state = get();
+        const existing = state.tasks.find((t: Task) => t.id === id);
+        if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'deleteTask')) return;
+
+        set((s: any) => ({
+            tasks: s.tasks.filter((task: Task) => task.id !== id)
         }));
         queueForSync('tasks', id, 'delete', { id }).catch(console.error);
     }

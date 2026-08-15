@@ -223,8 +223,119 @@ export async function fetchTeamData(teamId: string): Promise<void> {
     store.setIsLoading(true);
     try {
         await pullFromServer({ teamId, tables: TEAM_DATA_TABLES, mode: 'full' });
+        // Both are read on arrival at a team rather than on the background loop's schedule.
+        // Neither changes on its own between pulls: a licence is granted or revoked by an
+        // operator, and a template is saved by a person. Putting them in the sync loop would
+        // cost two queries every few seconds to answer a question whose answer is the same.
+        await Promise.all([
+            pullChecklistTemplates(teamId),
+            pullEntitlement(teamId),
+        ]);
     } finally {
         useAppStore.getState().setIsLoading(false);
+    }
+}
+
+/**
+ * The team's saved checklist templates.
+ *
+ * Templates live in `checklists` alongside working checklists, separated by `is_template`.
+ * The main pull filters them OUT (a template is not any season's working list and would
+ * otherwise overwrite one), so they need their own read.
+ *
+ * Not part of the delta loop and not cursor-tracked: this is always a full replace, which is
+ * how a template deleted on another device disappears here.
+ */
+export async function pullChecklistTemplates(teamId: string): Promise<number> {
+    if (!supabaseSync || !teamId) return 0;
+
+    try {
+        const { data, error } = await withTimeout(
+            (async () =>
+                supabaseSync
+                    .from('checklists')
+                    .select('*')
+                    .eq('team_id', teamId)
+                    .eq('is_template', true)
+                    .order('created_at', { ascending: true }))(),
+            PER_QUERY_TIMEOUT_MS,
+            'pull checklist templates',
+        );
+
+        if (error) {
+            console.warn('Pull for checklist templates failed:', error.message);
+            return 0;
+        }
+
+        const rows = data ?? [];
+        const store = useAppStore.getState();
+
+        // A template saved offline is still in the queue and has never been sent, so the
+        // server cannot know about it. Same rule as every other collection replace (B3).
+        const pendingIds = await getPendingRecordIds('checklists');
+        const preserved = store.checklistTemplates.filter((t) => pendingIds.has(t.id));
+
+        const incoming = rows
+            .filter((row: any) => !pendingIds.has(row.id))
+            .map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                items: Array.isArray(row.items) ? row.items : [],
+                seasonId: row.season_id,
+            }));
+
+        store.setChecklistTemplates([...incoming, ...preserved]);
+        return rows.length;
+    } catch (err) {
+        console.warn('Error pulling checklist templates:', err);
+        return 0;
+    }
+}
+
+/**
+ * The team's licensing state, from the `team_entitlement` view.
+ *
+ * Read so the client can stop OFFERING writes a lapsed team cannot make — Sprint 3 found
+ * that an unlicensed team's writes fail silently: the row appears, the server refuses it,
+ * and the sync indicator says "1 pending" with no reason. Enforcement itself is server-side
+ * and stays there; this is only what lets a button be disabled instead of misleading.
+ *
+ * A failure leaves the previous answer in place rather than clearing it. "We could not ask"
+ * is not the same as "the team is licensed", and treating it as such is how an offline
+ * client talks itself back into queueing refused writes.
+ */
+export async function pullEntitlement(teamId: string): Promise<void> {
+    if (!supabaseSync || !teamId) return;
+
+    try {
+        const { data, error } = await withTimeout(
+            (async () =>
+                supabaseSync
+                    .from('team_entitlement')
+                    .select('*')
+                    .eq('team_id', teamId)
+                    .maybeSingle())(),
+            PER_QUERY_TIMEOUT_MS,
+            'pull entitlement',
+        );
+
+        if (error || !data) {
+            if (error) console.warn('Pull for team_entitlement failed:', error.message);
+            return;
+        }
+
+        const row = data as any;
+        useAppStore.getState().setEntitlement({
+            teamId: row.team_id,
+            status: row.status === 'active' ? 'active' : 'read_only',
+            seatsTotal: row.seats_total ?? null,
+            seatsUnlimited: row.seats_unlimited ?? false,
+            seatsUsed: Number(row.seats_used ?? 0),
+            validUntil: row.valid_until ?? null,
+            lapsedAt: row.lapsed_at ?? null,
+        });
+    } catch (err) {
+        console.warn('Error pulling team entitlement:', err);
     }
 }
 
@@ -294,6 +405,15 @@ export function updateLocalDatabase(
         // a team with three seasons ends up with three lists and switching between them is
         // instant rather than a round trip.
         for (const row of records) {
+            // TEMPLATES SHARE THIS TABLE AND ARE NOT ANY SEASON'S WORKING LIST.
+            //
+            // A template's `season_id` records where it was captured from, so filing one by
+            // that column would replace that season's real checklist with a saved copy.
+            // `pullFromServer` filters `is_template = false` server-side and never sends one
+            // here — but realtime does not filter, and hands every checklist UPDATE for the
+            // team straight to this function. Templates arrive through
+            // `pullChecklistTemplates` instead.
+            if (row?.is_template) continue;
             if (row?.season_id && Array.isArray(row.items)) {
                 store.setChecklistForSeason(row.season_id, row.items);
             }

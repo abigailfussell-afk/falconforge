@@ -4,9 +4,10 @@ import { generateId, queueForSync, indexedDBStorage } from './offline-db';
 import { TaskSlice, createTaskSlice } from './slices/createTaskSlice';
 import { SubTeamSlice, createSubTeamSlice } from './slices/createSubTeamSlice';
 import { SeasonSlice, createSeasonSlice } from './slices/createSeasonSlice';
+import { canWriteToSeason } from './season-rules';
 import type {
     Team, TeamMember, SubTeam, Season,
-    Task, ScoutingReport, ChecklistItem, MatchPlan,
+    Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
 } from '../types';
 
 /**
@@ -24,8 +25,32 @@ import type {
 // (consumers can import { ScoutingReport } from '../lib/store' or from '../types')
 export type {
     Team, TeamMember, SubTeam, Season,
-    Task, ScoutingReport, ChecklistItem, MatchPlan,
+    Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
 };
+
+/**
+ * What `team_entitlement` says about the current team.
+ *
+ * Read-only on the client — the view is the server's answer to "may this team write", and
+ * every write policy consults `team_can_write` independently. This copy exists so the UI can
+ * stop OFFERING an action the server would refuse, which is the narrow half of the
+ * enforcement work; the full read-only banner and lock screens are Sprint 6.
+ *
+ * Persisted, deliberately. A team that has just gone offline should still know its licence
+ * lapsed rather than treating the absence of an answer as permission.
+ */
+export interface TeamEntitlement {
+    teamId: string;
+    /** `active` — may write. `read_only` — expired, revoked, or never licensed. */
+    status: 'active' | 'read_only';
+    seatsTotal: number | null;
+    seatsUnlimited: boolean;
+    seatsUsed: number;
+    /** ISO timestamp, or null for open-ended. */
+    validUntil: string | null;
+    /** ISO timestamp of when cover last ran out, for a read-only team's message. */
+    lapsedAt: string | null;
+}
 
 /*
  * NO SEED DATA LIVES HERE ANY MORE.
@@ -63,9 +88,16 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
      * have to remember which season is current.
      */
     checklistsBySeason: Record<string, ChecklistItem[]>;
+    /**
+     * Saved checklists a new season can start from — `checklists` rows with
+     * `is_template = true`, which the working-checklist uniqueness index exempts.
+     */
+    checklistTemplates: ChecklistTemplate[];
     matchPlans: MatchPlan[];
     seasons: Season[];
     currentSeasonId: string | null;
+    /** The current team's licensing state, or null if it has not been read yet. */
+    entitlement: TeamEntitlement | null;
 
     // UI state
     theme: 'light' | 'dark';
@@ -95,6 +127,16 @@ export interface AppState extends TaskSlice, SubTeamSlice, SeasonSlice {
     moveChecklistItem: (id: string, direction: 'up' | 'down') => void;
     /** Replace one season's checklist. The read path calls this per row it receives. */
     setChecklistForSeason: (seasonId: string, items: ChecklistItem[]) => void;
+
+    // Checklist templates — the team-level library a new season can start from.
+    /** Save the CURRENT season's checklist as a reusable template. Returns its id. */
+    saveChecklistAsTemplate: (name: string) => string | null;
+    deleteChecklistTemplate: (id: string) => void;
+    /** Replace the template library. The read path calls this. */
+    setChecklistTemplates: (templates: ChecklistTemplate[]) => void;
+
+    /** Record the current team's licensing state. Server writes only. */
+    setEntitlement: (entitlement: TeamEntitlement | null) => void;
 
     // Match Plan actions
     addMatchPlan: (plan: Omit<MatchPlan, 'id' | 'updatedAt' | 'seasonId'>) => void;
@@ -156,6 +198,9 @@ function updateChecklist(
 ): void {
     const seasonId = state.currentSeasonId;
     if (!seasonId) return;
+    // A prior season's checklist is history, and `season_is_open` refuses the upsert. The
+    // ticks would appear, never sync, and dead-letter (Sprint 4).
+    if (!canWriteToSeason(state.seasons, seasonId, 'updateChecklist')) return;
 
     const items = change(state.checklistsBySeason[seasonId] || []);
     set({ checklistsBySeason: { ...state.checklistsBySeason, [seasonId]: items } });
@@ -183,7 +228,9 @@ export const useAppStore = create<AppState>()(
             teamMembers: [],
             scoutingReports: [],
             checklistsBySeason: {},
+            checklistTemplates: [],
             matchPlans: [],
+            entitlement: null,
             theme: 'dark',
 
             // Theme
@@ -212,6 +259,7 @@ export const useAppStore = create<AppState>()(
                     console.warn('[store] addScoutingReport ignored: no season is selected');
                     return;
                 }
+                if (!canWriteToSeason(state.seasons, state.currentSeasonId, 'addScoutingReport')) return;
                 // Resolve the team_members.id for the current auth user.
                 // The DB FK `scouting_reports_created_by_fkey` references
                 // team_members(id), NOT auth.users(id).
@@ -235,8 +283,12 @@ export const useAppStore = create<AppState>()(
             },
 
             updateScoutingReport: (id, updates) => {
-                set((state) => ({
-                    scoutingReports: state.scoutingReports.map((r) =>
+                const state = get();
+                const existing = state.scoutingReports.find(r => r.id === id);
+                if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'updateScoutingReport')) return;
+
+                set((s) => ({
+                    scoutingReports: s.scoutingReports.map((r) =>
                         r.id === id ? { ...r, ...updates } : r
                     ),
                 }));
@@ -251,8 +303,12 @@ export const useAppStore = create<AppState>()(
             },
 
             deleteScoutingReport: (id) => {
-                set((state) => ({
-                    scoutingReports: state.scoutingReports.filter((r) => r.id !== id),
+                const state = get();
+                const existing = state.scoutingReports.find(r => r.id === id);
+                if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'deleteScoutingReport')) return;
+
+                set((s) => ({
+                    scoutingReports: s.scoutingReports.filter((r) => r.id !== id),
                 }));
                 queueForSync('scouting_reports', id, 'delete', null);
             },
@@ -312,6 +368,66 @@ export const useAppStore = create<AppState>()(
                     checklistsBySeason: { ...state.checklistsBySeason, [seasonId]: items },
                 })),
 
+            /*
+             * Capture the current season's checklist as a reusable template.
+             *
+             * A template is a `checklists` row with `is_template = true`, which is exempt
+             * from `checklists_one_per_season` -- so a team may keep several while still
+             * having exactly one WORKING checklist per season.
+             *
+             * It carries a GENERATED id rather than the season-derived one working
+             * checklists use. That convention exists so two offline devices editing the same
+             * season's list converge on one row instead of racing to create two; a template
+             * is created once, deliberately, by one person, so there is nothing to converge
+             * on -- and using the season id would collide with the working checklist that
+             * already owns it.
+             *
+             * Items are stored unchecked. A template records what a team checks, never the
+             * state of one particular match.
+             */
+            saveChecklistAsTemplate: (name) => {
+                const state = get();
+                const trimmed = name.trim();
+                if (!trimmed) {
+                    console.warn('[store] saveChecklistAsTemplate ignored: a name is required');
+                    return null;
+                }
+                if (!state.currentTeamId || !state.currentSeasonId) {
+                    console.warn('[store] saveChecklistAsTemplate ignored: no team or season');
+                    return null;
+                }
+
+                const template: ChecklistTemplate = {
+                    id: generateId(),
+                    name: trimmed,
+                    seasonId: state.currentSeasonId,
+                    items: selectChecklist(state).map((item) => ({
+                        id: generateId(),
+                        text: item.text,
+                        checked: false,
+                    })),
+                };
+
+                set((s) => ({ checklistTemplates: [...s.checklistTemplates, template] }));
+                queueForSync('checklists', template.id, 'create', {
+                    ...template,
+                    teamId: state.currentTeamId,
+                    isTemplate: true,
+                });
+                return template.id;
+            },
+
+            deleteChecklistTemplate: (id) => {
+                set((state) => ({
+                    checklistTemplates: state.checklistTemplates.filter((t) => t.id !== id),
+                }));
+                queueForSync('checklists', id, 'delete', { id });
+            },
+
+            setChecklistTemplates: (checklistTemplates) => set({ checklistTemplates }),
+
+            setEntitlement: (entitlement) => set({ entitlement }),
+
             // Match Plans
             addMatchPlan: (planData) => {
                 const state = get();
@@ -319,6 +435,8 @@ export const useAppStore = create<AppState>()(
                     console.warn('[store] addMatchPlan ignored: no season is selected');
                     return;
                 }
+                if (!canWriteToSeason(state.seasons, state.currentSeasonId, 'addMatchPlan')) return;
+
                 const plan: MatchPlan = {
                     ...planData,
                     id: generateId(),
@@ -333,13 +451,21 @@ export const useAppStore = create<AppState>()(
             },
 
             deleteMatchPlan: (id) => {
-                set((state) => ({
-                    matchPlans: state.matchPlans.filter((p) => p.id !== id),
+                const state = get();
+                const existing = state.matchPlans.find((p) => p.id === id);
+                if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'deleteMatchPlan')) return;
+
+                set((s) => ({
+                    matchPlans: s.matchPlans.filter((p) => p.id !== id),
                 }));
                 queueForSync('match_plans', id, 'delete', null);
             },
 
             updateMatchPlan: (id, updates) => {
+                const current = get();
+                const existing = current.matchPlans.find((p) => p.id === id);
+                if (existing && !canWriteToSeason(current.seasons, existing.seasonId, 'updateMatchPlan')) return;
+
                 set((state) => ({
                     matchPlans: state.matchPlans.map((p) =>
                         p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p
@@ -382,8 +508,10 @@ export const useAppStore = create<AppState>()(
                     teams: [],
                     scoutingReports: [],
                     checklistsBySeason: {},
+                    checklistTemplates: [],
                     matchPlans: [],
                     teamMembers: [],
+                    entitlement: null,
                     isLoading: false,
 
                     // Reset slices to initial values. Empty, not seeded: a team's seasons,
@@ -407,20 +535,49 @@ export const useAppStore = create<AppState>()(
              * object with a key the store no longer has, and the new key is simply absent.
              * The old array belonged to whichever season was current when it was written,
              * which is exactly where it is put back.
+             *
+             * v2 -> v3: every persisted season gains `isArchived: false`.
+             *
+             * `Season.isArchived` is required on the type, mirroring `NOT NULL` in the
+             * schema — but a season persisted before Sprint 4 has no such property, and a
+             * type is not a runtime guarantee about data read back off disk. Without this,
+             * `season.isArchived` is `undefined` on every installed copy of the app until
+             * the first pull replaces the collection, and the type says otherwise. Backfill
+             * to `false`: nothing was archived before archival existed.
              */
-            version: 2,
+            version: 3,
             migrate: (persisted: any, version: number) => {
-                if (!persisted || version >= 2) return persisted;
+                if (!persisted) return persisted;
 
-                const { checklist, currentSeasonId, ...rest } = persisted;
-                return {
-                    ...rest,
-                    currentSeasonId,
-                    checklistsBySeason:
-                        currentSeasonId && Array.isArray(checklist)
-                            ? { [currentSeasonId]: checklist }
-                            : {},
-                };
+                let state = persisted;
+
+                if (version < 2) {
+                    const { checklist, currentSeasonId, ...rest } = state;
+                    state = {
+                        ...rest,
+                        currentSeasonId,
+                        checklistsBySeason:
+                            currentSeasonId && Array.isArray(checklist)
+                                ? { [currentSeasonId]: checklist }
+                                : {},
+                    };
+                }
+
+                if (version < 3) {
+                    state = {
+                        ...state,
+                        seasons: Array.isArray(state.seasons)
+                            ? state.seasons.map((s: any) => ({
+                                gameTitle: '',
+                                ...s,
+                                isArchived: s?.isArchived ?? false,
+                            }))
+                            : state.seasons,
+                        checklistTemplates: state.checklistTemplates ?? [],
+                    };
+                }
+
+                return state;
             },
             partialize: (state) => ({
                 currentTeamId: state.currentTeamId,
@@ -430,9 +587,13 @@ export const useAppStore = create<AppState>()(
                 subTeams: state.subTeams,
                 scoutingReports: state.scoutingReports,
                 checklistsBySeason: state.checklistsBySeason,
+                checklistTemplates: state.checklistTemplates,
                 matchPlans: state.matchPlans,
                 seasons: state.seasons,
                 currentSeasonId: state.currentSeasonId,
+                // Persisted so a team that goes offline still knows its licence lapsed,
+                // rather than reading the absence of an answer as permission.
+                entitlement: state.entitlement,
                 theme: state.theme,
             }),
             onRehydrateStorage: () => (state) => {

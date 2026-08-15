@@ -143,13 +143,22 @@ const seasons: EntityDefinition<Season> = {
         id: s.id,
         name: s.name,
         team_id: s.teamId,
+        // Nullable with a not-blank CHECK, so whitespace-only has to become NULL rather
+        // than reaching the constraint. Same shape as field_image_data below.
+        game_title: s.gameTitle?.trim() || null,
         field_image_data: s.fieldImageData || null,
+        // Sprint 4. Written as well as read: archiving the outgoing season is the second
+        // half of a rollover, and a field carried in only one direction is exactly the
+        // asymmetry this registry exists to make impossible (B9/B10/B17).
+        is_archived: s.isArchived ?? false,
     }),
     fromRemote: (r) => ({
         id: r.id,
         name: r.name,
         teamId: r.team_id,
+        gameTitle: r.game_title || '',
         fieldImageData: r.field_image_data || '',
+        isArchived: r.is_archived ?? false,
         createdAt: toEpochMillis(r.created_at) ?? 0,
     }),
     getFromStore: (s) => s.seasons,
