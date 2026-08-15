@@ -108,4 +108,24 @@ BEGIN
     END IF;
 END $$;
 
+-- 5. Realtime DELETE contract: every table realtime.ts subscribes to with a team_id filter
+--    must have REPLICA IDENTITY FULL, or Postgres omits team_id from the DELETE payload,
+--    the filter never matches, and cross-device deletions silently never arrive (B7).
+--    relreplident: 'd' = default (primary key), 'f' = full.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(c.relname, ', ' ORDER BY c.relname) INTO offenders
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname IN ('tasks', 'scouting_reports', 'match_plans', 'checklists', 'sub_teams')
+      AND c.relreplident <> 'f';
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION 'Realtime-subscribed tables without REPLICA IDENTITY FULL: %', offenders;
+    END IF;
+END $$;
+
 SELECT 'schema assertions passed' AS result;

@@ -114,6 +114,84 @@ export const indexedDBStorage = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Sync metadata (delta cursors + full-pull counters)
+// ---------------------------------------------------------------------------
+
+/**
+ * Bookkeeping for incremental pulls.
+ *
+ * This used to live in localStorage under two separate keys, which sign-out never cleared
+ * (B5): the next user on a shared laptop inherited the previous user's cursors and silently
+ * received an incomplete dataset. Keeping it in `appState` means `clearAppState()` on
+ * sign-out is the single cleanup path.
+ */
+export interface SyncMeta {
+    /**
+     * Last seen server `updated_at`, keyed by `${teamId}:${table}`.
+     *
+     * SERVER time, as an ISO string, taken from the rows themselves -- never `Date.now()`.
+     * `updated_at` is written by a Postgres trigger, so comparing it against the client
+     * clock skips every record inside the skew window (B4).
+     */
+    cursors: Record<string, string>;
+    /** Pull counter per team, deciding when to do a full reconciliation (B15). */
+    counters: Record<string, number>;
+}
+
+const SYNC_META_KEY = 'falconforge-sync-meta';
+
+/**
+ * Fresh empty metadata.
+ *
+ * Must be a factory, not a shared constant. Callers mutate the returned object
+ * (`meta.cursors[key] = ...`), and a spread of a shared constant is only a SHALLOW copy --
+ * `cursors` and `counters` would stay the same references, so the "empty" default would
+ * quietly accumulate every cursor ever written and never read as empty again.
+ */
+function emptyMeta(): SyncMeta {
+    return { cursors: {}, counters: {} };
+}
+
+export async function getSyncMeta(): Promise<SyncMeta> {
+    try {
+        const row = await db.appState.get(SYNC_META_KEY);
+        if (!row?.value) return emptyMeta();
+        const parsed = JSON.parse(row.value);
+        return {
+            cursors: parsed.cursors ?? {},
+            counters: parsed.counters ?? {},
+        };
+    } catch {
+        return emptyMeta();
+    }
+}
+
+async function writeSyncMeta(meta: SyncMeta): Promise<void> {
+    try {
+        await db.appState.put({ key: SYNC_META_KEY, value: JSON.stringify(meta) });
+    } catch {
+        // Metadata is an optimisation; losing it costs a full pull, not correctness.
+    }
+}
+
+/** Record the newest server timestamp seen for an entity. */
+export async function setSyncCursor(entityKey: string, updatedAtISO: string): Promise<void> {
+    const meta = await getSyncMeta();
+    meta.cursors[entityKey] = updatedAtISO;
+    await writeSyncMeta(meta);
+}
+
+/** Advance and return this team's pull counter. Per-team, so switching teams cannot shift
+ *  which entity happens to land on the full-reconciliation cycle (B15). */
+export async function bumpSyncCounter(teamId: string): Promise<number> {
+    const meta = await getSyncMeta();
+    const next = (meta.counters[teamId] ?? 0) + 1;
+    meta.counters[teamId] = next;
+    await writeSyncMeta(meta);
+    return next;
+}
+
 // Helper to generate UUIDs
 export function generateId(): string {
     return crypto.randomUUID();

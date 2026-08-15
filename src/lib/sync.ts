@@ -4,6 +4,9 @@ import {
     getPendingSyncCount,
     getPendingSyncItems,
     getPendingRecordIds,
+    getSyncMeta,
+    setSyncCursor,
+    bumpSyncCounter,
     getSyncFailureCount,
     moveToDeadLetter,
     retrySyncFailures,
@@ -143,6 +146,11 @@ export function useSync(): UseSyncResult {
         setSyncStatus('syncing');
         setError(null);
 
+        // withTimeout only rejects the outer promise -- the work inside keeps running (B6).
+        // Without a cancellation flag, a timed-out run carried on mutating the queue and the
+        // store while the next run started, so two loops raced over the same items.
+        const token: SyncToken = { cancelled: false };
+
         try {
             // Overall sync timeout to prevent hanging forever
             await withTimeout(
@@ -151,6 +159,7 @@ export function useSync(): UseSyncResult {
                     const queueItems = await getPendingSyncItems();
 
                     for (const item of queueItems) {
+                        if (token.cancelled) return;
                         try {
                             await processSyncItem(item);
                             // Remove from queue on success
@@ -179,7 +188,7 @@ export function useSync(): UseSyncResult {
                     }
 
                     // Pull latest changes from server
-                    await pullChangesFromServer();
+                    await pullChangesFromServer(token);
                 })(),
                 OVERALL_SYNC_TIMEOUT_MS,
                 'Overall sync'
@@ -196,6 +205,9 @@ export function useSync(): UseSyncResult {
             setPendingChanges(pending);
             setFailedChanges(failed);
         } catch (err) {
+            // Stop the orphaned run before releasing the lock, so the next sync does not
+            // race it over the same queue items (B6).
+            token.cancelled = true;
             console.error('Sync failed:', err);
             setError(err instanceof Error ? err.message : 'Sync failed');
             setSyncStatus('error');
@@ -385,50 +397,59 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
     }
 }
 
-// Keys for storing last sync timestamps in localStorage
-const SYNC_TIMESTAMPS_KEY = 'falconforge-sync-timestamps';
+/**
+ * Legacy localStorage keys for sync bookkeeping.
+ *
+ * Both are now stored in IndexedDB `appState` via offline-db's SyncMeta, so sign-out clears
+ * them along with everything else (B5). These are removed on first pull so a shared device
+ * does not keep serving a previous user's cursors out of localStorage.
+ */
+const LEGACY_SYNC_TIMESTAMPS_KEY = 'falconforge-sync-timestamps';
+const LEGACY_SYNC_COUNTER_KEY = 'falconforge-sync-counter';
 
-function getSyncTimestamps(): Record<string, number> {
+function clearLegacySyncKeys(): void {
     try {
-        const stored = localStorage.getItem(SYNC_TIMESTAMPS_KEY);
-        return stored ? JSON.parse(stored) : {};
-    } catch {
-        return {};
-    }
-}
-
-function setSyncTimestamp(entityKey: string, timestamp: number): void {
-    try {
-        const timestamps = getSyncTimestamps();
-        timestamps[entityKey] = timestamp;
-        localStorage.setItem(SYNC_TIMESTAMPS_KEY, JSON.stringify(timestamps));
-    } catch (err) {
-        console.warn('Failed to save sync timestamp:', err);
-    }
+        localStorage.removeItem(LEGACY_SYNC_TIMESTAMPS_KEY);
+        localStorage.removeItem(LEGACY_SYNC_COUNTER_KEY);
+    } catch { /* private mode / storage disabled */ }
 }
 
 // How often to do a full reconciliation (every Nth pull)
 // Full pulls detect cross-client deletions; delta pulls only get new/updated records
 const FULL_SYNC_INTERVAL = 5;
-const SYNC_COUNTER_KEY = 'falconforge-sync-counter';
 
-function getSyncCounter(): number {
-    try {
-        return parseInt(localStorage.getItem(SYNC_COUNTER_KEY) || '0', 10);
-    } catch {
-        return 0;
+/**
+ * Newest server `updated_at` across a set of rows, as an ISO string.
+ *
+ * This is the delta cursor. It has to come from the DATA, not from `Date.now()`:
+ * `updated_at` is written by a Postgres trigger on the server clock, so a client running
+ * even slightly fast would skip every record written inside the skew window, and would do
+ * so silently until the next full reconciliation (B4).
+ */
+export function newestUpdatedAt(rows: any[]): string | null {
+    let newest: number | null = null;
+    let newestISO: string | null = null;
+
+    for (const row of rows) {
+        const raw = row?.updated_at ?? row?.created_at;
+        if (!raw) continue;
+        const ms = new Date(raw).getTime();
+        if (Number.isNaN(ms)) continue;
+        if (newest === null || ms > newest) {
+            newest = ms;
+            newestISO = new Date(ms).toISOString();
+        }
     }
+
+    return newestISO;
 }
 
-function incrementSyncCounter(): number {
-    const next = getSyncCounter() + 1;
-    try {
-        localStorage.setItem(SYNC_COUNTER_KEY, String(next));
-    } catch { /* ignore */ }
-    return next;
+/** Cooperative cancellation for a sync run (B6). */
+export interface SyncToken {
+    cancelled: boolean;
 }
 
-async function pullChangesFromServer(): Promise<void> {
+async function pullChangesFromServer(token: SyncToken = { cancelled: false }): Promise<void> {
     if (!supabaseSync) return;
 
     // Get current team ID from the Zustand store
@@ -436,8 +457,12 @@ async function pullChangesFromServer(): Promise<void> {
 
     if (!currentTeamId) return;
 
-    // Decide whether this is a full or delta pull
-    const counter = incrementSyncCounter();
+    // Retire the pre-IndexedDB bookkeeping if it is still lying around (B5).
+    clearLegacySyncKeys();
+
+    // Decide whether this is a full or delta pull. The counter is per-team, so switching
+    // teams no longer shifts which entity lands on the reconciliation cycle (B15).
+    const counter = await bumpSyncCounter(currentTeamId);
     const isFullPull = counter % FULL_SYNC_INTERVAL === 0;
 
     const entities = [
@@ -450,7 +475,12 @@ async function pullChangesFromServer(): Promise<void> {
         // Note: portfolio_entries is intentionally local-only (not synced)
     ];
 
+    const meta = await getSyncMeta();
+
     for (const { table, localTable } of entities) {
+        // A timed-out run must stop touching the store instead of racing the next one (B6).
+        if (token.cancelled) return;
+
         try {
             const entityKey = `${currentTeamId}:${table}`;
 
@@ -470,15 +500,20 @@ async function pullChangesFromServer(): Promise<void> {
             // Build the query
             let query = supabaseSync.from(table).select('*').eq('team_id', currentTeamId);
 
-            // For delta pulls, add timestamp filter (skip for checklists — blob sync always full)
-            const timestamps = getSyncTimestamps();
-            const lastSync = timestamps[entityKey];
-            const isDelta = !isFullPull && lastSync && table !== 'checklists';
+            // updateLocalDatabase takes records[0] for the checklist blob, and Postgres row
+            // order is otherwise unspecified -- so the active checklist could flip between
+            // syncs when more than one row existed (B12). Order explicitly and ignore
+            // templates, which are not the team's working checklist.
+            if (table === 'checklists') {
+                query = query.eq('is_template', false).order('created_at', { ascending: true });
+            }
+
+            // For delta pulls, filter on the cursor (skip for checklists — blob sync always full)
+            const cursor = meta.cursors[entityKey];
+            const isDelta = !isFullPull && !!cursor && table !== 'checklists';
 
             if (isDelta) {
-                // Convert timestamp to ISO string for the query
-                const lastSyncISO = new Date(lastSync).toISOString();
-                query = query.gte('updated_at', lastSyncISO);
+                query = query.gte('updated_at', cursor);
             }
 
             const result: any = await withTimeout(
@@ -493,6 +528,8 @@ async function pullChangesFromServer(): Promise<void> {
                 continue;
             }
 
+            if (token.cancelled) return;
+
             // Records with unpushed local changes must survive the pull (B3). Read this
             // AFTER the query so anything queued while it was in flight is still covered.
             const pendingIds = await getPendingRecordIds(table);
@@ -505,8 +542,14 @@ async function pullChangesFromServer(): Promise<void> {
                 updateLocalDatabase(localTable, result.data || [], pendingIds);
             }
 
-            // Update sync timestamp
-            setSyncTimestamp(entityKey, Date.now());
+            // Advance the cursor to the newest SERVER timestamp we actually saw, never to
+            // the local clock (B4). No rows means nothing newer exists, so the cursor stays
+            // put rather than jumping forward over records we never received.
+            const newest = newestUpdatedAt(result.data || []);
+            if (newest) {
+                meta.cursors[entityKey] = newest;
+                await setSyncCursor(entityKey, newest);
+            }
 
         } catch (err) {
             console.warn(`Error pulling ${table}:`, err);
