@@ -41,9 +41,29 @@ Four of these are silent-data-loss bugs. If your users have ever said "my task d
 | B12 checklist picked an arbitrary row | ✅ | explicit `ORDER BY`, templates excluded |
 | B15 full-pull counter was global | ✅ | per-team counter |
 | B18 blank match number became `0` | ✅ | nullable column, `undefined` end to end |
-| B9/B10/B11/B13/B14/B16/B17 | ⬜ | Round D (entity registry + round-trip tests) |
+| B9 `partnerAutonomous`/`partnerPark` never saved | ✅ | registry + columns |
+| B10 `match_number` from a nonexistent property | ✅ | `matchNumber` added to the type |
+| B11 `NaN` timestamps | ✅ | one `toEpochMillis()` for every date |
+| B13 `withTimeout` leaked its timer | ✅ | cleared in `finally` |
+| B14 no queue coalescing | ✅ | one entry per (table, record) |
+| B16 camel/snake inconsistency | ✅ | `findEntity` takes either |
+| B17 `archivedAt` had no column | ✅ | registry + column |
 
-Suite: **239 unit / 59 integration**, typecheck, build and schema assertions all green.
+**All 18 bugs are fixed.** Suite: **252 unit / 67 integration**, typecheck, build and
+schema assertions green.
+
+Round D also replaced the hand-maintained `database.types.ts` with generated types, which
+surfaced two further defects the old types were hiding: `invites.expires_at` is nullable,
+so an invite with no expiry rendered as "0m remaining" rather than saying it never
+expires; and `create_team_as_coach` was passed `null` for an argument declared
+`DEFAULT NULL`.
+
+**Correction to M2 and Round D's gate.** M2 said the 30 `as any` were "clustered on
+`supabase.rpc()` and `from(tableName)` in `sync.ts`", and Round D promised fewer than 10.
+Both were wrong — that came from an early skim rather than a count. Only three were at the
+schema boundary; those are gone. Of the 27 remaining, **20 are in UI components**
+(`SprintPlanning`, `MemberManager`, `MatchPlanner`, `ScoutingReports`, `InviteManager`),
+which is Round E work. Generated types cannot help with those.
 
 **Both migrations production still needs were validated against real production data** —
 restored from `supabase db dump`, applied, zero errors, no row loss (11 tasks, 9 scouting
