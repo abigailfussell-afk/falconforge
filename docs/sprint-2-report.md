@@ -365,3 +365,29 @@ Recorded in the plan's parking lot.
 cf723bc fix(ids): make every seed and default id a real UUID (C5)
 48d2409 test(auth): cover the lifecycle, and prove sign-out actually empties local storage
 ```
+
+---
+
+## Follow-on: B19 and B20 (merged alongside this sprint)
+
+Two defects found *after* this report was first written — one by running the app, one by
+reviewing this sprint's own diff. Both are on `v2/sync-retry-schedule` and merged with it.
+
+**B19 — a failed push was never retried automatically.** Retrying was left to an effect
+that fires only when a dependency changes, and after a failed drain none do. Replaced with
+a self-re-arming backoff schedule (3s / 15s / 60s / 3m / 5m) that reads the queue rather
+than React state. Genuine offline periods consume no retry attempts. Verified in the
+browser on the scenario that exposed it: network restored, nothing touched, synced in ~20s.
+
+**B20 — a new team's seeded checklist was wiped on first load.** `updateLocalDatabase` read
+zero checklist rows as "cleared on another client". A team that has never pushed a checklist
+has no row, and `create_team_as_coach` does not make one, so every new team lost its eight
+seeded pre-match items the first time the dashboard loaded. Zero rows now leaves local state
+alone; a checklist genuinely emptied elsewhere still propagates as a row holding `items: []`.
+
+Also hardened the db harness to read stack status with whichever Supabase CLI started the
+stack — in CI that is `setup-cli` (latest), while `npx` would resolve to the pinned
+devDependency.
+
+Six regression tests against real Postgres, each verified to fail without its fix. Gate
+green on the merged result: lint / 272 unit / 83 integration / 217 db / 180 rls / build.
