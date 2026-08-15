@@ -153,7 +153,7 @@ V2 names the **capability**:
 
 | Function | Who | Governs | Needs entitlement |
 |---|---|---|---|
-| `can_manage_billing` | admin | licences, seats | — |
+| `can_manage_billing` | admin | licences, seats (via `enforce_seat_capacity`) | — |
 | `can_manage_roster` | admin, coach | membership, invites, team settings | **no** (see below) |
 | `can_manage_structure` | admin, coach | seasons, sub-teams | yes |
 | `can_manage_content` | any approved member | tasks, scouting, plans, checklists, meetings, attendance | yes |
@@ -254,7 +254,7 @@ and registration becomes "create team, then pay".
 | `on_auth_user_created` | `auth.users` | Mirrors into `public.users`. |
 | `on_user_profile_update` | `users` | Syncs display fields onto `team_members` — **excluding managed rows**, or renaming yourself renames every child you are responsible for. |
 | `enforce_member_role_eligibility` | `team_members` | 18+ for admin/coach/mentor; the admin must have accepted the terms; a managed profile can only be a student. |
-| `enforce_seat_capacity` | `team_members` | A team cannot assign more seats than it has been granted. Capacity only — *who* may assign a seat narrows to the admin when Sprint 6 builds the console. |
+| `enforce_seat_capacity` | `team_members` | Two rules RLS cannot express, because one is about a single COLUMN and the other about the whole TABLE: only the team admin may turn `seat_assigned` on, and a team cannot assign more seats than it has been granted. `service_role` is exempt from the first — it is the platform's own identity and is what Stripe's webhook will assign seats with. |
 
 ---
 

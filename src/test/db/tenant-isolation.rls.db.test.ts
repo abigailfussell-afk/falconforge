@@ -554,6 +554,89 @@ describe('capabilities are enforced by the database, not by the sidebar', () => 
         );
     });
 
+    it('a coach can edit the roster but cannot hand out licensed seats', async () => {
+        /*
+         * Seats are a billing decision, and billing belongs to the admin alone. RLS cannot
+         * express this — a policy decides whether a ROW may be written, and `seat_assigned`
+         * is one column of a row a coach is otherwise entitled to edit — so it lives in
+         * `enforce_seat_capacity`.
+         *
+         * The positive half first, or the negative one proves nothing: a coach really can
+         * edit this row.
+         */
+        const target = teamA.users.mentor.memberId;
+
+        const rename = await teamA.coach.client
+            .from('team_members')
+            .update({ full_name: 'Renamed by the coach' } as never)
+            .eq('id', target)
+            .select();
+        expect(rename.error, 'a coach could not edit the roster at all').toBeNull();
+        expect(rename.data, 'a coach could not edit the roster at all').toHaveLength(1);
+
+        // Same row, same coach, one column further.
+        const seat = await teamA.coach.client
+            .from('team_members')
+            .update({ seat_assigned: false } as never)
+            .eq('id', target)
+            .select();
+        expect(seat.error).toBeNull();  // releasing a seat is not a billing decision
+
+        const regrant = await teamA.coach.client
+            .from('team_members')
+            .update({ seat_assigned: true } as never)
+            .eq('id', target)
+            .select();
+        expect(regrant.error, 'a coach assigned a licensed seat').not.toBeNull();
+
+        // And the admin can, which is what makes the refusal above about authority rather
+        // than about the column being unwritable.
+        const byAdmin = await teamA.admin.client
+            .from('team_members')
+            .update({ seat_assigned: true } as never)
+            .eq('id', target)
+            .select();
+        expect(byAdmin.error, 'the admin could not assign a seat').toBeNull();
+        expect(byAdmin.data).toHaveLength(1);
+    });
+
+    it('a team cannot assign more seats than it has been granted', async () => {
+        // The fixtures' licence is unlimited, so this needs a bounded one. Revoke, grant two
+        // seats, and try to seat a third member.
+        const { serviceClient } = await import('./stack');
+        const svc = serviceClient();
+
+        await fixtures.revokeLicense(teamB.id);
+        await svc.from('license_grants').insert({
+            team_id: teamB.id,
+            source: 'gift',
+            seats: 2,
+            notes: 'seat capacity probe',
+        } as never);
+        // Fixtures seat all four roles; drop to two so the grant is exactly filled.
+        await svc
+            .from('team_members')
+            .update({ seat_assigned: false } as never)
+            .in('id', [teamB.users.mentor.memberId, teamB.users.student.memberId]);
+
+        const { error } = await teamB.admin.client
+            .from('team_members')
+            .update({ seat_assigned: true } as never)
+            .eq('id', teamB.users.student.memberId)
+            .select();
+
+        expect(error, 'a third seat was assigned against a two-seat grant').not.toBeNull();
+        expect(error?.message).toMatch(/no licensed seats available/i);
+
+        // Restore team B for anything that runs after this.
+        await svc.from('license_grants').delete().eq('notes', 'seat capacity probe');
+        await fixtures.restoreLicense(teamB.id);
+        await svc
+            .from('team_members')
+            .update({ seat_assigned: true } as never)
+            .in('id', [teamB.users.mentor.memberId, teamB.users.student.memberId]);
+    });
+
     it('the operator table cannot be joined through the API', async () => {
         await expectDenied(
             'admin INSERT into platform_operators',

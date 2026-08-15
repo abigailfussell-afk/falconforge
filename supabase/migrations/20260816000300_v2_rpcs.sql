@@ -152,14 +152,25 @@ END;
 $$;
 
 /*
- * A team cannot assign more seats than it has been granted.
+ * Who may assign a seat, and how many there are to assign.
  *
- * Capacity only — this says nothing about WHO may assign a seat, which is `can_manage_roster`
- * today and narrows to the admin when Sprint 6 builds the console. Capacity is checked here
- * rather than in a policy because it is a question about the whole table, not about the row
- * being written, and RLS has no way to ask it.
+ * Both halves live in a trigger rather than a policy because RLS cannot express either one.
+ * A policy decides whether a ROW may be written; these are questions about a single COLUMN
+ * (`seat_assigned` changed) and about the whole TABLE (how many seats are already in use).
  *
- * An unlimited grant (`seats IS NULL`) short-circuits, which is what every beta team has.
+ * AUTHORITY. Seats are a billing decision, and the business model puts billing entirely with
+ * the primary admin — they register the team, accept responsibility for it, and pay for it.
+ * `can_manage_roster` (admin or coach) governs the rest of the membership row, so without
+ * this check a coach could hand out the team's licensed seats.
+ *
+ * The INSERT case matters as much as the UPDATE one: without it a coach could delete a
+ * member and re-insert them with `seat_assigned = true`, which is the same escalation with
+ * an extra step. `create_team_as_admin` therefore inserts its admin unseated and assigns the
+ * seat immediately afterwards, by which point the caller IS the team's admin and the check
+ * passes on its own terms rather than through an exemption.
+ *
+ * CAPACITY. An unlimited grant (`seats IS NULL`) short-circuits, which is what every beta
+ * team has.
  */
 CREATE OR REPLACE FUNCTION public.enforce_seat_capacity()
 RETURNS trigger
@@ -172,9 +183,28 @@ DECLARE
     v_total integer;
     v_used integer;
 BEGIN
+    -- Releasing a seat is not a billing decision and needs no authority beyond the roster
+    -- rights the row already required.
     IF NOT NEW.seat_assigned THEN
         RETURN NEW;
     END IF;
+
+    -- Granting one is. Anything that turns `seat_assigned` on -- an INSERT that arrives with
+    -- it set, or an UPDATE that flips it -- has to come from the admin.
+    --
+    -- `service_role` is exempt, and has to be. It is the platform's own identity: it already
+    -- bypasses RLS everywhere, it is not reachable from the browser (the key never ships to
+    -- a client), and it is what Stripe's webhook will assign seats with in Sprint 10. A
+    -- trigger that blocked it would not be adding a boundary, only breaking the one caller
+    -- that legitimately acts for the platform rather than for a user.
+    IF (TG_OP = 'INSERT' OR NOT OLD.seat_assigned) AND auth.role() IS DISTINCT FROM 'service_role' THEN
+        IF NOT can_manage_billing(NEW.team_id) THEN
+            RAISE EXCEPTION
+                'Only the team admin can assign a licensed seat'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+    END IF;
+
     IF TG_OP = 'UPDATE' AND OLD.seat_assigned AND NEW.status = OLD.status THEN
         RETURN NEW;  -- already held a seat; nothing new is being consumed
     END IF;
@@ -349,9 +379,15 @@ BEGIN
         format('Automatic %s-day beta trial issued at team registration', v_trial_days)
     );
 
-    INSERT INTO team_members (team_id, user_id, role, status, seat_assigned, full_name, email)
-    VALUES (v_team_id, auth.uid(), 'admin', 'approved', true, v_user.full_name, v_user.email)
+    -- Unseated, then seated. `enforce_seat_capacity` requires the team's admin to be the one
+    -- assigning a seat, and until this INSERT lands there is no admin to be. Splitting it in
+    -- two means the founding admin passes the same check as everybody else rather than
+    -- needing a bootstrap exemption, which is one fewer branch that could be widened later.
+    INSERT INTO team_members (team_id, user_id, role, status, full_name, email)
+    VALUES (v_team_id, auth.uid(), 'admin', 'approved', v_user.full_name, v_user.email)
     RETURNING id INTO v_member_id;
+
+    UPDATE team_members SET seat_assigned = true WHERE id = v_member_id;
 
     v_invite_code := upper(substr(md5(random()::text), 1, 8));
     INSERT INTO invites (team_id, code, created_by)

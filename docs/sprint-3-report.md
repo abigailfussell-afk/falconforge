@@ -117,6 +117,15 @@ seats".
 `can_manage_content`, which requires `team_can_write` — so an unlicensed team can read
 everything and write nothing, and nothing is ever deleted for non-payment.
 
+**Seat assignment is the admin's alone.** RLS cannot express that — a policy decides whether
+a ROW may be written, and `seat_assigned` is one column of a row a coach is otherwise
+entitled to edit — so it lives in `enforce_seat_capacity` alongside the capacity check. The
+INSERT case is covered as well as the UPDATE one, or a coach could delete a member and
+re-insert them seated. `service_role` is exempt: it is the platform's own identity, never
+reaches a browser, and is what Stripe's webhook will use in Sprint 10. `create_team_as_admin`
+inserts its founding admin unseated and seats them a statement later, so that path passes the
+same check as everybody else instead of needing a bootstrap exemption.
+
 Two decisions worth your review:
 
 - **`can_manage_roster` is deliberately NOT gated on entitlement.** A team whose licence has
@@ -238,11 +247,11 @@ $ npm run db:verify        # full rebuild from migrations, then 14 assertion blo
 
 $ npm run test:db
  Test Files  5 passed (5)
-      Tests  299 passed (299)
+      Tests  301 passed (301)
 
 $ npm run test:rls
  Test Files  1 passed (1)
-      Tests  258 passed (258)
+      Tests  260 passed (260)
 
 $ npm run build
 dist/index.html                 1.66 kB │ gzip:  0.75 kB
@@ -250,10 +259,10 @@ dist/assets/index-*.css        55.44 kB │ gzip:  9.60 kB
 dist/assets/charts-*.js        41.18 kB │ gzip: 14.01 kB
 dist/assets/vendor-*.js       162.72 kB │ gzip: 53.12 kB
 dist/assets/supabase-*.js     171.11 kB │ gzip: 44.20 kB
-dist/assets/index-*.js        383.54 kB │ gzip: 98.03 kB
-✓ built in 3.77s
+dist/assets/index-*.js        383.70 kB │ gzip: 98.12 kB
+✓ built in 3.71s
 
-PWA v0.17.5 — precache 17 entries (4735.79 KiB)
+PWA v0.17.5 — precache 17 entries (4735.95 KiB)
 ```
 
 The 2 skipped tests are pre-existing in `MatchPlanner.test.tsx`; no `describe.skip` was added.
@@ -301,6 +310,8 @@ Each defect reintroduced into the live schema, suite run, defect reverted:
 | `team_can_write` always returns true | **caught** — the read-only test fails |
 | `team_entitlement` loses `security_invoker` | **caught** — 2 tests fail |
 | `get_user_team_ids` includes managed rows | **not caught, and this found a real gap** |
+| the seat-assignment authority check removed | **caught** — the coach/admin seat test fails |
+| the seat-capacity check removed | **caught** — the two-seat-grant test fails |
 
 **The gap, and what it taught.** Dropping the managed-row filter from `get_user_team_ids`
 left every guardian assertion green. Chasing that down: the guardian exclusion lives in *two*
@@ -372,8 +383,10 @@ Recorded in the plan's parking lot.
       per-capability authorization functions.** Verified adversarially: the second admin
       insert fails on the unique index, a `13_to_17` account is refused the coach role with a
       readable message.
-- [x] **`license_grants` + `team_entitlement`; operator gifting; expiry is read-only, never
-      deletion.** Enforced in RLS and tested behaviourally in both directions.
+- [x] **`license_grants` + `team_entitlement`; operator gifting; seat assignment by the team
+      admin; expiry is read-only, never deletion.** Enforced in RLS and in
+      `enforce_seat_capacity`, and tested behaviourally in both directions — including that a
+      coach can edit the roster but cannot hand out a seat, and that the admin can.
 - [x] **Guardian model (schema only)** — `managed_profiles` + `guardian_consents`, membership
       referencing either a user or a managed profile, with the visibility rules tested.
 - [x] **Meetings/attendance (schema only)** — `meetings` + `meeting_attendance` with
@@ -424,4 +437,6 @@ fails without it.
 ```
 ad55150 feat(db): squash to the V2 schema — roles, licensing, guardians, meetings
 bbe30d3 feat(app): move the client onto the V2 model
+3901ebd docs: V2 schema reference, plan log, and the Sprint 3 report
+<this>  feat(db): seat assignment belongs to the team admin
 ```

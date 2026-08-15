@@ -40,7 +40,15 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
-    const { isOffline } = useCurrentUser();
+    const { currentUser, isOffline } = useCurrentUser();
+
+    /**
+     * Seats are the admin's alone — `enforce_seat_capacity` refuses them to anyone else, so
+     * a coach shown this control would only ever get an error back. This is UX for a rule the
+     * database owns, not the rule itself.
+     */
+    const viewerIsAdmin =
+        teamMembers.find((m) => m.userId === currentUser?.id)?.role === 'admin';
 
     // Fetch pending members for this team
     const fetchPendingMembers = async () => {
@@ -375,15 +383,19 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                             )}
                                         </select>
 
-                                        {/* Billing Toggle */}
+                                        {/* Licensed seat. Read-only for anyone but the admin. */}
                                         <button
                                             onClick={() => toggleSeat(member.id, member.seatAssigned)}
-                                            disabled={processingIds.has(member.id)}
+                                            disabled={processingIds.has(member.id) || !viewerIsAdmin}
                                             className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition disabled:opacity-50 ${member.seatAssigned
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                                 : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
                                                 }`}
-                                            title={member.seatAssigned ? 'Holds a licensed seat' : 'No seat assigned'}
+                                            title={
+                                                viewerIsAdmin
+                                                    ? (member.seatAssigned ? 'Holds a licensed seat' : 'No seat assigned')
+                                                    : 'Only the team admin can assign licensed seats'
+                                            }
                                         >
                                             <DollarSign size={12} />
                                             {member.seatAssigned ? 'Seated' : 'No seat'}

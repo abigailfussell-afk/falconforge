@@ -333,11 +333,13 @@ the final walkthrough and tags `v2.0.0-beta`.
   "expired team → read-only banner": the client should read `team_entitlement` and stop
   offering writes, and an entitlement refusal should be treated as TERMINAL rather than
   consuming five retries, since it will never succeed on its own.
-- **Seat assignment is capacity-checked but not permission-checked.** `enforce_seat_capacity`
-  refuses to over-assign, and RLS lets anyone with `can_manage_roster` (admin or coach) flip
-  `seat_assigned`. Narrowing that to the admin is a column-level rule RLS cannot express, so
-  it wants a trigger — do it in Sprint 6 with the admin console, where the flow that sets it
-  actually exists.
+- **Seat assignment is admin-only, enforced in a trigger, and the UI half is a stub.**
+  `enforce_seat_capacity` now refuses both over-assignment and assignment by anyone who is
+  not the team admin (`service_role` is exempt — it is what Stripe's webhook will use in
+  Sprint 10). `MemberManager` disables the control for non-admins, but that screen is a
+  Sprint 6 rewrite: the real admin console is where seat assignment gets a proper flow,
+  including showing "12 of 15 seats" from `team_entitlement` rather than a per-row toggle
+  with no total in sight.
 - **`platform_operators` starts empty and there is no UI for it.** Kevin must insert his own
   row with the service key before `grant_team_license` will do anything; the SQL is in
   `docs/v2-schema.md`. Sprint 6 owns the operator gifting UI.
