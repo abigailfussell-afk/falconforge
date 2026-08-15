@@ -343,3 +343,61 @@ describe('the React Query hooks are the third caller of the same read path', () 
         client.clear();
     });
 });
+
+describe('the checklist blob', () => {
+    it('does not wipe a new team’s seeded checklist when the server has no row (B20)', async () => {
+        // `create_team_as_coach` creates a team, a member, an invite and a season -- but no
+        // checklist. So on a brand-new team the first dashboard load finds zero rows, and
+        // reading that as "cleared on another device" deleted the eight seeded pre-match
+        // items with nothing to replace them.
+        await svc.from('checklists').delete().eq('team_id', team.id);
+
+        const seeded = [
+            { id: 'a', text: 'Turn off robot', checked: false },
+            { id: 'b', text: 'Swap main battery', checked: false },
+        ];
+        useAppStore.setState({ checklist: seeded });
+
+        await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
+
+        expect(useAppStore.getState().checklist, 'a new team lost its default checklist')
+            .toEqual(seeded);
+    });
+
+    it('still applies a checklist genuinely emptied on another device', async () => {
+        // The case the old branch was trying to serve. The row still EXISTS, holding an
+        // empty array -- which is one record, not zero, so it is applied.
+        await svc.from('checklists').delete().eq('team_id', team.id);
+        await svc.from('checklists').insert({
+            id: team.id,
+            team_id: team.id,
+            season_id: team.seasonId,
+            name: 'Pre-Match Checklist',
+            items: [],
+        });
+
+        useAppStore.setState({ checklist: [{ id: 'a', text: 'Stale local item', checked: true }] });
+
+        await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
+
+        expect(useAppStore.getState().checklist).toEqual([]);
+    });
+
+    it('applies the items when the server has them', async () => {
+        await svc.from('checklists').delete().eq('team_id', team.id);
+        await svc.from('checklists').insert({
+            id: team.id,
+            team_id: team.id,
+            season_id: team.seasonId,
+            name: 'Pre-Match Checklist',
+            items: [{ id: 'x', text: 'Charge driver hub', checked: true }],
+        });
+
+        useAppStore.setState({ checklist: [] });
+        await pullFromServer({ teamId: team.id, tables: ['checklists'], mode: 'full' });
+
+        expect(useAppStore.getState().checklist).toEqual([
+            { id: 'x', text: 'Charge driver hub', checked: true },
+        ]);
+    });
+});

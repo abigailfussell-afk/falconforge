@@ -288,10 +288,20 @@ export function updateLocalDatabase(
         // and excludes templates, so "first" is deterministic (B12).
         if (records.length > 0 && Array.isArray(records[0]?.items)) {
             store.setChecklist(records[0].items);
-        } else if (records.length === 0) {
-            // Empty results = checklist was cleared/deleted on another client
-            store.setChecklist([]);
         }
+
+        // NO ROWS IS NOT AN EMPTY CHECKLIST (B20).
+        //
+        // This used to `setChecklist([])`, reading zero rows as "cleared on another
+        // client". For a team that has never pushed a checklist there is no row to find,
+        // and `create_team_as_coach` does not make one -- so every brand-new team had its
+        // eight seeded pre-match items deleted the first time the dashboard loaded, with
+        // nothing to replace them.
+        //
+        // A checklist genuinely emptied elsewhere still propagates: the row continues to
+        // exist with `items: []`, which is one record, and the branch above applies it.
+        // Nothing in the app deletes the row itself.
+        return;
     }
 }
 
