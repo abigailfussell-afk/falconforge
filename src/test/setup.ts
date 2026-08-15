@@ -85,23 +85,29 @@ vi.mock('@/lib/queries', () => ({
     useMatchPlansQuery: vi.fn(() => ({ isLoading: false, isError: false, data: null })),
 }));
 
-// Mock sync module
-vi.mock('@/lib/sync', () => ({
-    useSyncStatus: vi.fn(() => ({
-        isSyncing: false,
-        pendingCount: 0,
-        lastSyncTime: null,
-    })),
-    useSync: vi.fn(() => ({
-        isOnline: true,
-        syncStatus: 'idle',
-        pendingChanges: 0,
-        lastSyncTime: null,
-        sync: vi.fn(),
-        error: null,
-    })),
-    SyncProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
+// Mock sync module.
+//
+// NOTE: this factory must stay in step with the real `src/lib/sync.ts` exports.
+// It previously declared `useSyncStatus` and `SyncProvider`, neither of which has
+// ever existed in the real module — proof that hand-written mocks drift silently.
+// `src/test/__tests__/mock-drift.test.ts` now fails CI when they diverge.
+//
+// The pure functions are re-exported from the real module rather than stubbed:
+// tests that assert on them should exercise the real implementation.
+vi.mock('@/lib/sync', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/sync')>('@/lib/sync');
+    return {
+        ...actual,
+        useSync: vi.fn(() => ({
+            isOnline: true,
+            syncStatus: 'idle',
+            pendingChanges: 0,
+            lastSyncTime: null,
+            sync: vi.fn(),
+            error: null,
+        })),
+    };
+});
 
 // Mock IndexedDB for any direct usage
 const mockIndexedDB = {
