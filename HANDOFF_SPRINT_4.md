@@ -60,9 +60,11 @@ Two things outside your scope that may bite you:
     and it was unrecoverable). For local work write `.env.development.local`, which
     takes priority in dev mode and is gitignored, and delete it when you are done.
     There is a `dev` config in .claude/launch.json on port 5188.
-  - The hosted project is behind the repo — these migrations are a squash, not a
-    diff, so `supabase db push` will not apply. Kevin has to reset it from the new
-    baseline before beta. If your work needs the hosted project, ask first.
+  - The hosted project is ON the V2 schema as of 2026-08-15 and is an empty slate
+    (it was reset from the new baseline; the old testing data was discarded with a
+    dump kept in backups/). Your migrations are ordinary forward migrations now, so
+    `supabase db push` is the right command and will work. It is still production:
+    ask before running anything against `--linked`.
 
 Rule 10 is the one that mattered most last sprint: verification is adversarial.
 Breaking each invariant on purpose and checking the suite notices found a real

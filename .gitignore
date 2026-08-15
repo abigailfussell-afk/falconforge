@@ -53,3 +53,7 @@ backup-*/
 auth_test_out.txt
 supabase_schema.txt
 .agent/scaling-remaining-items.md
+
+# Local database dumps taken before destructive operations. Never commit these:
+# they contain real user rows and auth data.
+backups/

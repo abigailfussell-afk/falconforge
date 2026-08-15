@@ -424,11 +424,16 @@ fails without it.
   `assistant_coach`; `store.checklist` → `checklistsBySeason` (read via `selectChecklist`);
   `setChecklist` → `setChecklistForSeason`; `addTask` returns `string | null`;
   `Sidebar`'s `isCoach` prop → `canManageTeam`.
-- **The hosted project is now behind the repo.** These migrations do not apply on top of the
-  live schema — they are a squash, not a diff. The greenfield decision says that is fine (no
-  production data), but it means `supabase db push` will not work: the hosted project needs
-  resetting from the new baseline before beta, and any test account on it will be gone.
-  Worth deciding when, given B21 above.
+- **✅ The hosted project was migrated on 2026-08-15**, after this PR merged. `db push` could
+  not do it — these migrations are a squash, not a diff, so the first `CREATE TABLE users`
+  collides with the existing one. It took `supabase db reset --linked`, which drops `public`
+  and rebuilds from the V2 baseline. Per the plan's locked greenfield decision the data was
+  testing-only and was discarded; a full dump was taken first and is in `backups/`
+  (gitignored). `auth.users` was emptied too, so the next signup is a genuine first run.
+  Verified afterwards: all 14 schema assertions pass against the hosted project, every table
+  and the `team_entitlement` view answer an anonymous client with `200 []` (grants present,
+  RLS denying), `create_team_as_admin` responds and `create_team_as_coach` is 404, and the
+  bundle on falcon-forge.com is byte-identical to this branch's build.
 - **Everything discovered outside scope is in `FALCONFORGE_V2_PLAN.md` §8**, including the
   trial-grant removal, the seat-assignment permission gap, and the five new tables that are
   not in the entity registry yet because nothing reads them.
