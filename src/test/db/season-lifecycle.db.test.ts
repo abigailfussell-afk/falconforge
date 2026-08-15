@@ -19,6 +19,18 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Fixtures, mintAccessToken, type TestTeam } from './fixtures';
 import { serviceClient } from './stack';
+import type { Database } from '@/lib/database.types';
+import type { ChecklistItem } from '@/types';
+
+/**
+ * Read a checklist row's `items`.
+ *
+ * The column is `jsonb`, so the generated type is `Json` — structurally unrelated to
+ * `ChecklistItem[]`, which is the whole reason blob-synced records get their own handling
+ * in `sync.ts` rather than a registry entry. One narrowing point, named, rather than a cast
+ * at each assertion.
+ */
+const items = (row: { items: unknown }): ChecklistItem[] => row.items as ChecklistItem[];
 import { signInAppClientAs, signOutAppClient } from './setup';
 import { useAppStore } from '@/lib/store';
 import { db } from '@/lib/offline-db';
@@ -94,19 +106,24 @@ async function settleAndDrain() {
     return drainSyncQueue();
 }
 
+type SeasonRow = Database['public']['Tables']['seasons']['Row'];
+type SubTeamRow = Database['public']['Tables']['sub_teams']['Row'];
+type ChecklistRow = Database['public']['Tables']['checklists']['Row'];
+type TaskRow = Database['public']['Tables']['tasks']['Row'];
+
 /** Rows the server actually holds for a season. */
 async function serverState(seasonId: string) {
     const [season, subTeams, checklists, tasks] = await Promise.all([
-        svc.from('seasons').select('*').eq('id', seasonId).maybeSingle(),
-        svc.from('sub_teams').select('*').eq('season_id', seasonId),
-        svc.from('checklists').select('*').eq('season_id', seasonId),
-        svc.from('tasks').select('*').eq('season_id', seasonId),
+        svc.from('seasons').select('*').eq('id', seasonId).maybeSingle<SeasonRow>(),
+        svc.from('sub_teams').select('*').eq('season_id', seasonId).returns<SubTeamRow[]>(),
+        svc.from('checklists').select('*').eq('season_id', seasonId).returns<ChecklistRow[]>(),
+        svc.from('tasks').select('*').eq('season_id', seasonId).returns<TaskRow[]>(),
     ]);
     return {
-        season: season.data as any,
-        subTeams: (subTeams.data ?? []) as any[],
-        checklists: (checklists.data ?? []) as any[],
-        tasks: (tasks.data ?? []) as any[],
+        season: season.data,
+        subTeams: subTeams.data ?? [],
+        checklists: checklists.data ?? [],
+        tasks: tasks.data ?? [],
     };
 }
 
@@ -134,10 +151,10 @@ describe('a rollover performed offline syncs cleanly in one drain', () => {
 
         const state = await serverState(newSeasonId);
         expect(state.season).not.toBeNull();
-        expect(state.season.name).toBe('2027-2028 Season');
-        expect(state.season.game_title).toBe('DECODE');
-        expect(state.season.is_archived).toBe(false);
-        expect(state.season.team_id).toBe(team.id);
+        expect(state.season!.name).toBe('2027-2028 Season');
+        expect(state.season!.game_title).toBe('DECODE');
+        expect(state.season!.is_archived).toBe(false);
+        expect(state.season!.team_id).toBe(team.id);
     });
 
     it('clones sub-team structure with NO member assignments', async () => {
@@ -189,7 +206,7 @@ describe('a rollover performed offline syncs cleanly in one drain', () => {
         await settleAndDrain();
 
         const previous = await serverState(team.seasonId);
-        expect(previous.season.is_archived).toBe(true);
+        expect(previous.season!.is_archived).toBe(true);
 
         // Round trip: the flag has to survive the read path as well as the write path, or a
         // second device never learns the season is closed.
@@ -216,10 +233,10 @@ describe('a rollover performed offline syncs cleanly in one drain', () => {
         expect(drain.deadLettered).toBe(0);
 
         const previous = await serverState(team.seasonId);
-        expect(previous.checklists[0].items).toEqual([
+        expect(items(previous.checklists[0])).toEqual([
             expect.objectContaining({ text: 'Charge battery', checked: false }),
         ]);
-        expect(previous.season.is_archived).toBe(true);
+        expect(previous.season!.is_archived).toBe(true);
     });
 });
 
@@ -375,13 +392,13 @@ describe('checklist templates', () => {
 
         const { data: rows } = await svc
             .from('checklists').select('*').eq('team_id', team.id).eq('is_template', true)
-            .returns<any[]>();
+            .returns<ChecklistRow[]>();
 
         expect(rows).toHaveLength(1);
         expect(rows![0].id).toBe(templateId);
         expect(rows![0].name).toBe('Standard pre-match');
         // Stored unticked: a template records what a team checks, not the state of one match.
-        expect(rows![0].items[0].checked).toBe(false);
+        expect(items(rows![0])[0].checked).toBe(false);
 
         // `checklists_one_per_season` exempts templates, so the season still has exactly one
         // WORKING checklist and its id is still the season id.
@@ -394,6 +411,59 @@ describe('checklist templates', () => {
         const { pullChecklistTemplates } = await import('@/lib/server-pull');
         await pullChecklistTemplates(team.id);
         expect(useAppStore.getState().checklistTemplates.map((t) => t.id)).toContain(templateId);
+
+        await svc.from('checklists').delete().eq('id', templateId);
+    });
+
+    it('can be saved while looking at an ARCHIVED season', async () => {
+        /*
+         * The regression test for a defect this sprint introduced and a browser found.
+         *
+         * A template's `season_id` records where it was captured FROM — provenance, not
+         * scope. The archive gate treated it as scope, so saving a template while browsing
+         * last season was refused by `checklists_insert_content`: the UI offered it, the row
+         * appeared in the library, the push retried, and the sync indicator gave no reason.
+         * Exactly the silent-write failure the sprint exists to prevent, reintroduced by the
+         * sprint itself.
+         *
+         * Looking back at the checklist a team spent a season refining is the single most
+         * likely moment to want to save one, so the fix is the policy exemption rather than
+         * a disabled button.
+         */
+        await svc.from('seasons').update({ is_archived: true } as never).eq('id', team.seasonId);
+
+        const templateId = useAppStore.getState().saveChecklistAsTemplate('From the archive')!;
+        const drain = await settleAndDrain();
+
+        expect(drain.retried, 'saving a template from an archived season was refused').toBe(0);
+        expect(drain.deadLettered).toBe(0);
+
+        const { data: rows } = await svc
+            .from('checklists').select('id, is_template').eq('id', templateId).returns<ChecklistRow[]>();
+        expect(rows, 'the template never landed').toHaveLength(1);
+        expect(rows![0].is_template).toBe(true);
+
+        await svc.from('checklists').delete().eq('id', templateId);
+    });
+
+    it('cannot be flipped into a working checklist for an archived season', async () => {
+        // The exemption's escape hatch, closed. UPDATE's WITH CHECK sees the row as it would
+        // BECOME — a working checklist in a closed season — and refuses.
+        const templateId = useAppStore.getState().saveChecklistAsTemplate('Smuggler')!;
+        await settleAndDrain();
+        await svc.from('seasons').update({ is_archived: true } as never).eq('id', team.seasonId);
+
+        const { data, error } = await team.admin.client
+            .from('checklists')
+            .update({ is_template: false } as never)
+            .eq('id', templateId)
+            .select();
+
+        if (!error) expect(data ?? [], 'a template was flipped into an archived season').toEqual([]);
+
+        const { data: after } = await svc
+            .from('checklists').select('is_template').eq('id', templateId).returns<ChecklistRow[]>();
+        expect(after![0].is_template).toBe(true);
 
         await svc.from('checklists').delete().eq('id', templateId);
     });

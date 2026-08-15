@@ -142,14 +142,16 @@ $$;
 -- SELECT is untouched everywhere. An archived season is read-only, not hidden: "full history
 -- backward" is the whole point of keeping it.
 
--- The five season-scoped tables that carry `season_id` directly and are governed by
+-- The season-scoped tables that carry `season_id` directly and are governed by
 -- `can_manage_content`.
+--
+-- `checklists` is NOT in this loop; see below.
 DO $$
 DECLARE
     t text;
 BEGIN
     FOREACH t IN ARRAY ARRAY[
-        'tasks', 'scouting_reports', 'match_plans', 'checklists', 'meetings'
+        'tasks', 'scouting_reports', 'match_plans', 'meetings'
     ] LOOP
         EXECUTE format('DROP POLICY IF EXISTS %1$s_insert_content ON %1$I', t);
         EXECUTE format('DROP POLICY IF EXISTS %1$s_update_content ON %1$I', t);
@@ -174,6 +176,47 @@ BEGIN
                      can_manage_content(team_id) AND season_is_open(season_id, team_id))', t);
     END LOOP;
 END $$;
+
+/*
+ * `checklists`, where a TEMPLATE is exempt from the archive rule.
+ *
+ * A template (`is_template = true`) is a team-level library entry. Its `season_id` records
+ * only which season it was captured FROM — provenance, not scope; nothing reads it as scope,
+ * and `checklists_one_per_season` excludes templates from the one-per-season rule precisely
+ * because they do not belong to a season the way a working checklist does.
+ *
+ * Without this exemption, saving a template while looking at an archived season is refused,
+ * and that is the single most likely moment to want one: a team looks back at the checklist
+ * they spent a season refining and saves it for next year. Found by doing exactly that in a
+ * browser — the UI offered it, the server refused it, and the change sat in the queue
+ * retrying with the sync indicator giving no reason. That is the silent-write failure this
+ * sprint exists to stop, reintroduced by the sprint itself.
+ *
+ * It cannot be used to smuggle a write into an archived season. A template is invisible to
+ * the working-checklist read path (which filters `is_template = false`), and flipping one to
+ * `is_template = false` is caught by the UPDATE policy's WITH CHECK — that clause sees the
+ * NEW row, which would be a working checklist in a closed season.
+ */
+DROP POLICY IF EXISTS checklists_insert_content ON checklists;
+DROP POLICY IF EXISTS checklists_update_content ON checklists;
+DROP POLICY IF EXISTS checklists_delete_content ON checklists;
+
+CREATE POLICY checklists_insert_content ON checklists
+    FOR INSERT WITH CHECK (
+        can_manage_content(team_id)
+        AND (is_template OR season_is_open(season_id, team_id)));
+
+CREATE POLICY checklists_update_content ON checklists
+    FOR UPDATE
+    USING (can_manage_content(team_id)
+           AND (is_template OR season_is_open(season_id, team_id)))
+    WITH CHECK (can_manage_content(team_id)
+                AND (is_template OR season_is_open(season_id, team_id)));
+
+CREATE POLICY checklists_delete_content ON checklists
+    FOR DELETE USING (
+        can_manage_content(team_id)
+        AND (is_template OR season_is_open(season_id, team_id)));
 
 -- Attendance, reached through its meeting.
 DROP POLICY IF EXISTS meeting_attendance_insert_content ON meeting_attendance;

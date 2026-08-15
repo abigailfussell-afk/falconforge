@@ -261,10 +261,23 @@ export const createSeasonSlice = (set: any, get: any): SeasonSlice => ({
             seasonId: newSeasonId,
         }).catch(console.error);
 
-        // Archive LAST. Every edit the user made to the outgoing season before pressing this
-        // button is already ahead of it in the queue, so those pushes land while the season
-        // is still open; the archive follows and closes it. Queue this first and that work
-        // would be refused by `season_is_open` on arrival.
+        /*
+         * Archive last.
+         *
+         * What actually protects the user's existing work is that the QUEUE APPENDS: every
+         * edit made to the outgoing season before this button was pressed already holds an
+         * earlier timestamp, so those pushes land while the season is still open and the
+         * archive follows. That holds wherever in this function the archive is queued — an
+         * earlier version of this comment claimed the position was load-bearing, and moving
+         * the call to the top on purpose failed to break a single test, which is how the
+         * overclaim was found.
+         *
+         * It is still written last, for a narrower reason: `setSeasonArchived` mutates the
+         * local `seasons` array, and the clone steps above read the pre-rollover snapshot.
+         * Nothing between here and there consults `canWriteToSeason` today, but archiving
+         * the season everything is being copied FROM before doing the copying is a trap to
+         * leave lying around.
+         */
         if (input.archivePrevious !== false && fromSeasonId && fromSeasonId !== newSeasonId) {
             get().setSeasonArchived(fromSeasonId, true);
         }

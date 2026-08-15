@@ -324,15 +324,18 @@ export async function pullEntitlement(teamId: string): Promise<void> {
             return;
         }
 
-        const row = data as any;
+        // `status` is a CASE expression, so the generated types widen it to `string | null`.
+        // Narrowing to the union here rather than trusting it is the same reasoning as
+        // `toMemberRole` in the registry: anything unrecognised falls back to the LESS
+        // privileged answer, so a schema change cannot accidentally grant write access.
         useAppStore.getState().setEntitlement({
-            teamId: row.team_id,
-            status: row.status === 'active' ? 'active' : 'read_only',
-            seatsTotal: row.seats_total ?? null,
-            seatsUnlimited: row.seats_unlimited ?? false,
-            seatsUsed: Number(row.seats_used ?? 0),
-            validUntil: row.valid_until ?? null,
-            lapsedAt: row.lapsed_at ?? null,
+            teamId: data.team_id!,
+            status: data.status === 'active' ? 'active' : 'read_only',
+            seatsTotal: data.seats_total,
+            seatsUnlimited: data.seats_unlimited ?? false,
+            seatsUsed: Number(data.seats_used ?? 0),
+            validUntil: data.valid_until,
+            lapsedAt: data.lapsed_at,
         });
     } catch (err) {
         console.warn('Error pulling team entitlement:', err);

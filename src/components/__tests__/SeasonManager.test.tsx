@@ -31,7 +31,7 @@ describe('SeasonManager', () => {
 
     /** Render with a store state, defaulting to an entitled team on an open season. */
     const mountWith = (over: Record<string, unknown> = {}) => {
-        (useAppStore as any).mockImplementation((selector: any) =>
+        (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector: (s: unknown) => unknown) =>
             selector({
                 seasons: mockSeasons,
                 currentSeasonId: 's1',
@@ -164,10 +164,29 @@ describe('SeasonManager', () => {
         });
 
         it('queues nothing even if the click gets through', () => {
+            // A NAME IS TYPED FIRST, deliberately. Without it this test passed with the
+            // entitlement guard deleted — the handler declined on the empty name instead,
+            // so it was asserting nothing about licensing at all. Found by removing the
+            // guard on purpose and watching which assertions noticed.
             mountWith(readOnly);
-            fireEvent.click(screen.getByTestId('start-new-season'));
+
+            fireEvent.change(screen.getByPlaceholderText(/Add an empty season/i), {
+                target: { value: 'Sneaky Season' },
+            });
             fireEvent.click(screen.getByTestId('add-empty-season'));
 
+            expect(mockRollOverSeason).not.toHaveBeenCalled();
+        });
+
+        it('will not roll over from the wizard either, if it is somehow opened', () => {
+            mountWith(readOnly);
+            fireEvent.click(screen.getByTestId('start-new-season'));
+
+            // The wizard does not open, because its trigger is disabled — which is itself
+            // the assertion. If a future change opens it another way, `confirmRollover`
+            // still refuses; that is why the guard is in the handler as well as on the
+            // button.
+            expect(screen.queryByTestId('new-season-wizard')).toBeNull();
             expect(mockRollOverSeason).not.toHaveBeenCalled();
         });
 
