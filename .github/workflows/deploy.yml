@@ -39,6 +39,12 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
+      # The integration suite holds every sync data-loss regression (B1-B18). Without this
+      # step those tests could be red while production deployed green -- exactly the class of
+      # bug the sync engine was hardened against (C8).
+      - name: Integration tests
+        run: npm run test:integration
+
       - name: Build
         run: npm run build
         env:

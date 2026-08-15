@@ -1,319 +1,281 @@
 /**
- * Data Transformation Integration Tests
- * 
- * Tests for the camelCase ↔ snake_case transformations used in sync.
- * These test the actual transformation logic in sync.ts without mocking.
+ * Real tests for the local -> Supabase transform (C9).
+ *
+ * The previous version of this file was 319 lines and 11 tests that never called the
+ * transform. It built a camelCase literal and a snake_case literal by hand and then asserted
+ * the two literals equalled each other:
+ *
+ *     expect(expectedSupabaseFormat.team_id).toBe(localTask.teamId);
+ *
+ * That cannot fail. `transformToSupabaseSchema` could have been deleted outright and the
+ * suite would have stayed green, over the layer that decides what actually reaches the
+ * database. These tests call the real exported function.
  */
 import { describe, it, expect } from 'vitest';
+import { transformToSupabaseSchema } from '../sync';
 
-// We need to test the transformation logic, but transformToSupabaseSchema is not exported
-// So we test it indirectly through the sync process, or we could export it for testing.
-// For now, we'll verify transformations by inspecting what gets sent to Supabase.
+describe('transformToSupabaseSchema', () => {
+    describe('tasks', () => {
+        const localTask = {
+            id: 'task-123',
+            teamId: 'team-456',
+            seasonId: 'season-789',
+            department: 'subteam-abc',
+            title: 'Build intake system',
+            description: 'Design and build the intake mechanism',
+            status: 'In Progress',
+            type: 'Feature',
+            assignedTo: 'member-xyz',
+            tags: ['mechanical', 'urgent'],
+            checklist: [{ id: 'item-1', text: 'Design CAD', completed: true }],
+            timeline: [{ id: 'event-1', type: 'comment', authorId: 'user-1', content: 'Started', timestamp: 1234567890 }],
+            dueDate: 1700000000000,
+            archivedAt: undefined,
+            createdAt: 1699000000000,
+        };
 
-describe('Data Transformation', () => {
-    describe('Task Transformation (camelCase → snake_case)', () => {
-        it('transforms task fields correctly for Supabase', () => {
-            // Input from local store (camelCase)
-            const localTask = {
-                id: 'task-123',
-                teamId: 'team-456',
-                seasonId: 'season-789',
-                subTeamId: 'subteam-abc',
-                title: 'Build intake system',
-                description: 'Design and build the intake mechanism',
-                status: 'In Progress',
-                type: 'Feature',
-                assignedTo: 'member-xyz',
-                tags: ['mechanical', 'urgent'],
-                checklist: [
-                    { id: 'item-1', text: 'Design CAD', completed: true },
-                    { id: 'item-2', text: 'Build prototype', completed: false },
-                ],
-                timeline: [
-                    { id: 'event-1', type: 'comment', authorId: 'user-1', content: 'Started work', timestamp: 1234567890 },
-                ],
-                dueDate: 1700000000000,
-                createdAt: 1699000000000,
-            };
+        it('maps camelCase fields onto their snake_case columns', () => {
+            const row = transformToSupabaseSchema('tasks', localTask);
 
-            // Expected Supabase format (snake_case)
-            const expectedSupabaseFormat = {
-                id: 'task-123',
-                team_id: 'team-456',
-                season_id: 'season-789',
-                sub_team_id: 'subteam-abc',
-                title: 'Build intake system',
-                description: 'Design and build the intake mechanism',
-                status: 'In Progress',
-                type: 'Feature',
-                assigned_to: 'member-xyz',
-                tags: ['mechanical', 'urgent'],
-                // checklist and timeline should be included
-            };
-
-            // Verify the structure exists and is correct for transformation
-            expect(localTask.teamId).toBe('team-456');
-            expect(localTask.assignedTo).toBe('member-xyz');
-            expect(localTask.subTeamId).toBe('subteam-abc');
-
-            // Validate the expected Supabase format structure
-            // (This documents the transformation contract)
-            expect(expectedSupabaseFormat.team_id).toBe(localTask.teamId);
-            expect(expectedSupabaseFormat.assigned_to).toBe(localTask.assignedTo);
-            expect(expectedSupabaseFormat.sub_team_id).toBe(localTask.subTeamId);
-
-            // The transformation should convert:
-            // - teamId → team_id
-            // - assignedTo → assigned_to
-            // - subTeamId → sub_team_id
-            // - seasonId → season_id
-            // - dueDate → due_date (as ISO string)
+            expect(row.id).toBe('task-123');
+            expect(row.team_id).toBe('team-456');
+            expect(row.season_id).toBe('season-789');
+            expect(row.sub_team_id).toBe('subteam-abc');
+            expect(row.assigned_to).toBe('member-xyz');
+            expect(row.title).toBe('Build intake system');
+            expect(row.status).toBe('In Progress');
+            expect(row.tags).toEqual(['mechanical', 'urgent']);
         });
 
-        it('handles missing optional fields gracefully', () => {
-            const minimalTask = {
-                id: 'task-minimal',
-                teamId: 'team-1',
-                title: 'Minimal task',
-                status: 'To Do',
-                type: 'Bug',
-                assignedTo: undefined as string | undefined,
-                department: undefined as string | undefined,
-            };
+        it('converts epoch millis to ISO strings for timestamp columns', () => {
+            const row = transformToSupabaseSchema('tasks', localTask);
 
-            // Verify we handle undefined/null gracefully
-            expect(minimalTask.assignedTo).toBeUndefined();
-            expect(minimalTask.department).toBeUndefined();
+            expect(row.due_date).toBe(new Date(1700000000000).toISOString());
+            // Not archived — null, not the string "undefined" or an Invalid Date.
+            expect(row.archived_at).toBeNull();
+        });
+
+        it('omits createdAt, which the server column default owns', () => {
+            const row = transformToSupabaseSchema('tasks', localTask);
+
+            expect(row).not.toHaveProperty('created_at');
+            expect(row).not.toHaveProperty('createdAt');
+        });
+
+        it('accepts the legacy subTeamId spelling as well as department', () => {
+            const row = transformToSupabaseSchema('tasks', {
+                ...localTask,
+                department: undefined,
+                subTeamId: 'subteam-legacy',
+            });
+
+            expect(row.sub_team_id).toBe('subteam-legacy');
+        });
+
+        it('sends null rather than an empty string for an unassigned task', () => {
+            const row = transformToSupabaseSchema('tasks', { ...localTask, assignedTo: '' });
+
+            expect(row.assigned_to).toBeNull();
+        });
+
+        it('defaults the jsonb array columns instead of sending undefined', () => {
+            const row = transformToSupabaseSchema('tasks', {
+                id: 't', teamId: 'team-1', title: 'Bare', status: 'Backlog', type: 'Feature',
+            });
+
+            expect(row.tags).toEqual([]);
+            expect(row.checklist).toEqual([]);
+            expect(row.timeline).toEqual([]);
         });
     });
 
-    describe('Scouting Report Transformation', () => {
-        it('transforms scouting report with nested data object', () => {
-            const localReport = {
-                id: 'report-123',
-                teamId: 'team-456',
-                seasonId: 'season-789',
-                teamNumber: '12345', // opponent team number
-                matchNumber: 5,
+    describe('scouting reports', () => {
+        const localReport = {
+            id: 'report-1',
+            teamId: 'team-456',
+            seasonId: 'season-789',
+            teamNumber: '12345',
+            matchNumber: 7,
+            eventName: 'Regional',
+            hasAutonomous: true,
+            autoScore: 30,
+            intakeType: 'Active',
+            autoAim: true,
+            farShooting: false,
+            shotsTaken: 12,
+            shotsMissed: 3,
+            parking: 'Full Park',
+            rating: 4,
+            endGameNotes: 'Strong endgame',
+            createdBy: 'user-1',
+        };
+
+        it('nests the scouting payload into the jsonb data column', () => {
+            const row = transformToSupabaseSchema('scoutingReports', localReport);
+
+            expect(row.opponent_team_number).toBe('12345');
+            expect(row.match_number).toBe(7);
+            expect(row.event_name).toBe('Regional');
+            expect(row.created_by).toBe('user-1');
+            expect(row.data).toEqual({
                 hasAutonomous: true,
                 autoScore: 30,
-                intakeType: 'Automatic',
+                intakeType: 'Active',
                 autoAim: true,
                 farShooting: false,
-                shotsTaken: 15,
+                shotsTaken: 12,
                 shotsMissed: 3,
                 parking: 'Full Park',
                 rating: 4,
-                endGameNotes: 'Great match performance',
-            };
+                endGameNotes: 'Strong endgame',
+            });
+        });
 
-            // Expected Supabase format should nest scoring data
-            // opponent_team_number, match_number as direct fields
-            // data: { hasAutonomous, autoScore, ... } as JSON blob
+        it('sends null, never 0, for an unrecorded match number (B18)', () => {
+            // 0 fails the CHECK constraint and dead-letters the whole push.
+            const row = transformToSupabaseSchema('scoutingReports', {
+                ...localReport,
+                matchNumber: undefined,
+            });
 
-            expect(localReport.teamNumber).toBe('12345');
-            expect(localReport.matchNumber).toBe(5);
+            expect(row.match_number).toBeNull();
+        });
 
-            // Verify all scoring fields exist
-            expect(localReport.hasAutonomous).toBe(true);
-            expect(localReport.autoScore).toBe(30);
-            expect(localReport.rating).toBe(4);
+        it('preserves a genuine match number of 0 distinctly from absent', () => {
+            const row = transformToSupabaseSchema('scoutingReports', { ...localReport, matchNumber: 0 });
+
+            expect(row.match_number).toBe(0);
         });
     });
 
-    describe('Match Plan Transformation', () => {
-        it('transforms match plan fields', () => {
-            const localPlan = {
-                id: 'plan-123',
-                teamId: 'team-456',
-                seasonId: 'season-789',
-                title: 'Match 5 Strategy',
-                matchNumber: 5,
-                allianceTeam: '99999',
-                drawingData: { paths: [], annotations: [] },
-                notes: 'Start on right side, focus on scoring',
-                partnerAutonomous: true,
-                partnerPark: false,
-                updatedAt: 1700000000000,
-            };
-
-            // Expected transformations:
-            // - allianceTeam → alliance_team
-            // - matchNumber → match_number
-            // - drawingData → drawing_data
-
-            expect(localPlan.allianceTeam).toBe('99999');
-            expect(localPlan.drawingData).toBeDefined();
-        });
-    });
-
-    describe('Checklist Transformation', () => {
-        it('transforms checklist items array', () => {
-            const localChecklist = {
-                teamId: 'team-456',
-                seasonId: 'season-789',
-                name: 'Pre-Match Checklist',
-                items: [
-                    { id: 'item-1', text: 'Check battery', checked: true, assignedTo: 'member-1' },
-                    { id: 'item-2', text: 'Tighten screws', checked: false },
-                ],
-                isTemplate: false,
-            };
-
-            // Verify items structure
-            expect(localChecklist.items).toHaveLength(2);
-            expect(localChecklist.items[0].assignedTo).toBe('member-1');
-            expect(localChecklist.items[1].assignedTo).toBeUndefined();
-        });
-    });
-
-    describe('SubTeam Transformation', () => {
-        it('transforms subTeam with member IDs array', () => {
-            const localSubTeam = {
-                id: 'subteam-123',
-                teamId: 'team-456',
-                name: 'Programming',
-                memberIds: ['member-1', 'member-2', 'member-3'],
-                seasonId: 'season-789',
-            };
-
-            // Expected:
-            // - memberIds → member_ids
-            // - teamId → team_id
-            // - seasonId → season_id
-
-            expect(localSubTeam.memberIds).toHaveLength(3);
-            expect(localSubTeam.name).toBe('Programming');
-        });
-    });
-});
-
-describe('Reverse Transformation (snake_case → camelCase)', () => {
-    describe('Task from Supabase', () => {
-        it('transforms Supabase task to local format', () => {
-            const supabaseTask = {
-                id: 'task-123',
-                team_id: 'team-456',
-                season_id: 'season-789',
-                sub_team_id: 'subteam-abc',
-                title: 'Build intake',
-                description: 'Build the intake',
-                status: 'In Progress' as const,
-                type: 'Feature' as const,
-                assigned_to: 'member-xyz',
-                tags: ['urgent'],
-                checklist: [],
-                timeline: [],
-                due_date: '2024-01-15T00:00:00Z',
-                created_at: '2024-01-01T00:00:00Z',
-            };
-
-            // Expected local format
-            const expectedLocal = {
-                id: 'task-123',
-                title: 'Build intake',
-                description: 'Build the intake',
-                status: 'In Progress',
-                type: 'Feature',
-                assignedTo: 'member-xyz',
-                department: 'subteam-abc', // sub_team_id maps to department
-                tags: ['urgent'],
-                checklist: [],
-                timeline: [],
-                createdAt: new Date('2024-01-01T00:00:00Z').getTime(),
-                dueDate: new Date('2024-01-15T00:00:00Z').getTime(),
-                seasonId: 'season-789',
-            };
-
-            // Verify expected transformations are well-defined
-            expect(supabaseTask.team_id).toBe('team-456');
-            expect(supabaseTask.assigned_to).toBe('member-xyz');
-            expect(expectedLocal.assignedTo).toBe('member-xyz');
-        });
-    });
-
-    describe('Scouting Report from Supabase', () => {
-        it('extracts nested data fields', () => {
-            const supabaseReport = {
-                id: 'report-123',
-                team_id: 'team-456',
-                season_id: 'season-789',
-                opponent_team_number: '12345',
-                match_number: 5,
-                data: {
-                    hasAutonomous: true,
-                    autoScore: 30,
-                    intakeType: 'Automatic',
-                    autoAim: true,
-                    farShooting: false,
-                    shotsTaken: 15,
-                    shotsMissed: 3,
-                    parking: 'Full Park',
-                    rating: 4,
-                    endGameNotes: 'Great match',
-                },
-            };
-
-            // Expected local format - flattens nested data
-            const expectedLocal = {
-                id: 'report-123',
-                teamNumber: '12345', // from opponent_team_number
-                matchNumber: 5,
-                hasAutonomous: true, // from data.hasAutonomous
-                autoScore: 30,
-                // ... etc
-                seasonId: 'season-789',
-            };
-
-            // Verify the nesting
-            expect(supabaseReport.data.hasAutonomous).toBe(true);
-            expect(supabaseReport.opponent_team_number).toBe('12345');
-            expect(expectedLocal.teamNumber).toBe('12345');
-        });
-    });
-});
-
-describe('Edge Cases', () => {
-    it('handles null/undefined values', () => {
-        const dataWithNulls = {
-            id: 'entity-1',
-            teamId: 'team-1',
-            assignedTo: null,
-            dueDate: undefined,
-            tags: null,
+    describe('match plans', () => {
+        const localPlan = {
+            id: 'plan-1',
+            teamId: 'team-456',
+            seasonId: 'season-789',
+            title: 'Qual 12',
+            matchNumber: 12,
+            allianceTeam: '54321',
+            drawingData: 'data:image/png;base64,abc',
+            notes: 'Play defence',
+            partnerAutonomous: true,
+            partnerPark: true,
+            updatedAt: 1699000000000,
         };
 
-        expect(dataWithNulls.assignedTo).toBeNull();
-        expect(dataWithNulls.dueDate).toBeUndefined();
-        expect(dataWithNulls.tags).toBeNull();
+        it('writes the partner flags that used to be read but never sent (B9)', () => {
+            const row = transformToSupabaseSchema('matchPlans', localPlan);
+
+            expect(row.partner_autonomous).toBe(true);
+            expect(row.partner_park).toBe(true);
+        });
+
+        it('defaults the partner flags to false when absent', () => {
+            const row = transformToSupabaseSchema('matchPlans', {
+                ...localPlan,
+                partnerAutonomous: undefined,
+                partnerPark: undefined,
+            });
+
+            expect(row.partner_autonomous).toBe(false);
+            expect(row.partner_park).toBe(false);
+        });
+
+        it('omits updatedAt, which the server trigger owns', () => {
+            const row = transformToSupabaseSchema('matchPlans', localPlan);
+
+            expect(row).not.toHaveProperty('updated_at');
+        });
     });
 
-    it('handles empty arrays', () => {
-        const dataWithEmptyArrays = {
-            id: 'entity-1',
-            tags: [],
-            checklist: [],
-            memberIds: [],
-        };
+    describe('seasons and sub-teams', () => {
+        it('sends null for an empty field image rather than an empty string', () => {
+            const row = transformToSupabaseSchema('seasons', {
+                id: 'season-1', name: '2025-2026 Decode', teamId: 'team-1', fieldImageData: '',
+            });
 
-        expect(dataWithEmptyArrays.tags).toEqual([]);
-        expect(dataWithEmptyArrays.checklist).toEqual([]);
+            expect(row).toEqual({
+                id: 'season-1',
+                name: '2025-2026 Decode',
+                team_id: 'team-1',
+                field_image_data: null,
+            });
+        });
+
+        it('maps sub-team member ids and tolerates an unscoped sub-team', () => {
+            const row = transformToSupabaseSchema('subTeams', {
+                id: 'st-1', name: 'Programming', teamId: 'team-1', memberIds: ['m1', 'm2'],
+            });
+
+            expect(row.member_ids).toEqual(['m1', 'm2']);
+            expect(row.season_id).toBeNull();
+        });
     });
 
-    it('handles complex nested structures', () => {
-        const complexData = {
-            timeline: [
-                { id: '1', type: 'comment', authorId: 'user-1', content: 'Note 1', timestamp: 1000 },
-                { id: '2', type: 'history', authorId: 'user-2', content: 'Status change', timestamp: 2000 },
-            ],
-            checklist: [
-                { id: 'a', text: 'Item A', completed: true },
-                { id: 'b', text: 'Item B', completed: false },
-            ],
-        };
+    describe('checklists (blob-synced, not a registry entity)', () => {
+        it('uses the team id as the row id, since there is one row per team', () => {
+            const row = transformToSupabaseSchema('checklists', {
+                teamId: 'team-456',
+                seasonId: 'season-789',
+                items: [{ id: '1', text: 'Swap battery', checked: false }],
+            });
 
-        expect(complexData.timeline).toHaveLength(2);
-        expect(complexData.timeline[0].authorId).toBe('user-1');
-        expect(complexData.checklist[1].completed).toBe(false);
+            expect(row.id).toBe('team-456');
+            expect(row.team_id).toBe('team-456');
+            expect(row.season_id).toBe('season-789');
+            expect(row.items).toEqual([{ id: '1', text: 'Swap battery', checked: false }]);
+            expect(row.name).toBe('Pre-Match Checklist');
+            expect(row.is_template).toBe(false);
+        });
+
+        it('accepts the items under the legacy `checklist` key', () => {
+            const row = transformToSupabaseSchema('checklists', {
+                teamId: 'team-456',
+                checklist: [{ id: '1', text: 'Charge hub', checked: true }],
+            });
+
+            expect(row.items).toEqual([{ id: '1', text: 'Charge hub', checked: true }]);
+        });
+    });
+
+    describe('table name resolution', () => {
+        const task = { id: 't1', teamId: 'team-1', title: 'X', status: 'Backlog', type: 'Feature' };
+
+        it.each([
+            ['scoutingReports', 'scouting_reports'],
+            ['subTeams', 'sub_teams'],
+            ['matchPlans', 'match_plans'],
+        ])('resolves %s and %s to the same definition', (localKey, remoteTable) => {
+            const payload = { id: 'x', teamId: 'team-1', name: 'N', memberIds: [], teamNumber: '1', title: 'T' };
+
+            expect(transformToSupabaseSchema(localKey, payload))
+                .toEqual(transformToSupabaseSchema(remoteTable, payload));
+        });
+
+        it('passes unknown tables through untouched rather than dropping fields', () => {
+            const unknown = { id: 'x', someField: 'value', nested: { a: 1 } };
+
+            expect(transformToSupabaseSchema('not_a_real_table', unknown)).toEqual(unknown);
+        });
+
+        it('no longer special-cases portfolio_entries', () => {
+            // The AI features are gone and no such table ever existed; the orphaned case
+            // used to invent a row shape for it. It must now fall through to pass-through.
+            const payload = { id: 'p1', teamId: 'team-1', content: 'Summary', taskCount: 5 };
+
+            expect(transformToSupabaseSchema('portfolio_entries', payload)).toEqual(payload);
+        });
+
+        it.each([null, undefined])('returns %s unchanged', (value) => {
+            expect(transformToSupabaseSchema('tasks', value)).toBe(value);
+        });
+
+        it('does not mutate the record it was given', () => {
+            const original = { ...task };
+
+            transformToSupabaseSchema('tasks', task);
+
+            expect(task).toEqual(original);
+        });
     });
 });
