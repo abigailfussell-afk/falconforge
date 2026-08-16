@@ -36,6 +36,7 @@ const ScoutingReports = lazy(() => import('./components/ScoutingReports'));
 const MatchPlanner = lazy(() => import('./components/MatchPlanner'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const EditProfile = lazy(() => import('./components/EditProfile'));
+const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
 
 /*
  * Route adapters.
@@ -164,6 +165,14 @@ function App() {
                     <Route path="planner" element={<MatchPlanner />} />
                     <Route path="profile" element={<EditProfile />} />
                     <Route path="admin" element={<AdminSettingsRoute />} />
+                    {/*
+                     * The operator page needs no route guard of its own. `OperatorConsole` asks
+                     * `is_platform_operator()` and renders a plain explanation to anyone else —
+                     * which is the "operator page seen by somebody who is not an operator" case,
+                     * reachable by typing the URL and therefore worth answering properly rather
+                     * than with a blank screen. Every RPC behind it refuses a non-operator too.
+                     */}
+                    <Route path="operator" element={<OperatorConsole />} />
                     {/* An unknown view under /app is a stale link, not a dead end. */}
                     <Route path="*" element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
                 </Route>

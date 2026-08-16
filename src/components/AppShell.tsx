@@ -1,13 +1,15 @@
-import { Suspense, useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
 import { fetchTeamData } from '../lib/server-pull';
+import { supabaseSync } from '../lib/supabase';
 import { performSignOut } from '../lib/sign-out';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
+import LicenceBanner from './LicenceBanner';
 import type { SubTeam, TeamMember } from '../types';
 
 /**
@@ -24,6 +26,8 @@ export interface AppShellContext {
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
     canManageTeam: boolean;
+    /** Platform operator, per `is_platform_operator()`. Null until the answer is known. */
+    isOperator: boolean | null;
 }
 
 export function useAppShell(): AppShellContext {
@@ -79,6 +83,32 @@ export default function AppShell() {
     const currentUserRole = teamMembers.find((m) => m.userId === user?.id)?.role;
     const canManageTeam = currentUserRole === 'admin' || currentUserRole === 'coach';
 
+    /*
+     * Platform-operator status, asked of the database rather than inferred.
+     *
+     * `is_platform_operator()` is the same function every operator RPC gates on, so the nav and
+     * the server cannot disagree about who this is. Null while unknown — and the nav treats null
+     * as "no", which is the right default for a capability nobody should see by accident. There
+     * is no fail-open argument here: unlike entitlement, being unable to ask costs the user
+     * nothing, because an operator is one person and the page is not on anyone's critical path.
+     */
+    const [isOperator, setIsOperator] = useState<boolean | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (!supabaseSync || !user) {
+            setIsOperator(false);
+            return;
+        }
+        supabaseSync
+            .rpc('is_platform_operator')
+            .then(({ data, error }) => {
+                if (!cancelled) setIsOperator(error ? false : data === true);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
+
     // Fetch team data when the team changes.
     useEffect(() => {
         if (currentTeamId) {
@@ -112,12 +142,13 @@ export default function AppShell() {
         };
     }, [currentTeamId]);
 
-    const context: AppShellContext = { teamMembers, subTeams, canManageTeam };
+    const context: AppShellContext = { teamMembers, subTeams, canManageTeam, isOperator };
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden">
             <Sidebar
                 canManageTeam={canManageTeam}
+                isOperator={isOperator === true}
                 onSignOut={() => performSignOut(signOut)}
                 onSwitchTeam={() => navigate('/onboarding')}
             />
@@ -144,7 +175,19 @@ export default function AppShell() {
                      * below it resolves; content taller than the frame still scrolls the region.
                      */}
                     <div className="max-w-app mx-auto h-full flex flex-col">
+                        {/*
+                         * TWO BANNERS, ONE POSITION, AND AT MOST ONE VISIBLE.
+                         *
+                         * They are deliberately not one component and not one predicate.
+                         * `season-scope.ts` explains why: an archived season and a lapsed licence
+                         * are different refusals with different fixes ("switch to this year" vs
+                         * "renew"), and a single boolean produces a UI that cannot say which one
+                         * the user is looking at. `useAccessState` composes them in one place and
+                         * gives the archived season precedence, so this renders one banner rather
+                         * than the two stacked ones that happen by accident.
+                         */}
                         <ArchivedSeasonBanner />
+                        <LicenceBanner />
                         <div className="flex-1 min-h-0">
                             <Suspense fallback={<RouteFallback />}>
                                 <Outlet context={context} />

@@ -6,6 +6,7 @@ import {
     Gamepad2,
     Settings,
     User,
+    Gift,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -55,6 +56,15 @@ export interface AppView {
      * database refuses the writes regardless. Both halves are deliberate.
      */
     requiresManage?: boolean;
+    /**
+     * Mirrors `is_platform_operator()` — the platform's own operator, not a team role.
+     *
+     * Same status as {@link requiresManage}: UX, not security. The route self-gates by asking
+     * the database the same question, and every operator RPC refuses a caller with no operator
+     * identity. `platform_operators` ships EMPTY with no API path that can write it, so this
+     * cannot be granted from a browser however the nav is rendered.
+     */
+    requiresOperator?: boolean;
     /** Draw a separator above this item. Groups the board/competition tools apart. */
     startsGroup?: boolean;
 }
@@ -69,6 +79,7 @@ export const APP_VIEWS: AppView[] = [
     { id: 'scouting', path: 'scouting', label: 'Scouting Reports', icon: ClipboardCheck, inNav: true },
     { id: 'planner', path: 'planner', label: 'Match Planner', icon: Gamepad2, inNav: true },
     { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresManage: true, startsGroup: true },
+    { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresOperator: true },
     { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
 ];
 
@@ -80,9 +91,20 @@ export const DEFAULT_VIEW_PATH = 'dashboard';
  *
  * Both the rail and the drawer call this, so a capability check cannot apply to one and not
  * the other — which is the class of bug a duplicated nav invites.
+ *
+ * `isOperator` defaults to false so that adding the operator view did not change what any
+ * existing caller renders. That matters for more than tidiness: `Dashboard.test.tsx` asserts
+ * every nav entry appears EXACTLY ONCE, which is the only thing standing between this app and
+ * the duplicated-sidebar problem Sprint 5 deleted. A view that appears for nobody by default
+ * cannot break that property while it is being wired up.
  */
-export function navViewsFor(canManageTeam: boolean): AppView[] {
-    return APP_VIEWS.filter((v) => v.inNav && (!v.requiresManage || canManageTeam));
+export function navViewsFor(canManageTeam: boolean, isOperator = false): AppView[] {
+    return APP_VIEWS.filter(
+        (v) =>
+            v.inNav &&
+            (!v.requiresManage || canManageTeam) &&
+            (!v.requiresOperator || isOperator),
+    );
 }
 
 /**
