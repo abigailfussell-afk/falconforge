@@ -4,7 +4,14 @@ on:
   pull_request:
   push:
     # Deploys are handled by deploy.yml on main; this is the gate for everything else.
-    branches: [main, 'refactor/**']
+    #
+    # 'v2/**' was missing until Sprint 7, and the omission silently inverted the point of
+    # having CI: every sprint branch since Sprint 1 was pushed with ZERO workflows fired
+    # (confirmed against the Actions API after pushing v2/sprint-6-licensing), so the first
+    # CI signal a sprint ever got arrived AFTER its merge to main -- the one moment it is
+    # useless. Nothing was caught by this only because the Gate is genuinely run locally and
+    # reported. Any new sprint-branch namespace belongs on this list on the day it is coined.
+    branches: [main, 'refactor/**', 'v2/**']
 
 # A newer push to the same branch makes the in-flight run irrelevant.
 concurrency:
