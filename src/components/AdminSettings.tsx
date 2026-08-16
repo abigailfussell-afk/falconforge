@@ -26,23 +26,23 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, subTeams }) 
     };
 
     return (
-        <div className="max-w-6xl mx-auto w-full h-full overflow-y-auto overflow-x-hidden">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">Admin Settings</h2>
+        <div className="w-full">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Admin Settings</h2>
 
 
 
             {/* Invite Links Section - only show for coaches when Supabase is configured */}
             {isConfigured && user && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-6">
                     <InviteManager teamId={currentTeamId || ''} />
                 </div>
             )}
 
             {/* Team Roster Section - only show when Supabase is configured */}
             {isConfigured && user && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-6">
                     <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
-                        <Users className="text-orange-600" size={24} />
+                        <Users className="text-forge-600" size={24} />
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white">Team Roster</h3>
                     </div>
                     <MemberManager

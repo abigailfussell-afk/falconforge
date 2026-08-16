@@ -1,5 +1,7 @@
 import { teardownRealtimeSubscription } from './realtime';
 import { useAppStore } from './store';
+import { clearLocalDatabase, clearAppState } from './offline-db';
+import { PROFILE_CACHE_KEY } from './profile-cache';
 
 /** How long to wait on Supabase before giving up and clearing local state anyway. */
 const SIGN_OUT_TIMEOUT_MS = 3000;
@@ -37,6 +39,12 @@ export async function performSignOut(
             }
         });
         localStorage.removeItem('falconforge-sync-timestamps');
+        // The cached display profile, cleared here as well as by the SIGNED_OUT handler in
+        // auth.tsx. Belt and braces for the same reason the token sweep above is: this path
+        // ends in a hard `window.location.reload()`, so it races the auth event, and on a
+        // shared team laptop losing that race means the next person sees the previous one's
+        // name in the sidebar until their own profile resolves.
+        localStorage.removeItem(PROFILE_CACHE_KEY);
 
         try {
             await withTimeout(signOut(), SIGN_OUT_TIMEOUT_MS, 'Sign out timeout');
@@ -44,11 +52,21 @@ export async function performSignOut(
             console.warn('Supabase signout issue ignored:', authErr);
         }
 
-        // Sync queue + persisted app state.
+        /*
+         * Sync queue + persisted app state.
+         *
+         * `offline-db` is imported statically. It used to be `await import('./offline-db')`
+         * here and in JoinTeam, which is what produced the standing build warning that
+         * offline-db was "both statically and dynamically imported, defeating its own
+         * code-split". The plan blamed that on the missing route splitting; it is not — the
+         * module is pulled into the entry chunk by `./store` (and by sync, realtime,
+         * server-pull and three slices) two lines above, so nothing about a `React.lazy`
+         * boundary could have moved it. The dynamic form deferred nothing, cost a Promise
+         * tick on the sign-out path, and only ever bought the warning.
+         */
         try {
             await withTimeout(
                 (async () => {
-                    const { clearLocalDatabase, clearAppState } = await import('./offline-db');
                     await clearLocalDatabase();
                     await clearAppState();
                 })(),

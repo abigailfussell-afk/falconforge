@@ -65,7 +65,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl max-h-modal flex flex-col shadow-overlay overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                     <div className="flex-1 mr-4">
                         <input
@@ -73,7 +73,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             value={task.title}
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"
-                            className="text-xl font-bold bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-lg p-2 focus:ring-2 focus:ring-orange-500 w-full placeholder-slate-400 dark:placeholder-slate-500 text-slate-900 dark:text-white"
+                            className="text-xl font-bold bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-lg p-2 focus:ring-2 focus:ring-forge-500 w-full placeholder-slate-400 dark:placeholder-slate-500 text-slate-900 dark:text-white"
                         />
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-700 p-2 rounded-full flex items-center justify-center w-8 h-8">
@@ -145,7 +145,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <textarea
                             value={task.description}
                             onChange={(e) => onChange({ ...task, description: e.target.value })}
-                            className="w-full h-32 p-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            className="w-full h-32 p-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-forge-500 focus:border-transparent"
                             placeholder="Describe the task, paste meeting minutes, or log bug details..."
                         />
                     </div>
@@ -163,7 +163,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                             newChecklist[idx].completed = e.target.checked;
                                             onChange({ ...task, checklist: newChecklist });
                                         }}
-                                        className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500 cursor-pointer mt-0.5"
+                                        className="w-5 h-5 rounded text-forge-600 focus:ring-forge-500 cursor-pointer mt-0.5"
                                         style={{ minWidth: '20px', minHeight: '20px' }}
                                     />
                                     <input
@@ -176,7 +176,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                             newChecklist[idx].text = e.target.value;
                                             onChange({ ...task, checklist: newChecklist });
                                         }}
-                                        className="flex-1 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded px-2 py-1 focus:ring-1 focus:ring-orange-500 text-slate-900 dark:text-white placeholder-slate-400"
+                                        className="flex-1 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded px-2 py-1 focus:ring-1 focus:ring-forge-500 text-slate-900 dark:text-white placeholder-slate-400"
                                     />
                                     <button
                                         onClick={() => {
@@ -197,7 +197,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                         newChecklistRef.current?.focus();
                                     }, 50);
                                 }}
-                                className="text-sm text-orange-600 dark:text-orange-400 font-medium hover:underline flex items-center gap-1"
+                                className="text-sm text-forge-600 dark:text-forge-400 font-medium hover:underline flex items-center gap-1"
                             >
                                 <Plus size={14} /> Add Checklist Item
                             </button>
@@ -242,7 +242,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         </button>
                         <button
                             onClick={onSave}
-                            className="px-6 py-2 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 shadow-sm"
+                            className="px-6 py-2 rounded-lg bg-forge-600 text-white font-medium hover:bg-forge-700 shadow-card"
                         >
                             Save Task
                         </button>

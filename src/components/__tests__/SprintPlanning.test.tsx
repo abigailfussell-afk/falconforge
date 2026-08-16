@@ -8,12 +8,14 @@ vi.mock('../../lib/store', () => ({
     useAppStore: vi.fn(),
 }));
 
-// Mock user context
-vi.mock('../../lib/user-context', () => ({
-    useCurrentUser: vi.fn(() => ({
-        id: 'user-1',
-        email: 'test@example.com',
-        fullName: 'Test User',
+// The signed-in person. `user-context` was merged into the auth context in Sprint 5, so the
+// profile now comes off `useAuth()` — one profile source, one cache.
+vi.mock('../../lib/auth', () => ({
+    useAuth: vi.fn(() => ({
+        profile: { id: 'user-1', email: 'test@example.com', fullName: 'Test User', avatarUrl: null },
+        displayName: 'Test User',
+        initials: 'TU',
+        isOffline: false,
     })),
 }));
 

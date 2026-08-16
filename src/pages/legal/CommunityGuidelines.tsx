@@ -14,7 +14,7 @@ export default function CommunityGuidelines() {
                         <ArrowLeft size={20} />
                     </Link>
                     <div className="flex items-center gap-3">
-                        <Users className="text-orange-500" size={28} />
+                        <Users className="text-forge-500" size={28} />
                         <h1 className="text-2xl font-bold text-white">Community Guidelines & Code of Conduct</h1>
                     </div>
                 </div>

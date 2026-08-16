@@ -10,15 +10,9 @@ vi.mock('@/lib/auth', () => ({
     useAuth: vi.fn(),
 }));
 
-// Mock user context
-vi.mock('@/lib/user-context', () => ({
-    useCurrentUser: vi.fn().mockReturnValue({
-        currentUserRole: 'coach',
-        isCoachOrAdmin: true,
-        isCreator: true,
-        canEdit: true,
-    }),
-}));
+// `user-context` is gone: the profile, the offline flag and the display-name derivations
+// were merged into the auth context (one profile source, one cache), so the auth mock below
+// carries them.
 
 describe('AdminSettings', () => {
     beforeEach(() => {
@@ -50,6 +44,10 @@ describe('AdminSettings', () => {
             isConfigured: true,
             isSigningOut: false,
             ageClassification: null,
+            profile: { id: 'user-1', email: 'test@test.com', fullName: 'Test User', avatarUrl: null },
+            isOffline: false,
+            displayName: 'Test User',
+            initials: 'TU',
         });
     });
 

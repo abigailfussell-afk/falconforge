@@ -41,18 +41,24 @@ export default defineConfig({
             /**
              * A ratchet, not an aspiration.
              *
-             * These sit just under the numbers measured on 2026-08-15 across all three
-             * suites. They are deliberately not round aspirational targets: a threshold
-             * nobody can meet gets deleted, and then nothing is enforced at all.
+             * These sit just under the numbers measured across all three suites. They are
+             * deliberately not round aspirational targets: a threshold nobody can meet gets
+             * deleted, and then nothing is enforced at all.
              *
              * Raise them as coverage genuinely improves. Never lower them to get a build
              * green — that is the failure mode this exists to prevent.
+             *
+             * Sprint 1 set 55/53/53/57. Sprint 2 raised them to 68/63/64/70. Sprint 5
+             * raises them again, measured at 72.72/67.69/69.67/74.92 — the routing rewrite
+             * added real coverage over App.tsx (route resolution, deep links, the redirect
+             * chain) and the store split moved four domains out of the thinly-covered
+             * store.ts into slices the season-lifecycle suite already exercises.
              */
             thresholds: {
-                statements: 68,
-                branches: 63,
-                functions: 64,
-                lines: 70,
+                statements: 72,
+                branches: 67,
+                functions: 69,
+                lines: 74,
             },
         },
     },

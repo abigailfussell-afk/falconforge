@@ -133,10 +133,10 @@ const SeasonManager: React.FC = () => {
     };
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mt-6">
             <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
                 <div className="flex items-center gap-2">
-                    <Calendar className="text-orange-600" size={24} />
+                    <Calendar className="text-forge-600" size={24} />
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">Season Manager</h3>
                 </div>
                 <button
@@ -148,7 +148,7 @@ const SeasonManager: React.FC = () => {
                             ? 'Your team’s licence has lapsed — renew it to start a new season'
                             : 'Start a new season'
                     }
-                    className="flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex items-center gap-2 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-forge-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     <Sparkles size={16} /> Start New Season
                 </button>
@@ -201,7 +201,7 @@ const SeasonManager: React.FC = () => {
                         }
                     }}
                     disabled={isReadOnlyTeam}
-                    className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 transition flex items-center justify-center w-10 h-10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     <Plus size={20} />
                 </button>
@@ -209,11 +209,11 @@ const SeasonManager: React.FC = () => {
 
             <div className="space-y-3">
                 {seasons.map((season) => (
-                    <div key={season.id} data-testid={`season-row-${season.id}`} className={`border rounded-lg overflow-hidden ${currentSeasonId === season.id ? 'border-orange-400 ring-2 ring-orange-200 dark:ring-orange-900/50' : 'border-slate-200 dark:border-slate-600'}`}>
+                    <div key={season.id} data-testid={`season-row-${season.id}`} className={`border rounded-lg overflow-hidden ${currentSeasonId === season.id ? 'border-forge-400 ring-2 ring-forge-200 dark:ring-forge-900/50' : 'border-slate-200 dark:border-slate-600'}`}>
                         <div className="flex flex-wrap justify-between items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50">
                             <div className="flex items-center gap-2 flex-wrap">
                                 {currentSeasonId === season.id && (
-                                    <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full font-bold">Active</span>
+                                    <span className="text-xs bg-forge-100 dark:bg-forge-900/30 text-forge-600 dark:text-forge-400 px-2 py-0.5 rounded-full font-bold">Active</span>
                                 )}
                                 {season.isArchived && (
                                     <span
@@ -238,7 +238,7 @@ const SeasonManager: React.FC = () => {
                                 <button
                                     data-testid={`toggle-archive-${season.id}`}
                                     onClick={() => setSeasonArchived(season.id, !season.isArchived)}
-                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:text-orange-600 dark:bg-slate-600 dark:text-slate-300"
+                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:text-forge-600 dark:bg-slate-600 dark:text-slate-300"
                                     title={season.isArchived ? 'Reopen this season for editing' : 'Archive: keep it readable, stop accepting edits'}
                                 >
                                     {season.isArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
@@ -256,7 +256,7 @@ const SeasonManager: React.FC = () => {
                                             setImageUploadError(null);
                                         }
                                     }}
-                                    className={`text-xs px-3 py-1.5 rounded-full transition ${editingSeasonId === season.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                    className={`text-xs px-3 py-1.5 rounded-full transition ${editingSeasonId === season.id ? 'bg-forge-100 text-forge-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                 >
                                     {editingSeasonId === season.id ? 'Done' : 'Edit'}
                                 </button>
@@ -325,7 +325,7 @@ const SeasonManager: React.FC = () => {
                                     />
                                     <label
                                         htmlFor={`field-image-${season.id}`}
-                                        className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition"
+                                        className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-forge-400 hover:bg-forge-50 dark:hover:bg-forge-900/20 transition"
                                     >
                                         <Upload size={18} />
                                         <span className="text-sm font-medium">{editFieldImageData ? 'Replace Image' : 'Upload Field Image'}</span>
@@ -333,7 +333,7 @@ const SeasonManager: React.FC = () => {
                                     {imageUploadError && (
                                         <p className="text-xs text-red-500 mt-1">{imageUploadError}</p>
                                     )}
-                                    <p className="text-[10px] text-slate-400 mt-1">Max: 1200×800 pixels, 500KB. Recommended: 3:2 ratio.</p>
+                                    <p className="text-2xs text-slate-400 mt-1">Max: 1200×800 pixels, 500KB. Recommended: 3:2 ratio.</p>
                                 </div>
                             </div>
                         )}
@@ -345,11 +345,11 @@ const SeasonManager: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div
                         data-testid="new-season-wizard"
-                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-800"
+                        className="max-h-modal w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-overlay dark:bg-slate-800"
                     >
                         <div className="mb-4 flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                                <Sparkles className="text-orange-600" size={20} />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-forge-100 dark:bg-forge-900/30">
+                                <Sparkles className="text-forge-600" size={20} />
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Start a New Season</h3>
@@ -432,7 +432,7 @@ const SeasonManager: React.FC = () => {
                                     ))}
                                 </select>
                                 {checklistTemplates.length === 0 && (
-                                    <p className="mt-1 text-[11px] text-slate-400">
+                                    <p className="mt-1 text-2xs text-slate-400">
                                         Save a checklist as a team template from the Pre-Match
                                         Checklist page to reuse it here.
                                     </p>
@@ -468,7 +468,7 @@ const SeasonManager: React.FC = () => {
                                 data-testid="wizard-confirm"
                                 onClick={confirmRollover}
                                 disabled={!rollover.name.trim() || isReadOnlyTeam}
-                                className="rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-lg bg-forge-600 px-4 py-2 font-medium text-white transition hover:bg-forge-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 Create Season
                             </button>
@@ -479,7 +479,7 @@ const SeasonManager: React.FC = () => {
 
             {deleteConfirmSeasonId && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full shadow-overlay">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                                 <AlertTriangle className="text-red-600" size={24} />

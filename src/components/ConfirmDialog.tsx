@@ -25,9 +25,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     onConfirm,
     onCancel,
 }) => (
-    // z-[60] keeps this above the task modal, which sits at z-50.
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+    // z-dialog keeps this above the task modal, which sits at z-50.
+    <div className="fixed inset-0 bg-black/50 z-dialog flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-overlay">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{title}</h3>
             <p className="text-slate-600 dark:text-slate-300 mb-6">{message}</p>
             <div className="flex justify-end gap-3">

@@ -168,12 +168,12 @@ const MatchPlanner: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row gap-2 md:gap-4 lg:h-full h-auto lg:overflow-hidden overflow-visible">
-      <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative min-h-[500px] lg:min-h-0">
-        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 shadow-sm">
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative min-h-canvas lg:min-h-0">
+        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 shadow-card">
           <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={() => setIsDrawingEnabled(!isDrawingEnabled)}
-              className={`p-2 rounded flex items-center justify-center ${isDrawingEnabled ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+              className={`p-2 rounded flex items-center justify-center ${isDrawingEnabled ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
               title={isDrawingEnabled ? 'Drawing ON (click to toggle)' : 'Drawing OFF (click to toggle)'}
             >
               <Pen size={18} />
@@ -208,22 +208,43 @@ const MatchPlanner: React.FC = () => {
             >
               <Trash2 size={18} />
             </button>
-            <div className="h-6 w-px bg-slate-300 dark:bg-slate-600 mx-1"></div>
+            <div className="h-5 w-px bg-slate-300 dark:bg-slate-600 mx-0.5" />
+            {/*
+             * ONE Load and ONE Save, at every width.
+             *
+             * There used to be two of each: these, in a toolbar with no `lg:hidden` on it, and
+             * a second labelled pair in the notes panel below marked "Mobile-only Action
+             * Buttons" — so on a phone BOTH rendered and the plan could be saved from two
+             * different controls eight hundred pixels apart. That is the Sidebar's
+             * desktop/mobile duplication one level down, and it had the same consequence: the
+             * `title` explaining WHY save is disabled on an archived season had to be
+             * maintained in two places, which is exactly the kind of thing that goes stale in
+             * one of them.
+             *
+             * The label appears from `sm` up and the icon carries it below that; `touch-target`
+             * gives both the 44px hit area a phone needs. `save-plan-desktop` and
+             * `save-plan-mobile` are now one `save-plan` — a deliberate test-id change, and no
+             * test asserted on either.
+             */}
             <button
+              data-testid="load-plan"
               onClick={() => setIsLoadModalOpen(true)}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded"
+              className="touch-target gap-1.5 px-2 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-forge-600 hover:bg-forge-50 dark:hover:bg-forge-900/30 rounded-lg transition-colors"
               title="Load Plans"
             >
-              <FolderOpen size={18} />
+              <FolderOpen size={16} />
+              <span className="hidden sm:inline">Load</span>
             </button>
             <button
-              data-testid="save-plan-desktop"
+              data-testid="save-plan"
               onClick={() => setIsSaveModalOpen(true)}
               disabled={!canEdit}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              className="touch-target gap-1.5 px-2.5 py-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg shadow-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-green-600"
+              /* The one explanation a disabled control gives. Do not strip it. */
               title={canEdit ? 'Save Plan' : 'This season is archived and read-only'}
             >
-              <Save size={18} />
+              <Save size={16} />
+              <span className="hidden sm:inline">Save</span>
             </button>
           </div>
         </div>
@@ -276,7 +297,7 @@ const MatchPlanner: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3 md:p-4 flex flex-col">
+      <div className="w-full lg:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 flex flex-col">
         <h3 className="font-bold text-slate-800 dark:text-white mb-4">Match Notes</h3>
         <div className="space-y-3 md:space-y-4 flex-1">
           <div>
@@ -311,24 +332,8 @@ const MatchPlanner: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile-only Action Buttons */}
-        <div className="flex gap-2 mt-4 lg:hidden">
-          <button
-            onClick={() => setIsLoadModalOpen(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-sm"
-          >
-            <FolderOpen size={18} /> Load
-          </button>
-          <button
-            data-testid="save-plan-mobile"
-            onClick={() => setIsSaveModalOpen(true)}
-            disabled={!canEdit}
-            title={canEdit ? 'Save Plan' : 'This season is archived and read-only'}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-600 text-white rounded-lg font-semibold text-sm shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Save size={18} /> Save
-          </button>
-        </div>
+        {/* The duplicated "Mobile-only Action Buttons" pair that used to sit here is gone —
+            see the toolbar above, which renders one Load and one Save at every width. */}
       </div>
 
       {/* Save Modal */}
@@ -365,10 +370,16 @@ const MatchPlanner: React.FC = () => {
       {/* Load Modal */}
       {isLoadModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-[80vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-modal flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Saved Plans</h3>
-              <button onClick={() => setIsLoadModalOpen(false)}><X /></button>
+              <button
+                onClick={() => setIsLoadModalOpen(false)}
+                className="touch-target p-1 -mr-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
+                aria-label="Close saved plans"
+              >
+                <X size={18} />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {matchPlans.length === 0 ? (
@@ -400,7 +411,7 @@ const MatchPlanner: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-overlay">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete Match Plan?</h3>
             <p className="text-slate-600 dark:text-slate-300 mb-6">
               This match plan will be permanently deleted. This action cannot be undone.

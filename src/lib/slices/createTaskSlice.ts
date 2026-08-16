@@ -1,6 +1,7 @@
 import type { Task } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
 import { canWriteToSeason } from '../season-rules';
+import type { SliceCreator } from './types';
 
 export interface TaskSlice {
     tasks: Task[];
@@ -19,8 +20,12 @@ export interface TaskSlice {
     deleteTask: (id: string) => void;
 }
 
-export const createTaskSlice = (set: any, get: any): TaskSlice => ({
-    tasks: [],
+export const taskInitialState = {
+    tasks: [] as Task[],
+};
+
+export const createTaskSlice: SliceCreator<TaskSlice> = (set, get) => ({
+    ...taskInitialState,
 
     setTasks: (tasks: Task[]) => set({ tasks }),
 

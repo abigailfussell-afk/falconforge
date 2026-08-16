@@ -1,5 +1,6 @@
 import type { ChecklistItem, MatchPlan, ScoutingReport, Season, SubTeam, Task } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
+import type { SliceCreator } from './types';
 
 /** What the new-season wizard collects. */
 export interface SeasonRolloverInput {
@@ -44,9 +45,13 @@ export interface SeasonSlice {
     rollOverSeason: (input: SeasonRolloverInput) => string | null;
 }
 
-export const createSeasonSlice = (set: any, get: any): SeasonSlice => ({
-    seasons: [],
-    currentSeasonId: null,
+export const seasonInitialState = {
+    seasons: [] as Season[],
+    currentSeasonId: null as string | null,
+};
+
+export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
+    ...seasonInitialState,
 
     addSeason: (name, fieldImageData = '', gameTitle = '') => {
         const { currentTeamId } = get();

@@ -14,9 +14,10 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 
 ## Tech Stack
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **Styling**: TailwindCSS
-- **State Management**: Zustand (with localStorage persistence)
+- **Frontend**: React 18 + TypeScript + Vite, routed with `HashRouter` (`#/app/board`, …)
+- **Styling**: Tailwind CSS v3, configured from design tokens in `tailwind.config.js`, with
+  Inter self-hosted and bundled (no font CDN — the PWA must render styled offline)
+- **State Management**: Zustand, persisted to IndexedDB, split into typed slices
 - **Offline Storage**: IndexedDB via Dexie.js
 - **Backend** (optional): Supabase (PostgreSQL + Auth)
 - **PWA**: Installable on desktop, tablet, and mobile
@@ -209,6 +210,52 @@ property test asserts `fromRemote(toRemote(x))` deep-equals `x`. Three separate 
 bugs were the same defect — a field carried one way and not the other — so new entities go
 here, not into an ad-hoc transform.
 
+## The design system
+
+Everything visual comes from `tailwind.config.js`. If you find yourself typing a square
+bracket, the token is missing — add it there rather than inline (there is exactly one
+arbitrary value left in `src/`, and it carries a comment explaining why it earns its place).
+
+**Type.** The named scale is *retuned*, not extended: `text-sm` is 13px and `text-base` is
+14px, against Tailwind's 14/16. Retuning the names is what makes a density pass reach every
+view at once instead of waiting for each one to opt in. `text-2xs` (11px) is the step below
+`text-xs`; it exists because fifteen independently-chosen `text-[10px]`/`text-[11px]` values
+had grown into the gap where it should have been.
+
+> **Do not raise `text-base` back to 16px without also removing the coarse-pointer floor in
+> `index.css`, and do not remove that floor while `text-base` is 14px.** iOS Safari zooms the
+> viewport when a focused input computes below 16px and does not zoom back out — at a venue,
+> with the keyboard open. The two changes are one change.
+
+**Colour.** `forge-*` is the brand ramp (identical values to Tailwind's `orange-*`, which it
+replaced everywhere in `src/`). Keep the orange identity; the plan is explicit that the
+problem was never the brand.
+
+**Space, elevation, radii.** `shadow-card` / `shadow-raised` / `shadow-overlay` are the three
+elevation steps, tuned to read on both the light and dark grounds. Container widths are named
+for what they hold — `max-w-prose`, `panel`, `dialog`, `wide`, `app` — and `AppShell` owns the
+outermost stop, so a view only sets its own width if it genuinely wants to be narrower.
+
+**Touch targets are opt-in**, via `touch-target` on the control that is actually a primary
+action. This replaced a blanket `@media (pointer: coarse)` block matching `button[class*="p-"]`
+and friends, which — being a substring match on the class attribute — also matched `px-2`,
+`placeholder-slate-400` and `pointer-events-none`, and so forced nearly every control on a
+phone to 44px wide.
+
+**`tall:`** is a height breakpoint (`min-height: 600px`), not a width one. It exists for the
+phone-keyboard case: when the viewport is short, ornament yields to navigation.
+
+## Navigation
+
+`src/lib/navigation.ts` defines the app's views once. The sidebar rail, the mobile drawer and
+the route table are three renderings of that one array — add a view there and it appears in
+all three or in none. Every view is a real route (`#/app/board`), deep-linkable and behind
+`React.lazy`.
+
+`Dashboard.test.tsx` asserts each nav entry appears **exactly once** in the DOM. That is not
+defensive style: the sidebar used to be two components with two copies of everything, and
+those assertions are what stop it becoming two again.
+
 ## Testing
 
 ```bash
@@ -236,8 +283,10 @@ falconforge/
 │   ├── lib/
 │   │   ├── auth.tsx           # Authentication context
 │   │   ├── supabase.ts        # Supabase clients (app + sync)
-│   │   ├── store.ts           # Zustand state, IndexedDB-persisted
-│   │   ├── slices/            # Store slices (tasks, sub-teams, seasons)
+│   │   ├── store.ts           # Store composition, persist config, reset
+│   │   ├── slices/            # One file per data domain, typed set/get
+│   │   ├── navigation.ts      # The app's views, defined ONCE (nav + routes)
+│   │   ├── season-scope.ts    # "which season, and may I edit it" — one answer
 │   │   ├── offline-db.ts      # Dexie: sync queue, dead letters, sync metadata
 │   │   ├── sync.ts            # The write path: queue drain, retry, dead-letter
 │   │   ├── server-pull.ts     # The read path: every server read, one rule
@@ -246,7 +295,10 @@ falconforge/
 │   │   ├── queries.ts         # Per-page background refresh hooks
 │   │   └── __mocks__/         # Manual mocks, opted into per test file
 │   ├── pages/                 # Login, Onboarding, CreateTeam, JoinTeam, legal
+│   ├── styles/fonts.css       # Self-hosted Inter @font-face
 │   ├── components/            # Feature UI
+│   │   ├── AppShell.tsx       # Sidebar + banner + <Outlet>, the app frame
+│   │   └── Sidebar.tsx        # ONE nav definition, rail at lg / drawer below
 │   └── test/db/               # Local-Postgres test harness + fixtures
 ├── supabase/
 │   ├── migrations/            # The schema. Source of truth.
@@ -256,8 +308,8 @@ falconforge/
 
 ## Roadmap
 
-Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle and the
-new-season wizard have landed; next is the UI density and routing pass, then the licensing and
+Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle, the
+new-season wizard, and the UI/density/routing pass have landed; next is the licensing and
 admin console with the legal pages, then beta hardening for FTC kickoff. After beta: meetings
 and attendance UI, guardian accounts, Stripe billing, and team data export — the schema for the
 first three is already live.

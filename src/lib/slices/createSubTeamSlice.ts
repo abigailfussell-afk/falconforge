@@ -1,6 +1,7 @@
 import type { SubTeam } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
 import { canWriteToSeason } from '../season-rules';
+import type { SliceCreator } from './types';
 
 export interface SubTeamSlice {
     subTeams: SubTeam[];
@@ -10,8 +11,12 @@ export interface SubTeamSlice {
     toggleMemberInSubTeam: (subTeamId: string, teamMemberId: string) => void;
 }
 
-export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
-    subTeams: [],
+export const subTeamInitialState = {
+    subTeams: [] as SubTeam[],
+};
+
+export const createSubTeamSlice: SliceCreator<SubTeamSlice> = (set, get) => ({
+    ...subTeamInitialState,
 
     setSubTeams: (subTeams: SubTeam[]) => set({ subTeams }),
 

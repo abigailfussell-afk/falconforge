@@ -83,11 +83,11 @@ const PreMatchChecklist: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col max-w-3xl mx-auto w-full">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
-                <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
+        <div className="h-full flex flex-col max-w-wide mx-auto w-full">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
+                <div className="p-3 md:p-4 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400">Reset this list before every match.</p>
                     </div>
                     <div className="flex gap-2">
@@ -95,7 +95,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="save-checklist-template"
                             onClick={() => setIsSavingTemplate(!isSavingTemplate)}
                             disabled={checklist.length === 0}
-                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isSavingTemplate ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isSavingTemplate ? 'bg-forge-100 text-forge-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                             title="Save as a team template"
                         >
                             <BookmarkPlus size={20} />
@@ -104,7 +104,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="edit-checklist"
                             onClick={() => setIsEditingChecklist(!isEditingChecklist)}
                             disabled={!canEdit}
-                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-forge-100 text-forge-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                             title={canEdit ? 'Edit Checklist' : 'This season is archived and read-only'}
                         >
                             <Edit size={20} />
@@ -113,7 +113,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="reset-checklist"
                             onClick={resetChecklist}
                             disabled={!canEdit}
-                            className="text-slate-500 hover:text-orange-600 p-2 rounded-full hover:bg-orange-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="text-slate-500 hover:text-forge-600 p-2 rounded-full hover:bg-forge-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
                             title={canEdit ? 'Reset Checklist' : 'This season is archived and read-only'}
                         >
                             <RotateCcw size={20} />
@@ -142,35 +142,69 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="confirm-save-template"
                             onClick={handleSaveTemplate}
                             disabled={!templateName.trim()}
-                            className="rounded bg-orange-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="rounded bg-forge-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Save
                         </button>
                     </div>
                 )}
-                <div className="divide-y divide-slate-100 dark:divide-slate-700 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700 flex-1 scroll-region-thin">
+                    {/*
+                     * THE EMPTY STATE.
+                     *
+                     * This was `checklist.map(...)` and nothing else, so a season whose
+                     * checklist has no items rendered a completely blank panel — a header, a
+                     * rule, and white space. That is not a rare corner: "blank" is one of the
+                     * three sources Sprint 4's rollover wizard offers for a new season's
+                     * checklist, so it is what a team sees on the first day of a new season
+                     * if they pick it. The only way to add anything is behind the "Edit
+                     * Checklist" button in the header, which an empty panel gives nobody a
+                     * reason to press.
+                     */}
+                    {checklist.length === 0 && !isEditingChecklist && (
+                        <div className="px-4 py-10 text-center">
+                            <CheckCircle2 size={26} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                            <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                                This checklist is empty
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-prose mx-auto mb-3">
+                                {canEdit
+                                    ? 'Add the things your team checks before every match — battery secured, bumpers on, driver station charged.'
+                                    : 'Nothing was recorded on this season’s checklist.'}
+                            </p>
+                            {canEdit && (
+                                <button
+                                    data-testid="checklist-empty-add"
+                                    onClick={() => setIsEditingChecklist(true)}
+                                    className="touch-target gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-forge-600 text-white hover:bg-forge-700 transition-colors"
+                                >
+                                    Add the first item
+                                </button>
+                            )}
+                        </div>
+                    )}
                     {checklist.map((item, index) => (
                         <div
                             key={item.id}
-                            className={`p-4 transition ${item.checked ? 'bg-green-50/50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'} ${isEditingChecklist ? 'flex flex-col gap-2' : 'flex items-center gap-4'}`}
+                            className={`px-3 py-2 transition-colors ${item.checked ? 'bg-green-50/50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'} ${isEditingChecklist ? 'flex flex-col gap-1.5' : 'flex items-center gap-3'}`}
                         >
                             {/* First row: checkbox + item name */}
-                            <div className="flex items-center gap-4 w-full">
-                                <div className="cursor-pointer flex-shrink-0" onClick={() => toggleCheck(item.id)}>
+                            <div className="flex items-center gap-2.5 w-full">
+                                <div className="cursor-pointer shrink-0" onClick={() => toggleCheck(item.id)}>
                                     {!isEditingChecklist && (
-                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
-                                            <CheckCircle2 size={16} fill="currentColor" className={item.checked ? 'text-white' : ''} />
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
+                                            <CheckCircle2 size={13} fill="currentColor" className={item.checked ? 'text-white' : ''} />
                                         </div>
                                     )}
                                 </div>
 
-                                <span onClick={() => toggleCheck(item.id)} className={`text-lg font-medium flex-1 cursor-pointer transition ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                <span onClick={() => toggleCheck(item.id)} className={`text-sm font-medium flex-1 cursor-pointer transition-colors ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
                                     {item.text}
                                 </span>
 
                                 {/* Show assignment badge in view mode */}
                                 {!isEditingChecklist && item.assignedTo && (
-                                    <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-2 py-1 rounded flex-shrink-0">
+                                    <span className="text-2xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded shrink-0">
                                         {getAssignmentDisplay(item.assignedTo)}
                                     </span>
                                 )}
@@ -180,7 +214,7 @@ const PreMatchChecklist: React.FC = () => {
                             {isEditingChecklist && (
                                 <div className="flex items-center justify-between gap-2 pl-0 md:pl-10">
                                     <select
-                                        className="text-xs border border-slate-200 dark:border-slate-600 rounded p-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex-1 max-w-[150px]"
+                                        className="text-xs border border-slate-200 dark:border-slate-600 rounded p-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex-1 max-w-36"
                                         value={item.assignedTo || ''}
                                         onChange={(e) => updateAssignment(item.id, e.target.value)}
                                     >
@@ -228,7 +262,7 @@ const PreMatchChecklist: React.FC = () => {
                                 placeholder="Add new item..."
                                 className="flex-1 border rounded px-3 py-2 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                             />
-                            <button onClick={handleAddChecklistItem} className="bg-orange-600 text-white px-4 py-2 rounded font-bold">Add</button>
+                            <button onClick={handleAddChecklistItem} className="bg-forge-600 text-white px-4 py-2 rounded font-bold">Add</button>
                         </div>
                     )}
                 </div>

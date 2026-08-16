@@ -5,6 +5,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../auth';
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
+import { PROFILE_CACHE_KEY } from '../profile-cache';
 
 /**
  * `auth.tsx` sat at 25% branch coverage. The action methods were covered; the lifecycle
@@ -81,6 +82,9 @@ beforeEach(() => {
   });
   fromMock.mockImplementation(() => tableStub());
   useAppStore.setState({ currentUserId: null });
+  // The profile cache is real localStorage here; a leftover from a previous test would let
+  // the "reads as Guest" case pass for the wrong reason.
+  localStorage.removeItem(PROFILE_CACHE_KEY);
 });
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -330,6 +334,150 @@ describe('auth lifecycle', () => {
       });
 
       expect(supabase!.from).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The profile, merged in from `user-context.tsx` (Sprint 5).
+   *
+   * That file held a `CurrentUserProvider` nested inside this one, deriving its inputs from
+   * `useAuth()` and then making its OWN `users` read and keeping its OWN localStorage cache
+   * of the same person. Two sources for one row, which could and did disagree. These tests
+   * pin the merged behaviour so it cannot quietly split again.
+   */
+  describe('profile', () => {
+    async function captureHandler() {
+      let handler!: (event: string, s: unknown) => Promise<void>;
+      authMock.onAuthStateChange.mockImplementation((cb: any) => {
+        handler = cb;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      });
+      const hook = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+      return { ...hook, handler: () => handler };
+    }
+
+    it('resolves the profile from the users row, in the same read as the age classification', async () => {
+      const users = tableStub({
+        data: { full_name: 'Ada Lovelace', avatar_url: 'https://x/a.png', age_classification: '18_plus' },
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) => (table === 'users' ? users : tableStub()));
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session());
+      });
+
+      expect(result.current.profile).toEqual({
+        id: 'user-1',
+        email: 'coach@example.com',
+        fullName: 'Ada Lovelace',
+        avatarUrl: 'https://x/a.png',
+      });
+      expect(result.current.displayName).toBe('Ada Lovelace');
+      expect(result.current.initials).toBe('AL');
+
+      /*
+       * ONE read of `users`, not two. `CurrentUserProvider` used to select
+       * `id, email, full_name, avatar_url` from the same row that this provider was already
+       * selecting `age_classification` from — two round trips to one row on every sign-in,
+       * on a connection that at a competition is frequently a tethered phone. The columns
+       * are merged into a single select; this is what stops the second one coming back.
+       *
+       * Both halves are asserted, and the second half is the one that bites. A call COUNT
+       * alone cannot catch the regression: `tableStub` resolves to whatever the test handed
+       * it regardless of which columns were asked for, so reverting the select to
+       * `age_classification` still returned a full row to the provider and still passed.
+       * Falsifying this (rule 10) is how that was found. The argument is the real assertion.
+       */
+      expect(users.select).toHaveBeenCalledTimes(1);
+      expect(users.select).toHaveBeenCalledWith(
+        expect.stringContaining('full_name'),
+      );
+      expect(users.select).toHaveBeenCalledWith(
+        expect.stringContaining('age_classification'),
+      );
+    });
+
+    it('falls back to auth metadata per field when the users row cannot be read', async () => {
+      // Offline, or an RLS refusal. The JWT is still good, so a signed-in person must never
+      // render as "Guest" just because the row read failed.
+      fromMock.mockImplementation(() => tableStub({ data: null, error: null }));
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session({ user_metadata: { full_name: 'Grace Hopper' } }));
+      });
+
+      expect(result.current.profile?.fullName).toBe('Grace Hopper');
+      expect(result.current.displayName).toBe('Grace Hopper');
+    });
+
+    it('reads as Guest when there is no profile at all', async () => {
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.profile).toBeNull();
+      expect(result.current.displayName).toBe('Guest');
+      expect(result.current.initials).toBe('G');
+    });
+
+    /*
+     * REGRESSION: renaming yourself renamed you in one place.
+     *
+     * `updateProfile` wrote the new name into the auth user, which the sidebar rendered from
+     * — but the roster and the task activity feed rendered from `CurrentUserProvider`'s
+     * separately-cached copy, which was only refreshed on the next auth event. So after
+     * "Save" the sidebar said the new name and your own comments still said the old one,
+     * until a reload. One source is what fixes it; this is what proves it.
+     */
+    it('carries a rename through to the profile, not just the auth user', async () => {
+      fromMock.mockImplementation(() =>
+        tableStub({ data: { full_name: 'Old Name', avatar_url: null, age_classification: null }, error: null }),
+      );
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session());
+      });
+      expect(result.current.displayName).toBe('Old Name');
+
+      authMock.updateUser.mockResolvedValueOnce({
+        data: { user: { id: 'user-1', email: 'coach@example.com', user_metadata: { full_name: 'New Name' } } },
+        error: null,
+      });
+      await act(async () => {
+        await result.current.updateProfile('New Name');
+      });
+
+      expect(result.current.profile?.fullName).toBe('New Name');
+      expect(result.current.displayName).toBe('New Name');
+    });
+
+    it('caches the profile so a cold offline start renders a name, and drops it on sign-out', async () => {
+      fromMock.mockImplementation(() =>
+        tableStub({ data: { full_name: 'Ada Lovelace', avatar_url: null, age_classification: null }, error: null }),
+      );
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session());
+      });
+
+      // Cached: this is what makes the PWA render a name rather than "Guest" when it opens
+      // at a venue with no connection and the users read cannot run at all.
+      expect(JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY)!).fullName).toBe('Ada Lovelace');
+
+      await act(async () => {
+        await handler()('SIGNED_OUT', null);
+      });
+
+      // Shared team laptop: the next person must not see the previous one's name while
+      // their own profile resolves.
+      expect(localStorage.getItem(PROFILE_CACHE_KEY)).toBeNull();
+      expect(result.current.profile).toBeNull();
+      expect(result.current.displayName).toBe('Guest');
     });
   });
 });

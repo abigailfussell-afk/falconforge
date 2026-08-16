@@ -49,30 +49,12 @@ export default defineConfig(() => {
           // of Vite's `build.sourcemap`. Both are currently published on falcon-forge.com.
           sourcemap: false,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-              },
-            },
-          ],
+          // No `runtimeCaching` entries. The two that used to be here cached
+          // fonts.googleapis.com and fonts.gstatic.com CacheFirst — a runtime cache is only
+          // ever a mitigation for a cross-origin dependency, and it does nothing on the
+          // first load, which is precisely the load that happens at a venue. Inter is
+          // bundled now (src/styles/fonts.css) and precached by the `woff2` glob above,
+          // so there is no third-party origin left to cache.
         },
         devOptions: {
           enabled: true,

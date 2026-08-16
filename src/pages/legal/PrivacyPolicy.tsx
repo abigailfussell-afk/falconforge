@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
                         <ArrowLeft size={20} />
                     </Link>
                     <div className="flex items-center gap-3">
-                        <Shield className="text-orange-500" size={28} />
+                        <Shield className="text-forge-500" size={28} />
                         <h1 className="text-2xl font-bold text-white">Privacy Policy</h1>
                     </div>
                 </div>

@@ -1,9 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import JoinTeam from '../JoinTeam';
 import * as authObj from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+
+/**
+ * Typed accessor for the stubbed client and hook.
+ *
+ * `(authObj.useAuth as any).mockReturnValue(...)` was written ten times in this file. This
+ * is the same helper `auth.test.tsx` uses and it keeps the mock API typed while the returned
+ * values stay deliberately partial — building a complete `AuthContextType` for every stub
+ * would be pages of fields no test reads.
+ */
+const asMock = (fn: unknown): Mock => fn as Mock;
 
 const mockSignOut = vi.fn();
 const mockUpdateAgeClassification = vi.fn();
@@ -46,6 +56,15 @@ vi.mock('../../lib/offline-db', () => ({
     clearAppState: vi.fn().mockResolvedValue(undefined),
 }));
 
+// The shared sign-out helper, observable. It calls through to the auth `signOut` it is
+// handed, so the behavioural assertions below still exercise the real path.
+const mockPerformSignOut = vi.fn(async (signOut: () => Promise<void>) => {
+    await signOut();
+});
+vi.mock('../../lib/sign-out', () => ({
+    performSignOut: (signOut: () => Promise<void>) => mockPerformSignOut(signOut),
+}));
+
 const mockNavigate = vi.fn();
 let mockParams = { code: 'ABC12345' };
 
@@ -74,7 +93,7 @@ describe('JoinTeam', () => {
         mockSignOut.mockResolvedValue({ error: null });
         mockUpdateAgeClassification.mockResolvedValue({ success: true, error: null });
         
-        (authObj.useAuth as any).mockReturnValue({
+        asMock(authObj.useAuth).mockReturnValue({
             user: { id: 'user-1', email: 'test@example.com' },
             session: { access_token: 'token' },
             isLoading: false,
@@ -84,7 +103,7 @@ describe('JoinTeam', () => {
             updateAgeClassification: mockUpdateAgeClassification,
         });
 
-        (supabase!.rpc as any).mockResolvedValue({ 
+        asMock(supabase!.rpc).mockResolvedValue({ 
             data: { success: true, team_name: 'Test Team', status: 'pending' }, 
             error: null 
         });
@@ -92,7 +111,7 @@ describe('JoinTeam', () => {
 
     describe('State Variations', () => {
         it('shows configuration required when Supabase is not configured', () => {
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 isConfigured: false,
                 signOut: mockSignOut
             });
@@ -103,7 +122,7 @@ describe('JoinTeam', () => {
         });
 
         it('shows sign in prompt if not authenticated', () => {
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 user: null,
                 isConfigured: true,
             });
@@ -113,7 +132,7 @@ describe('JoinTeam', () => {
         });
 
         it('shows complete profile form if age classification is missing', () => {
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 user: { id: 'user-1' },
                 isConfigured: true,
                 ageClassification: null,
@@ -152,7 +171,7 @@ describe('JoinTeam', () => {
 
     describe('Submission', () => {
         it('handles RPC error correctly', async () => {
-            (supabase!.rpc as any).mockResolvedValueOnce({ data: null, error: { message: 'Invalid code provided' } });
+            asMock(supabase!.rpc).mockResolvedValueOnce({ data: null, error: { message: 'Invalid code provided' } });
             render(<JoinTeam />, { wrapper: TestWrapper });
             
             fireEvent.click(screen.getByRole('button', { name: /Join Team/i }));
@@ -161,7 +180,7 @@ describe('JoinTeam', () => {
         });
 
         it('handles fail flag from RPC response', async () => {
-            (supabase!.rpc as any).mockResolvedValueOnce({ data: { success: false, error: 'Team is full' }, error: null });
+            asMock(supabase!.rpc).mockResolvedValueOnce({ data: { success: false, error: 'Team is full' }, error: null });
             render(<JoinTeam />, { wrapper: TestWrapper });
             
             fireEvent.click(screen.getByRole('button', { name: /Join Team/i }));
@@ -189,7 +208,7 @@ describe('JoinTeam', () => {
 
     describe('Profile Completion', () => {
         it('updates age classification and advances on success', async () => {
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 user: { id: 'user-1' },
                 isConfigured: true,
                 ageClassification: null,
@@ -216,7 +235,7 @@ describe('JoinTeam', () => {
         it('shows error if age classification update fails', async () => {
             mockUpdateAgeClassification.mockResolvedValueOnce({ success: false, error: { message: 'Network down' } });
             
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 user: { id: 'user-1' },
                 isConfigured: true,
                 ageClassification: null,
@@ -238,20 +257,51 @@ describe('JoinTeam', () => {
 
     describe('Sign Out process', () => {
         it('handles sign out through the log out button', async () => {
-            (authObj.useAuth as any).mockReturnValue({
+            asMock(authObj.useAuth).mockReturnValue({
                 isConfigured: false,
                 signOut: mockSignOut
             });
-            
+
             render(<JoinTeam />, { wrapper: TestWrapper });
-            
+
             fireEvent.click(screen.getByRole('button', { name: /Log Out/i }));
-            
+
             await waitFor(() => {
                 expect(mockSignOut).toHaveBeenCalled();
             });
-            
+
             expect(screen.getByText('Signing out securely...')).toBeDefined();
+        });
+
+        /*
+         * REGRESSION: JoinTeam had its own sign-out.
+         *
+         * Sprint 1 collapsed two verbatim copies (App.tsx, Onboarding.tsx) into
+         * `performSignOut` because a step missed in one copy leaks the previous user's data
+         * into the next session on a shared team laptop. This third copy was missed, and it
+         * had drifted exactly as predicted: it reset the store and cleared IndexedDB, but
+         * never called `teardownRealtimeSubscription()` (so a live subscription could
+         * repopulate the store after the reset) and never swept the `sb-*-auth-token` keys
+         * (so the session survived in localStorage whenever the network call did not land).
+         *
+         * The test above cannot catch that — it asserts the auth `signOut` was called, and
+         * BOTH implementations do that. What distinguishes them is which one runs the full
+         * teardown, so that is what this asserts.
+         */
+        it('signs out through the shared helper, not its own copy of the teardown', async () => {
+            asMock(authObj.useAuth).mockReturnValue({
+                isConfigured: false,
+                signOut: mockSignOut,
+            });
+
+            render(<JoinTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('button', { name: /Log Out/i }));
+
+            await waitFor(() => {
+                expect(mockPerformSignOut).toHaveBeenCalledTimes(1);
+            });
+            // Handed the auth signOut, so the helper's timeout handling wraps the real call.
+            expect(mockPerformSignOut).toHaveBeenCalledWith(mockSignOut);
         });
     });
 });

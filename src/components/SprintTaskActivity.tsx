@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { TeamMember, TimelineEvent } from '../types';
 import { Send, Trash2 } from 'lucide-react';
-import { useCurrentUser } from '../lib/user-context';
 import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
+import { useAuth } from '../lib/auth';
 
 /**
  * The activity feed and comment box for a task.
@@ -26,7 +26,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
     onDeleteComment,
 }) => {
     const [newComment, setNewComment] = useState('');
-    const { currentUser, displayName, initials: userInitials } = useCurrentUser();
+    const { profile, displayName, initials: userInitials } = useAuth();
 
     const submit = () => {
         if (!newComment.trim()) return;
@@ -41,7 +41,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
      */
     const describeAuthor = (authorId: string): { name: string; initials: string } => {
         if (authorId === 'System') return { name: 'System', initials: 'S' };
-        if (currentUser && authorId === currentUser.id) {
+        if (profile && authorId === profile.id) {
             return { name: displayName, initials: userInitials };
         }
         const member = teamMembers.find((m) => m.id === authorId);
@@ -64,7 +64,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                     className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                     onKeyDown={(e) => e.key === 'Enter' && submit()}
                 />
-                <button onClick={submit} className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 flex items-center justify-center">
+                <button onClick={submit} className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 flex items-center justify-center">
                     <Send size={18} />
                 </button>
             </div>

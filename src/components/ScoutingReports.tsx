@@ -126,15 +126,15 @@ const ScoutingReports: React.FC = () => {
     }
 
     return (
-        <div className="h-full flex flex-col max-w-7xl mx-auto w-full">
+        <div className="h-full flex flex-col w-full">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Scouting Reports</h2>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Scouting Reports</h2>
                 <button
                     data-testid="scout-match"
                     onClick={() => setIsScoutModalOpen(true)}
                     disabled={!canEdit}
                     title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
-                    className="bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-orange-700 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="bg-forge-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-forge-700 transition shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
                 </button>
@@ -145,7 +145,7 @@ const ScoutingReports: React.FC = () => {
                     <div
                         key={report.id}
                         onClick={() => openEditModal(report)}
-                        className="bg-white dark:bg-slate-800 p-3 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-orange-300 dark:hover:border-orange-600 transition cursor-pointer"
+                        className="bg-white dark:bg-slate-800 p-3 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition cursor-pointer"
                     >
                         <div className="flex justify-between items-start mb-4">
                             <div>
@@ -181,7 +181,7 @@ const ScoutingReports: React.FC = () => {
                             </div>
                             <div className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
                                 <span>Parking</span>
-                                <span className="font-medium text-orange-600 dark:text-orange-400">{report.parking}</span>
+                                <span className="font-medium text-forge-600 dark:text-forge-400">{report.parking}</span>
                             </div>
                         </div>
 
@@ -218,7 +218,7 @@ const ScoutingReports: React.FC = () => {
             {/* Delete Confirmation Modal */}
             {deleteConfirmId && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-overlay">
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete Report?</h3>
                         <p className="text-slate-600 dark:text-slate-300 mb-6">
                             This scouting report will be permanently deleted. This action cannot be undone.
@@ -243,7 +243,7 @@ const ScoutingReports: React.FC = () => {
 
             {isScoutModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg overflow-hidden flex flex-col max-h-modal shadow-overlay">
                         <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">{editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}</div>
                         <div className="p-6 space-y-4 overflow-y-auto">
                             <div className="grid grid-cols-2 gap-4">
@@ -291,7 +291,7 @@ const ScoutingReports: React.FC = () => {
                                 <label className="flex items-center gap-3 text-slate-800 dark:text-white">
                                     <input
                                         type="checkbox"
-                                        className="w-5 h-5 rounded text-orange-600"
+                                        className="w-5 h-5 rounded text-forge-600"
                                         checked={newScout.hasAutonomous}
                                         onChange={e => setNewScout({ ...newScout, hasAutonomous: e.target.checked })}
                                     />
@@ -380,7 +380,7 @@ const ScoutingReports: React.FC = () => {
                                 <input
                                     type="range"
                                     min="1" max="5"
-                                    className="w-full accent-orange-600"
+                                    className="w-full accent-forge-600"
                                     value={newScout.rating || 3}
                                     onChange={e => setNewScout({ ...newScout, rating: parseInt(e.target.value) })}
                                 />
@@ -409,7 +409,7 @@ const ScoutingReports: React.FC = () => {
                                 onClick={saveScoutingReport}
                                 disabled={!canEdit}
                                 title={canEdit ? 'Save report' : 'This season is archived and read-only'}
-                                className="px-6 py-2 bg-orange-600 text-white rounded font-medium hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="px-6 py-2 bg-forge-600 text-white rounded font-medium hover:bg-forge-700 disabled:opacity-40 disabled:cursor-not-allowed"
                             >Save Report</button>
                         </div>
                     </div>

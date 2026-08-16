@@ -362,26 +362,35 @@ describe('MatchPlanner', () => {
     });
 
     describe('Mobile UI and Modal specific branches', () => {
-        it('opens modals via mobile action buttons and handles cancellation', () => {
-            const { container } = render(<MatchPlanner />);
-            
-            const mobileButtons = container.querySelectorAll('.lg\\:hidden button');
-            const mobileLoad = mobileButtons[0];
-            const mobileSave = mobileButtons[1];
-            
-            // Mobile Load
-            if (mobileLoad) fireEvent.click(mobileLoad);
+        /*
+         * REGRESSION: Load and Save were each rendered twice.
+         *
+         * The toolbar pair had no `lg:hidden` on it, and a second labelled pair sat in the
+         * notes panel under a "Mobile-only Action Buttons" comment — so on a phone both
+         * rendered and the same plan could be saved from two controls, each carrying its own
+         * copy of the `title` that explains why Save is disabled on an archived season. Same
+         * defect as the duplicated Sidebar, one level down.
+         *
+         * This test used to reach for `.lg\\:hidden button` by CSS class and click
+         * `mobileButtons[0]` and `[1]` behind `if (x)` guards, so it asserted nothing about
+         * how many controls existed and would have gone quiet rather than red if the selector
+         * ever stopped matching. Counting them is the assertion that actually holds the line.
+         */
+        it('renders exactly one Load and one Save, and both drive their modals', () => {
+            render(<MatchPlanner />);
+
+            expect(screen.getAllByTestId('load-plan')).toHaveLength(1);
+            expect(screen.getAllByTestId('save-plan')).toHaveLength(1);
+            expect(screen.queryByTestId('save-plan-mobile')).toBeNull();
+            expect(screen.queryByTestId('save-plan-desktop')).toBeNull();
+
+            fireEvent.click(screen.getByTestId('load-plan'));
             expect(screen.getByText('Saved Plans')).toBeDefined();
-            
-            // Close Load Modal
-            const closeLoadBtn = container.querySelector('button svg.lucide-x')?.closest('button');
-            if (closeLoadBtn) fireEvent.click(closeLoadBtn);
-            
-            // Mobile Save
-            if (mobileSave) fireEvent.click(mobileSave);
+            fireEvent.click(screen.getByRole('button', { name: /close/i }));
+
+            fireEvent.click(screen.getByTestId('save-plan'));
             expect(screen.getByText('Save Match Plan')).toBeDefined();
-            
-            // Cancel Save Modal
+
             fireEvent.click(screen.getByText('Cancel'));
             expect(screen.queryByText('Save Match Plan')).toBeNull();
         });

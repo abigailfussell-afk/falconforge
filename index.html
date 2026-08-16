@@ -16,10 +16,14 @@
   <link rel="icon" type="image/png" href="/falcon_logo.png" />
   <link rel="apple-touch-icon" href="/logo.png" />
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!--
+    No font <link> here on purpose. Inter is self-hosted and bundled (src/styles/fonts.css),
+    so it is precached with the rest of the app and renders on a cold offline start. This is
+    where a render-blocking `fonts.googleapis.com` stylesheet and two preconnects used to
+    sit — the same cross-origin-dependency defect Sprint 1 removed the Tailwind CDN for, and
+    doubly wasted because `font-sans` overrode the result so the downloaded font never
+    rendered.
+  -->
 </head>
 
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">

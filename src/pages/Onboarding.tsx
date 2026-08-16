@@ -161,7 +161,7 @@ export default function Onboarding() {
                     {/* Logo with pulsing gradient backdrop */}
                     <div className="relative inline-flex items-center justify-center w-24 h-24 mb-6">
                         {/* Pulsing gradient background */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse"></div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-forge-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse"></div>
                         {/* Logo container */}
                         <div className="relative w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 p-2">
                             <img
@@ -171,7 +171,7 @@ export default function Onboarding() {
                             />
                         </div>
                     </div>
-                    <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                    <Loader2 className="w-12 h-12 text-forge-500 animate-spin mx-auto mb-4" />
                     <p className="text-slate-400">Loading your teams...</p>
                 </div>
             </div>
@@ -193,7 +193,7 @@ export default function Onboarding() {
                         </div>
                         <h1 className="text-3xl font-black italic tracking-tighter mb-2">
                             <span className="text-white">Almost </span>
-                            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">Done!</span>
+                            <span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">Done!</span>
                         </h1>
                         <p className="text-slate-400">
                             Please complete your profile configuration to continue.
@@ -208,7 +208,7 @@ export default function Onboarding() {
                                 </div>
                                 <h2 className="text-xl font-semibold text-white mb-2">Profile Complete!</h2>
                                 <p className="text-slate-400">Loading your teams...</p>
-                                <Loader2 className="w-6 h-6 animate-spin text-orange-500 mx-auto mt-4" />
+                                <Loader2 className="w-6 h-6 animate-spin text-forge-500 mx-auto mt-4" />
                             </div>
                         ) : (
                             <>
@@ -248,7 +248,7 @@ export default function Onboarding() {
                         />
                     </div>
                     <h1 className="text-3xl font-black italic tracking-tighter mb-2">
-                        <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
+                        <span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
                         <span className="text-slate-300">FORGE</span>
                     </h1>
                     <p className="text-slate-400">
@@ -262,8 +262,8 @@ export default function Onboarding() {
                     {user && (
                         <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
-                                    <Users size={20} className="text-orange-400" />
+                                <div className="w-10 h-10 bg-forge-500/20 rounded-full flex items-center justify-center">
+                                    <Users size={20} className="text-forge-400" />
                                 </div>
                                 <div>
                                     <p className="font-medium text-white">{user.user_metadata?.full_name || user.email}</p>
@@ -291,13 +291,13 @@ export default function Onboarding() {
                                         onClick={() => handleSelectTeam(team.id)}
                                         data-testid="team-option"
                                         className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${currentTeamId === team.id
-                                            ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
+                                            ? 'bg-forge-500/20 border border-forge-500/50 text-forge-400'
                                             : 'bg-slate-700/30 hover:bg-slate-700/50 border border-transparent text-white'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${currentTeamId === team.id
-                                                ? 'bg-orange-500/30 text-orange-400'
+                                                ? 'bg-forge-500/30 text-forge-400'
                                                 : 'bg-slate-600 text-slate-300'
                                                 }`}>
                                                 {team.teamNumber ? `#${team.teamNumber.slice(-3)}` : team.name.charAt(0)}
@@ -350,14 +350,14 @@ export default function Onboarding() {
                         {ageClassification === '18_plus' && (
                             <button
                                 onClick={() => navigate('/create-team')}
-                                className="w-full flex items-center gap-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 px-5 rounded-xl transition-all shadow-lg shadow-orange-500/20"
+                                className="w-full flex items-center gap-4 bg-gradient-to-r from-forge-500 to-forge-600 hover:from-forge-600 hover:to-forge-700 text-white font-semibold py-4 px-5 rounded-xl transition-all shadow-lg shadow-forge-500/20"
                             >
                                 <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
                                     <Plus size={22} />
                                 </div>
                                 <div className="text-left">
                                     <p className="font-semibold">Create a Team</p>
-                                    <p className="text-sm text-orange-100/80">For coaches starting a new team</p>
+                                    <p className="text-sm text-forge-100/80">For coaches starting a new team</p>
                                 </div>
                             </button>
                         )}
