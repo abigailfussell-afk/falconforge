@@ -264,6 +264,68 @@ all three or in none. Every view is a real route (`#/app/board`), deep-linkable 
 defensive style: the sidebar used to be two components with two copies of everything, and
 those assertions are what stop it becoming two again.
 
+Views can be gated on a capability — `requiresManage` (admin or coach) and `requiresOperator`
+(the platform operator). Both are UX only: the routes render their own refusal for anyone who
+follows a deep link, and the database refuses the writes regardless. `navViewsFor` defaults
+`isOperator` to false so adding a gated view cannot leak into an existing caller's nav.
+
+## Licensing, seats, and who may do what
+
+A team needs a current **licence** to write. Reads are never gated: an expired licence puts the
+team in read-only mode and deletes nothing, which is a locked product decision and the reason
+`team_can_write()` appears in every write policy and in none of the read ones.
+
+**Seats are purchased team capacity, and the gate is join approval.** One seat per approved
+member, the admin included. The whole model is three checks that all live in the database:
+
+| Question | Enforced by | Where |
+|---|---|---|
+| Is this person on the team? | `is_team_member()` → `status = 'approved'` | RLS, every table |
+| May the team write at all? | `team_can_write()` → an in-force grant | RLS, every table |
+| May the admin approve one more? | `enforce_seat_capacity()` | BEFORE trigger |
+
+**No policy consults `seat_assigned`, deliberately** — schema assertion 19 fails if one starts
+to. Per-member licence checks in the write path would put licensing on the critical path of a
+student's offline write at a competition, and lock out whoever's device could not ask. Putting
+the gate at approval instead means the enforcement point is an action that is inherently online
+and rare, and the offline path never consults licensing at all.
+
+Approving a member sets `status` and `seat_assigned` in one statement, so the trigger refuses
+the whole approval atomically when the team is full. Invite codes are capped at the seats
+actually free, so twenty people cannot sign up for ten places. Reducing a seat count below the
+current headcount is allowed — a customer must always be able to lower their bill — and nobody
+loses access; the team simply cannot approve anyone new until it is back under.
+
+Everything client-side **fails open**: `entitlement` is read over the network, and "we could not
+ask" is never treated as "no". Predicates are written against a positive `'read_only'`, never
+`!== 'active'`, because the two differ exactly on the device that has never managed to read.
+
+### Handing a team over
+
+Exactly one admin per team, enforced by a partial unique index — so moving the role is a
+transfer, not an edit. It is a **two-party handshake**: the admin nominates, and the successor
+accepts after reading the terms. That is not ceremony. `enforce_member_role_eligibility` refuses
+the admin role to anyone who has not accepted the terms themselves, and you cannot validly attest
+on somebody else's behalf.
+
+If an admin leaves **without** handing over, the team is stranded: every warm path runs through
+`can_manage_billing`, which only they satisfied, and the unique index blocks promoting anyone
+while their row still holds the role. `operator_transfer_team_admin` is the only way out, gated
+on `is_platform_operator()` and recorded in `operator_actions` — a table with a SELECT policy and
+no INSERT/UPDATE/DELETE policy at all, because a trail the caller can append to is not evidence.
+
+### Legal documents and attestations
+
+`ATTESTATION_VERSIONS` in `lib/attestations.ts` is the **only** place a document version is
+written; the pages read it, so a page cannot claim 2.0 while the app accepts 1.0. Raising a
+version makes `ReAttestationPrompt` ask again on next sign-in.
+
+The split is deliberate: the **database** asks only whether somebody has accepted a document at
+all (consent identity), because the current version number is a client artefact and duplicating
+it in a trigger would create two sources of truth. Whether an acceptance is **current** is the
+client's question (consent freshness). `user_attestations`' unique key includes `version`, so
+accepting a new version keeps the record of the old one.
+
 ## Testing
 
 ```bash
