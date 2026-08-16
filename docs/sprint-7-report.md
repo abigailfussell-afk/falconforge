@@ -1,7 +1,8 @@
 # Sprint 7 — Beta hardening & launch
 
-Branch `v2/sprint-7-hardening`, off the merged `main` (`cafc0d3`). Fifteen commits. **Not merged,
-not pushed, not deployed.**
+Branch `v2/sprint-7-hardening`, off the merged `main` (`cafc0d3`). Sixteen commits.
+**Merged, pushed and deployed** — see "Shipping it" at the end for what that involved and what
+the first-ever CI run on this code found.
 
 ---
 
@@ -299,6 +300,63 @@ Two further things I want to state plainly rather than let the table imply:
 
 ---
 
+## Shipping it
+
+Done in the order `deploy.yml` and `docs/beta-ops.md` now prescribe, because two migrations were
+outstanding — Sprint 6's `20260818000000`, which had been merged but never deployed, and Sprint
+7's `20260819000000`.
+
+1. **Backup first.** Schema and data dumps into `backups/` (gitignored). Verified the data dump
+   actually contained the irreplaceable row before going further — `platform_operators`, plus
+   `auth.users` and TestTeam.
+2. **Migrations applied to the hosted project**, dry-run first (it listed exactly the two
+   expected, nothing else).
+3. **Verified against production**: remote migration list up to date; the operator row and
+   TestTeam intact; `REVOKE ALL ... FROM PUBLIC` present on the admin RPCs with grants to
+   `authenticated` and `service_role` and **none to anon**; and `team_entitlement` still
+   answering anon `200 []` — the property the REVOKE had to be careful not to break, now
+   confirmed on the real database rather than only locally.
+4. **Merged to `main`, Gate re-run on the merge**, pushed. Deploy fired automatically, which is
+   the restored posture working for the first time.
+5. **Confirmed live**: falcon-forge.com serves a new bundle containing this sprint's strings —
+   the offline banner, the update prompt, the error-boundary copy, the offline queue count and
+   the parked-changes dialog.
+
+### The first CI run on this code failed, and it was right to
+
+This is the sprint's own headline fix paying for itself within the hour. `ci.yml` had never
+triggered on a sprint branch, so **six sprints of work had merged to `main` without a GitHub
+runner ever seeing it**. The first run that did went red:
+
+```
+ReferenceError: document is not defined
+ ❯ src/lib/store.ts:227:17
+ ❯ node_modules/zustand/esm/middleware.mjs:533:50
+This error originated in "src/lib/__tests__/entitlement.test.ts"
+```
+
+`onRehydrateStorage` fires when zustand finishes reading persisted state out of IndexedDB. That
+is asynchronous and unscheduled, so under Vitest it can land *after* the test file's jsdom
+environment has been torn down, and the callback then throws with no `document` to touch.
+
+Two things made it genuinely hard to see, and both are worth remembering:
+
+- It surfaces as an **unhandled error rather than a failed assertion**, so the run fails while
+  every individual test still reports as passing.
+- It is a **race against teardown**, so it is green on a developer machine and red on a two-core
+  runner. It did not reproduce under `CI=true`, under `TZ=UTC`, or on Linux in Docker — all
+  three were tried — and identifying it needed the check-run annotations from the actual run,
+  since job logs need admin rights the session did not have.
+
+The fallback a few lines below in the same file already guards with
+`typeof window !== 'undefined'` for exactly this reason; the callback simply did not. Extracted
+to `applyPersistedTheme` so the guard is testable, with the positive control asserted as well —
+a version that always returned early would pass the guard test and quietly break theming for
+everyone. Verified to fail without the fix.
+
+The `smoke` and `schema` jobs both passed on that same run, which is the new tooling working in
+CI on its first outing.
+
 ## Handing on
 
 Seven new parking-lot items in §8, the first of which is the password. The most actionable of the
@@ -306,5 +364,6 @@ rest is the **406/409 pair logged during registration** — `ensureUserProfile` 
 `users` while the `handle_new_user` trigger inserts the same row. The flow succeeds either way,
 which is why it has never surfaced, but it is noise on the one path every user takes exactly once.
 
-Nothing is pushed. To ship this: apply the migration to the hosted project (after a dump), merge,
-and `main` now deploys on its own — with the read-only production check running afterwards.
+Shipped, as described above. From here `main` deploys on its own, with the read-only production
+check running after each one; the only manual step that remains is applying a migration to the
+hosted project before merging the branch that needs it.
