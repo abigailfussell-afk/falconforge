@@ -18,7 +18,9 @@ This is the first sprint since Sprint 3 whose exit criteria need KEVIN, not just
 suite: screenshots at 375 / 768 / 1280 for every main view, and his look-and-feel review
 before merge. Plan for that — do not merge on your own judgement of the design.
 
-TWO DECISIONS ARE KEVIN'S, NOT YOURS. Ask before you start; do not infer.
+TWO DECISIONS ARE KEVIN'S, NOT YOURS. **Ask both in your first message and wait** — there
+is no separate design-planning pass ahead of you, so these arrive with you and nothing else
+in the sprint should start until they are answered. Do not infer them from the code.
 
   1. **Tailwind v3 -> v4.** The parking lot defers this to your sprint "where the design
      tokens are being reworked anyway and visual diffs are expected". v4 renames or drops
@@ -106,10 +108,18 @@ Three things outside your scope that may bite you:
     was unrecoverable). For local work write `.env.development.local`, which takes priority
     in dev mode and is gitignored, and delete it when you are done. There is a `dev` config
     in `.claude/launch.json` on port 5188.
-  - **Check whether `20260817000000_v2_season_lifecycle.sql` has reached production before
-    you assume the hosted schema matches your local one.** If it has not, say so rather
-    than pushing it — it is Kevin's call, and the ordering matters (migration first, then
-    the bundle: the client writes `game_title` and `is_archived` on every season upsert).
+  - **MERGING TO `main` IS DEPLOYING.** `deploy.yml` triggers on push to `main`, so the
+    moment Sprint 4's PR merged, the new bundle went live on falcon-forge.com. It went live
+    against a database that did not yet have Sprint 4's columns, and every season write on
+    production 400'd until the migration was pushed a few minutes later. It is fixed — all
+    seven migrations are applied to the hosted project and verified — so you start from a
+    schema that matches your local one, and you are not changing it.
+
+    It still matters to you: your sprint is the one whose changes are VISIBLE, so a merge
+    puts your type scale, your density pass and your navigation rewrite in front of anyone
+    using the app immediately. Do not treat "merged" as a staging step. The plan's §7.3
+    suggests keeping deploys manual until Sprint 7 hardening, and this is the argument for
+    actually doing it — raise it with Kevin rather than deciding alone.
   - **A stale dead-letter can survive a local database reset** in the dev browser profile.
     Sprint 4 hit one from Sprint 3's walkthrough. If the sync indicator offers "Retry it"
     before you have done anything, check IndexedDB before believing you broke something.
