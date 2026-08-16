@@ -168,3 +168,40 @@ export async function goToView(page: Page, navId: string, path: string): Promise
     });
     await page.waitForSelector('[aria-label="Loading view"]', { state: 'detached', timeout: 30_000 }).catch(() => {});
 }
+
+/**
+ * Wait until the offline queue has drained.
+ *
+ * Every write in this app is queued and pushed in the background, so "I pressed Save" and
+ * "the server has it" are different moments. Most flows do not care. Check-in does: the code
+ * only resolves once the meeting that owns it has actually landed, and a test that checks in
+ * the instant after creating an event is racing the drain — which is how the smoke pack found
+ * that the client blamed the CODE for the server simply being behind.
+ *
+ * Asserted on the sync indicator rather than on a sleep, because the indicator is the thing a
+ * coach reads for the same answer.
+ */
+export async function waitForSync(page: Page): Promise<void> {
+    const status = page.getByTestId('sync-status');
+
+    /*
+     * WAIT FOR "pending" TO APPEAR BEFORE WAITING FOR IT TO GO.
+     *
+     * `queueForSync` is fire-and-forget — the store action returns before the IndexedDB write
+     * lands and before `pendingChanges` updates — so for a tick or two after Save the
+     * indicator still reads "Live". The first draft of this helper asserted only that it read
+     * "Live", which is true in that gap and therefore asserted nothing at all: the check-in
+     * that followed raced the drain and lost, and the test failed on the symptom (`unknown
+     * code`) rather than on the wait.
+     *
+     * Tolerating a miss on the first wait is deliberate. If the drain is quick enough that
+     * "pending" never renders, the work is already done and there is nothing to wait for.
+     */
+    await status
+        .filter({ hasText: /pending/i })
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .catch(() => {});
+
+    await expect(status).not.toContainText(/pending/i, { timeout: 45_000 });
+    await expect(status).toContainText(/Live|Synced/i, { timeout: 45_000 });
+}

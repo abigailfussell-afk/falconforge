@@ -227,6 +227,111 @@ export interface Season {
   createdAt: number;
 }
 
+// ============================================
+// MEETINGS AND ATTENDANCE (Sprint 8)
+// ============================================
+
+/**
+ * What kind of event this is. Drives the colour, the icon and — for `deadline` — whether
+ * attendance exists at all.
+ *
+ * These are the seven the design specifies, and the strings match the `event_type` CHECK
+ * constraint exactly. `team_meeting` rather than `meeting` because `meeting` is already the
+ * name of the row.
+ */
+export type MeetingEventType =
+  | 'practice'
+  | 'team_meeting'
+  | 'build'
+  | 'competition'
+  | 'outreach'
+  | 'fundraiser'
+  | 'deadline';
+
+/**
+ * Present, Excused or Absent. There is no Late.
+ *
+ * A scan inside the check-in window is simply Present — the window IS the lateness rule, and
+ * a fourth state would need a threshold, a policy for who sets it, and a column in every
+ * report. The database CHECK was narrowed to these three in Sprint 8's migration so the type
+ * and the constraint cannot drift.
+ *
+ * A member with no record is not "absent". They are unrecorded, rendered "—", and stay that
+ * way until a coach saves the roster. Nobody is auto-marked absent, ever: an attendance
+ * record is a claim somebody made, and "the system assumed" is not a claim.
+ */
+export type AttendanceStatus = 'present' | 'excused' | 'absent';
+
+/** How a status came to be recorded: a scanned QR, a typed code, or a coach saying so. */
+export type AttendanceMethod = 'qr' | 'code' | 'coach';
+
+/**
+ * One occurrence on the schedule.
+ *
+ * A recurring series is a set of these rows, generated together, sharing `seriesId` and
+ * `recurrenceRule` and NOT sharing `publicCode`. Each occurrence owns its own code, which is
+ * what stops last Monday's poster checking anybody in to this Monday's session.
+ */
+export interface Meeting {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  eventType: MeetingEventType;
+  /**
+   * The four digits printed under the QR, unique within the team.
+   *
+   * `''` means the event has no check-in: always true of a deadline, and true of anything a
+   * coach turned attendance tracking off for.
+   */
+  publicCode: string;
+  /** Members are expected. False for an optional event that still takes attendance. */
+  attendanceRequired: boolean;
+  startsAt: number;
+  endsAt?: number;
+  /**
+   * Explicit check-in window. `undefined` means the default — 15 minutes before the start
+   * until the end — which is applied at read time by `checkinWindow()` and by the database's
+   * `meeting_checkin_opens`/`meeting_checkin_closes`, never written into the record.
+   *
+   * That is what makes "moving the meeting moves the window, unless it was overridden" true
+   * without a third field recording whether it was overridden.
+   */
+  checkinOpensAt?: number;
+  checkinClosesAt?: number;
+  /** How the series was generated. Empty for a one-off. */
+  recurrenceRule: string;
+  /** Shared by every occurrence generated together. Empty once an occurrence is forked. */
+  seriesId: string;
+  /** TeamMember id. */
+  createdBy: string;
+  seasonId: string;
+}
+
+/**
+ * One person's attendance at one meeting.
+ *
+ * `attestedBy` and `attestedAt` are the point of the record rather than metadata on it: the
+ * status alone cannot answer "who says so, and on what basis" when a parent asks three weeks
+ * later. `method` is the other half — a coach re-reading a roster needs to tell "they scanned
+ * in at 5:58" from "I ticked this box from memory".
+ *
+ * No `seasonId`: it hangs off its meeting, which is the one season-scoped table without one.
+ * The database reaches the season through `meeting_season_is_open`.
+ */
+export interface MeetingAttendance {
+  id: string;
+  meetingId: string;
+  /** TeamMember id — not a user id. A guardian-managed profile has a roster row and no login. */
+  teamMemberId: string;
+  status: AttendanceStatus;
+  method: AttendanceMethod;
+  notes: string;
+  /** TeamMember id of whoever recorded it. Themselves, for a scan. */
+  attestedBy: string;
+  attestedAt?: number;
+}
+
 /**
  * A saved checklist a team can start a new season from.
  *

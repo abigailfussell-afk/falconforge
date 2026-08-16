@@ -113,11 +113,20 @@ describe('realtime', () => {
             // first (B16). That added `seasons`, which was previously omitted -- so this
             // is 6 tables x 3 events, not the old 5 x 3. Season renames now propagate live
             // instead of waiting for the next pull; the table is tiny and rarely written.
+            //
+            // Sprint 8 made it 8: registering `meetings` and `meeting_attendance` enrolled
+            // them here as a consequence of the same derivation, which is the point of it.
+            // A cancelled meeting has to reach the phones of the people who were going to
+            // turn up to it, and a check-in has to appear in the coach's live feed. Both
+            // tables were given REPLICA IDENTITY FULL in the same migration, because a
+            // subscription filtered on `team_id` cannot see a DELETE without it (B7/B22) --
+            // and this list is what assertion 5 in `schema_assertions.sql` mirrors.
             const tables = mockOn.mock.calls.map((call: any[]) => call[1]?.table);
             const distinct = [...new Set(tables)];
 
             expect(distinct.sort()).toEqual([
-                'checklists', 'match_plans', 'scouting_reports', 'seasons', 'sub_teams', 'tasks',
+                'checklists', 'match_plans', 'meeting_attendance', 'meetings',
+                'scouting_reports', 'seasons', 'sub_teams', 'tasks',
             ]);
             expect(mockOn).toHaveBeenCalledTimes(distinct.length * 3);
         });

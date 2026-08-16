@@ -23,7 +23,16 @@ import {
     toEpochMillis,
     toISO,
 } from '@/lib/entity-registry';
-import type { Task, ScoutingReport, MatchPlan, Season, SubTeam, TeamMember } from '@/types';
+import type {
+    Task,
+    ScoutingReport,
+    MatchPlan,
+    Season,
+    SubTeam,
+    TeamMember,
+    Meeting,
+    MeetingAttendance,
+} from '@/types';
 
 /** Contextual fields the server needs but the local types do not carry. */
 const CTX = { teamId: 'team-1', seasonId: 'season-1' };
@@ -110,8 +119,41 @@ const teamMember: TeamMember = {
     joinedAt: 0, // server-assigned
 };
 
+const meeting: Meeting = {
+    id: 'meeting-1',
+    title: 'Build session — chassis rebuild',
+    description: 'Bring the spare motors',
+    location: 'Room 214 — engineering lab',
+    eventType: 'build',
+    publicCode: '0842',
+    attendanceRequired: true,
+    startsAt: 1_760_000_000_000,
+    endsAt: 1_760_009_000_000,
+    // Set explicitly, because the round trip has to prove an OVERRIDE survives. The default
+    // window is the `undefined` case and is covered in `checkin-window.test.ts`.
+    checkinOpensAt: 1_759_999_100_000,
+    checkinClosesAt: 1_760_009_000_000,
+    recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1;UNTIL=20261214',
+    seriesId: 'series-1',
+    createdBy: 'member-1',
+    seasonId: 'season-1',
+};
+
+const meetingAttendance: MeetingAttendance = {
+    id: 'attendance-1',
+    meetingId: 'meeting-1',
+    teamMemberId: 'member-1',
+    status: 'excused',
+    method: 'coach',
+    notes: 'Family trip',
+    attestedBy: 'member-2',
+    attestedAt: 1_760_000_400_000,
+};
+
 const SAMPLES: Record<string, any> = {
     tasks: task,
+    meetings: meeting,
+    meeting_attendance: meetingAttendance,
     seasons: season,
     sub_teams: subTeam,
     scouting_reports: scoutingReport,
@@ -168,6 +210,59 @@ describe('the specific fields that used to be dropped', () => {
 
         expect(row.archived_at).toBe(new Date(3000).toISOString());
         expect(t.fromRemote(row).archivedAt).toBe(3000);
+    });
+});
+
+describe('the fields a meeting must never lose', () => {
+    it('writes an empty code as NULL rather than an empty string', () => {
+        // `public_code` has a four-digit CHECK and a partial unique index excluding NULLs.
+        // `''` fails the first and would collide on the second, so "no check-in" has to be
+        // NULL — and this is the direction that would have been wrong silently.
+        const m = findEntity('meetings')!;
+        const row = m.toRemote({ ...meeting, publicCode: '', ...CTX });
+
+        expect(row.public_code).toBeNull();
+        expect(m.fromRemote(row).publicCode).toBe('');
+    });
+
+    it('leaves a default check-in window as NULL in both directions', () => {
+        // NULL means "derive it". Writing the derived value would make every meeting
+        // permanently overridden the first time somebody saved it, so moving the meeting
+        // would stop moving the window.
+        const m = findEntity('meetings')!;
+        const row = m.toRemote({
+            ...meeting,
+            checkinOpensAt: undefined,
+            checkinClosesAt: undefined,
+            ...CTX,
+        });
+
+        expect(row.checkin_opens_at).toBeNull();
+        expect(row.checkin_closes_at).toBeNull();
+        expect(m.fromRemote(row).checkinOpensAt).toBeUndefined();
+        expect(m.fromRemote(row).checkinClosesAt).toBeUndefined();
+    });
+
+    it('keeps the series link and the rule together', () => {
+        const m = findEntity('meetings')!;
+        const row = m.toRemote({ ...meeting, ...CTX });
+
+        expect(row.series_id).toBe('series-1');
+        expect(row.recurrence_rule).toBe('FREQ=WEEKLY;INTERVAL=1;UNTIL=20261214');
+    });
+
+    it('narrows an unrecognised status to excused rather than absent', () => {
+        // Falling back to `absent` would be a LIE about a person. `excused` counts neither
+        // for nor against anybody, which is the only safe default for this column.
+        const a = findEntity('meeting_attendance')!;
+        expect(a.fromRemote({ id: 'x', status: 'late' }).status).toBe('excused');
+        expect(a.fromRemote({ id: 'x', status: 'absent' }).status).toBe('absent');
+    });
+
+    it('records the method a status was set by', () => {
+        const a = findEntity('meeting_attendance')!;
+        expect(a.toRemote({ ...meetingAttendance, method: 'qr', ...CTX }).method).toBe('qr');
+        expect(a.fromRemote({ id: 'x', method: 'nonsense' }).method).toBe('coach');
     });
 });
 

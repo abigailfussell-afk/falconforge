@@ -365,6 +365,7 @@ export type Database = {
           created_at: string
           id: string
           meeting_id: string
+          method: string
           notes: string | null
           status: string
           team_id: string
@@ -377,6 +378,7 @@ export type Database = {
           created_at?: string
           id?: string
           meeting_id: string
+          method?: string
           notes?: string | null
           status?: string
           team_id: string
@@ -389,6 +391,7 @@ export type Database = {
           created_at?: string
           id?: string
           meeting_id?: string
+          method?: string
           notes?: string | null
           status?: string
           team_id?: string
@@ -435,42 +438,60 @@ export type Database = {
       }
       meetings: {
         Row: {
+          attendance_required: boolean
+          checkin_closes_at: string | null
+          checkin_opens_at: string | null
           created_at: string
           created_by: string | null
           description: string | null
           ends_at: string | null
+          event_type: string
           id: string
           location: string | null
+          public_code: string | null
           recurrence_rule: string | null
           season_id: string
+          series_id: string | null
           starts_at: string
           team_id: string
           title: string
           updated_at: string
         }
         Insert: {
+          attendance_required?: boolean
+          checkin_closes_at?: string | null
+          checkin_opens_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           ends_at?: string | null
+          event_type?: string
           id?: string
           location?: string | null
+          public_code?: string | null
           recurrence_rule?: string | null
           season_id: string
+          series_id?: string | null
           starts_at: string
           team_id: string
           title: string
           updated_at?: string
         }
         Update: {
+          attendance_required?: boolean
+          checkin_closes_at?: string | null
+          checkin_opens_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           ends_at?: string | null
+          event_type?: string
           id?: string
           location?: string | null
+          public_code?: string | null
           recurrence_rule?: string | null
           season_id?: string
+          series_id?: string | null
           starts_at?: string
           team_id?: string
           title?: string
@@ -1064,16 +1085,26 @@ export type Database = {
       admin_nomination_ttl: { Args: never; Returns: string }
       can_manage_billing: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_content: { Args: { p_team_id: string }; Returns: boolean }
+      can_manage_meetings: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_roster: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_structure: { Args: { p_team_id: string }; Returns: boolean }
       cancel_team_admin_nomination: {
         Args: { p_team_id: string }
         Returns: Json
       }
+      check_in_with_code: {
+        Args: { p_code: string; p_method?: string; p_team_id: string }
+        Returns: Json
+      }
+      close_meeting_checkin: {
+        Args: { p_meeting_id: string; p_team_id: string }
+        Returns: Json
+      }
       create_team_as_admin: {
         Args: { season_name: string; team_name: string; team_number?: string }
         Returns: Json
       }
+      current_team_member_id: { Args: { p_team_id: string }; Returns: string }
       current_team_role: { Args: { p_team_id: string }; Returns: string }
       get_user_team_ids: { Args: { p_user_id: string }; Returns: string[] }
       grant_team_license: {
@@ -1089,6 +1120,14 @@ export type Database = {
       is_profile_guardian: { Args: { p_profile_id: string }; Returns: boolean }
       is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       join_team_with_invite: { Args: { invite_code: string }; Returns: Json }
+      meeting_checkin_closes: {
+        Args: { p_meeting: Database["public"]["Tables"]["meetings"]["Row"] }
+        Returns: string
+      }
+      meeting_checkin_opens: {
+        Args: { p_meeting: Database["public"]["Tables"]["meetings"]["Row"] }
+        Returns: string
+      }
       meeting_season_is_open: {
         Args: { p_meeting_id: string; p_team_id: string }
         Returns: boolean

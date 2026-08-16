@@ -62,6 +62,28 @@ const VIEWS = [
     { file: 'checklist', hash: '#/app/checklist', nav: 'checklist' },
     { file: 'scouting', hash: '#/app/scouting', nav: 'scouting' },
     { file: 'match-planner', hash: '#/app/planner', nav: 'planner' },
+    /*
+     * Sprint 8. The three meetings views that need no meeting id; the four that DO are
+     * captured after this loop, because the id has to be read out of the running app.
+     *
+     * `checkin` carries `nav: null`: it lives at `#/app/checkin`, outside `#/app/meetings`,
+     * so the Meetings rail item is not `aria-current` there and waiting for it would hang.
+     */
+    { file: 'meetings', hash: '#/app/meetings', nav: 'meetings' },
+    {
+        file: 'meetings-calendar',
+        hash: '#/app/meetings',
+        nav: 'meetings',
+        click: 'Calendar',
+        marker: '[data-testid="upcoming-events"], [data-testid="student-schedule"]',
+    },
+    {
+        file: 'attendance-summary',
+        hash: '#/app/meetings/summary',
+        nav: 'meetings',
+        marker: 'text=Attendance summary',
+    },
+    { file: 'check-in-code', hash: '#/app/checkin', nav: null, marker: '[data-testid="code-display"]' },
     { file: 'admin-console', hash: '#/app/admin', nav: 'admin' },
     // Optional: the operator view is only in the nav for a platform operator, and the capture
     // account is not always one (the demo team's coach is not). Skipped rather than failed.
@@ -102,6 +124,18 @@ async function dismissReAttestation(page) {
 }
 
 async function settle(page, view) {
+    /*
+     * A view that names a marker waits for THAT, because `nav` is not always enough.
+     *
+     * `page.goto` between two URLs differing only in their hash does NOT reload the document
+     * and does not even re-run the router synchronously, so the next screenshot can catch the
+     * PREVIOUS view still on screen. The first run of this script proved it: `event-detail`
+     * came out as a picture of the attendance summary. The event routes all sit under the same
+     * `nav: meetings` rail item, so `aria-current` cannot tell them apart either.
+     */
+    if (view.marker) {
+        await page.waitForSelector(view.marker, { state: 'attached', timeout: 20_000 });
+    }
     if (view.nav) {
         // The shell agreeing about which view is on screen is the same property the routing
         // tests assert. `attached` rather than `visible`: below lg the rail is a closed drawer.
@@ -201,9 +235,82 @@ async function main() {
             await page.goto(`${APP}/${view.hash}`, { waitUntil: 'domcontentloaded' });
             await settle(page, view);
             await dismissReAttestation(page);
+            // A view that is a TAB of another route rather than a route of its own -- the
+            // calendar is the meetings page with its toggle flipped, and there is no URL for
+            // it to have. One click is cheaper than inventing one.
+            if (view.click) {
+                await page.getByRole('button', { name: view.click, exact: true }).click();
+                await page.waitForSelector('[data-testid="calendar-grid"]', { timeout: 15_000 });
+            }
             const file = path.join(dir, `${view.file}.png`);
             await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
             console.log(`  ${width}w  ${view.file}`);
+        }
+    }
+
+    /*
+     * The meetings views that hang off a specific event.
+     *
+     * Their URLs contain a uuid, so they cannot be listed as constants -- the id is read out
+     * of the running app, from the first row of the schedule. A team with no meetings simply
+     * skips them rather than failing: the demo seed has them, a freshly registered team does
+     * not, and both are legitimate accounts to capture from.
+     */
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${APP}/#/app/meetings`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-testid="app-nav"]', { timeout: 45_000 }).catch(() => {});
+    /*
+     * Scoped to the LIST, not to the page.
+     *
+     * A bare `a[href*="#/app/meetings/"]` also matches the "Attendance" link in the header,
+     * which precedes the list in the DOM -- so the first run of this took `summary` as a
+     * meeting id and then spent twenty seconds waiting for a roster link on the summary page.
+     */
+    const firstEvent = await page
+        .locator('[data-testid="upcoming-events"] a[href*="#/app/meetings/"]')
+        .first()
+        .getAttribute('href')
+        .catch(() => null);
+    const meetingId = firstEvent?.split('#/app/meetings/')[1]?.split('/')[0] ?? null;
+
+    if (!meetingId) {
+        console.log('  (no meetings on this account -- event detail, roster and poster skipped)');
+    } else {
+        const eventViews = [
+            { file: 'event-detail', hash: `#/app/meetings/${meetingId}`, marker: '[data-testid="event-detail"]' },
+            {
+                file: 'attendance-roster',
+                hash: `#/app/meetings/${meetingId}/roster`,
+                marker: '[data-testid="attendance-roster"]',
+            },
+            { file: 'checkin-poster', hash: `#/app/meetings/${meetingId}/poster`, marker: '.print-surface' },
+        ];
+        for (const width of WIDTHS) {
+            await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+            for (const view of eventViews) {
+                /*
+                 * A full reload rather than a hash change, so each of these is captured the way
+                 * a BOOKMARK reaches it -- cold, with the store rehydrating from IndexedDB.
+                 * That is what surfaced the pre-hydration "That event is not on this device"
+                 * flash these routes now guard against; capturing them warm would have hidden
+                 * it again.
+                 */
+                await page.goto(`${APP}/${view.hash}`, { waitUntil: 'domcontentloaded' });
+                await page.reload({ waitUntil: 'domcontentloaded' });
+                await settle(page, view);
+                await dismissReAttestation(page);
+                // The QR is generated asynchronously from a lazily-imported module, so a
+                // screenshot taken too early catches a spinner where the code should be.
+                await page
+                    .waitForSelector('img[alt*="QR code"]', { timeout: 15_000 })
+                    .catch(() => {});
+                await page.screenshot({
+                    path: path.join(OUT, `${width}w`, `${view.file}.png`),
+                    fullPage: true,
+                    animations: 'disabled',
+                });
+                console.log(`  ${width}w  ${view.file}`);
+            }
         }
     }
 

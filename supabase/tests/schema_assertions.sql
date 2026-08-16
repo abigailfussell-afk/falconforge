@@ -136,7 +136,11 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relname IN (
-          'seasons', 'sub_teams', 'tasks', 'scouting_reports', 'match_plans', 'checklists')
+          'seasons', 'sub_teams', 'tasks', 'scouting_reports', 'match_plans', 'checklists',
+          -- Sprint 8 put both in the entity registry, which is what enrols a table in the
+          -- realtime subscription as well as in the pull. A cancelled meeting has to reach
+          -- the phones of the people who were going to turn up to it.
+          'meetings', 'meeting_attendance')
       AND c.relreplident <> 'f';
 
     IF offenders IS NOT NULL THEN
@@ -579,10 +583,66 @@ BEGIN
     IF can_manage_content(v_nowhere) IS NULL THEN
         RAISE EXCEPTION 'can_manage_content returns NULL for a non-member (B25)';
     END IF;
+    -- Sprint 8. This one is called from `check_in_with_code` as well as from policies, so it
+    -- is the shape B25 was: a NULL here skips a guard in a SECURITY DEFINER function.
+    IF can_manage_meetings(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'can_manage_meetings returns NULL for a non-member (B25)';
+    END IF;
 
     IF can_manage_billing(v_nowhere) OR can_manage_roster(v_nowhere)
-       OR can_manage_structure(v_nowhere) OR can_manage_content(v_nowhere) THEN
+       OR can_manage_structure(v_nowhere) OR can_manage_content(v_nowhere)
+       OR can_manage_meetings(v_nowhere) THEN
         RAISE EXCEPTION 'A capability function grants a non-member access to a team';
+    END IF;
+END $$;
+
+-- 21. Meetings are governed by `can_manage_meetings`, never by `can_manage_content`.
+--
+--     `can_manage_content` is "any approved member", which is right for tasks and scouting and
+--     wrong for a record about a person: it would let a student create events and set anybody's
+--     attendance, including their own. Sprint 8 replaced the predicate on all six write
+--     policies, and this asserts the replacement rather than trusting it -- reverting one of
+--     them is a two-word edit that no other assertion would notice, and the resulting hole is
+--     silent (the write succeeds; nothing errors; the record is simply a lie).
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s.%s', tablename, cmd), ', ' ORDER BY tablename, cmd)
+      INTO offenders
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN ('meetings', 'meeting_attendance')
+      AND cmd <> 'SELECT'
+      AND coalesce(qual, '') || coalesce(with_check, '') NOT LIKE '%can_manage_meetings%';
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION
+            'Meeting write policies not gated on can_manage_meetings: %. '
+            'can_manage_content is any approved member, which lets a student write attendance.',
+            offenders;
+    END IF;
+END $$;
+
+-- 22. A student cannot read another student's attendance.
+--
+--     The season summary is a coach screen, but a SELECT policy of `is_team_member(team_id)`
+--     would have made the rows behind it readable by every student over the API regardless.
+--     Asserted on the policy text because the behavioural half lives in the RLS suite, and
+--     because the failure mode here is someone widening the policy back to match the other
+--     content tables for consistency's sake.
+DO $$
+DECLARE
+    v_qual text;
+BEGIN
+    SELECT qual INTO v_qual
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'meeting_attendance' AND cmd = 'SELECT';
+
+    IF v_qual IS NULL OR v_qual NOT LIKE '%current_team_member_id%' THEN
+        RAISE EXCEPTION
+            'meeting_attendance SELECT does not restrict students to their own rows (got: %)',
+            coalesce(v_qual, '<no policy>');
     END IF;
 END $$;
 

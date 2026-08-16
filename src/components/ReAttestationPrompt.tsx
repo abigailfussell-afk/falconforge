@@ -107,8 +107,19 @@ export default function ReAttestationPrompt() {
         .map((type) => DOCUMENT_LABELS[type])
         .filter((doc): doc is { label: string; href: string } => !!doc);
 
+    /*
+     * `stacked` — this prompt belongs to the SHELL, so it must outrank route content.
+     *
+     * It is rendered above the `<Outlet>`, and until Sprint 8 nothing a route rendered was
+     * full-screen, so plain `z-50` was enough. The printable poster is the first route-level
+     * overlay in the app (it has to cover the sidebar, which is itself `z-50`), and being
+     * later in the DOM at the same z-index it painted straight over this prompt — leaving a
+     * coach with a legal document to accept unable to see or dismiss the thing asking them to.
+     *
+     * Found by the capture script, whose "Later" click timed out against an invisible button.
+     */
     return (
-        <Modal label="Updated legal documents" width="panel">
+        <Modal label="Updated legal documents" width="panel" stacked>
             <div className="flex items-start gap-3">
                 <FileText size={20} className="mt-0.5 flex-shrink-0 text-forge-600 dark:text-forge-400" />
                 <div className="min-w-0">

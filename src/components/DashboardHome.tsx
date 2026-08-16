@@ -16,6 +16,7 @@ import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
 import { pathFor } from '../lib/navigation';
+import MeetingWidget from './meetings/MeetingWidget';
 
 export default function DashboardHome() {
     const { user } = useAuth();
@@ -139,8 +140,12 @@ export default function DashboardHome() {
                     </div>
                 </div>
 
-                {/* Recent Activity */}
+                {/* Recent Activity, and above it the meetings card (1k).
+                    The card renders nothing at all when the team has no upcoming event, so
+                    the column keeps its existing shape for a team that does not use the
+                    feature rather than gaining an empty box. */}
                 <div className="space-y-2.5">
+                    <MeetingWidget />
                     <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <Activity size={16} className="text-forge-500" />
                         Recent Activity

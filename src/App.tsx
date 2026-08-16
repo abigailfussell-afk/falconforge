@@ -39,6 +39,21 @@ const EditProfile = lazy(() => import('./components/EditProfile'));
 const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
 
 /*
+ * Meetings is six routes rather than one, and they are split separately on purpose.
+ *
+ * `CheckInPoster` pulls in the QR generator and `CheckIn` pulls in nothing but is the screen a
+ * student reaches from a camera scan with a phone on venue WiFi — so neither belongs in the
+ * chunk the schedule loads. Splitting them per route means a student who only ever checks in
+ * never downloads the roster, the summary or the calendar.
+ */
+const MeetingsPage = lazy(() => import('./components/meetings/MeetingsPage'));
+const EventDetail = lazy(() => import('./components/meetings/EventDetail'));
+const AttendanceRoster = lazy(() => import('./components/meetings/AttendanceRoster'));
+const AttendanceSummary = lazy(() => import('./components/meetings/AttendanceSummary'));
+const CheckInPoster = lazy(() => import('./components/meetings/CheckInPoster'));
+const CheckIn = lazy(() => import('./components/meetings/CheckIn'));
+
+/*
  * Route adapters.
  *
  * These exist so the feature components keep the prop APIs their own test files are written
@@ -88,12 +103,31 @@ function AdminSettingsRoute() {
     return <AdminSettings teamMembers={teamMembers} subTeams={subTeams} />;
 }
 
-/** The full-screen brand state shared by the loading and auth-callback screens. */
+/**
+ * The full-screen brand state shared by the loading and auth-callback screens.
+ *
+ * THE LOGO AND THE WORDMARK ARE ON SEPARATE LINES, and that has to be arranged rather than
+ * assumed. Both were inline-level boxes — the logo tile an `inline-flex`, `Wordmark`'s root an
+ * `inline-flex` too — with nothing between them, so they laid out on the SAME LINE, sharing a
+ * baseline: the mark sat to the RIGHT of the logo and level with its bottom edge, which is not
+ * a small misalignment but the wrong arrangement entirely. It carried a `justify-center` that
+ * did nothing, because justification has no effect on a flex box sized to its own content.
+ *
+ * `flex mx-auto` makes the tile a centred block, and the wrapper below makes the wordmark one,
+ * so the two stack and `text-center` centres each on its own line. Both fixes are needed:
+ * either alone still leaves two inline boxes sharing a line.
+ *
+ * `splash-layout.spec.ts` measures it in a real browser, because this is a layout property and
+ * jsdom computes no layout — the bug would render identically to the fix in a unit test.
+ */
 function SplashScreen({ message }: { message: string }) {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
             <div className="text-center">
-                <div className="relative inline-flex items-center justify-center w-24 h-24 mb-6">
+                <div
+                    data-testid="splash-logo"
+                    className="relative mx-auto flex items-center justify-center w-24 h-24 mb-6"
+                >
                     <div className="absolute inset-0 bg-gradient-to-r from-forge-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse" />
                     <div className="relative w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-overlay border border-slate-700/50 p-2">
                         <img
@@ -103,7 +137,9 @@ function SplashScreen({ message }: { message: string }) {
                         />
                     </div>
                 </div>
-                <Wordmark size="lg" className="mb-4 justify-center" />
+                <div data-testid="splash-wordmark" className="mb-4">
+                    <Wordmark size="lg" />
+                </div>
                 <div className="flex items-center justify-center gap-2 text-slate-400">
                     <div className="w-4 h-4 border-2 border-forge-500 border-t-transparent rounded-full animate-spin" />
                     <p className="text-sm font-medium">{message}</p>
@@ -162,6 +198,24 @@ function App() {
                     <Route path="board" element={<SprintPlanningRoute />} />
                     <Route path="checklist" element={<PreMatchChecklist />} />
                     <Route path="scouting" element={<ScoutingReports />} />
+                    {/*
+                     * `summary` is declared before `:meetingId` for readability only —
+                     * React Router ranks a static segment above a dynamic one regardless,
+                     * so the order here is not what makes it work.
+                     */}
+                    <Route path="meetings" element={<MeetingsPage />} />
+                    <Route path="meetings/summary" element={<AttendanceSummary />} />
+                    <Route path="meetings/:meetingId" element={<EventDetail />} />
+                    <Route path="meetings/:meetingId/roster" element={<AttendanceRoster />} />
+                    <Route path="meetings/:meetingId/poster" element={<CheckInPoster />} />
+                    {/*
+                     * Where a scanned QR lands. Both forms exist: with a code (a scan) and
+                     * without (the typed fallback). Signed out, the `user ?` guard on the
+                     * parent route sends them to the landing page and the hash survives the
+                     * round trip through login, so the scan resumes -- rule 4 of the brief.
+                     */}
+                    <Route path="checkin" element={<CheckIn />} />
+                    <Route path="checkin/:code" element={<CheckIn />} />
                     <Route path="planner" element={<MatchPlanner />} />
                     <Route path="profile" element={<EditProfile />} />
                     <Route path="admin" element={<AdminSettingsRoute />} />

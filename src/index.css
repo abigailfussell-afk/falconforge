@@ -207,14 +207,62 @@ h6 {
   }
 }
 
-/* Safe area insets for notched devices */
-@supports (padding: env(safe-area-inset-bottom)) {
+/*
+ * Safe area insets for notched devices.
+ *
+ * WHY THESE USE `max()` RATHER THAN THE INSET ALONE
+ *
+ * These are plain rules outside Tailwind's `utilities` layer, so they BEAT the `p-3` on the
+ * element they are applied to rather than adding to it. On any device without a notch
+ * `env(safe-area-inset-bottom)` is `0px` — so `padding-bottom: env(...)` did not "add the
+ * inset", it silently replaced twelve pixels of padding with none.
+ *
+ * The visible result was the sidebar's sync indicator sitting flush against the bottom of the
+ * viewport on every desktop, which is what Kevin reported. It looked like a missing rule; it
+ * was a rule that had quietly won an argument.
+ *
+ * `max()` says what was meant all along: at least the normal gutter, more if the hardware
+ * needs it. The caller keeps its own `pb-3` as well, so a browser that fails the `@supports`
+ * test still gets the gutter from Tailwind.
+ */
+@supports (padding: max(0.75rem, env(safe-area-inset-bottom))) {
   .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
   .safe-area-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+}
+
+/*
+ * Printing one surface out of a single-page app.
+ *
+ * The check-in poster is a full-screen overlay ON TOP of the app, so a naive `window.print()`
+ * would send the sidebar, the banners and whatever route was underneath to the printer as
+ * well. `visibility` rather than `display` is what makes this work: hiding an ancestor with
+ * `display: none` would take the poster down with it, whereas visibility can be turned back on
+ * for a descendant of a hidden element.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-surface,
+  .print-surface * {
+    visibility: visible;
+  }
+
+  .print-surface {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+  }
+
+  /* Controls that belong to the screen and not to the paper. */
+  .no-print {
+    display: none !important;
   }
 }
 

@@ -121,7 +121,33 @@ export default {
        * sprint list, all meaning some version of "a readable column" or "a dialog", none of
        * them agreeing. Naming them is what makes "consistent container widths" checkable.
        */
+      letterSpacing: {
+        /*
+         * Two steps wider than Tailwind's `tracking-widest` (0.1em), which is not wide enough
+         * for either job below. Named for the job rather than the number, so a third caller
+         * has something to pick rather than inventing a third value.
+         */
+        code: '0.15em',   // the four-digit check-in code, spaced to be read aloud
+        poster: '0.2em',  // an all-caps label above a heading (SCAN TO CHECK IN)
+      },
+
+      gridAutoRows: {
+        /** A month-grid cell: tall enough for two events, growing for more. */
+        'calendar-month': 'minmax(5.5rem, auto)',
+        /** A week-grid cell, which has one seventh of the events and room to show them. */
+        'calendar-week': 'minmax(11rem, auto)',
+      },
+
+      gridTemplateColumns: {
+        /** The event manager's row: when | event | attendance | id | actions. */
+        schedule: '9rem 1fr 11rem 6rem 5rem',
+        /** Event detail: the live feed, and the QR panel beside it. */
+        'event-detail': '1fr 20rem',
+      },
+
       maxWidth: {
+        /** US Letter minus half an inch each side — what the printable poster is laid out to. */
+        letter: '7.5in',
         prose: '38rem',   // 608px — a readable paragraph column
         panel: '31.25rem', // 500px — a form or a settings panel
         dialog: '36rem',   // 576px — a modal
