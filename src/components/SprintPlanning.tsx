@@ -202,14 +202,14 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     return (
         <div className="h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 md:mb-4 md:px-4 gap-3 md:gap-4">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Sprint Planning</h2>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Sprint Planning</h2>
 
                 <div className="flex flex-row items-center justify-between w-full md:w-auto gap-3">
                     <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 p-1 rounded-lg">
-                        <button onClick={() => setView('board')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'board' ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`} title="Board"><Layout size={18} /></button>
-                        <button onClick={() => setView('list')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'list' ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`} title="List"><List size={18} /></button>
-                        <button onClick={() => setView('calendar')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'calendar' ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`} title="Calendar"><CalendarIcon size={18} /></button>
-                        <button onClick={() => setView('archived')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'archived' ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400'}`} title="Archived"><Archive size={18} /></button>
+                        <button onClick={() => setView('board')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'board' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Board"><Layout size={18} /></button>
+                        <button onClick={() => setView('list')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'list' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="List"><List size={18} /></button>
+                        <button onClick={() => setView('calendar')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'calendar' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Calendar"><CalendarIcon size={18} /></button>
+                        <button onClick={() => setView('archived')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'archived' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Archived"><Archive size={18} /></button>
                     </div>
 
                     <button
@@ -222,7 +222,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                                     ? 'This season is archived and read-only'
                                     : 'Select a season first'
                         }
-                        className="flex items-center justify-center gap-2 bg-orange-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-orange-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 bg-forge-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-forge-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <Plus size={20} /><span className="hidden md:inline">New Item</span>
                     </button>

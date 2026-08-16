@@ -211,13 +211,13 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             {/* Header with create button */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Link2 className="text-orange-600" size={20} />
+                    <Link2 className="text-forge-600" size={20} />
                     <h4 className="font-semibold text-slate-700 dark:text-slate-200">Invite Links</h4>
                 </div>
                 <button
                     onClick={createInvite}
                     disabled={isCreating}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition disabled:opacity-50"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-forge-600 text-white text-sm font-medium rounded-lg hover:bg-forge-700 transition disabled:opacity-50"
                 >
                     {isCreating ? (
                         <RefreshCw size={14} className="animate-spin" />
@@ -256,7 +256,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                         >
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <code className="text-sm font-mono font-semibold text-orange-600 dark:text-orange-400">
+                                    <code className="text-sm font-mono font-semibold text-forge-600 dark:text-forge-400">
                                         {invite.code}
                                     </code>
                                     {invite.use_count > 0 && (
@@ -273,7 +273,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => copyInviteLink(invite.code)}
-                                    className="p-2 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition"
+                                    className="p-2 text-slate-400 hover:text-forge-600 dark:hover:text-forge-400 transition"
                                     title="Copy invite link"
                                 >
                                     {copiedCode === invite.code ? (

@@ -132,14 +132,14 @@ export default function LoginPage() {
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="max-w-md w-full">
                     <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg shadow-orange-500/25 mb-4 p-1">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-forge-500 to-forge-600 rounded-2xl shadow-lg shadow-forge-500/25 mb-4 p-1">
                             <img
                                 src={`${import.meta.env.BASE_URL}falcon_logo.png`}
                                 className="w-full h-full object-contain"
                                 alt="FalconForge Logo"
                             />
                         </div>
-                        <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
+                        <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
                         <p className="text-slate-400">Configuration Required</p>
                     </div>
 
@@ -181,7 +181,7 @@ export default function LoginPage() {
                             alt="FalconForge Logo"
                         />
                     </div>
-                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
+                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
                     <p className="text-slate-400">
                         {mode === 'login' && 'Sign in to your account'}
                         {mode === 'signup' && signupStep === 1 && 'Create your account'}
@@ -192,8 +192,8 @@ export default function LoginPage() {
                     {/* Step indicator for signup - simple dashes */}
                     {mode === 'signup' && (
                         <div className="flex items-center justify-center gap-2 mt-3">
-                            <div className={`h-1 w-12 rounded-full ${signupStep >= 1 ? 'bg-orange-500' : 'bg-slate-700'}`} />
-                            <div className={`h-1 w-12 rounded-full ${signupStep >= 2 ? 'bg-orange-500' : 'bg-slate-700'}`} />
+                            <div className={`h-1 w-12 rounded-full ${signupStep >= 1 ? 'bg-forge-500' : 'bg-slate-700'}`} />
+                            <div className={`h-1 w-12 rounded-full ${signupStep >= 2 ? 'bg-forge-500' : 'bg-slate-700'}`} />
                         </div>
                     )}
                 </div>
@@ -224,7 +224,7 @@ export default function LoginPage() {
                                             type="text"
                                             value={fullName}
                                             onChange={(e) => setFullName(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500 focus:border-transparent"
                                             placeholder="John Smith"
                                             required
                                         />
@@ -240,7 +240,7 @@ export default function LoginPage() {
                                         type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500 focus:border-transparent"
                                         placeholder="you@team12345.org"
                                         required
                                         autoFocus={mode === 'login'}
@@ -258,7 +258,7 @@ export default function LoginPage() {
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500 focus:border-transparent"
                                             placeholder="••••••••"
                                             required
                                             minLength={6}
@@ -271,7 +271,7 @@ export default function LoginPage() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all shadow-lg shadow-forge-500/25 disabled:opacity-50"
                                 data-testid={mode === 'login' ? 'sign-in-button' : mode === 'signup' ? 'continue-button' : 'reset-button'}
                             >
                                 {isLoading ? (
@@ -307,7 +307,7 @@ export default function LoginPage() {
                                 <>
                                     <button
                                         onClick={() => handleModeChange('forgot')}
-                                        className="text-slate-400 hover:text-orange-400 transition-colors"
+                                        className="text-slate-400 hover:text-forge-400 transition-colors"
                                     >
                                         Forgot password?
                                     </button>
@@ -315,7 +315,7 @@ export default function LoginPage() {
                                         Don't have an account?{' '}
                                         <button
                                             onClick={() => handleModeChange('signup')}
-                                            className="text-orange-400 hover:text-orange-300 font-medium"
+                                            className="text-forge-400 hover:text-forge-300 font-medium"
                                         >
                                             Sign up
                                         </button>
@@ -327,7 +327,7 @@ export default function LoginPage() {
                                     Already have an account?{' '}
                                     <button
                                         onClick={() => handleModeChange('login')}
-                                        className="text-orange-400 hover:text-orange-300 font-medium"
+                                        className="text-forge-400 hover:text-forge-300 font-medium"
                                     >
                                         Sign in
                                     </button>
@@ -336,7 +336,7 @@ export default function LoginPage() {
                             {mode === 'forgot' && (
                                 <button
                                     onClick={() => handleModeChange('login')}
-                                    className="text-orange-400 hover:text-orange-300 font-medium"
+                                    className="text-forge-400 hover:text-forge-300 font-medium"
                                 >
                                     Back to sign in
                                 </button>

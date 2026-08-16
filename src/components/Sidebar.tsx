@@ -126,7 +126,7 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
             <aside
                 data-testid="sidebar"
                 aria-label="Main navigation"
-                className={`fixed lg:static inset-y-0 left-0 z-50 w-[17rem] lg:w-56 shrink-0 flex flex-col
+                className={`fixed lg:static inset-y-0 left-0 z-50 w-72 lg:w-56 shrink-0 flex flex-col
                     bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700
                     safe-area-top transition-transform duration-200 ease-out lg:transition-none
                     ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}

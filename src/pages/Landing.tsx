@@ -8,7 +8,7 @@ export default function LandingPage() {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-orange-500/30 overflow-x-hidden">
+        <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-forge-500/30 overflow-x-hidden">
             <style>{`
                 /* Kanban Animations */
                 @keyframes kanbanCardFlow {
@@ -120,8 +120,8 @@ export default function LandingPage() {
                 }
 
                 @keyframes scoutingButtonPress {
-                    0%, 30% { transform: scale(1); background-color: rgb(234, 88, 12); } /* orange-600 */
-                    32% { transform: scale(0.95); background-color: rgb(194, 65, 12); } /* orange-700 */
+                    0%, 30% { transform: scale(1); background-color: rgb(234, 88, 12); } /* forge-600 */
+                    32% { transform: scale(0.95); background-color: rgb(194, 65, 12); } /* forge-700 */
                     35%, 100% { transform: scale(1); background-color: rgb(234, 88, 12); }
                 }
                 .animate-scouting-btn {
@@ -170,7 +170,7 @@ export default function LandingPage() {
                                 />
                             </div>
                             <span className="text-xl sm:text-2xl font-black italic tracking-tighter">
-                                <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
+                                <span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
                                 <span className="text-slate-300">FORGE</span>
                             </span>
                         </div>
@@ -183,7 +183,7 @@ export default function LandingPage() {
                             </button>
                             <button
                                 onClick={() => navigate('/login?mode=signup')}
-                                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-4 sm:px-5 py-2 rounded-xl text-sm sm:text-base font-medium shadow-lg shadow-orange-500/25 transition-all flex items-center gap-1 sm:gap-2"
+                                className="bg-gradient-to-r from-forge-500 to-amber-600 hover:from-forge-600 hover:to-amber-700 text-white px-4 sm:px-5 py-2 rounded-xl text-sm sm:text-base font-medium shadow-lg shadow-forge-500/25 transition-all flex items-center gap-1 sm:gap-2"
                             >
                                 Sign Up <ArrowRight className="w-4 h-4" />
                             </button>
@@ -202,16 +202,16 @@ export default function LandingPage() {
 
                 {/* Background Effects Gradient Overlay */}
                 <div className="absolute inset-0 z-0 bg-gradient-to-b from-slate-900/50 via-slate-900/70 to-slate-900/100 pointer-events-none"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150vw] h-[150vw] sm:w-[800px] sm:h-[800px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-band h-band sm:w-orb-lg sm:h-orb-lg bg-forge-600/20 rounded-full blur-3xl pointer-events-none z-0"></div>
 
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10 text-center">
-                    <div className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-[10px] sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
+                    <div className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-2xs sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
                         <Zap className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> <span>The ultimate agile engineering solution for your robotics team</span>
                     </div>
 
                     <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 sm:mb-8 leading-none sm:leading-tight">
                         Don't just build your robot...<br />
-                        <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 text-transparent bg-clip-text tracking-tighter italic">
+                        <span className="bg-gradient-to-r from-forge-400 via-forge-500 to-amber-500 text-transparent bg-clip-text tracking-tighter italic">
                             FORGE IT
                         </span>
                     </h1>
@@ -223,7 +223,7 @@ export default function LandingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <button
                             onClick={() => navigate('/login?mode=signup')}
-                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-forge-500 to-amber-600 hover:from-forge-600 hover:to-amber-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-forge-500/25 transition-all flex items-center justify-center gap-2"
                         >
                             Start Forging Now <ChevronRight className="w-5 h-5" />
                         </button>
@@ -248,7 +248,7 @@ export default function LandingPage() {
                         {/* Feature Cards */}
                         {[
                             {
-                                icon: <KanbanSquare className="w-6 h-6 text-orange-400" />,
+                                icon: <KanbanSquare className="w-6 h-6 text-forge-400" />,
                                 title: "Sprint Planning",
                                 desc: "Kanban boards and sprint planning adapted specifically for robotics build seasons."
                             },
@@ -282,11 +282,11 @@ export default function LandingPage() {
 
             {/* Sprint Planning Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-orange-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-band h-band sm:w-orb sm:h-orb bg-forge-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row">
                         <div className="order-1">
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-orange-400 font-medium mb-6">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-forge-400 font-medium mb-6">
                                 <KanbanSquare className="w-4 h-4" /> Sprint Planning
                             </div>
                             <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
@@ -302,7 +302,7 @@ export default function LandingPage() {
                                     "Track progress across systems"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-center gap-3 text-slate-300">
-                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400">
+                                        <div className="w-6 h-6 rounded-full bg-forge-500/20 flex items-center justify-center text-forge-400">
                                             <Check className="w-4 h-4" />
                                         </div>
                                         {item}
@@ -312,7 +312,7 @@ export default function LandingPage() {
                         </div>
 
                         {/* Animated Kanban */}
-                        <div className="order-2 relative w-full aspect-auto sm:aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-8 shadow-2xl flex items-center justify-center overflow-hidden glass min-h-[500px] sm:min-h-0">
+                        <div className="order-2 relative w-full aspect-auto sm:aspect-square md:aspect-video lg:aspect-square bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-8 shadow-2xl flex items-center justify-center overflow-hidden glass min-h-canvas sm:min-h-0">
                             {/* Fake UI Header */}
                             <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2">
                                 <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -323,7 +323,7 @@ export default function LandingPage() {
                             <div className="w-full flex flex-col sm:flex-row gap-4 h-full pt-12 sm:pt-8 relative">
                                 {/* Columns */}
                                 {["To Do", "In Progress", "Done"].map((col, idx) => (
-                                    <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative min-h-[160px] sm:min-h-0">
+                                    <div key={idx} className="flex-1 bg-slate-900/50 rounded-xl border border-slate-700 p-4 flex flex-col gap-3 relative min-h-40 sm:min-h-0">
                                         <div className="text-slate-400 font-semibold text-sm uppercase tracking-wider">{col}</div>
                                         {/* Static Cards */}
                                         {idx === 0 && <div className="w-full h-16 bg-slate-800 rounded-lg border border-slate-700/50 mt-16 sm:mt-28"></div>}
@@ -335,7 +335,12 @@ export default function LandingPage() {
                                 ))}
 
                                 {/* Animated Ticket */}
-                                <div className="absolute left-4 right-4 sm:right-auto sm:left-4 top-24 sm:top-20 sm:w-[calc(33.33%-1.5rem)] h-24 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg border border-orange-400/50 p-3 shadow-lg shadow-orange-500/20 flex flex-col justify-between animate-kanban-card z-10 pointer-events-none">
+                                {/* The one arbitrary value left in the app, and it earns it: this
+                                    is not a size, it is the width of one of the three flex
+                                    columns above minus their gap, so the animated card lands
+                                    exactly on a column as it travels. A token would name a
+                                    number that only means anything relative to that layout. */}
+                                <div className="absolute left-4 right-4 sm:right-auto sm:left-4 top-24 sm:top-20 sm:w-[calc(33.33%-1.5rem)] h-24 bg-gradient-to-br from-forge-500 to-amber-600 rounded-lg border border-forge-400/50 p-3 shadow-raised flex flex-col justify-between animate-kanban-card z-10 pointer-events-none">
                                     <div className="w-1/2 h-2 bg-white/30 rounded-full"></div>
                                     <div className="w-full space-y-2">
                                         <div className="w-5/6 h-2 bg-white/20 rounded-full"></div>
@@ -354,7 +359,7 @@ export default function LandingPage() {
 
             {/* Match Planner Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-band h-band sm:w-orb sm:h-orb bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
@@ -394,7 +399,7 @@ export default function LandingPage() {
                                 <span className="ml-2 sm:ml-4 truncate">Alliance Pre-Match Huddle</span>
                             </div>
 
-                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] mt-12">
+                            <svg viewBox="0 0 400 300" className="w-full h-full drop-shadow-forge mt-12">
 // ...
                                 {/* Definitions including Grid and Animated Masks */}
                                 <defs>
@@ -448,7 +453,7 @@ export default function LandingPage() {
                                 <path d="M 330 250 L 350 250 L 350 230" fill="none" stroke="#eab308" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
 
                                 {/* Robot 1 Layout */}
-                                <g className="drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]">
+                                <g className="drop-shadow-forge-dot">
                                     <g>
                                         <animateMotion
                                             dur="4s"
@@ -469,7 +474,7 @@ export default function LandingPage() {
                                 </g>
 
                                 {/* Robot 2 Layout */}
-                                <g className="drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" opacity="0.9">
+                                <g className="drop-shadow-gold-dot" opacity="0.9">
                                     <g>
                                         <animateMotion
                                             dur="5s"
@@ -497,7 +502,7 @@ export default function LandingPage() {
 
             {/* Scouting Reports Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 right-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-band h-band sm:w-orb sm:h-orb bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center">
                         <div className="order-1">
@@ -544,11 +549,11 @@ export default function LandingPage() {
                                         <div className="p-4 space-y-3 bg-slate-800">
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Team #</label>
+                                                    <label className="text-2xs sm:text-xs font-bold text-slate-400 uppercase">Team #</label>
                                                     <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">330</div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Match #</label>
+                                                    <label className="text-2xs sm:text-xs font-bold text-slate-400 uppercase">Match #</label>
                                                     <div className="w-full border border-slate-600 rounded p-1.5 bg-slate-700 text-white text-sm">43</div>
                                                 </div>
                                             </div>
@@ -556,7 +561,7 @@ export default function LandingPage() {
                                             <div className="bg-slate-700/50 p-3 rounded-lg space-y-2">
                                                 <h4 className="font-bold text-white text-xs">Autonomous</h4>
                                                 <label className="flex items-center gap-2 text-white text-sm">
-                                                    <div className="w-4 h-4 rounded bg-orange-600 flex items-center justify-center">
+                                                    <div className="w-4 h-4 rounded bg-forge-600 flex items-center justify-center">
                                                         <Check size={12} className="text-white" />
                                                     </div>
                                                     <span className="font-medium">Has Autonomous</span>
@@ -564,7 +569,7 @@ export default function LandingPage() {
                                             </div>
                                             
                                             <div>
-                                                <label className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Notes</label>
+                                                <label className="text-2xs sm:text-xs font-bold text-slate-400 uppercase">Notes</label>
                                                 <div className="w-full border border-slate-600 rounded p-2 h-12 bg-slate-700 text-white text-sm flex items-start">
                                                     <span className="animate-scouting-typewriter border-r-2 border-slate-400 pr-1 block leading-tight">Fast auto, solid defense.</span>
                                                 </div>
@@ -572,7 +577,7 @@ export default function LandingPage() {
                                         </div>
                                         <div className="p-3 bg-slate-900 border-t border-slate-700 flex justify-end gap-2">
                                             <div className="px-3 py-1.5 text-slate-300 rounded text-xs">Cancel</div>
-                                            <div className="px-4 py-1.5 bg-orange-600 text-white rounded text-xs font-medium animate-scouting-btn shadow-lg shadow-orange-500/20">Save Report</div>
+                                            <div className="px-4 py-1.5 bg-forge-600 text-white rounded text-xs font-medium animate-scouting-btn shadow-lg shadow-forge-500/20">Save Report</div>
                                         </div>
                                     </div>
                                 </div>
@@ -599,7 +604,7 @@ export default function LandingPage() {
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <div className="text-xl font-black text-white">#118</div>
-                                                <div className="text-[10px] text-slate-400 mt-0.5">District Championship</div>
+                                                <div className="text-2xs text-slate-400 mt-0.5">District Championship</div>
                                             </div>
                                             <div className="bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-300">Match 42</div>
                                         </div>
@@ -611,7 +616,7 @@ export default function LandingPage() {
                                                 <span>Shooting</span><span>9 / 10 Shots</span>
                                             </div>
                                             <div className="flex justify-between border-b border-slate-700 pb-1">
-                                                <span>Parking</span><span className="text-orange-400 font-medium">Full Park</span>
+                                                <span>Parking</span><span className="text-forge-400 font-medium">Full Park</span>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1 text-yellow-500">
@@ -624,7 +629,7 @@ export default function LandingPage() {
                                     </div>
 
                                     {/* Card 1 (New - 330) */}
-                                    <div className="absolute top-4 left-2 right-2 bg-slate-800 border border-slate-600 p-4 rounded-xl shadow-2xl animate-scouting-card-in z-20 hover:border-orange-600 transition-colors">
+                                    <div className="absolute top-4 left-2 right-2 bg-slate-800 border border-slate-600 p-4 rounded-xl shadow-2xl animate-scouting-card-in z-20 hover:border-forge-600 transition-colors">
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <div className="text-xl sm:text-2xl font-black text-white">#330</div>
@@ -637,7 +642,7 @@ export default function LandingPage() {
                                                 <span>Autonomous</span><span className="text-green-400 font-bold">10 pts</span>
                                             </div>
                                             <div className="flex justify-between border-b border-slate-700 pb-1">
-                                                <span>Parking</span><span className="text-orange-400 font-medium">Full Park</span>
+                                                <span>Parking</span><span className="text-forge-400 font-medium">Full Park</span>
                                             </div>
                                         </div>
                                         
@@ -648,7 +653,7 @@ export default function LandingPage() {
                                             <Trophy size={12} fill="none" className="text-slate-600" />
                                             <Trophy size={12} fill="none" className="text-slate-600" />
                                         </div>
-                                        <p className="text-[10px] bg-slate-700 p-2 rounded text-slate-300 italic">
+                                        <p className="text-2xs bg-slate-700 p-2 rounded text-slate-300 italic">
                                             "Fast auto, solid defense."
                                         </p>
                                     </div>
@@ -661,7 +666,7 @@ export default function LandingPage() {
 
             {/* Pre-Match Checklist Section */}
             <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
-                <div className="absolute top-0 left-0 w-[150vw] h-[150vw] sm:w-[600px] sm:h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-band h-band sm:w-orb sm:h-orb bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
                     <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row-reverse">
                         
@@ -760,25 +765,25 @@ export default function LandingPage() {
                         </div>
 
                         {/* Coach Tier */}
-                        <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-orange-500 relative transform md:-translate-y-4 shadow-2xl shadow-orange-500/10 flex flex-col h-full">
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
+                        <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-forge-500 relative transform md:-translate-y-4 shadow-2xl shadow-forge-500/10 flex flex-col h-full">
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-forge-500 to-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                                 Team Admin
                             </div>
-                            <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center mb-6 mt-2">
+                            <div className="w-12 h-12 rounded-full bg-forge-500/20 text-forge-400 flex items-center justify-center mb-6 mt-2">
                                 <Crown className="w-6 h-6" />
                             </div>
                             <h3 className="text-2xl font-bold mb-2">Coach</h3>
                             <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For lead administrators and head teachers managing the overall operation.</p>
 
                             <ul className="space-y-4 mb-8 flex-1">
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage user roles & permissions</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create new seasons & rosters</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" /><span className="text-slate-300">Oversee sprint planning metrics</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage user roles & permissions</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create new seasons & rosters</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Oversee sprint planning metrics</span></li>
                             </ul>
 
                             <button
                                 onClick={() => navigate('/login?mode=signup')}
-                                className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-colors"
+                                className="w-full py-4 bg-forge-500 hover:bg-forge-600 text-white rounded-xl font-bold transition-colors"
                             >
                                 Register a Team
                             </button>

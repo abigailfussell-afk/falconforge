@@ -41,14 +41,14 @@ export default function DashboardHome() {
         { label: 'Sprint Progress', value: `${doneCount} / ${activeTotalCount}`, icon: CheckSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', link: 'kanban' },
         { label: 'Backlog Items', value: backlogCount, icon: LayoutDashboard, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', link: 'kanban' },
         { label: 'Scouting Reports', value: scoutingReports.length, icon: ClipboardCheck, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20', link: 'scouting' },
-        { label: 'Match Plans', value: matchPlans.length, icon: Gamepad2, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', link: 'planner' },
+        { label: 'Match Plans', value: matchPlans.length, icon: Gamepad2, color: 'text-forge-600', bg: 'bg-forge-50 dark:bg-forge-900/20', link: 'planner' },
     ];
 
     const quickActions = [
         { id: 'kanban', label: 'Sprint Planning', desc: 'Track your team\'s progress', icon: LayoutDashboard, color: 'bg-blue-500' },
         { id: 'checklist', label: 'Pre-Match Checklist', desc: 'Always be competition ready', icon: CheckSquare, color: 'bg-teal-500' },
         { id: 'scouting', label: 'Scouting Reports', desc: 'Know your competition', icon: ClipboardCheck, color: 'bg-green-500' },
-        { id: 'planner', label: 'Match Planner', desc: 'Plan with your allies', icon: Gamepad2, color: 'bg-orange-500' },
+        { id: 'planner', label: 'Match Planner', desc: 'Plan with your allies', icon: Gamepad2, color: 'bg-forge-500' },
     ];
 
     // Get 3 most recent activities

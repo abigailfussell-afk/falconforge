@@ -74,7 +74,7 @@ export default function CreateTeam() {
                             </button>
                             <Link
                                 to="/join"
-                                className="block w-full text-center text-orange-400 hover:text-orange-300 font-medium py-2"
+                                className="block w-full text-center text-forge-400 hover:text-forge-300 font-medium py-2"
                             >
                                 Join an existing team instead
                             </Link>
@@ -184,17 +184,17 @@ export default function CreateTeam() {
                                 <li><strong>COPPA Compliance:</strong> You accept responsibility for obtaining parental consent for minors and will act as the parent's agent for COPPA purposes</li>
                             </ul>
                             <p className="text-slate-400 text-xs">
-                                <Link to="/legal/terms" className="text-orange-400 hover:text-orange-300 underline" target="_blank">
+                                <Link to="/legal/terms" className="text-forge-400 hover:text-forge-300 underline" target="_blank">
                                     Read full Terms and Conditions
                                 </Link>
                             </p>
                         </div>
-                        <label className="flex items-start gap-3 cursor-pointer group p-4 rounded-xl border border-slate-600 hover:border-orange-500/50 transition">
+                        <label className="flex items-start gap-3 cursor-pointer group p-4 rounded-xl border border-slate-600 hover:border-forge-500/50 transition">
                             <input
                                 type="checkbox"
                                 checked={coachTermsAccepted}
                                 onChange={(e) => setCoachTermsAccepted(e.target.checked)}
-                                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500 mt-0.5"
+                                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-forge-500 focus:ring-forge-500 mt-0.5"
                             />
                             <span className="text-slate-300 group-hover:text-white transition-colors">
                                 I am 18+ and I agree to the Terms & Conditions, Billing Policy, and COPPA responsibilities as a team coach.
@@ -215,7 +215,7 @@ export default function CreateTeam() {
                                 value={teamName}
                                 onChange={(e) => setTeamName(e.target.value)}
                                 placeholder="e.g., Falcon Force"
-                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500"
                                 minLength={3}
                             />
                             <p className="text-slate-400 text-xs mt-1">Minimum 3 characters</p>
@@ -229,7 +229,7 @@ export default function CreateTeam() {
                                 value={seasonName}
                                 onChange={(e) => setSeasonName(e.target.value)}
                                 placeholder="e.g., 2026-2027 Season"
-                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500"
                             />
                             <p className="text-slate-400 text-xs mt-1">
                                 Your sprint board, scouting data and checklist all start fresh each season.
@@ -244,7 +244,7 @@ export default function CreateTeam() {
                                 value={teamNumber}
                                 onChange={(e) => setTeamNumber(e.target.value)}
                                 placeholder="e.g., 12345"
-                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500"
                             />
                         </div>
                     </div>
@@ -263,13 +263,13 @@ export default function CreateTeam() {
                         {inviteCode && (
                             <div className="bg-slate-700/50 rounded-xl p-4">
                                 <p className="text-sm text-slate-400 mb-2">Your team invite code:</p>
-                                <p className="text-2xl font-mono font-bold text-orange-400">{inviteCode}</p>
+                                <p className="text-2xl font-mono font-bold text-forge-400">{inviteCode}</p>
                                 <p className="text-xs text-slate-500 mt-2">Share this code with team members to invite them</p>
                             </div>
                         )}
                         <button
                             onClick={() => navigate('/')}
-                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
+                            className="w-full bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all"
                         >
                             Go to Dashboard
                         </button>
@@ -290,15 +290,15 @@ export default function CreateTeam() {
                             alt="FalconForge Logo"
                         />
                     </div>
-                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
+                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
                     <p className="text-slate-400">Create your FTC team</p>
                 </div>
 
                 {/* Progress Steps - simple dashes */}
                 {currentStep !== 'complete' && (
                     <div className="flex items-center justify-center gap-2 mb-8">
-                        <div className={`h-1 w-12 rounded-full ${currentStepIndex >= 0 ? 'bg-orange-500' : 'bg-slate-700'}`} />
-                        <div className={`h-1 w-12 rounded-full ${currentStepIndex >= 1 ? 'bg-orange-500' : 'bg-slate-700'}`} />
+                        <div className={`h-1 w-12 rounded-full ${currentStepIndex >= 0 ? 'bg-forge-500' : 'bg-slate-700'}`} />
+                        <div className={`h-1 w-12 rounded-full ${currentStepIndex >= 1 ? 'bg-forge-500' : 'bg-slate-700'}`} />
                     </div>
                 )}
 
@@ -308,9 +308,9 @@ export default function CreateTeam() {
                     {currentStep !== 'complete' && (
                         <div className="flex items-center gap-3 mb-6">
                             {currentStep === 'attestation' ? (
-                                <Shield className="text-orange-500" size={24} />
+                                <Shield className="text-forge-500" size={24} />
                             ) : (
-                                <Users className="text-orange-500" size={24} />
+                                <Users className="text-forge-500" size={24} />
                             )}
                             <h2 className="text-lg font-semibold text-white">
                                 {STEPS[currentStepIndex].title}
@@ -341,7 +341,7 @@ export default function CreateTeam() {
                             <button
                                 onClick={handleNext}
                                 disabled={!canProceed() || isLoading}
-                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isLoading ? (
                                     <Loader2 size={18} className="animate-spin" />

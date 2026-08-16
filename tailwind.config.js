@@ -114,15 +114,6 @@ export default {
         },
       },
 
-      spacing: {
-        // Half-steps the 4px grid does not offer, for dense control chrome.
-        4.5: '1.125rem',
-        13: '3.25rem',
-        // The mobile/tablet header height, referenced by the main region's top padding.
-        // Both used to be the literal `16`/`pt-16` and had to be kept in agreement by hand.
-        header: '3.5rem',
-      },
-
       /*
        * Container widths, named by what they hold rather than by how wide they are.
        *
@@ -142,9 +133,53 @@ export default {
         // The WCAG 2.5.5 / iOS HIG touch target. Applied per component via `touch-target`
         // rather than by the blanket attribute-substring selector index.css used to carry.
         touch: '2.75rem', // 44px
+        /** A drawing/field surface that must stay usable before the layout goes two-column. */
+        canvas: '25rem', // 400px — was min-h-[500px]; 500 pushed the notes panel off a phone
       },
       minWidth: {
         touch: '2.75rem',
+        /** A wide data table's floor, below which it scrolls horizontally instead of crushing. */
+        table: '36rem',
+      },
+      maxHeight: {
+        /** A modal's body. Leaves room for the browser chrome and a phone's URL bar. */
+        modal: '85vh',
+        /** A scrollable list inside a panel, before it takes over the page. */
+        panel: '30rem',
+      },
+      /*
+       * Landing's decorative geometry. In `spacing` rather than in `width`/`height` so the
+       * `w-` and `h-` of each pair are guaranteed to stay the same number — the blurred
+       * glow behind the hero is a CIRCLE, and it stopped being one the moment somebody
+       * changed one of `w-[800px] h-[800px]` and not the other.
+       */
+      spacing: {
+        4.5: '1.125rem',
+        13: '3.25rem',
+        header: '3.5rem',
+        /** Overhangs the viewport on both sides so a rotated band still reaches the corners. */
+        band: '150vw',
+        /** The blurred glow behind a section heading. */
+        orb: '37.5rem',
+        /** The larger glow behind the hero. */
+        'orb-lg': '50rem',
+      },
+
+      zIndex: {
+        /**
+         * Above a modal.
+         *
+         * `ConfirmDialog` is opened FROM modals — "delete this match plan?" is raised by the
+         * plan list, which is itself a `z-50` overlay — so it needs to sit above the thing
+         * that opened it or the confirmation renders behind its own trigger.
+         */
+        dialog: '60',
+      },
+      dropShadow: {
+        /** The orange glow on Landing's headline art and its live-status dots. */
+        forge: '0 0 15px rgb(249 115 22 / 0.4)',
+        'forge-dot': '0 0 8px rgb(249 115 22 / 0.8)',
+        'gold-dot': '0 0 8px rgb(234 179 8 / 0.8)',
       },
 
       borderRadius: {

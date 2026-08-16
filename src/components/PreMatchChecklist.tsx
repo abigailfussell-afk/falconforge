@@ -83,11 +83,11 @@ const PreMatchChecklist: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col max-w-3xl mx-auto w-full">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
-                <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
+        <div className="h-full flex flex-col max-w-wide mx-auto w-full">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
+                <div className="p-3 md:p-4 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Pre-Match Checklist</h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400">Reset this list before every match.</p>
                     </div>
                     <div className="flex gap-2">
@@ -95,7 +95,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="save-checklist-template"
                             onClick={() => setIsSavingTemplate(!isSavingTemplate)}
                             disabled={checklist.length === 0}
-                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isSavingTemplate ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isSavingTemplate ? 'bg-forge-100 text-forge-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                             title="Save as a team template"
                         >
                             <BookmarkPlus size={20} />
@@ -104,7 +104,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="edit-checklist"
                             onClick={() => setIsEditingChecklist(!isEditingChecklist)}
                             disabled={!canEdit}
-                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                            className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-forge-100 text-forge-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                             title={canEdit ? 'Edit Checklist' : 'This season is archived and read-only'}
                         >
                             <Edit size={20} />
@@ -113,7 +113,7 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="reset-checklist"
                             onClick={resetChecklist}
                             disabled={!canEdit}
-                            className="text-slate-500 hover:text-orange-600 p-2 rounded-full hover:bg-orange-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="text-slate-500 hover:text-forge-600 p-2 rounded-full hover:bg-forge-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
                             title={canEdit ? 'Reset Checklist' : 'This season is archived and read-only'}
                         >
                             <RotateCcw size={20} />
@@ -142,13 +142,13 @@ const PreMatchChecklist: React.FC = () => {
                             data-testid="confirm-save-template"
                             onClick={handleSaveTemplate}
                             disabled={!templateName.trim()}
-                            className="rounded bg-orange-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="rounded bg-forge-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Save
                         </button>
                     </div>
                 )}
-                <div className="divide-y divide-slate-100 dark:divide-slate-700 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700 flex-1 scroll-region-thin">
                     {checklist.map((item, index) => (
                         <div
                             key={item.id}
@@ -180,7 +180,7 @@ const PreMatchChecklist: React.FC = () => {
                             {isEditingChecklist && (
                                 <div className="flex items-center justify-between gap-2 pl-0 md:pl-10">
                                     <select
-                                        className="text-xs border border-slate-200 dark:border-slate-600 rounded p-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex-1 max-w-[150px]"
+                                        className="text-xs border border-slate-200 dark:border-slate-600 rounded p-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex-1 max-w-36"
                                         value={item.assignedTo || ''}
                                         onChange={(e) => updateAssignment(item.id, e.target.value)}
                                     >
@@ -228,7 +228,7 @@ const PreMatchChecklist: React.FC = () => {
                                 placeholder="Add new item..."
                                 className="flex-1 border rounded px-3 py-2 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                             />
-                            <button onClick={handleAddChecklistItem} className="bg-orange-600 text-white px-4 py-2 rounded font-bold">Add</button>
+                            <button onClick={handleAddChecklistItem} className="bg-forge-600 text-white px-4 py-2 rounded font-bold">Add</button>
                         </div>
                     )}
                 </div>

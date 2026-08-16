@@ -29,12 +29,12 @@ const EditProfile = () => {
     if (!isConfigured || !user) return null;
 
     return (
-        <div className="max-w-4xl mx-auto w-full">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">Edit Profile</h2>
+        <div className="max-w-wide mx-auto w-full">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Edit Profile</h2>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6 mb-6">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-6">
                 <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
-                    <User className="text-orange-600" size={24} />
+                    <User className="text-forge-600" size={24} />
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">Your Profile</h3>
                 </div>
 
@@ -50,8 +50,8 @@ const EditProfile = () => {
 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex items-center gap-3 flex-1">
-                        <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
-                            <User size={24} className="text-orange-600 dark:text-orange-400" />
+                        <div className="w-12 h-12 rounded-full bg-forge-100 dark:bg-forge-900/50 flex items-center justify-center">
+                            <User size={24} className="text-forge-600 dark:text-forge-400" />
                         </div>
                         <div className="flex-1">
                             {isEditingProfile ? (
@@ -68,7 +68,7 @@ const EditProfile = () => {
                                     <button
                                         onClick={handleSaveProfile}
                                         disabled={isSavingProfile || !editDisplayName.trim()}
-                                        className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition disabled:opacity-50"
+                                        className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 transition disabled:opacity-50"
                                     >
                                         <Save size={18} />
                                     </button>

@@ -131,11 +131,25 @@ export default function AppShell() {
                  * the whole layout jump 8px sideways the moment a list outgrew one screen.
                  */}
                 <div className="h-full w-full scroll-region px-3 py-3 lg:px-5 lg:py-4">
-                    <div className="max-w-app mx-auto">
+                    {/*
+                     * `h-full flex flex-col` on the width-limiter, not just `mx-auto`.
+                     *
+                     * Several views (the sprint board, scouting, the checklist) are written as
+                     * `h-full flex flex-col` so that their own list scrolls INSIDE a fixed frame
+                     * rather than growing the page — that is what keeps the board's column
+                     * headers on screen while its cards scroll. `height: 100%` needs a parent
+                     * with a definite height, so a plain `max-w-app mx-auto` wrapper silently
+                     * breaks the chain and every one of those views collapses to content height.
+                     * The outlet sits in a flex child, whose height IS definite, so `h-full`
+                     * below it resolves; content taller than the frame still scrolls the region.
+                     */}
+                    <div className="max-w-app mx-auto h-full flex flex-col">
                         <ArchivedSeasonBanner />
-                        <Suspense fallback={<RouteFallback />}>
-                            <Outlet context={context} />
-                        </Suspense>
+                        <div className="flex-1 min-h-0">
+                            <Suspense fallback={<RouteFallback />}>
+                                <Outlet context={context} />
+                            </Suspense>
+                        </div>
                     </div>
                 </div>
             </main>

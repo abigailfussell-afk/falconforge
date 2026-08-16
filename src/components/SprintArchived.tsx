@@ -22,7 +22,7 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
         .sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 overflow-y-auto">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-6 overflow-y-auto">
             <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white flex items-center gap-2">
                 <Archive size={20} className="text-slate-500" />
                 Archived Tasks
@@ -53,7 +53,7 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); restoreTask(task.id); }}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition"
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-forge-600 dark:text-forge-400 border border-forge-300 dark:border-forge-700 rounded-lg hover:bg-forge-50 dark:hover:bg-forge-900/20 transition"
                             >
                                 <RotateCcw size={14} />
                                 Restore

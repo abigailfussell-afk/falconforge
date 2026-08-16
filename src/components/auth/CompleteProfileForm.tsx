@@ -60,25 +60,25 @@ export function CompleteProfileForm({
             <div>
                 <label className="block text-sm font-medium text-slate-300 mb-3">How old are you?</label>
                 <div className="space-y-2">
-                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '18_plus' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '18_plus' ? 'border-forge-500 bg-forge-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
                         <input
                             type="radio"
                             name="age"
                             value="18_plus"
                             checked={ageSelection === '18_plus'}
                             onChange={() => setAgeSelection('18_plus')}
-                            className="w-4 h-4 text-orange-500"
+                            className="w-4 h-4 text-forge-500"
                         />
                         <span className="text-slate-200">I am 18 or older</span>
                     </label>
-                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '13_to_17' ? 'border-orange-500 bg-orange-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${ageSelection === '13_to_17' ? 'border-forge-500 bg-forge-500/10' : 'border-slate-600 hover:border-slate-500'}`}>
                         <input
                             type="radio"
                             name="age"
                             value="13_to_17"
                             checked={ageSelection === '13_to_17'}
                             onChange={() => setAgeSelection('13_to_17')}
-                            className="w-4 h-4 text-orange-500"
+                            className="w-4 h-4 text-forge-500"
                         />
                         <span className="text-slate-200">I am 13-17 years old</span>
                     </label>
@@ -125,9 +125,9 @@ export function CompleteProfileForm({
                         <div>
                             <span className="text-slate-200 text-sm">
                                 I have read and agree to the{' '}
-                                <Link to="/legal/privacy" target="_blank" className="text-orange-400 hover:underline">Privacy Policy</Link>
+                                <Link to="/legal/privacy" target="_blank" className="text-forge-400 hover:underline">Privacy Policy</Link>
                                 {' '}and{' '}
-                                <Link to="/legal/community" target="_blank" className="text-orange-400 hover:underline">Community Guidelines</Link>
+                                <Link to="/legal/community" target="_blank" className="text-forge-400 hover:underline">Community Guidelines</Link>
                             </span>
                         </div>
                     </label>
@@ -147,7 +147,7 @@ export function CompleteProfileForm({
                 <button
                     type="submit"
                     disabled={isLoading || ageSelection === 'under_13' || !privacyAccepted}
-                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all shadow-lg shadow-forge-500/25 disabled:opacity-50"
                 >
                     {isLoading ? (
                         <Loader2 className="w-5 h-5 animate-spin" />

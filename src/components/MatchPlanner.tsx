@@ -168,12 +168,12 @@ const MatchPlanner: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row gap-2 md:gap-4 lg:h-full h-auto lg:overflow-hidden overflow-visible">
-      <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative min-h-[500px] lg:min-h-0">
-        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 shadow-sm">
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative min-h-canvas lg:min-h-0">
+        <div className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-700 p-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-600 shadow-card">
           <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={() => setIsDrawingEnabled(!isDrawingEnabled)}
-              className={`p-2 rounded flex items-center justify-center ${isDrawingEnabled ? 'bg-white dark:bg-slate-600 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+              className={`p-2 rounded flex items-center justify-center ${isDrawingEnabled ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
               title={isDrawingEnabled ? 'Drawing ON (click to toggle)' : 'Drawing OFF (click to toggle)'}
             >
               <Pen size={18} />
@@ -297,7 +297,7 @@ const MatchPlanner: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3 md:p-4 flex flex-col">
+      <div className="w-full lg:w-80 bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 flex flex-col">
         <h3 className="font-bold text-slate-800 dark:text-white mb-4">Match Notes</h3>
         <div className="space-y-3 md:space-y-4 flex-1">
           <div>
@@ -370,7 +370,7 @@ const MatchPlanner: React.FC = () => {
       {/* Load Modal */}
       {isLoadModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-[80vh] flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-modal flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Saved Plans</h3>
               <button
@@ -411,7 +411,7 @@ const MatchPlanner: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-overlay">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete Match Plan?</h3>
             <p className="text-slate-600 dark:text-slate-300 mb-6">
               This match plan will be permanently deleted. This action cannot be undone.

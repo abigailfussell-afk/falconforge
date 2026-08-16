@@ -114,7 +114,7 @@ export default function JoinTeam() {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                    <Loader2 className="w-12 h-12 text-forge-500 animate-spin mx-auto mb-4" />
                     <p className="text-slate-400">Signing out securely...</p>
                 </div>
             </div>
@@ -146,12 +146,12 @@ export default function JoinTeam() {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
                 <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6 max-w-md text-center">
-                    <Users className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+                    <Users className="w-12 h-12 text-forge-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-white mb-2">Join a Team</h2>
                     <p className="text-slate-400 mb-6">You need to sign in or create an account to join a team.</p>
                     <Link
                         to={`/login?redirect=/join/${inviteCode}`}
-                        className="block w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
+                        className="block w-full bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all"
                     >
                         Sign In / Create Account
                     </Link>
@@ -210,7 +210,7 @@ export default function JoinTeam() {
                         </div>
                         <button
                             onClick={() => navigate('/onboarding')}
-                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
+                            className="w-full bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all"
                         >
                             View My Teams
                         </button>
@@ -233,7 +233,7 @@ export default function JoinTeam() {
                             alt="FalconForge Logo"
                         />
                     </div>
-                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
+                    <h1 className="text-3xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-forge-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h1>
                     <p className="text-slate-400">Enter the invite code from your coach</p>
                 </div>
 
@@ -250,7 +250,7 @@ export default function JoinTeam() {
                                 value={inviteCode}
                                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                                 placeholder="Enter invite code"
-                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-4 text-white text-center text-xl font-mono tracking-wider placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 uppercase"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-4 text-white text-center text-xl font-mono tracking-wider placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-forge-500 uppercase"
                                 maxLength={12}
                                 autoFocus
                             />
@@ -280,7 +280,7 @@ export default function JoinTeam() {
                             <button
                                 type="submit"
                                 disabled={isLoading || inviteCode.trim().length < 6}
-                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isLoading ? (
                                     <Loader2 size={18} className="animate-spin" />

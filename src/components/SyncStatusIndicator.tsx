@@ -129,7 +129,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
             <div className="relative" title={failedChanges > 0 ? `${failedChanges} changes didn't save` : undefined}>
                 {statusButton}
                 {failedChanges > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-2xs font-bold text-white">
                         {failedChanges}
                     </span>
                 )}
