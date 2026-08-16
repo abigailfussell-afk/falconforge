@@ -148,6 +148,33 @@ describe('EntitlementPanel', () => {
         expect(screen.getByTestId('cover-until').textContent).toMatch(/2026/);
     });
 
+    /*
+     * A LAPSED TEAM HAS NO DENOMINATOR, AND THIS TEST EXISTS BECAUSE THE FIRST VERSION SHOWED
+     * "4 of 0".
+     *
+     * `team_entitlement` reports `seats_total` as NULL when no grant is in force — the same shape
+     * as "unlimited" except that `seats_unlimited` is false. Rendering `?? 0` turned that into
+     * arithmetic that looks broken, on the one screen a coach whose team just went read-only will
+     * be staring at. Found by looking at a seeded team whose grant expired yesterday, not by any
+     * assertion.
+     */
+    it('does not invent a zero denominator for a team with no current licence', () => {
+        useAppStore.setState({
+            entitlement: entitlement({
+                status: 'read_only',
+                seatsTotal: null,
+                seatsUnlimited: false,
+                seatsUsed: 4,
+                lapsedAt: '2026-08-15T00:00:00Z',
+            }),
+        });
+        render(<EntitlementPanel />);
+
+        expect(screen.getByTestId('seats-in-use').textContent).not.toMatch(/of 0/);
+        expect(screen.getByTestId('seats-in-use').textContent).toMatch(/4\s*members/);
+        expect(screen.getByTestId('seats-available').textContent).toBe('No licence');
+    });
+
     it('warns about an expiry inside the window', () => {
         const soon = new Date(Date.now() + 12 * 86_400_000).toISOString();
         useAppStore.setState({ entitlement: entitlement({ validUntil: soon }) });

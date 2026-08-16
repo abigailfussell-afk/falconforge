@@ -360,6 +360,27 @@ BEGIN
         RETURN json_build_object('success', false, 'error', 'You are already the admin of this team');
     END IF;
 
+    /*
+     * AGE IS CHECKED HERE, not left to the eligibility trigger.
+     *
+     * Found by running the console against a seeded team: the successor dropdown happily offered
+     * eleven 13-to-17-year-old students, because `team_members` carries no age column and the
+     * client therefore cannot filter them out. Nominating one SUCCEEDED, and the refusal then
+     * landed on the STUDENT when they tried to accept — so the admin believed they had handed the
+     * team over, and the person who could not complete it was the one least able to explain why.
+     *
+     * The attestation is still deliberately not checked (that is what accepting is FOR), but age
+     * is knowable now and does not change. Refusing at nomination time puts the error in front of
+     * the person who can act on it. `enforce_member_role_eligibility` remains the authority — this
+     * is an earlier, kinder copy of one of its rules, not a replacement for it.
+     */
+    IF (SELECT age_classification FROM users WHERE id = v_new.user_id) IS DISTINCT FROM '18_plus' THEN
+        RETURN json_build_object(
+            'success', false,
+            'error', 'The team admin must be 18 or over. That member''s account is not.'
+        );
+    END IF;
+
     UPDATE teams
        SET pending_admin_member_id = p_new_member_id,
            pending_admin_nominated_at = now(),

@@ -285,7 +285,17 @@ describe('the warm path — who may do what', () => {
         expect((await nomination(team.id)).pending_admin_member_id).toBeNull();
     });
 
-    it('a student under 18 cannot be nominated into the admin role', async () => {
+    /*
+     * NOMINATION REFUSES AN UNDER-18 UP FRONT, and this test exists because the first version did
+     * not.
+     *
+     * Found by running the console: the successor dropdown offered eleven 13-to-17 students,
+     * because `team_members` carries no age column so the client cannot filter them. The
+     * nomination SUCCEEDED and the refusal landed on the student at acceptance — leaving the admin
+     * believing they had handed the team over, and the refusal in front of the one person who
+     * could neither act on it nor explain it.
+     */
+    it('a student under 18 cannot be nominated, and the admin is told at nomination time', async () => {
         const minor = await fixtures.createUser('minor', '13_to_17');
         const { data: member } = await svc
             .from('team_members')
@@ -300,18 +310,56 @@ describe('the warm path — who may do what', () => {
             } as never)
             .select()
             .single();
+        const memberId = (member as { id: string }).id;
 
+        // Even with the terms accepted, age alone must refuse it.
         await fixtures.attest(minor.id, 'terms');
-        await team.admin.client.rpc('nominate_team_admin', {
+
+        const { data } = await team.admin.client.rpc('nominate_team_admin', {
             p_team_id: team.id,
-            p_new_member_id: (member as { id: string }).id,
+            p_new_member_id: memberId,
         });
 
-        // The nomination is allowed to stand; the eligibility trigger is what refuses, at the
-        // moment of promotion, so there is one definition of who may hold the role.
-        const { error } = await svc.rpc('accept_team_admin_nomination', { p_team_id: team.id });
-        void error;
-        expect(await roleOf((member as { id: string }).id)).toBe('student');
+        expect(data).toMatchObject({ success: false });
+        expect((data as { error: string }).error).toMatch(/18 or over/i);
+        // And nothing was recorded, so the admin is not left with a nomination that can never
+        // complete.
+        expect((await nomination(team.id)).pending_admin_member_id).toBeNull();
+        expect(await roleOf(memberId)).toBe('student');
+
+        await svc.from('team_members').delete().eq('id', memberId);
+    });
+
+    /*
+     * The trigger remains the authority. If a nomination somehow existed for an under-18 member —
+     * an older row, or a direct write by the service role — promotion must still be refused.
+     */
+    it('and the eligibility trigger still refuses the promotion regardless', async () => {
+        const minor = await fixtures.createUser('minor-direct', '13_to_17');
+        const { data: member } = await svc
+            .from('team_members')
+            .insert({
+                team_id: team.id,
+                user_id: minor.id,
+                role: 'student',
+                status: 'approved',
+                seat_assigned: true,
+                full_name: 'Minor Direct',
+                email: minor.email,
+            } as never)
+            .select()
+            .single();
+        const memberId = (member as { id: string }).id;
+
+        const { error } = await svc
+            .from('team_members')
+            .update({ role: 'admin' } as never)
+            .eq('id', memberId);
+
+        expect(error?.message).toMatch(/requires an 18\+ account/i);
+        expect(await roleOf(memberId)).toBe('student');
+
+        await svc.from('team_members').delete().eq('id', memberId);
     });
 });
 

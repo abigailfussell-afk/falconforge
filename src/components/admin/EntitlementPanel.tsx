@@ -85,12 +85,29 @@ export default function EntitlementPanel() {
                                 </span>
                                 <InfinityIcon size={18} aria-label="unlimited" className="text-slate-500" />
                             </>
+                        ) : seatsTotal === null ? (
+                            /*
+                             * NO DENOMINATOR WHEN THERE IS NO LICENCE.
+                             *
+                             * A lapsed team has no in-force grant, so `seats_total` is NULL — and
+                             * the first version rendered `?? 0`, producing "4 of 0". That reads
+                             * like broken arithmetic rather than like a licence that has ended,
+                             * and it was the one thing on the page a worried coach would fixate
+                             * on. Found by looking at a team whose grant expired yesterday.
+                             */
+                            <>
+                                {seatsUsed}
+                                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    {' '}
+                                    {seatsUsed === 1 ? 'member' : 'members'}
+                                </span>
+                            </>
                         ) : (
                             <>
                                 {seatsUsed}
                                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
                                     {' '}
-                                    of {seatsTotal ?? 0}
+                                    of {seatsTotal}
                                 </span>
                             </>
                         )}
@@ -105,7 +122,15 @@ export default function EntitlementPanel() {
                         data-testid="seats-available"
                         className="mt-1 text-lg font-bold text-slate-800 dark:text-white"
                     >
-                        {!isKnown ? '—' : seatsUnlimited ? 'Unlimited' : seatsRemaining}
+                        {!isKnown
+                            ? '—'
+                            : seatsUnlimited
+                                ? 'Unlimited'
+                                // "0" is arithmetically right for a lapsed team and tells them
+                                // nothing. There is no licence to have seats under.
+                                : seatsTotal === null
+                                    ? 'No licence'
+                                    : seatsRemaining}
                     </dd>
                 </div>
 

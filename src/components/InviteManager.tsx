@@ -332,7 +332,13 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             <p className="text-xs text-slate-400 dark:text-slate-500">
                 Invite links last a week. Anyone who joins with one waits as a request until the
                 team admin approves them, which is when they take up a licensed seat.
-                {isKnown && !seatsUnlimited && (
+                {/*
+                  * Suppressed at capacity, where "capped at the 0 seats you have free" is a
+                  * sentence nobody should read. The Generate button is already disabled with its
+                  * own reason, and the pending list says the same thing more usefully. Found by
+                  * looking at a seeded 3-of-3 team rather than by any assertion.
+                  */}
+                {isKnown && !seatsUnlimited && !isAtCapacity && (
                     <>
                         {' '}
                         New links are capped at the{' '}

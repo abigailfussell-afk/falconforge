@@ -100,7 +100,13 @@ export default function PrivacyPolicy() {
                     children&apos;s private details beyond what any team member sees.
                 </p>
                 <p>
-                    The person who runs FalconForge has administrative access to the database, as any
+                    {/*
+                      * "as the operator", not "as an operator of any kind" — deliberately worded
+                      * to avoid the two-word phrase the project's cast-count ratchet greps for in
+                      * src/. Ordinary English there, but prose that inflates a code-quality metric
+                      * makes every future sprint's comparison ambiguous for no benefit.
+                      */}
+                    The person who runs FalconForge has administrative access to the database, as the
                     operator of any service does. They use it to keep the Service working and to help
                     when you ask. They do not read your team&apos;s content for any other purpose.
                 </p>
