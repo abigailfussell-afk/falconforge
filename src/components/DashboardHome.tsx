@@ -6,9 +6,12 @@ import {
     TrendingUp,
     PlusCircle,
     ArrowRight,
-    Activity
+    Activity,
+    CalendarClock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import EmptyState from './ui/EmptyState';
+import Button from './ui/Button';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
@@ -186,14 +189,43 @@ export default function DashboardHome() {
             </div>
 
             {/* Upcoming Deadlines */}
-            {upcomingDeadlines.length > 0 && (
-                <div className="space-y-2.5">
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <TrendingUp size={16} className="text-forge-500" />
-                        Upcoming Deadlines
-                    </h2>
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card divide-y divide-slate-100 dark:divide-slate-700">
-                        {upcomingDeadlines.map(task => {
+            <div className="space-y-2.5">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <TrendingUp size={16} className="text-forge-500" />
+                    Upcoming Deadlines
+                </h2>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card divide-y divide-slate-100 dark:divide-slate-700">
+                    {upcomingDeadlines.length === 0 ? (
+                        /*
+                         * The panel used to disappear entirely when it had nothing to show, which
+                         * put the dashboard's lower two-thirds straight back to the dead space
+                         * this panel was added to fill -- and it did so for exactly the teams
+                         * that see it first. A brand-new team has no tasks by definition, so
+                         * every beta team's first impression was the state with the hole in it.
+                         *
+                         * Recent Activity, directly above, already had an empty state; this is
+                         * the same screen disagreeing with itself.
+                         *
+                         * The two ways of being empty are not the same question, so they do not
+                         * get the same sentence: a team with no tasks needs somewhere to go, and
+                         * a team whose tasks simply carry no dates needs to know that is why.
+                         */
+                        <EmptyState
+                            icon={CalendarClock}
+                            title={allTasks.length === 0 ? 'No tasks yet' : 'Nothing due'}
+                            body={
+                                allTasks.length === 0
+                                    ? 'Tasks with a due date show up here, soonest first, so the team can see what is coming.'
+                                    : 'None of your open tasks have a due date. Add one and it will appear here, soonest first.'
+                            }
+                            action={
+                                <Button size="sm" onClick={() => goTo('kanban')}>
+                                    {allTasks.length === 0 ? 'Plan your first sprint' : 'Open Sprint Planning'}
+                                </Button>
+                            }
+                        />
+                    ) : (
+                        upcomingDeadlines.map(task => {
                             const overdue = (task.dueDate || 0) < startOfToday;
                             return (
                                 <button
@@ -221,10 +253,10 @@ export default function DashboardHome() {
                                     </span>
                                 </button>
                             );
-                        })}
-                    </div>
+                        })
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }

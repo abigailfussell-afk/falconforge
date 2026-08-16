@@ -225,6 +225,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
                     // `!px-2 md:!px-4`: keeps the icon-only mobile width; without the important
                     // modifier the md size recipe's px-4 would win the cascade at every width.
                     className="!px-2 md:!px-4"
+                    data-testid="new-task-button"
                 >
                     <Plus size={20} /><span className="hidden md:inline">New Item</span>
                 </Button>

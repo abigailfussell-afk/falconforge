@@ -20,18 +20,18 @@
 import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom';
 import { configure } from '@testing-library/react';
+import { ASYNC_UTIL_TIMEOUT_MS } from './timeouts';
 
 /**
- * Testing Library's `findBy*` / `waitFor` default to a 1s timeout.
- *
- * That is tight for components which kick off async work on mount -- Onboarding calls
- * `loadTeams()` from an effect before it renders anything assertable -- and it produced a
- * genuine flake: "shows the Complete Setup form" failed twice in eleven full-suite runs,
- * both times immediately after the database suite had loaded the machine, and passed in
- * isolation every time.
+ * Testing Library's `findBy*` / `waitFor` default to a 1s timeout, which is tight for
+ * components that kick off async work on mount -- Onboarding calls `loadTeams()` from an
+ * effect before it renders anything assertable.
  *
  * A flaky test is worse than a missing one, because it teaches you to re-run the suite
- * instead of reading it. Five seconds still fails a component that never settles; it just
- * stops failing one that settles slowly because 200 other tests are sharing the CPU.
+ * instead of reading it.
+ *
+ * The value and the reasoning now live in `./timeouts`, alongside Vitest's per-test
+ * ceiling, because raising this one in isolation is what made it unreachable: the two were
+ * both 5000ms and the test ceiling always won. See that file.
  */
-configure({ asyncUtilTimeout: 5000 });
+configure({ asyncUtilTimeout: ASYNC_UTIL_TIMEOUT_MS });

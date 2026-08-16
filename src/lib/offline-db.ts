@@ -424,6 +424,46 @@ export async function discardSyncFailures(): Promise<void> {
     await db.syncFailures.clear();
 }
 
+/**
+ * Put ONE parked change back on the queue, leaving the rest parked.
+ *
+ * The all-or-nothing versions above are what the sync indicator's "Retry them" uses, and they
+ * are wrong for a review screen: the common case is a handful of parked changes where one is
+ * genuinely dead (a task belonging to an archived season) and the others would go through
+ * perfectly well. Retrying everything to clear the one is how somebody ends up discarding
+ * everything to clear the one.
+ *
+ * Returns false if the id is not there, which is not an error -- two devices, or a bulk retry
+ * that has already swept it up.
+ */
+export async function retrySyncFailure(id: string): Promise<boolean> {
+    return await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
+        const failure = await db.syncFailures.get(id);
+        if (!failure) return false;
+        // Same unwrapping as retrySyncFailures: the dead-letter-only fields come off, the
+        // original `timestamp` travels with the item so queue ordering is preserved (B1).
+        const { failedAt: _failedAt, lastError: _lastError, terminalReason: _reason, ...item } = failure;
+        await db.syncQueue.put({ ...item, retryCount: 0 });
+        await db.syncFailures.delete(id);
+        return true;
+    });
+}
+
+/**
+ * Give up on ONE parked change.
+ *
+ * This is the only operation in the app that destroys the user's work on purpose, so it exists
+ * precisely so that discarding is a DELIBERATE, itemised act rather than the side effect of
+ * clearing a red badge. The caller is expected to confirm first and to show what is being
+ * thrown away.
+ */
+export async function discardSyncFailure(id: string): Promise<boolean> {
+    const existing = await db.syncFailures.get(id);
+    if (!existing) return false;
+    await db.syncFailures.delete(id);
+    return true;
+}
+
 // Clear sync queue (for logout)
 export async function clearLocalDatabase() {
     await db.syncQueue.clear();

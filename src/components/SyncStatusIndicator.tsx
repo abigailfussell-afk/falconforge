@@ -3,6 +3,7 @@ import { useSync } from '../lib/sync';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 import { getRealtimeStatus, onRealtimeStatusChange, type RealtimeStatus } from '../lib/realtime';
+import ParkedChangesDialog from './ParkedChangesDialog';
 
 interface SyncStatusIndicatorProps {
     variant?: 'full' | 'icon';
@@ -14,6 +15,8 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
         lastSyncTime, sync, retryFailedChanges, error,
     } = useSync();
     const isConfigured = isSupabaseConfigured();
+
+    const [reviewing, setReviewing] = useState(false);
 
     // Track Realtime connection status
     const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>(getRealtimeStatus());
@@ -48,7 +51,19 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     };
 
     const getStatusText = () => {
-        if (!isOnline) return 'Offline';
+        /*
+         * Offline still says HOW MUCH is waiting.
+         *
+         * This returned a bare 'Offline' and threw the pending count away, so a team that had
+         * worked through an entire session at a venue -- three tasks, a scouting report, a
+         * checklist -- saw exactly what a team that had done nothing saw. The one number that
+         * answers "is my afternoon actually saved?" went silent at precisely the moment it was
+         * worth reading, and the count reappeared only once the connection came back, which is
+         * when it stops mattering.
+         *
+         * Found by running the venue simulation and looking at the sidebar.
+         */
+        if (!isOnline) return pendingChanges > 0 ? `Offline · ${pendingChanges} queued` : 'Offline';
         switch (syncStatus) {
             case 'syncing':
                 return 'Syncing...';
@@ -115,13 +130,30 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                     They&apos;re still stored on this device. Retry when you have a connection.
                 </p>
             )}
-            <button
-                onClick={() => retryFailedChanges().then(() => sync())}
-                disabled={!isOnline || syncStatus === 'syncing'}
-                className="self-start px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-red-100 transition-colors"
-            >
-                Retry {failedChanges === 1 ? 'it' : 'them'}
-            </button>
+            <div className="flex flex-wrap gap-1.5">
+                <button
+                    onClick={() => retryFailedChanges().then(() => sync())}
+                    disabled={!isOnline || syncStatus === 'syncing'}
+                    className="px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-red-100 transition-colors"
+                >
+                    Retry {failedChanges === 1 ? 'it' : 'them'}
+                </button>
+                {/*
+                  * The way OUT of a permanent badge.
+                  *
+                  * "Retry them" is all-or-nothing, so one genuinely dead change -- a write
+                  * belonging to an archived season, say -- re-parks on every attempt and the
+                  * badge never clears. Before this the only escape was discarding everything,
+                  * which throws away the good with the bad.
+                  */}
+                <button
+                    onClick={() => setReviewing(true)}
+                    data-testid="review-parked-changes"
+                    className="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 font-medium text-red-100 transition-colors"
+                >
+                    Review
+                </button>
+            </div>
         </div>
     );
 
@@ -154,6 +186,19 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     );
 
     // In icon mode there is no room for the notice, so fold it into the badge instead.
+    const reviewDialog = reviewing && (
+        <ParkedChangesDialog
+            onClose={() => setReviewing(false)}
+            /*
+             * A drain, NOT `retryFailedChanges()` -- that one requeues every parked change, which
+             * is exactly what this dialog exists to avoid doing on the user's behalf. A single
+             * item has already been requeued by the dialog itself; this just pushes it. The
+             * badge's own count refreshes on `useSync`'s five-second poll.
+             */
+            onChanged={() => void sync()}
+        />
+    );
+
     if (variant === 'icon') {
         return (
             <div className="relative" title={failedChanges > 0 ? `${failedChanges} changes didn't save` : undefined}>
@@ -163,14 +208,16 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                         {failedChanges}
                     </span>
                 )}
+                {reviewDialog}
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2 w-full" data-testid="sync-status">
             {statusButton}
             {failureNotice}
+            {reviewDialog}
         </div>
     );
 }

@@ -82,6 +82,7 @@ vi.mock('dexie-react-hooks', () => ({
 // pulls the entire component tree, and ESM caches the module anyway (no `vi.resetModules`
 // here), so the repeated dynamic import bought nothing.
 import { useAppStore } from '../../lib/store';
+import { useAuth } from '../../lib/auth';
 
 // Opt in to the manual mocks in src/lib/__mocks__ for the subsystems App touches on mount
 // but this navigation suite does not assert on.
@@ -116,8 +117,21 @@ function setupStore(overrides: Record<string, any> = {}) {
     });
 }
 
+/*
+ * Captured from the module factory at import time, before any test can override it.
+ *
+ * `vi.clearAllMocks()` clears recorded CALLS, not implementations. So the signed-out
+ * redirect test near the bottom of this file -- which does `mockReturnValue({ user: null })`
+ * -- leaked a signed-out user into every test DECLARED AFTER IT. Nothing caught that because
+ * it happened to be last, and the leak is invisible until somebody appends to the file: the
+ * Upcoming Deadlines tests below were written, failed, and turned out to be rendering the
+ * landing page rather than the dashboard.
+ */
+const defaultUseAuth = vi.mocked(useAuth).getMockImplementation();
+
 beforeEach(() => {
     vi.clearAllMocks();
+    if (defaultUseAuth) vi.mocked(useAuth).mockImplementation(defaultUseAuth);
     setupStore();
 });
 
@@ -364,5 +378,59 @@ describe('Dashboard Navigation', () => {
 
         // Should show landing page elements instead of dashboard nav
         expect(screen.getByText(/Everything your team needs/i)).toBeDefined();
+    });
+});
+
+/**
+ * The Upcoming Deadlines panel exists to fill the dashboard's lower two-thirds, which was
+ * dead space before Sprint 5.5. It was rendered behind `upcomingDeadlines.length > 0`, so it
+ * vanished when it had nothing to show -- putting the dead space back for exactly the teams
+ * that meet it first, since a brand-new team has no tasks by definition. Found in a 1280px
+ * Playwright capture of the seeded review team, which has a full roster and no tasks.
+ */
+describe('Upcoming Deadlines panel', () => {
+    it('still renders its section when there is nothing due, rather than leaving a hole', async () => {
+        setupStore({ tasks: [] });
+        renderApp();
+
+        // The heading is the part that disappeared. Recent Activity, on the same screen,
+        // already kept its heading and showed an empty state; this is that inconsistency.
+        expect(await screen.findByText('Upcoming Deadlines')).toBeDefined();
+    });
+
+    it('tells a team with no tasks at all where to start', async () => {
+        setupStore({ tasks: [] });
+        renderApp();
+
+        expect(await screen.findByText('No tasks yet')).toBeDefined();
+        expect(screen.getByRole('button', { name: /Plan your first sprint/i })).toBeDefined();
+    });
+
+    it('distinguishes "no tasks" from "tasks, but none of them dated"', async () => {
+        // The two ways of being empty are different questions and get different answers: this
+        // team HAS work, so pointing it at "plan your first sprint" would be wrong.
+        setupStore({
+            tasks: [
+                { id: 't-1', seasonId: 'season-1', teamId: 'team-1', title: 'Rebuild the intake', status: 'To Do', createdAt: 1000 },
+            ],
+        });
+        renderApp();
+
+        expect(await screen.findByText('Nothing due')).toBeDefined();
+        expect(screen.queryByText('No tasks yet')).toBeNull();
+        expect(screen.getByRole('button', { name: /Open Sprint Planning/i })).toBeDefined();
+    });
+
+    it('shows the dated task instead of an empty state once one exists', async () => {
+        setupStore({
+            tasks: [
+                { id: 't-1', seasonId: 'season-1', teamId: 'team-1', title: 'Rebuild the intake', status: 'To Do', createdAt: 1000, dueDate: Date.now() + 86_400_000 },
+            ],
+        });
+        renderApp();
+
+        expect(await screen.findByText('Rebuild the intake')).toBeDefined();
+        expect(screen.queryByText('Nothing due')).toBeNull();
+        expect(screen.queryByText('No tasks yet')).toBeNull();
     });
 });

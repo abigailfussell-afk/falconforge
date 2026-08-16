@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Sun, Moon, LogOut, User, ChevronDown, ArrowRightLeft, Menu, X } from 'lucide-react';
+import { Sun, Moon, LogOut, User, ChevronDown, ArrowRightLeft, Menu, X, MessageSquare } from 'lucide-react';
 import SyncStatusIndicator from './SyncStatusIndicator';
+import { FEEDBACK_MAILTO } from '../lib/feedback';
 import Wordmark from './Wordmark';
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
@@ -294,6 +295,28 @@ export default function Sidebar({ canManageTeam, isOperator = false, onSignOut, 
                                 >
                                     {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
                                 </button>
+                                {/*
+                                  * Beta feedback, one click from anywhere in the app.
+                                  *
+                                  * A mailto rather than a form, deliberately: a form needs an
+                                  * endpoint, and the only backend is Supabase, so it would mean a
+                                  * table anyone may INSERT into -- an unauthenticated write on the
+                                  * database holding every team's data. For a beta of a handful of
+                                  * teams, the coach's own mail client is the right amount of
+                                  * machinery, and it carries their address so a reply is possible.
+                                  *
+                                  * The subject is pre-filled with the app version so a report
+                                  * arrives attached to a build rather than to "last Tuesday".
+                                  */}
+                                <a
+                                    data-testid="feedback-link"
+                                    href={FEEDBACK_MAILTO}
+                                    className="touch-target p-2 text-slate-400 hover:text-forge-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                                    title="Send feedback about the beta"
+                                    aria-label="Send feedback about the beta"
+                                >
+                                    <MessageSquare size={15} />
+                                </a>
                             </div>
                         </>
                     )}

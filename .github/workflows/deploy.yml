@@ -4,27 +4,31 @@ name: Deploy
 # bundle always corresponds to a known commit, and old bundles stop accumulating: the
 # gh-pages branch is replaced wholesale each time rather than added to.
 #
-# MANUAL SINCE SPRINT 6, DELIBERATELY. The `push` trigger is gone.
+# AUTOMATIC AGAIN AS OF SPRINT 7, on Kevin's call at kickoff.
 #
-# NOT because a bad deploy would lock users out. Production is still GREENFIELD: it was
-# `db reset --linked` at Sprint 3 with `auth.users` emptied, and it holds Kevin's account, his
-# `platform_operators` row, TestTeam and one gift grant. There is nobody else to lock out, and he
-# holds the service key. An earlier version of this comment claimed a mis-read `team_entitlement`
-# "shows a lock screen to real users" — there are none until beta teams onboard, and inflating the
-# stakes is how a precaution stops being taken seriously.
+# Sprint 6 made this `workflow_dispatch` only. The argument for that was never "a bad deploy locks
+# users out" — production has been GREENFIELD since Sprint 3's `db reset --linked` emptied
+# `auth.users`, and it holds Kevin's account, his `platform_operators` row, TestTeam and one gift
+# grant. There is nobody to lock out but him, and he holds the service key. The reason that
+# survived was the MIGRATION: a forward migration on a frozen schema, landing on the one database
+# holding an operator identity no API path can recreate. Sprint 4's incident was a bundle deployed
+# against a database that did not match.
 #
-# THE REASON THAT SURVIVES IS THE MIGRATION, NOT THE BUNDLE. Sprint 6 carries the second forward
-# migration on the frozen schema, against the one database holding the operator identity that
-# `grant_team_license` checks and that no API path can recreate. Sprint 4's incident was a bundle
-# deployed against a database missing its columns; ordering those two by hand is worth one click.
+# WHAT CHANGED, AND WHAT DID NOT. That migration hazard is real and is not solved by this workflow;
+# it is solved by applying migrations to the hosted project deliberately, BEFORE merging the branch
+# that depends on them. Making every deploy manual to protect against the occasional schema change
+# taxed the common case to guard the rare one. Sprint 7 also puts a smoke pack in front of a merge
+# for the first time (CI now runs on `v2/**`), and adds the post-deploy check below, so the
+# feedback loop a manual click was standing in for now exists in automation.
 #
-# CI still runs on every push to main, so nothing about verification is weakened — only the moment
-# the live site changes moves under human control. Deploy from the Actions tab ("Run workflow").
+# SO THE RULE IS: schema changes are ordered by hand, everything else ships on merge.
 #
-# Revisit at the end of Sprint 7, or at beta onboarding, whichever comes first. With no users,
-# reverting to auto-deploy is defensible today; once real teams are on it, the argument this comment
-# originally made stops being premature and starts being correct.
+# When a branch carries a migration, apply it to the hosted project first and verify, then merge.
+# The honest trigger for returning to manual deploys is BETA ONBOARDING — once real teams are on
+# it, the caution Sprint 6 exercised early stops being premature and starts being correct.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # Never let two deploys race. Do NOT cancel a deploy in progress -- a half-finished
@@ -98,3 +102,21 @@ jobs:
           # force_orphan keeps a single-commit gh-pages branch, so stale bundles from
           # previous builds are removed instead of piling up the way the manual uploads did.
           force_orphan: true
+
+      # GitHub Pages serves from a CDN that takes a moment to pick up a new publish, so
+      # checking instantly would report the PREVIOUS bundle and pass for the wrong reason.
+      - name: Wait for Pages to serve the new bundle
+        run: sleep 45
+
+      # READ-ONLY, by Kevin's decision at Sprint 7 kickoff. Every request is a GET or a HEAD and
+      # nothing is written to the hosted database -- a write-path check would need a dedicated
+      # account and would leave rows behind in the database beta teams will share.
+      #
+      # This is the half the smoke pack structurally cannot cover: the smoke pack runs against
+      # the local stack, so it can never see a 404ing bundle, an unbound custom domain, a rotated
+      # anon key, or RLS refusing anonymous callers on the real database.
+      - name: Read-only production check
+        run: node scripts/check-production.mjs
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
