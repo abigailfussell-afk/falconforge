@@ -320,7 +320,39 @@ the final walkthrough and tags `v2.0.0-beta`.
 | 2026-08-15 | Operator seeded; `TestTeam` moved from the automatic trial to an open-ended gift | `main` | **Complete.** Kevin's user id inserted into `platform_operators` (the table ships empty by design; no API path can write it). The gift was issued through `grant_team_license` rather than a direct insert, which verified the operator path end to end: the RPC refused a caller with no operator identity and accepted the operator. The automatic 90-day trial was then revoked with an audit note rather than deleted, so the grant history reads honestly. Entitlement now `active / unlimited / open-ended`. The trial block in `create_team_as_admin` still exists for new self-serve teams and is still slated for removal when Stripe lands. |
 | 2026-08-15 | Sprint 4 — Season lifecycle | `v2/sprint-4-seasons` | **Complete.** Gate + `db:verify` + `test:db` + `test:rls` green (lint / 324 unit / 87 integration / 320 db / 261 rls / build). The first forward migration on the frozen schema: `seasons.game_title` + `is_archived`, and `season_is_open` gating the INSERT/UPDATE/DELETE policy of every season-scoped table, so a prior season is read-only **in the database** rather than in a disabled button. Rollover is client-side through the existing queue (an RPC cannot run offline, and the exit criteria require it to): season → cloned sub-teams (`member_ids = '{}'`, fresh uuids) → fresh checklist → archive, in one drain. Verified offline in a browser end to end. `useSeasonScope()`/`useSeasonScoped()` replace six duplicated filters and **found that ScoutingReports never filtered by season at all**. Season deletion now cascades locally to match the server. **Found and fixed B22** (season deletions never reached other devices — `seasons` was missing `REPLICA IDENTITY FULL`) and a queue-ordering hazard in `queueForSync` (B1's guarantee was incidental, not guaranteed). Schema assertions 13 → 15. `as any` 68 → 67. |
 
+| 2026-08-15 | Sprint 5 — UI system, density, and real navigation | `v2/sprint-5-ui` | **Complete, pending Kevin's look-and-feel review.** Gate green (lint / 342 unit / 87 integration / build); `supabase/` untouched, so no migration and no `db:verify` needed. Design tokens land in `tailwind.config`: the type scale is **retuned rather than extended** (`text-sm` 13px, `text-base` 14px) so density reaches ~1500 existing utilities without any of them opting in, plus `text-2xs` — the step below `text-xs` that 15 drifting `text-[10px]`/`[11px]` values had been standing in for. **49 arbitrary values → 1**, and that one is a computed column width, not a size. `forge-*` names the brand ramp, asserted byte-identical to Tailwind's orange, so 223 renames across 22 files are a provable visual no-op. **Inter renders for the first time** — `font-sans` had always overridden it — self-hosted, and the `fonts.googleapis.com` link nobody had noticed is gone with it. Tab state → real routes (`#/app/board`), deep-linkable, back button works, `React.lazy` per feature: main chunk **402 → 288 kB**. **One Sidebar** replaces the fully duplicated rail/drawer, and `Dashboard.test.tsx`'s `getAllByText(...).length > 0` assertions are `getByText` — the tightening that proves it. Four more store domains into typed slices; `user-context` merged into auth (one profile read, one cache). `transformers.ts` deleted. `as any` **67 → 58**. Coverage ratcheted **68/63/64/70 → 72/67/69/74**. Found by running the app, not the suite: an empty checklist rendered nothing at all (and "blank" is a rollover option), and a phone keyboard squeezed the nav to a 24px sliver. **Also found and left alone: a restored session can drop the user into the forced age-profile screen — confirmed on unmodified `main`, so pre-existing; see the parking lot.** |
+
 **Discovered / parking lot:**
+
+*From Sprint 5:*
+- **🔴 A restored session can drop the user into the forced age-profile screen.**
+  Reproduced in a browser on the local stack and **confirmed on unmodified `main`**, so it
+  predates Sprint 5. On a reload with a valid stored session, `supabase.auth.getSession()`
+  never resolves: it takes the `lock:sb-<ref>-auth-token` Web Lock and stays there, with
+  nothing queued behind it. After 5s the safety timeout in `auth.tsx` fires, `isLoading`
+  flips to false with `ageClassification` still null, and `Onboarding` renders "Almost
+  Done! Please complete your profile configuration" to somebody whose profile is complete.
+  The token was not expired and the network round trip measured 52ms, so it is not
+  slowness. For a real user this reads as "the app forgot who I am and is asking my age
+  again", and the obvious response — re-entering it — is harmless but alarming. Belongs
+  with Sprint 7's hardening (or wherever `auth.tsx`'s lifecycle is next opened): the
+  timeout should not be able to leave the app in a state that *asks for data it already
+  has*, whatever the underlying stall turns out to be. Left alone deliberately — it is
+  auth lifecycle, not UI, and Sprint 5 had no business widening into the sync/auth core.
+- **`MemberManager`'s role `<select>` for the admin's own row is disabled with no title.**
+  Correct behaviour (the one-admin unique index means `transfer_team_admin` is the only
+  path), but it is a dead control with no explanation, the same class Sprint 4 fixed
+  elsewhere. Sprint 6 owns that screen and should say "transfer the admin role instead".
+- **`checklistTemplates` still has no management UI** (carried from Sprint 4 — Sprint 5
+  did not add one; the checklist page gained an empty state, not a template manager).
+- **Tailwind v4 re-deferred, now post-beta.** Kevin's call at Sprint 5 kickoff: v4 renames
+  or drops utilities this markup uses and changes the default border colour and ring
+  width, which is a framework migration on top of a token pass three weeks from kickoff.
+  The token layer landing in v3 does not make v4 harder later.
+- **`orange-*` is now `forge-*` in app source, but the tests still say `orange-`.** The
+  ramps are asserted identical, so nothing renders differently; a handful of test files
+  and `src/test/` fixtures were left out of the rename deliberately to keep the diff
+  reviewable. Rename them whenever those files are next touched.
 
 *From Sprint 4:*
 - **`CreateTeam`'s default season name rolls over in January, not at kickoff.**
@@ -349,9 +381,9 @@ the final walkthrough and tags `v2.0.0-beta`.
   asked for, but there is no way to rename, preview or delete one from the app
   (`deleteChecklistTemplate` exists in the store with no caller). Sprint 5's UI pass or
   wherever the checklist page is next touched.
-- **`transformers.ts` is still a thin shim** (carried over from Sprint 2) and
-  `useSeasonScoped` now covers the filtering half of what its remaining callers do. Delete
-  it when Sprint 5 touches the components that import it.
+- **✅ DELETED IN SPRINT 5.** Its last caller was a test, so the shim existed only to be
+  tested; `match-number-optional.test.ts` asserts against the registry directly now, which is
+  where B18 actually lives.
 
 *From Sprint 3:*
 - **✅ B21 patched on production 2026-08-15** (`ALTER POLICY` on the hosted project, verified
@@ -456,8 +488,8 @@ the final walkthrough and tags `v2.0.0-beta`.
   part in delta pulls. The column and its trigger exist now and assertion 4 covers it. The
   table is still excluded from the background sync loop; wiring it in is a separate change
   and belongs wherever live roster updates are actually wanted.
-- **`transformers.ts` is now a thin shim** over the registry with two remaining callers'
-  worth of value. Delete it when Sprint 5 touches the components that import it.
+- **✅ DELETED IN SPRINT 5** — see the Sprint 4 note above. (This Sprint 2 entry was already
+  stale: it said "two remaining callers" and there was one, a test.)
 - **The demo/dev flow needs a seed script.** Setting up a local team to click through took a
   hand-written script; Sprint 7 already plans one, and the fixtures in `src/test/db/` are
   most of it.
@@ -473,22 +505,32 @@ the final walkthrough and tags `v2.0.0-beta`.
   merging; the stale commit is preserved as tag `archive/local-main-stub` and can be deleted.
 - **`tsconfig.json` includes `components` and `services`** — root-level directories that no
   longer exist in this layout. Harmless but misleading; clean up when convenient.
-- **`font-sans` never resolves to Inter.** `index.css` sets Inter on `body`, but `App.tsx`'s
-  `font-sans` re-applies Tailwind's default system stack over it. Pre-existing (the CDN behaved
-  identically) and deliberately not changed in Sprint 1 to avoid visual drift — belongs in the
-  Sprint 5 token pass, along with whether to add Inter to `tailwind.config`.
-- **Tailwind v4 deferred.** Sprint 1 installed v3 to preserve the exact class semantics the
-  markup was authored against. v4 renames/drops utilities in use (`shadow-sm`, `outline-none`,
-  `bg-opacity-*`, `flex-shrink`) and changes the default border colour and ring width. Weigh v4
-  in Sprint 5 where the design tokens are being reworked anyway and visual diffs are expected.
+- **✅ FIXED IN SPRINT 5.** Was: `font-sans` never resolves to Inter — `index.css` sets Inter
+  on `body`, but `App.tsx`'s `font-sans` re-applies Tailwind's default system stack over it.
+  Kevin chose to make Inter real rather than drop it. It is self-hosted now (two latin subsets,
+  +131 KB precache) and `font-sans` resolves to it. Sprint 5 also found the other half nobody
+  had noticed: `index.html` was loading Inter from `fonts.googleapis.com` on every cold start —
+  a render-blocking cross-origin dependency, of the same class as the C1 Tailwind CDN, paying
+  for a webfont that `font-sans` then overrode so it never rendered. Both links and the two
+  dead Google-Fonts `runtimeCaching` rules are gone.
+- **✅ WEIGHED IN SPRINT 5 — deferred again, to post-beta.** Was: Sprint 1 installed v3 to
+  preserve the exact class semantics the markup was authored against; v4 renames/drops
+  utilities in use (`shadow-sm`, `outline-none`, `bg-opacity-*`, `flex-shrink`) and changes
+  the default border colour and ring width. Kevin's decision at Sprint 5 kickoff was to stay
+  on v3: a framework migration on top of a token pass, three weeks from kickoff, on the one
+  sprint whose output is directly visible, mixes two sets of visual diffs in the screenshots
+  he has to review. See the Sprint 5 entry above.
 - **Unused attestation constants.** `SIGNUP_REQUIRED_ATTESTATIONS`, `COACH_REQUIRED_ATTESTATIONS`
   and `MEMBER_REQUIRED_ATTESTATIONS` in `lib/attestations.ts` have no consumers now that
   `getMissingAttestations` is gone. Left in place as they look forward to the Sprint 6
   registration flow — delete them there if that flow does not use them.
 - **Unused CSS survives:** `.calendar-grid` and `.transition-smooth` in `index.css` have no
   consumers. Left alone as they were outside the named Sprint 1 sweep list.
-- **`vite build` warns the main chunk is >500 kB** and that `offline-db.ts` is both statically
-  and dynamically imported, defeating its own code-split. Sprint 5's `React.lazy` routing work
-  is the natural fix.
+- **✅ BOTH FIXED IN SPRINT 5**, though not the way this predicted. The >500 kB warning is gone
+  because `React.lazy` per feature took the main chunk from 402 kB to 288 kB. The
+  `offline-db.ts` static/dynamic warning was **not** fixed by route splitting and could not
+  have been: the module is pulled into the entry chunk by `store.ts`, `sync.ts`, `realtime.ts`,
+  `server-pull.ts` and three slices, so the `await import()` calls in `sign-out.ts` and
+  `JoinTeam.tsx` deferred nothing and only produced the warning. Made static.
 - **`.claude/launch.json` added** with a `preview` config on port 4188 (4173 was occupied), used
   to prove the offline-styling fix. Harmless to keep or delete.
