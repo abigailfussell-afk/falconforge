@@ -31,6 +31,7 @@ describe('SyncStatusIndicator', () => {
             syncStatus: 'idle',
             pendingChanges: 0,
             failedChanges: 0,
+            failureReasons: [],
             lastSyncTime: new Date(),
             sync: mockSync,
             retryFailedChanges: mockRetryFailed,
@@ -185,6 +186,52 @@ describe('SyncStatusIndicator', () => {
 
             expect(screen.queryByRole('alert')).toBeNull();
             expect(screen.getByText('4')).toBeDefined();
+        });
+    });
+
+    describe('why a change was refused (B24)', () => {
+        /*
+         * A policy refusal used to reach this notice after nine minutes carrying only
+         * "didn't save", because PostgREST reports every one of them as the same sentence
+         * about row-level security. The reason is decided at classification time and stored
+         * with the parked change; this is the only surface that can say it.
+         */
+        it('shows the reason instead of the generic connection advice', () => {
+            setupSync({
+                failedChanges: 2,
+                failureReasons: ["Your team's licence has lapsed, so the server is not accepting changes."],
+            });
+            render(<SyncStatusIndicator />);
+
+            const alert = screen.getByRole('alert');
+            expect(alert.textContent).toContain("licence has lapsed");
+            // "Retry when you have a connection" is actively wrong for a lapsed licence — the
+            // connection is fine and retrying changes nothing until the licence does.
+            expect(alert.textContent).not.toContain('Retry when you have a connection');
+        });
+
+        it('lists several distinct reasons together', () => {
+            setupSync({
+                failedChanges: 5,
+                failureReasons: [
+                    "Your team's licence has lapsed.",
+                    'This change belongs to a season that has been archived.',
+                ],
+            });
+            render(<SyncStatusIndicator />);
+
+            const alert = screen.getByRole('alert');
+            expect(alert.textContent).toContain('licence has lapsed');
+            expect(alert.textContent).toContain('archived');
+        });
+
+        it('falls back to the connection advice when nothing explained itself', () => {
+            // Five failed attempts with no classification is a genuinely unknown failure, and
+            // inventing a reason for it would be worse than the generic line.
+            setupSync({ failedChanges: 1, failureReasons: [] });
+            render(<SyncStatusIndicator />);
+
+            expect(screen.getByRole('alert').textContent).toContain('still stored on this device');
         });
     });
 })

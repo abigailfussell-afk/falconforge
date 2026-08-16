@@ -82,7 +82,7 @@ describe('drainSyncQueue pushes to a real database', () => {
 
         const result = await drainSyncQueue();
 
-        expect(result).toEqual({ pushed: 1, retried: 0, deadLettered: 0, cancelled: false });
+        expect(result).toEqual({ pushed: 1, retried: 0, deadLettered: 0, terminal: 0, cancelled: false });
         expect(await db.syncQueue.count()).toBe(0);
 
         const row = await svc.from('tasks').select('*').eq('id', task.id as string).single();
@@ -289,7 +289,7 @@ describe('cancellation (B6)', () => {
 
         const result = await drainSyncQueue({ cancelled: true });
 
-        expect(result).toEqual({ pushed: 0, retried: 0, deadLettered: 0, cancelled: true });
+        expect(result).toEqual({ pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: true });
         expect(await db.syncQueue.count()).toBe(1);
         const row = await svc.from('tasks').select('id').eq('id', task.id as string);
         expect(row.data).toEqual([]);
