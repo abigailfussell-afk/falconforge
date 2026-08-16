@@ -30,15 +30,40 @@ test('a coach creates an event, gets a code, and a student checks in with it', a
     await page.getByTestId('new-event').click();
     await page.getByTestId('event-title').fill('Build session — chassis rebuild');
 
-    // Today, starting a few minutes ago, so check-in is genuinely OPEN by the time the
-    // student arrives. A future event would make the rest of this test unreachable.
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    await page
-        .getByTestId('event-date')
-        .fill(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
-    await page.getByTestId('event-start').fill(`${pad(Math.max(1, now.getHours()))}:00`);
+    /*
+     * Today, starting on the hour and running to midnight, so check-in is genuinely OPEN
+     * however late in the day this runs. The rest of the test is unreachable otherwise.
+     *
+     * BOTH TIMES ARE SET, and that is the whole point of this comment. The first version set
+     * only the start and left the end at the form's default — which is derived from "the next
+     * round hour" and therefore rolls to TOMORROW's 02:00 late in the evening. Combined with
+     * today's date and a 23:00 start it produced an event ending before it began, the form
+     * correctly disabled Save, and the test hung on a button that was right to refuse.
+     *
+     * It passed on a developer machine in US Central and failed on CI in UTC, which is a
+     * five-hour window this suite would have walked into eventually on any timezone. Caught by
+     * pushing the branch — the first CI run this sprint ever had.
+     */
+    // Read the clock the FORM runs on, not the one Node runs on. The form composes local
+    // wall-clock parts into an instant, so a date and hour taken from the test process is only
+    // correct while the two happen to share a timezone — true on CI, and not true of any
+    // machine running this with TZ set. Asking the page removes the coincidence.
+    const today = await page.evaluate(() => {
+        const d = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return {
+            date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+            hour: `${pad(d.getHours())}:00`,
+        };
+    });
 
+    await page.getByTestId('event-date').fill(today.date);
+    await page.getByTestId('event-start').fill(today.hour);
+    await page.getByTestId('event-end').fill('23:59');
+
+    // Enabled BEFORE clicking: a disabled Save is a real state this form has, and waiting on
+    // the click alone reports it as a missing element rather than as a refused save.
+    await expect(page.getByTestId('save-event')).toBeEnabled();
     await page.getByTestId('save-event').click();
 
     // Saving navigates to the event it created.

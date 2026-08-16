@@ -289,6 +289,7 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
                             className="field"
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
+                            data-testid="event-end"
                         />
                     </Field>
                 </div>
