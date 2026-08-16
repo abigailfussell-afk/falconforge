@@ -322,7 +322,22 @@ the final walkthrough and tags `v2.0.0-beta`.
 
 | 2026-08-15 | Sprint 5 — UI system, density, and real navigation | `v2/sprint-5-ui` | **Complete, reviewed, merged and deployed to falcon-forge.com** (`332f2bd`, CI + Deploy both green; live bundle verified serving Inter with zero Google-Fonts requests, and CNAME intact). No migration: `supabase/` untouched, so unlike Sprint 4 the bundle went live against a database that already matched. Gate green (lint / 342 unit / 87 integration / build); `supabase/` untouched, so no migration and no `db:verify` needed. Design tokens land in `tailwind.config`: the type scale is **retuned rather than extended** (`text-sm` 13px, `text-base` 14px) so density reaches ~1500 existing utilities without any of them opting in, plus `text-2xs` — the step below `text-xs` that 15 drifting `text-[10px]`/`[11px]` values had been standing in for. **49 arbitrary values → 1**, and that one is a computed column width, not a size. `forge-*` names the brand ramp, asserted byte-identical to Tailwind's orange, so 223 renames across 22 files are a provable visual no-op. **Inter renders for the first time** — `font-sans` had always overridden it — self-hosted, and the `fonts.googleapis.com` link nobody had noticed is gone with it. Tab state → real routes (`#/app/board`), deep-linkable, back button works, `React.lazy` per feature: main chunk **402 → 288 kB**. **One Sidebar** replaces the fully duplicated rail/drawer, and `Dashboard.test.tsx`'s `getAllByText(...).length > 0` assertions are `getByText` — the tightening that proves it. Four more store domains into typed slices; `user-context` merged into auth (one profile read, one cache). `transformers.ts` deleted. `as any` **67 → 58**. Coverage ratcheted **68/63/64/70 → 72/67/69/74**. Found by running the app, not the suite: an empty checklist rendered nothing at all (and "blank" is a rollover option), and a phone keyboard squeezed the nav to a 24px sliver. **Also found and left alone: a restored session can drop the user into the forced age-profile screen — confirmed on unmodified `main`, so pre-existing; see the parking lot.** |
 
+| 2026-08-15 | Sprint 5.5 — UI polish: primitive kit, feedback pass, density pass; auth deadlock fixed | `v2/sprint-5.5-ui-polish` | **Complete.** Gate green (lint / 344 unit / 87 integration / build); no `supabase/` changes. Ran from the post-Sprint-5 UI review's findings. **The 🔴 restored-session bug is fixed and root-caused** — `onAuthStateChange` awaited a supabase REST call while supabase-js held its auth Web Lock, deadlocking the client on itself; profile sync now defers out of the callback (B23 regression test, verified to fail without the fix; reload-with-session verified live). The missing layer over the Sprint 5 tokens landed: `src/components/ui/` (Button/IconButton/Modal/EmptyState/SectionHeader) + `.field` — 8 primary-button recipes, 5 modal widths, 7 input recipes and three disabled opacities collapse to one each, `max-w-panel`/`max-w-dialog`/`z-dialog` go from dead tokens to the modal defaults, and ConfirmDialog composes the kit. Feedback pass: scouting Save no longer silently no-ops on an empty team number (disabled + explanatory title, under test); four keyboard-unreachable primary actions became real buttons (scouting cards, calendar rows, checklist items — under test); the native `confirm()` in MemberManager became ConfirmDialog; Reject got the busy spinner Approve had; the sync button answers hover and explains its disabled states; ± steppers got touch targets, hover, and a floor at zero. Density pass: calendar rows ~124px → ~88px of vertical cost and the view fills its frame; task-modal padding halved; checklist 800px → 608px column; EditProfile → `max-w-panel`; scouting/sub-team grids gain xl/2xl steps; dashboard's dead lower half became an Upcoming Deadlines panel. `as any` 58 → **55**; arbitrary values still 1 (the documented one). Verified in the browser end to end on the local stack. |
+
 **Discovered / parking lot:**
+
+*From Sprint 5.5:*
+- **Due dates render one day early for US-negative UTC offsets.** A date picked as
+  `2026-08-19` is stored as UTC-midnight epoch millis and rendered via local-time
+  `new Date(...).getDate()`, so Chicago sees “AUG 18”. Pre-existing in SprintCalendar and
+  SprintList; the new dashboard deadlines panel inherits it faithfully. The fix is a
+  date-only render helper (or storing date-only strings), and it touches the task form's
+  `<input type="date">` parsing too — small, self-contained, but it deserves its own tested
+  change rather than a rider on a styling sprint.
+- **Two `!important` utilities exist now** (`!px-2.5`, `!px-2 md:!px-4`) where a caller
+  overrides the Button size recipe's padding — Tailwind orders spacing utilities by scale,
+  so a plain override silently loses. If this pattern spreads, give Button a `padding:
+  'none'` escape hatch instead of accumulating `!`.
 
 *From Sprint 5:*
 - **🔴 A restored session can drop the user into the forced age-profile screen.**
@@ -339,6 +354,24 @@ the final walkthrough and tags `v2.0.0-beta`.
   timeout should not be able to leave the app in a state that *asks for data it already
   has*, whatever the underlying stall turns out to be. Left alone deliberately — it is
   auth lifecycle, not UI, and Sprint 5 had no business widening into the sync/auth core.
+  - **Root cause found and fix verified (2026-08-15, UI-review session).** The stall is a
+    self-deadlock in supabase-js, triggered by our own callback: `auth.tsx`'s
+    `onAuthStateChange` handler `await`s `ensureUserProfile()` — a PostgREST call — inside
+    the callback. supabase-js emits `INITIAL_SESSION`/`SIGNED_IN` while still holding the
+    `sb-<ref>-auth-token` Web Lock; the REST call resolves its access token via
+    `getSession()`, which wants that same lock; the client queues it internally (so
+    `navigator.locks.query()` shows the lock held with an EMPTY pending queue) and neither
+    side ever proceeds. Supabase's docs explicitly warn not to call other Supabase
+    functions synchronously inside `onAuthStateChange`. Reproduced 100% on the local stack
+    on every reload-with-stored-session AND on password sign-in; depending on whether the
+    5s timeout loses or wins the race against the `INITIAL_SESSION` `setState`, the user
+    gets either the documented age-profile screen or an **indefinite "Preparing your
+    workspace..."** — the timeout does not cover the second ordering. Verified fix (left
+    uncommitted in the working tree for review): defer the profile-sync block out of the
+    callback with `setTimeout(0)` and release `isLoading` in a `.finally()`. After the
+    patch, reload-with-session lands on a fully-loaded dashboard every time. Needs a named
+    regression test when it lands (Rule 6); a supabase-js upgrade is a complementary
+    hardening, not a substitute — the callback pattern is the bug.
 - **`MemberManager`'s role `<select>` for the admin's own row is disabled with no title.**
   Correct behaviour (the one-admin unique index means `transfer_team_admin` is the only
   path), but it is a dead control with no explanation, the same class Sprint 4 fixed

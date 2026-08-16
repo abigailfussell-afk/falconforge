@@ -181,16 +181,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     isLoading: needsProfileSync ? true : false,
                 }));
 
-                // Handle user profile creation / loading on sign up or sign in
+                // Handle user profile creation / loading on sign up or sign in.
+                //
+                // Deferred out of this callback with setTimeout(0): supabase-js emits
+                // SIGNED_IN / INITIAL_SESSION while it still holds the sb-*-auth-token
+                // Web Lock, and ensureUserProfile's REST call needs getSession(), which
+                // wants that same lock — awaiting it here deadlocks the auth client
+                // (lock held, pending queue empty, "Preparing your workspace..." forever
+                // on any reload with a stored session). Supabase's own docs require
+                // deferring Supabase calls made from inside onAuthStateChange.
                 if (needsProfileSync && session?.user) {
-                    useAppStore.getState().setCurrentUserId(session.user.id);
-                    await ensureUserProfile(session.user);
-                    
-                    // Once profile is ensured, finally release the loading lock
-                    setState(prev => ({
-                        ...prev,
-                        isLoading: false
-                    }));
+                    const user = session.user;
+                    setTimeout(() => {
+                        useAppStore.getState().setCurrentUserId(user.id);
+                        ensureUserProfile(user).finally(() => {
+                            // Once profile is ensured, finally release the loading lock
+                            setState(prev => ({
+                                ...prev,
+                                isLoading: false
+                            }));
+                        });
+                    }, 0);
                 }
 
                 if (event === 'SIGNED_OUT') {

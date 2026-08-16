@@ -108,11 +108,23 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     );
 
     const statusButton = (
+        /* The one control that invites a manual sync: it now looks pressable (hover
+           brightens the tint) and looks dead when it is (offline/syncing dims it) —
+           it used to render pixel-identical in all three states. */
         <button
             onClick={() => sync()}
             disabled={syncStatus === 'syncing' || !isOnline}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all w-full ${getStatusColor()} ${variant === 'icon' ? 'aspect-square justify-center' : ''}`}
-            title={error || (lastSyncTime ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 'Click to sync')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all w-full enabled:hover:brightness-125 disabled:opacity-60 disabled:cursor-not-allowed ${getStatusColor()} ${variant === 'icon' ? 'aspect-square justify-center' : ''}`}
+            title={
+                error ||
+                (!isOnline
+                    ? 'Offline — will sync when the connection returns'
+                    : syncStatus === 'syncing'
+                        ? 'Sync in progress'
+                        : lastSyncTime
+                            ? `Last synced: ${lastSyncTime.toLocaleTimeString()}`
+                            : 'Click to sync')
+            }
         >
             <span className={syncStatus === 'syncing' ? 'animate-spin' : ''}>
                 {getStatusIcon()}

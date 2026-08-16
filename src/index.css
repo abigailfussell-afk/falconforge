@@ -97,6 +97,24 @@ h6 {
 }
 
 /*
+ * The form-field recipe (Sprint 5.5).
+ *
+ * Text inputs, selects and textareas had seven hand-rolled recipes: `bg-white` vs
+ * `bg-slate-50` grounds, `border` with no light-mode colour (falling through to
+ * preflight's gray-200 while everything around it was slate), focus rings at 2px, 1px
+ * and absent, and radii at 4, 8 and 10px inside 10px shells. `.field` is the one
+ * recipe; it lives in @layer components so a call site can still override a single
+ * property with a utility (`.field text-xs`, `.field bg-slate-50`) without a fight.
+ */
+@layer components {
+  .field {
+    @apply w-full p-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600
+      bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400
+      focus:outline-none focus:ring-2 focus:ring-forge-500 focus:border-transparent;
+  }
+}
+
+/*
  * Touch targets, opt-in.
  *
  * WHAT THIS REPLACED, AND WHY IT HAD TO GO

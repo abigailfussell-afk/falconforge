@@ -3,6 +3,10 @@ import { useAppStore, ScoutingReport } from '../lib/store';
 import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
 import { useScoutingQuery } from '../lib/queries';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
+import Button from './ui/Button';
+import Modal from './ui/Modal';
+import EmptyState from './ui/EmptyState';
+import ConfirmDialog from './ConfirmDialog';
 
 const ScoutingReports: React.FC = () => {
     const { scoutingReports: allScoutingReports, addScoutingReport, updateScoutingReport, deleteScoutingReport, currentTeamId } = useAppStore();
@@ -38,8 +42,13 @@ const ScoutingReports: React.FC = () => {
         endGameNotes: ''
     });
 
+    // The one fact the report is useless without. The save button disables on it (with a
+    // title saying why) instead of the old silent early-return, which ate the tap and kept
+    // the modal open with no explanation — at a venue that read as "the app lost my entry".
+    const hasTeamNumber = Boolean(newScout.teamNumber?.trim());
+
     const saveScoutingReport = () => {
-        if (!newScout.teamNumber) return;
+        if (!hasTeamNumber) return;
 
         const reportData = {
             teamNumber: newScout.teamNumber || '',
@@ -125,26 +134,72 @@ const ScoutingReports: React.FC = () => {
         }));
     }
 
+    /**
+     * The ± steppers are the most-tapped controls in the scouting flow, so they get the
+     * 44px coarse-pointer target, a hover, and a real disabled state at zero — the old
+     * ones gave nothing back on any of the three. A render helper rather than a nested
+     * component: a component declared per-render remounts its subtree on every keystroke.
+     */
+    const renderStepper = (field: 'shotsTaken' | 'shotsMissed', label: string) => (
+        <div>
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">{label}</label>
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => adjustCount(field, -1)}
+                    disabled={(newScout[field] || 0) === 0}
+                    aria-label={`Decrease ${label.toLowerCase()}`}
+                    className="touch-target p-2 bg-slate-200 dark:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-200 transition-colors enabled:hover:bg-slate-300 dark:enabled:hover:bg-slate-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    <Minus size={14} />
+                </button>
+                <span className="flex-1 text-center font-mono font-bold text-lg dark:text-white">{newScout[field]}</span>
+                <button
+                    type="button"
+                    onClick={() => adjustCount(field, 1)}
+                    aria-label={`Increase ${label.toLowerCase()}`}
+                    className="touch-target p-2 bg-slate-200 dark:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-300 dark:hover:bg-slate-500"
+                >
+                    <PlusIcon size={14} />
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <div className="h-full flex flex-col w-full">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">Scouting Reports</h2>
-                <button
+                <Button
                     data-testid="scout-match"
                     onClick={() => setIsScoutModalOpen(true)}
                     disabled={!canEdit}
                     title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
-                    className="bg-forge-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-forge-700 transition shadow-card disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="px-2 md:px-4"
                 >
                     <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
-                </button>
+                </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                 {scoutingReports.map(report => (
+                    /*
+                     * The card opens the report for editing and CONTAINS a delete button, so
+                     * it cannot itself be a <button> (buttons do not nest). role/tabIndex/
+                     * onKeyDown make it a real keyboard target — a pit crew on a Bluetooth
+                     * keyboard could not open a report at all before.
+                     */
                     <div
                         key={report.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => openEditModal(report)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                openEditModal(report);
+                            }
+                        }}
                         className="bg-white dark:bg-slate-800 p-3 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition cursor-pointer"
                     >
                         <div className="flex justify-between items-start mb-4">
@@ -154,23 +209,26 @@ const ScoutingReports: React.FC = () => {
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{report.eventName}</div>
                                 )}
                             </div>
-                            <div className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <div className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300">
                                 {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
                             </div>
                         </div>
 
                         <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300 mb-4">
-                            <div className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-1">
                                 <span>Autonomous</span>
                                 <span className={report.hasAutonomous ? "text-green-600 dark:text-green-400 font-bold" : "text-slate-400"}>
                                     {report.hasAutonomous ? `${report.autoScore} pts` : 'No'}
                                 </span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-1">
                                 <span>Intake</span>
                                 <span className="font-medium">{report.intakeType}</span>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                            {/* items-center, not the default stretch: this row's right side can be
+                                two lines tall, and stretch dragged the left label's baseline down
+                                with it while the other rows' labels stayed put. */}
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-1">
                                 <span>Shooting</span>
                                 <div className="text-right">
                                     <div>{report.shotsTaken - report.shotsMissed} / {report.shotsTaken} Shots</div>
@@ -179,7 +237,7 @@ const ScoutingReports: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-1">
                                 <span>Parking</span>
                                 <span className="font-medium text-forge-600 dark:text-forge-400">{report.parking}</span>
                             </div>
@@ -202,218 +260,211 @@ const ScoutingReports: React.FC = () => {
                             </button>
                         </div>
                         {report.endGameNotes && (
-                            <p className="text-xs bg-slate-50 dark:bg-slate-700 p-2 rounded text-slate-500 dark:text-slate-300 italic">
+                            <p className="text-xs bg-slate-50 dark:bg-slate-700 p-2 rounded-lg text-slate-500 dark:text-slate-300 italic">
                                 "{report.endGameNotes}"
                             </p>
                         )}
                     </div>
                 ))}
                 {scoutingReports.length === 0 && (
-                    <div className="col-span-full text-center py-12 text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                        No scouting data yet. Click "Scout Match" to begin.
+                    <div className="col-span-full bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <EmptyState
+                            icon={Trophy}
+                            title="No scouting data yet"
+                            body="Reports your team scouts this season appear here."
+                            action={
+                                <Button
+                                    size="sm"
+                                    onClick={() => setIsScoutModalOpen(true)}
+                                    disabled={!canEdit}
+                                    title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
+                                >
+                                    <Plus size={16} /> Scout Match
+                                </Button>
+                            }
+                        />
                     </div>
                 )}
             </div>
 
-            {/* Delete Confirmation Modal */}
             {deleteConfirmId && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-sm w-full shadow-overlay">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete Report?</h3>
-                        <p className="text-slate-600 dark:text-slate-300 mb-6">
-                            This scouting report will be permanently deleted. This action cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDelete(deleteConfirmId)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    title="Delete Report?"
+                    message="This scouting report will be permanently deleted. This action cannot be undone."
+                    onConfirm={() => handleDelete(deleteConfirmId)}
+                    onCancel={() => setDeleteConfirmId(null)}
+                />
             )}
 
             {isScoutModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg overflow-hidden flex flex-col max-h-modal shadow-overlay">
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">{editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}</div>
-                        <div className="p-6 space-y-4 overflow-y-auto">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Team #</label>
-                                    <input
-                                        type="text"
-                                        className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                        value={newScout.teamNumber || ''}
-                                        onChange={e => setNewScout({ ...newScout, teamNumber: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Match #</label>
-                                    <input
-                                        type="number"
-                                        className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                        placeholder="Optional"
-                                        value={newScout.matchNumber ?? ''}
-                                        onChange={e => setNewScout({
-                                            ...newScout,
-                                            // Clearing the field must yield undefined, not NaN (B18).
-                                            matchNumber: e.target.value === ''
-                                                ? undefined
-                                                : parseInt(e.target.value, 10),
-                                        })}
-                                    />
-                                </div>
-                            </div>
-
+                <Modal
+                    label={editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}
+                    width="dialog"
+                    className="overflow-hidden flex flex-col"
+                >
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">{editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}</div>
+                    <div className="p-4 md:p-6 space-y-4 overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Event Name <span className="font-normal normal-case">(optional)</span></label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Team # <span className="text-forge-600 dark:text-forge-400">*</span></label>
                                 <input
                                     type="text"
-                                    className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                    placeholder="e.g. League Meet #3"
-                                    value={newScout.eventName || ''}
-                                    onChange={e => setNewScout({ ...newScout, eventName: e.target.value })}
+                                    className="field"
+                                    value={newScout.teamNumber || ''}
+                                    onChange={e => setNewScout({ ...newScout, teamNumber: e.target.value })}
                                 />
                             </div>
-
-                            {/* Autonomous Section */}
-                            <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
-                                <h4 className="font-bold text-slate-700 dark:text-white text-sm">Autonomous</h4>
-                                <label className="flex items-center gap-3 text-slate-800 dark:text-white">
-                                    <input
-                                        type="checkbox"
-                                        className="w-5 h-5 rounded text-forge-600"
-                                        checked={newScout.hasAutonomous}
-                                        onChange={e => setNewScout({ ...newScout, hasAutonomous: e.target.checked })}
-                                    />
-                                    <span className="font-medium">Has Autonomous</span>
-                                </label>
-                                {newScout.hasAutonomous && (
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Auto Score</label>
-                                        <input
-                                            type="number"
-                                            className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                            value={newScout.autoScore}
-                                            onChange={e => setNewScout({ ...newScout, autoScore: parseInt(e.target.value) })}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* TeleOp Section */}
-                            <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
-                                <h4 className="font-bold text-slate-700 dark:text-white text-sm">TeleOp</h4>
-
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 block">Intake Type</label>
-                                    <select
-                                        className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                        value={newScout.intakeType}
-                                        onChange={(e) => setNewScout({ ...newScout, intakeType: e.target.value as any })}
-                                    >
-                                        <option>No Intake</option>
-                                        <option>Human Player</option>
-                                        <option>Automatic</option>
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <label className="flex items-center gap-2 text-slate-800 dark:text-white text-sm">
-                                        <input type="checkbox" checked={newScout.autoAim} onChange={e => setNewScout({ ...newScout, autoAim: e.target.checked })} />
-                                        Auto Aim
-                                    </label>
-                                    <label className="flex items-center gap-2 text-slate-800 dark:text-white text-sm">
-                                        <input type="checkbox" checked={newScout.farShooting} onChange={e => setNewScout({ ...newScout, farShooting: e.target.checked })} />
-                                        Far Shooting
-                                    </label>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Shots Taken</label>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => adjustCount('shotsTaken', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><Minus size={14} /></button>
-                                            <span className="flex-1 text-center font-mono font-bold text-lg dark:text-white">{newScout.shotsTaken}</span>
-                                            <button onClick={() => adjustCount('shotsTaken', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><PlusIcon size={14} /></button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Shots Missed</label>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => adjustCount('shotsMissed', -1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><Minus size={14} /></button>
-                                            <span className="flex-1 text-center font-mono font-bold text-lg dark:text-white">{newScout.shotsMissed}</span>
-                                            <button onClick={() => adjustCount('shotsMissed', 1)} className="p-2 bg-slate-200 dark:bg-slate-600 rounded flex items-center justify-center"><PlusIcon size={14} /></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* End Game */}
-                            <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
-                                <h4 className="font-bold text-slate-700 dark:text-white text-sm">End Game</h4>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Parking</label>
-                                    <select
-                                        className="w-full border dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                        value={newScout.parking}
-                                        onChange={(e) => setNewScout({ ...newScout, parking: e.target.value as any })}
-                                    >
-                                        <option>No Park</option>
-                                        <option>Partial Park</option>
-                                        <option>Full Park</option>
-                                    </select>
-                                </div>
-                            </div>
-
                             <div>
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Driver Rating (1-5)</label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Match #</label>
                                 <input
-                                    type="range"
-                                    min="1" max="5"
-                                    className="w-full accent-forge-600"
-                                    value={newScout.rating || 3}
-                                    onChange={e => setNewScout({ ...newScout, rating: parseInt(e.target.value) })}
+                                    type="number"
+                                    className="field"
+                                    placeholder="Optional"
+                                    value={newScout.matchNumber ?? ''}
+                                    onChange={e => setNewScout({
+                                        ...newScout,
+                                        // Clearing the field must yield undefined, not NaN (B18).
+                                        matchNumber: e.target.value === ''
+                                            ? undefined
+                                            : parseInt(e.target.value, 10),
+                                    })}
                                 />
-                                <div className="flex justify-between text-xs text-slate-400">
-                                    <span>Novice</span>
-                                    <span>Expert</span>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Notes</label>
-                                <textarea
-                                    className="w-full border dark:border-slate-600 rounded p-2 h-20 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                    value={newScout.endGameNotes || ''}
-                                    onChange={e => setNewScout({ ...newScout, endGameNotes: e.target.value })}
-                                ></textarea>
                             </div>
                         </div>
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
-                            <button onClick={() => setIsScoutModalOpen(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">Cancel</button>
-                            {/* The modal still OPENS on an archived season — "full history
-                                backward" means a past report stays readable. Only saving is
-                                unavailable, which is the write the database refuses. */}
-                            <button
-                                data-testid="save-scouting-report"
-                                onClick={saveScoutingReport}
-                                disabled={!canEdit}
-                                title={canEdit ? 'Save report' : 'This season is archived and read-only'}
-                                className="px-6 py-2 bg-forge-600 text-white rounded font-medium hover:bg-forge-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >Save Report</button>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Event Name <span className="font-normal normal-case">(optional)</span></label>
+                            <input
+                                type="text"
+                                className="field"
+                                placeholder="e.g. League Meet #3"
+                                value={newScout.eventName || ''}
+                                onChange={e => setNewScout({ ...newScout, eventName: e.target.value })}
+                            />
+                        </div>
+
+                        {/* Autonomous Section */}
+                        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
+                            <h4 className="font-bold text-slate-700 dark:text-white text-sm">Autonomous</h4>
+                            <label className="flex items-center gap-3 text-slate-800 dark:text-white">
+                                <input
+                                    type="checkbox"
+                                    className="w-5 h-5 rounded accent-forge-600"
+                                    checked={newScout.hasAutonomous}
+                                    onChange={e => setNewScout({ ...newScout, hasAutonomous: e.target.checked })}
+                                />
+                                <span className="font-medium">Has Autonomous</span>
+                            </label>
+                            {newScout.hasAutonomous && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Auto Score</label>
+                                    <input
+                                        type="number"
+                                        className="field"
+                                        value={newScout.autoScore}
+                                        onChange={e => setNewScout({ ...newScout, autoScore: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* TeleOp Section */}
+                        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
+                            <h4 className="font-bold text-slate-700 dark:text-white text-sm">TeleOp</h4>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 block">Intake Type</label>
+                                <select
+                                    className="field"
+                                    value={newScout.intakeType}
+                                    onChange={(e) => setNewScout({ ...newScout, intakeType: e.target.value as ScoutingReport['intakeType'] })}
+                                >
+                                    <option>No Intake</option>
+                                    <option>Human Player</option>
+                                    <option>Automatic</option>
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <label className="flex items-center gap-2 text-slate-800 dark:text-white text-sm">
+                                    <input type="checkbox" className="accent-forge-600" checked={newScout.autoAim} onChange={e => setNewScout({ ...newScout, autoAim: e.target.checked })} />
+                                    Auto Aim
+                                </label>
+                                <label className="flex items-center gap-2 text-slate-800 dark:text-white text-sm">
+                                    <input type="checkbox" className="accent-forge-600" checked={newScout.farShooting} onChange={e => setNewScout({ ...newScout, farShooting: e.target.checked })} />
+                                    Far Shooting
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                {renderStepper('shotsTaken', 'Shots Taken')}
+                                {renderStepper('shotsMissed', 'Shots Missed')}
+                            </div>
+                        </div>
+
+                        {/* End Game */}
+                        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-3">
+                            <h4 className="font-bold text-slate-700 dark:text-white text-sm">End Game</h4>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Parking</label>
+                                <select
+                                    className="field"
+                                    value={newScout.parking}
+                                    onChange={(e) => setNewScout({ ...newScout, parking: e.target.value as ScoutingReport['parking'] })}
+                                >
+                                    <option>No Park</option>
+                                    <option>Partial Park</option>
+                                    <option>Full Park</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Driver Rating (1-5)</label>
+                            <input
+                                type="range"
+                                min="1" max="5"
+                                className="w-full accent-forge-600"
+                                value={newScout.rating || 3}
+                                onChange={e => setNewScout({ ...newScout, rating: parseInt(e.target.value) })}
+                            />
+                            <div className="flex justify-between text-xs text-slate-400">
+                                <span>Novice</span>
+                                <span>Expert</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Notes</label>
+                            <textarea
+                                className="field h-20"
+                                value={newScout.endGameNotes || ''}
+                                onChange={e => setNewScout({ ...newScout, endGameNotes: e.target.value })}
+                            ></textarea>
                         </div>
                     </div>
-                </div>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setIsScoutModalOpen(false)}>Cancel</Button>
+                        {/* The modal still OPENS on an archived season — "full history
+                            backward" means a past report stays readable. Only saving is
+                            unavailable, which is the write the database refuses. */}
+                        <Button
+                            data-testid="save-scouting-report"
+                            onClick={saveScoutingReport}
+                            disabled={!canEdit || !hasTeamNumber}
+                            title={
+                                !canEdit
+                                    ? 'This season is archived and read-only'
+                                    : !hasTeamNumber
+                                        ? 'Enter a team number first'
+                                        : 'Save report'
+                            }
+                            className="px-6"
+                        >
+                            Save Report
+                        </Button>
+                    </div>
+                </Modal>
             )}
         </div>
     );

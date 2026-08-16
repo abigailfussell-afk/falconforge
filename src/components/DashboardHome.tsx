@@ -60,6 +60,15 @@ export default function DashboardHome() {
 
     const openCount = tasks.filter(t => ['To Do', 'In Progress', 'Testing'].includes(t.status)).length;
 
+    // The next five dated, unfinished tasks. This panel exists because the dashboard used
+    // to end after Quick Actions — the lower two-thirds of a desktop screen was empty while
+    // the one thing a team actually plans around (what's due) lived two clicks away.
+    const upcomingDeadlines = tasks
+        .filter(t => t.dueDate && t.status !== 'Done')
+        .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))
+        .slice(0, 5);
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
+
     return (
         <div className="space-y-4">
             {/* Header / Welcome */}
@@ -175,6 +184,47 @@ export default function DashboardHome() {
                     </div>
                 </div>
             </div>
+
+            {/* Upcoming Deadlines */}
+            {upcomingDeadlines.length > 0 && (
+                <div className="space-y-2.5">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <TrendingUp size={16} className="text-forge-500" />
+                        Upcoming Deadlines
+                    </h2>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card divide-y divide-slate-100 dark:divide-slate-700">
+                        {upcomingDeadlines.map(task => {
+                            const overdue = (task.dueDate || 0) < startOfToday;
+                            return (
+                                <button
+                                    key={task.id}
+                                    onClick={() => goTo('kanban')}
+                                    className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                >
+                                    <span
+                                        className={`flex flex-col items-center justify-center w-10 shrink-0 rounded-lg py-1 tabular-nums ${
+                                            overdue
+                                                ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                        }`}
+                                    >
+                                        <span className="text-2xs uppercase font-bold leading-none">
+                                            {new Date(task.dueDate!).toLocaleString('default', { month: 'short' })}
+                                        </span>
+                                        <span className="text-base font-bold leading-tight">{new Date(task.dueDate!).getDate()}</span>
+                                    </span>
+                                    <span className="flex-1 min-w-0">
+                                        <span className="block text-sm font-medium text-slate-900 dark:text-white truncate">{task.title}</span>
+                                        <span className={`block text-2xs ${overdue ? 'text-red-500 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {overdue ? 'Overdue' : task.status}
+                                        </span>
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

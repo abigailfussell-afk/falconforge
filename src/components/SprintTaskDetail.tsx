@@ -3,6 +3,9 @@ import { Task, TaskStatus, TaskType, SubTeam, TeamMember } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { Plus, Trash2, X, Archive } from 'lucide-react';
 import SprintTaskActivity from './SprintTaskActivity';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
 import { getMemberDisplayName } from '../lib/member-utils';
 
 /**
@@ -64,8 +67,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
 
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl max-h-modal flex flex-col shadow-overlay overflow-hidden">
+        <Modal label="Task details" width="wide" className="flex flex-col overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                     <div className="flex-1 mr-4">
                         <input
@@ -73,7 +75,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             value={task.title}
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"
-                            className="text-xl font-bold bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-lg p-2 focus:ring-2 focus:ring-forge-500 w-full placeholder-slate-400 dark:placeholder-slate-500 text-slate-900 dark:text-white"
+                            className="field text-base font-semibold"
                         />
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-700 p-2 rounded-full flex items-center justify-center w-8 h-8">
@@ -82,14 +84,14 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
                             <select
                                 value={task.type}
                                 onChange={(e) => onChange({ ...task, type: e.target.value as TaskType })}
-                                className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="field"
                             >
                                 <option value={TaskType.Feature}>Feature</option>
                                 <option value={TaskType.Bug}>Bug</option>
@@ -100,7 +102,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             <select
                                 value={task.status}
                                 onChange={(e) => onChange({ ...task, status: e.target.value as TaskStatus })}
-                                className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="field"
                             >
                                 {STATUS_COLUMNS.map(s => <option key={s} value={s}>{s}</option>)}
                                 {task.status === TaskStatus.Archived && (
@@ -113,7 +115,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             <select
                                 value={task.department}
                                 onChange={(e) => onChange({ ...task, department: e.target.value })}
-                                className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="field"
                             >
                                 {subTeams.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                             </select>
@@ -123,7 +125,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             <select
                                 value={task.assignedTo}
                                 onChange={(e) => onChange({ ...task, assignedTo: e.target.value })}
-                                className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="field"
                             >
                                 <option value="">Unassigned</option>
                                 {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m)}</option>)}
@@ -135,7 +137,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                 type="date"
                                 value={task.dueDate ? new Date(task.dueDate).toISOString().substr(0, 10) : ''}
                                 onChange={(e) => onChange({ ...task, dueDate: e.target.valueAsNumber })}
-                                className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                className="field"
                             />
                         </div>
                     </div>
@@ -145,7 +147,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <textarea
                             value={task.description}
                             onChange={(e) => onChange({ ...task, description: e.target.value })}
-                            className="w-full h-32 p-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-forge-500 focus:border-transparent"
+                            className="field h-32"
                             placeholder="Describe the task, paste meeting minutes, or log bug details..."
                         />
                     </div>
@@ -163,8 +165,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                             newChecklist[idx].completed = e.target.checked;
                                             onChange({ ...task, checklist: newChecklist });
                                         }}
-                                        className="w-5 h-5 rounded text-forge-600 focus:ring-forge-500 cursor-pointer mt-0.5"
-                                        style={{ minWidth: '20px', minHeight: '20px' }}
+                                        className="w-5 h-5 rounded text-forge-600 accent-forge-600 focus:ring-forge-500 cursor-pointer"
                                     />
                                     <input
                                         ref={idx === task.checklist.length - 1 ? newChecklistRef : null}
@@ -176,18 +177,19 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                             newChecklist[idx].text = e.target.value;
                                             onChange({ ...task, checklist: newChecklist });
                                         }}
-                                        className="flex-1 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded px-2 py-1 focus:ring-1 focus:ring-forge-500 text-slate-900 dark:text-white placeholder-slate-400"
+                                        className="field py-1 flex-1"
                                     />
-                                    <button
+                                    <IconButton
+                                        danger
                                         onClick={() => {
                                             const newChecklist = task.checklist.filter((_, i) => i !== idx);
                                             onChange({ ...task, checklist: newChecklist });
                                         }}
-                                        className="text-slate-400 hover:text-red-500 border border-slate-300 dark:border-slate-600 hover:border-red-400 rounded p-1 transition-colors flex items-center justify-center h-8 w-8"
+                                        className="p-1"
                                         title="Delete item"
                                     >
                                         <Trash2 size={14} />
-                                    </button>
+                                    </IconButton>
                                 </div>
                             ))}
                             <button
@@ -213,43 +215,30 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                 </div>
 
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                         {!isNewTask && (
-                            <button
-                                onClick={onRequestDelete}
-                                className="px-3 py-2 rounded-lg text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium flex items-center gap-1 transition"
-                            >
+                            <Button variant="danger" onClick={onRequestDelete}>
                                 <Trash2 size={16} />
                                 Delete
-                            </button>
+                            </Button>
                         )}
                         {!isNewTask && task.status === TaskStatus.Done && (
-                            <button
-                                onClick={onArchive}
-                                className="px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium flex items-center gap-1 transition"
-                            >
+                            <Button variant="secondary" onClick={onArchive}>
                                 <Archive size={16} />
                                 Archive
-                            </button>
+                            </Button>
                         )}
                     </div>
                     <div className="flex gap-3">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium"
-                        >
+                        <Button variant="secondary" onClick={onClose}>
                             Cancel
-                        </button>
-                        <button
-                            onClick={onSave}
-                            className="px-6 py-2 rounded-lg bg-forge-600 text-white font-medium hover:bg-forge-700 shadow-card"
-                        >
+                        </Button>
+                        <Button onClick={onSave} disabled={!task.title.trim()}>
                             Save Task
-                        </button>
+                        </Button>
                     </div>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 };
 

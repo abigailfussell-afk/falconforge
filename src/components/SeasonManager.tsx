@@ -3,6 +3,10 @@ import { Calendar, Plus, Trash2, X, Upload, AlertTriangle, Archive, ArchiveResto
 import { useAppStore } from '../lib/store';
 import { suggestNextSeasonName } from '../lib/season-rules';
 import type { SeasonRolloverInput } from '../lib/slices/createSeasonSlice';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import Modal from './ui/Modal';
+import SectionHeader from './ui/SectionHeader';
 
 /**
  * Seasons, and the rollover that starts a new one.
@@ -59,6 +63,13 @@ const SeasonManager: React.FC = () => {
     const [editFieldImageData, setEditFieldImageData] = useState('');
     const [deleteConfirmSeasonId, setDeleteConfirmSeasonId] = useState<string | null>(null);
     const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+    // Which blur-saved field just saved, for a transient inline "Saved" hint.
+    const [savedField, setSavedField] = useState<'name' | 'game' | null>(null);
+
+    const flashSaved = (field: 'name' | 'game') => {
+        setSavedField(field);
+        setTimeout(() => setSavedField((current) => (current === field ? null : current)), 1500);
+    };
 
     // The wizard.
     const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -134,25 +145,24 @@ const SeasonManager: React.FC = () => {
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mt-6">
-            <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
-                <div className="flex items-center gap-2">
-                    <Calendar className="text-forge-600" size={24} />
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Season Manager</h3>
-                </div>
-                <button
-                    data-testid="start-new-season"
-                    onClick={openWizard}
-                    disabled={isReadOnlyTeam}
-                    title={
-                        isReadOnlyTeam
-                            ? 'Your team’s licence has lapsed — renew it to start a new season'
-                            : 'Start a new season'
-                    }
-                    className="flex items-center gap-2 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-forge-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    <Sparkles size={16} /> Start New Season
-                </button>
-            </div>
+            <SectionHeader
+                icon={Calendar}
+                title="Season Manager"
+                action={
+                    <Button
+                        data-testid="start-new-season"
+                        onClick={openWizard}
+                        disabled={isReadOnlyTeam}
+                        title={
+                            isReadOnlyTeam
+                                ? 'Your team’s licence has lapsed — renew it to start a new season'
+                                : 'Start a new season'
+                        }
+                    >
+                        <Sparkles size={16} /> Start New Season
+                    </Button>
+                }
+            />
 
             {isReadOnlyTeam && (
                 <p
@@ -174,7 +184,7 @@ const SeasonManager: React.FC = () => {
                     onChange={(e) => setNewSeasonName(e.target.value)}
                     placeholder="Add an empty season (e.g. Off-Season 2027)"
                     disabled={isReadOnlyTeam}
-                    className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50"
+                    className="field flex-1 disabled:opacity-50"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && newSeasonName.trim() && !isReadOnlyTeam) {
                             rollOverSeason({
@@ -187,7 +197,7 @@ const SeasonManager: React.FC = () => {
                         }
                     }}
                 />
-                <button
+                <IconButton
                     data-testid="add-empty-season"
                     onClick={() => {
                         if (newSeasonName.trim() && !isReadOnlyTeam) {
@@ -201,10 +211,12 @@ const SeasonManager: React.FC = () => {
                         }
                     }}
                     disabled={isReadOnlyTeam}
-                    className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 transition flex items-center justify-center w-10 h-10 disabled:cursor-not-allowed disabled:opacity-40"
+                    title="Add an empty season"
+                    aria-label="Add an empty season"
+                    className="shrink-0"
                 >
                     <Plus size={20} />
-                </button>
+                </IconButton>
             </div>
 
             <div className="space-y-3">
@@ -238,7 +250,7 @@ const SeasonManager: React.FC = () => {
                                 <button
                                     data-testid={`toggle-archive-${season.id}`}
                                     onClick={() => setSeasonArchived(season.id, !season.isArchived)}
-                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:text-forge-600 dark:bg-slate-600 dark:text-slate-300"
+                                    className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:text-forge-600 dark:bg-slate-600 dark:text-slate-300"
                                     title={season.isArchived ? 'Reopen this season for editing' : 'Archive: keep it readable, stop accepting edits'}
                                 >
                                     {season.isArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
@@ -256,17 +268,19 @@ const SeasonManager: React.FC = () => {
                                             setImageUploadError(null);
                                         }
                                     }}
-                                    className={`text-xs px-3 py-1.5 rounded-full transition ${editingSeasonId === season.id ? 'bg-forge-100 text-forge-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                    className={`text-xs px-3 py-1.5 rounded-full transition-colors ${editingSeasonId === season.id ? 'bg-forge-100 text-forge-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-forge-600 dark:hover:text-forge-400'}`}
                                 >
                                     {editingSeasonId === season.id ? 'Done' : 'Edit'}
                                 </button>
                                 {seasons.length > 1 && (
-                                    <button
+                                    <IconButton
+                                        danger
                                         onClick={() => setDeleteConfirmSeasonId(season.id)}
-                                        className="text-slate-400 hover:text-red-500 p-1"
+                                        title="Delete season"
+                                        aria-label={`Delete ${season.name}`}
                                     >
                                         <Trash2 size={18} />
-                                    </button>
+                                    </IconButton>
                                 )}
                             </div>
                         </div>
@@ -274,25 +288,43 @@ const SeasonManager: React.FC = () => {
                         {editingSeasonId === season.id && (
                             <div className="p-3 bg-white dark:bg-slate-800 space-y-3">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Season Name</label>
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                                        Season Name
+                                        {savedField === 'name' && (
+                                            <span className="ml-2 font-normal text-2xs text-green-600 dark:text-green-400">Saved</span>
+                                        )}
+                                    </label>
                                     <input
                                         type="text"
                                         value={editSeasonName}
                                         onChange={(e) => setEditSeasonName(e.target.value)}
-                                        onBlur={() => editSeasonName.trim() && updateSeason(season.id, { name: editSeasonName.trim() })}
-                                        className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
+                                        onBlur={() => {
+                                            if (editSeasonName.trim()) {
+                                                updateSeason(season.id, { name: editSeasonName.trim() });
+                                                flashSaved('name');
+                                            }
+                                        }}
+                                        className="field"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Game</label>
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                                        Game
+                                        {savedField === 'game' && (
+                                            <span className="ml-2 font-normal text-2xs text-green-600 dark:text-green-400">Saved</span>
+                                        )}
+                                    </label>
                                     <input
                                         type="text"
                                         data-testid={`edit-game-title-${season.id}`}
                                         value={editGameTitle}
                                         onChange={(e) => setEditGameTitle(e.target.value)}
-                                        onBlur={() => updateSeason(season.id, { gameTitle: editGameTitle.trim() })}
+                                        onBlur={() => {
+                                            updateSeason(season.id, { gameTitle: editGameTitle.trim() });
+                                            flashSaved('game');
+                                        }}
                                         placeholder="e.g. DECODE"
-                                        className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
+                                        className="field"
                                     />
                                 </div>
                                 <div>
@@ -304,16 +336,17 @@ const SeasonManager: React.FC = () => {
                                                 alt="Field preview"
                                                 className="w-full max-h-40 object-contain rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-900"
                                             />
-                                            <button
+                                            <IconButton
+                                                danger
                                                 onClick={() => {
                                                     setEditFieldImageData('');
                                                     updateSeason(season.id, { fieldImageData: '' });
                                                 }}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                                className="absolute top-1 right-1 bg-white/80 dark:bg-slate-800/80"
                                                 title="Remove image"
                                             >
                                                 <X size={14} />
-                                            </button>
+                                            </IconButton>
                                         </div>
                                     )}
                                     <input
@@ -325,7 +358,7 @@ const SeasonManager: React.FC = () => {
                                     />
                                     <label
                                         htmlFor={`field-image-${season.id}`}
-                                        className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-forge-400 hover:bg-forge-50 dark:hover:bg-forge-900/20 transition"
+                                        className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-forge-400 hover:bg-forge-50 dark:hover:bg-forge-900/20 transition-colors"
                                     >
                                         <Upload size={18} />
                                         <span className="text-sm font-medium">{editFieldImageData ? 'Replace Image' : 'Upload Field Image'}</span>
@@ -342,11 +375,8 @@ const SeasonManager: React.FC = () => {
             </div>
 
             {isWizardOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div
-                        data-testid="new-season-wizard"
-                        className="max-h-modal w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-overlay dark:bg-slate-800"
-                    >
+                <Modal label="Start a New Season" width="dialog" className="p-6 overflow-y-auto">
+                    <div data-testid="new-season-wizard">
                         <div className="mb-4 flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-forge-100 dark:bg-forge-900/30">
                                 <Sparkles className="text-forge-600" size={20} />
@@ -371,7 +401,7 @@ const SeasonManager: React.FC = () => {
                                     value={rollover.name}
                                     onChange={(e) => setRollover({ ...rollover, name: e.target.value })}
                                     placeholder="e.g. 2027-2028 Season"
-                                    className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                                    className="field"
                                 />
                             </div>
 
@@ -385,7 +415,7 @@ const SeasonManager: React.FC = () => {
                                     value={rollover.gameTitle ?? ''}
                                     onChange={(e) => setRollover({ ...rollover, gameTitle: e.target.value })}
                                     placeholder="e.g. DECODE"
-                                    className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                                    className="field"
                                 />
                             </div>
 
@@ -421,7 +451,7 @@ const SeasonManager: React.FC = () => {
                                             checklistSource: e.target.value as SeasonRolloverInput['checklistSource'],
                                         })
                                     }
-                                    className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                                    className="field"
                                 >
                                     <option value="previous">Copy this season’s items (all unticked)</option>
                                     <option value="blank">Start with an empty checklist</option>
@@ -458,28 +488,25 @@ const SeasonManager: React.FC = () => {
                         </div>
 
                         <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                onClick={() => setIsWizardOpen(false)}
-                                className="rounded-lg px-4 py-2 text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-                            >
+                            <Button variant="secondary" onClick={() => setIsWizardOpen(false)}>
                                 Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 data-testid="wizard-confirm"
                                 onClick={confirmRollover}
                                 disabled={!rollover.name.trim() || isReadOnlyTeam}
-                                className="rounded-lg bg-forge-600 px-4 py-2 font-medium text-white transition hover:bg-forge-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 Create Season
-                            </button>
+                            </Button>
                         </div>
                     </div>
-                </div>
+                </Modal>
             )}
 
             {deleteConfirmSeasonId && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full shadow-overlay">
+                // stacked: this confirm can open above the wizard's z-50 overlay.
+                <Modal label="Delete Season?" width="sm" stacked>
+                    <div>
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                                 <AlertTriangle className="text-red-600" size={24} />
@@ -498,21 +525,18 @@ const SeasonManager: React.FC = () => {
                         </ul>
                         <p className="text-red-600 dark:text-red-400 text-sm font-medium mb-6">This action cannot be undone. To keep the season’s history, archive it instead.</p>
                         <div className="flex justify-end gap-3">
-                            <button
-                                onClick={() => setDeleteConfirmSeasonId(null)}
-                                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
+                            <Button variant="secondary" onClick={() => setDeleteConfirmSeasonId(null)}>
                                 Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                                variant="danger"
                                 onClick={() => { deleteSeason(deleteConfirmSeasonId); setDeleteConfirmSeasonId(null); }}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition"
                             >
                                 Delete Season
-                            </button>
+                            </Button>
                         </div>
                     </div>
-                </div>
+                </Modal>
             )}
         </div>
     );

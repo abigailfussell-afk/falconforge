@@ -26,6 +26,19 @@
         "--strictPort"
       ],
       "port": 5188
+    },
+    {
+      "name": "dev-review",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5189",
+        "--strictPort"
+      ],
+      "port": 5189
     }
   ]
 }

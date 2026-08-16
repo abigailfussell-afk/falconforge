@@ -4,6 +4,11 @@ import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember, MemberRole } from '../types';
 import { getMemberDisplayName } from '../lib/member-utils';
 import { useAuth } from '../lib/auth';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import SectionHeader from './ui/SectionHeader';
+import EmptyState from './ui/EmptyState';
+import ConfirmDialog from './ConfirmDialog';
 
 interface PendingMember {
     id: string;
@@ -40,6 +45,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+    // Member awaiting the remove confirmation (null when the dialog is closed).
+    const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
     const { profile, isOffline } = useAuth();
 
     /**
@@ -213,10 +220,9 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         }
     };
 
-    // Remove member from team
+    // Remove member from team (confirmation handled by the ConfirmDialog below)
     const removeMember = async (memberId: string) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
-        if (!confirm('Are you sure you want to remove this member from the team?')) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
@@ -277,7 +283,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
                     {error}
-                    <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+                    <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600 transition-colors" title="Dismiss">
                         <X size={14} />
                     </button>
                 </div>
@@ -304,26 +310,25 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                     <p className="text-xs text-slate-400 truncate">{member.email}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button
+                                    <Button
+                                        size="sm"
                                         onClick={() => approveMember(member.id)}
-                                        disabled={processingIds.has(member.id)}
-                                        className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition disabled:opacity-50"
+                                        busy={processingIds.has(member.id)}
                                         title="Approve"
+                                        aria-label="Approve"
                                     >
-                                        {processingIds.has(member.id) ? (
-                                            <RefreshCw size={16} className="animate-spin" />
-                                        ) : (
-                                            <UserCheck size={16} />
-                                        )}
-                                    </button>
-                                    <button
+                                        {!processingIds.has(member.id) && <UserCheck size={16} />}
+                                    </Button>
+                                    <Button
+                                        variant="danger"
+                                        size="sm"
                                         onClick={() => rejectMember(member.id)}
-                                        disabled={processingIds.has(member.id)}
-                                        className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50"
+                                        busy={processingIds.has(member.id)}
                                         title="Reject"
+                                        aria-label="Reject"
                                     >
-                                        <UserX size={16} />
-                                    </button>
+                                        {!processingIds.has(member.id) && <UserX size={16} />}
+                                    </Button>
                                 </div>
                             </li>
                         ))}
@@ -333,18 +338,14 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
 
             {/* Active Members Section */}
             <div>
-                <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                        <UserCheck size={18} className="text-green-600" />
-                        Active Members ({approvedMembers.length})
-                    </h4>
-                    {isLoading && <RefreshCw size={14} className="animate-spin text-slate-400" />}
-                </div>
+                <SectionHeader
+                    icon={UserCheck}
+                    title={`Active Members (${approvedMembers.length})`}
+                    action={isLoading ? <RefreshCw size={14} className="animate-spin text-slate-400" /> : undefined}
+                />
 
                 {approvedMembers.length === 0 ? (
-                    <div className="p-4 text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        <p className="text-sm">No active members yet.</p>
-                    </div>
+                    <EmptyState title="No active members yet." />
                 ) : (
                     <ul className="space-y-2">
                         {approvedMembers.map((member) => (
@@ -371,7 +372,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                             value={member.role}
                                             onChange={(e) => updateMemberRole(member.id, e.target.value as MemberRole)}
                                             disabled={processingIds.has(member.id) || member.role === 'admin'}
-                                            className="text-xs p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-50"
+                                            title={member.role === 'admin' ? 'Transfer the admin role instead (Admin Settings)' : undefined}
+                                            className="field w-auto text-xs p-1.5 disabled:opacity-50"
                                         >
                                             {ASSIGNABLE_ROLES.map((role) => (
                                                 <option key={role.value} value={role.value}>{role.label}</option>
@@ -387,7 +389,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                         <button
                                             onClick={() => toggleSeat(member.id, member.seatAssigned)}
                                             disabled={processingIds.has(member.id) || !viewerIsAdmin}
-                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition disabled:opacity-50 ${member.seatAssigned
+                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition-colors disabled:opacity-50 ${member.seatAssigned
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                                 : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
                                                 }`}
@@ -402,14 +404,14 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                         </button>
 
                                         {/* Remove Button */}
-                                        <button
-                                            onClick={() => removeMember(member.id)}
+                                        <IconButton
+                                            danger
+                                            onClick={() => setRemoveConfirmId(member.id)}
                                             disabled={processingIds.has(member.id) || member.role === 'admin'}
-                                            className="p-1.5 text-slate-400 hover:text-red-500 transition disabled:opacity-30 disabled:cursor-not-allowed"
                                             title={member.role === 'admin' ? 'Transfer the admin role before removing this member' : 'Remove from team'}
                                         >
                                             <X size={16} />
-                                        </button>
+                                        </IconButton>
                                     </div>
                                 </div>
                             </li>
@@ -417,6 +419,19 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                     </ul>
                 )}
             </div>
+
+            {removeConfirmId && (
+                <ConfirmDialog
+                    title="Remove Member?"
+                    message="Are you sure you want to remove this member from the team?"
+                    confirmLabel="Remove"
+                    onConfirm={() => {
+                        removeMember(removeConfirmId);
+                        setRemoveConfirmId(null);
+                    }}
+                    onCancel={() => setRemoveConfirmId(null)}
+                />
+            )}
         </div>
     );
 }
