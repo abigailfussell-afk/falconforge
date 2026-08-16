@@ -200,6 +200,8 @@ const PreMatchChecklist: React.FC = () => {
                                     type="button"
                                     onClick={() => toggleCheck(item.id)}
                                     disabled={!canEdit}
+                                    data-testid="checklist-item-toggle"
+                                    aria-pressed={item.checked}
                                     className="flex items-center gap-2.5 w-full text-left disabled:cursor-not-allowed"
                                 >
                                     <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>

@@ -51,7 +51,19 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     };
 
     const getStatusText = () => {
-        if (!isOnline) return 'Offline';
+        /*
+         * Offline still says HOW MUCH is waiting.
+         *
+         * This returned a bare 'Offline' and threw the pending count away, so a team that had
+         * worked through an entire session at a venue -- three tasks, a scouting report, a
+         * checklist -- saw exactly what a team that had done nothing saw. The one number that
+         * answers "is my afternoon actually saved?" went silent at precisely the moment it was
+         * worth reading, and the count reappeared only once the connection came back, which is
+         * when it stops mattering.
+         *
+         * Found by running the venue simulation and looking at the sidebar.
+         */
+        if (!isOnline) return pendingChanges > 0 ? `Offline · ${pendingChanges} queued` : 'Offline';
         switch (syncStatus) {
             case 'syncing':
                 return 'Syncing...';

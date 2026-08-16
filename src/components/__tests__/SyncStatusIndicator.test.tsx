@@ -235,3 +235,47 @@ describe('SyncStatusIndicator', () => {
         });
     });
 })
+
+/**
+ * Found by running the venue simulation and looking at the sidebar.
+ *
+ * `getStatusText` returned a bare 'Offline' and threw the pending count away, so a team that
+ * had worked through a whole session at a competition saw exactly what a team that had done
+ * nothing saw. The one number answering "is my afternoon actually saved?" went quiet at the
+ * moment it was worth reading and came back only once the connection did — which is when it
+ * stops mattering.
+ */
+describe('offline, with work waiting', () => {
+    function setup(overrides: Record<string, any> = {}) {
+        mockUseSync.mockReturnValue({
+            isOnline: false,
+            syncStatus: 'idle',
+            pendingChanges: 0,
+            failedChanges: 0,
+            failureReasons: [],
+            lastSyncTime: new Date(),
+            sync: mockSync,
+            retryFailedChanges: mockRetryFailed,
+            error: null,
+            ...overrides,
+        });
+        render(<SyncStatusIndicator />);
+    }
+
+    it('says how much is queued while offline', () => {
+        setup({ pendingChanges: 7 });
+        expect(screen.getByText('Offline · 7 queued')).toBeDefined();
+    });
+
+    it('still says plain Offline when there is genuinely nothing waiting', () => {
+        // The count must not become noise: "Offline · 0 queued" would be a worse sentence than
+        // "Offline", and it is the state most people are in most of the time.
+        setup({ pendingChanges: 0 });
+        expect(screen.getByText('Offline')).toBeDefined();
+    });
+
+    it('does not lose the count when a single change is waiting', () => {
+        setup({ pendingChanges: 1 });
+        expect(screen.getByText('Offline · 1 queued')).toBeDefined();
+    });
+});
