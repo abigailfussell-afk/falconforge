@@ -220,35 +220,44 @@ describe('ScoutingReport form validation', () => {
         });
     });
 
-    it('validates team number is required', () => {
+    it('disables Save until a team number is entered, and says why', () => {
+        // Regression (Sprint 5.5): saveScoutingReport used to early-return on an empty
+        // team number with the button enabled — the tap did nothing, the modal stayed
+        // open, and nothing explained why. A scout at a venue read that as lost work.
         render(<ScoutingReports />);
 
-        // Open form
-        const addButton = screen.getAllByRole('button').find(btn =>
-            btn.textContent?.toLowerCase().includes('scout') ||
-            btn.querySelector('svg')
+        fireEvent.click(screen.getByTestId('scout-match'));
+
+        const saveBtn = screen.getByTestId('save-scouting-report') as HTMLButtonElement;
+        expect(saveBtn.disabled).toBe(true);
+        expect(saveBtn.title).toBe('Enter a team number first');
+
+        fireEvent.click(saveBtn);
+        expect(mockStore.addScoutingReport).not.toHaveBeenCalled();
+
+        // The team-number field is the first textbox in the modal.
+        const teamInput = screen.getAllByRole('textbox')[0];
+        fireEvent.change(teamInput, { target: { value: '8412' } });
+
+        expect(saveBtn.disabled).toBe(false);
+        fireEvent.click(saveBtn);
+        expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
+            expect.objectContaining({ teamNumber: '8412' })
         );
-
-        if (addButton) {
-            fireEvent.click(addButton);
-
-            // Try to submit without team number - use getAllByRole to handle multiple matches
-            const submitButtons = screen.queryAllByRole('button').filter(btn =>
-                btn.textContent?.toLowerCase().includes('save') ||
-                btn.textContent?.toLowerCase().includes('submit')
-            );
-            if (submitButtons.length > 0) {
-                fireEvent.click(submitButtons[0]);
-                // Should not call addScoutingReport with invalid data
-            }
-        }
     });
 
-    it('validates match number is required', () => {
+    it('a report card opens from the keyboard', () => {
+        // Regression (Sprint 5.5): the card was a bare div with onClick — not tabbable,
+        // not Enter-activatable, so a pit crew on a Bluetooth keyboard could not open a
+        // report at all.
         render(<ScoutingReports />);
 
-        // Similar validation check for match number
-        // Implementation depends on form structure
+        const card = screen.getByText('#12345').closest('[role="button"]') as HTMLElement;
+        expect(card).not.toBeNull();
+        expect(card.tabIndex).toBe(0);
+
+        fireEvent.keyDown(card, { key: 'Enter' });
+        expect(screen.getByText('Edit Scouting Report')).toBeDefined();
     });
 });
 
