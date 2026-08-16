@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Users, Shield, CheckCircle, Aler
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { recordAttestation, COACH_REQUIRED_ATTESTATIONS } from '../lib/attestations';
+import { useAppStore } from '../lib/store';
 
 type Step = 'attestation' | 'details' | 'complete';
 
@@ -28,6 +29,7 @@ function defaultSeasonName(): string {
 export default function CreateTeam() {
     const navigate = useNavigate();
     const { user, ageClassification, isLoading: authLoading } = useAuth();
+    const { teams, setTeams, setCurrentTeam } = useAppStore();
     const [currentStep, setCurrentStep] = useState<Step>('attestation');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -169,6 +171,37 @@ export default function CreateTeam() {
                 setError(result.error || 'Failed to create team');
                 setIsLoading(false);
                 return;
+            }
+
+            /*
+             * Adopt the team that was just created, rather than making the coach go and find it.
+             *
+             * Without this, "Go to Dashboard" navigated to `/`, the app found no current team,
+             * and sent the coach straight back to the team picker to select the team they had
+             * finished creating ten seconds earlier -- from a list with exactly one entry on it.
+             * Every team runs this flow exactly once, on their first evening, with nobody to ask.
+             *
+             * Both halves are needed, and the second is the non-obvious one: `setTeams` is called
+             * in exactly ONE place in the app (the picker's loader), and `teams` is not in the
+             * entity registry, so nothing else ever populates it. Setting only the current id
+             * left the sidebar resolving a name it did not have and rendering "Select Team" while
+             * sitting inside that very team.
+             *
+             * Seeded from the write we just performed rather than read back, which is what an
+             * offline-first app does everywhere else -- not a second read path.
+             */
+            if (result.team_id) {
+                setTeams([
+                    ...teams.filter((t) => t.id !== result.team_id),
+                    {
+                        id: result.team_id,
+                        name: teamName.trim(),
+                        teamNumber: teamNumber.trim() || null,
+                        ownerId: user.id,
+                        createdAt: Date.now(),
+                    },
+                ]);
+                setCurrentTeam(result.team_id);
             }
 
             setInviteCode(result.invite_code || null);
