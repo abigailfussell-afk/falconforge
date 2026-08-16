@@ -1,5 +1,6 @@
 import { teardownRealtimeSubscription } from './realtime';
 import { useAppStore } from './store';
+import { clearLocalDatabase, clearAppState } from './offline-db';
 
 /** How long to wait on Supabase before giving up and clearing local state anyway. */
 const SIGN_OUT_TIMEOUT_MS = 3000;
@@ -44,11 +45,21 @@ export async function performSignOut(
             console.warn('Supabase signout issue ignored:', authErr);
         }
 
-        // Sync queue + persisted app state.
+        /*
+         * Sync queue + persisted app state.
+         *
+         * `offline-db` is imported statically. It used to be `await import('./offline-db')`
+         * here and in JoinTeam, which is what produced the standing build warning that
+         * offline-db was "both statically and dynamically imported, defeating its own
+         * code-split". The plan blamed that on the missing route splitting; it is not — the
+         * module is pulled into the entry chunk by `./store` (and by sync, realtime,
+         * server-pull and three slices) two lines above, so nothing about a `React.lazy`
+         * boundary could have moved it. The dynamic form deferred nothing, cost a Promise
+         * tick on the sign-out path, and only ever bought the warning.
+         */
         try {
             await withTimeout(
                 (async () => {
-                    const { clearLocalDatabase, clearAppState } = await import('./offline-db');
                     await clearLocalDatabase();
                     await clearAppState();
                 })(),

@@ -3,7 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, LogOut, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { useAppStore } from '../lib/store';
+import { performSignOut } from '../lib/sign-out';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { AgeClassification } from '../types';
 
@@ -76,19 +76,21 @@ export default function JoinTeam() {
         }
     };
 
+    /*
+     * A THIRD copy of sign-out used to live here.
+     *
+     * Sprint 1 collapsed the App.tsx and Onboarding.tsx copies into `performSignOut` for the
+     * reason that helper's own doc comment gives — a missed step leaks one user's data into
+     * the next session on a shared team laptop — and this one was missed. It had drifted
+     * exactly the way that warning predicts: no `teardownRealtimeSubscription()`, so an
+     * in-flight subscription could repopulate the store after it was reset, and no
+     * `sb-*-auth-token` sweep, so the Supabase session keys survived in localStorage if the
+     * network call did not land. It also had no timeouts, so signing out at a venue with
+     * unusable WiFi hung on `await signOut()` indefinitely.
+     */
     const handleSignOut = async () => {
         setIsSigningOut(true);
-        useAppStore.getState().resetToDefaults();
-        await signOut();
-        localStorage.removeItem('falconforge-sync-timestamps');
-        try {
-            const { clearLocalDatabase, clearAppState } = await import('../lib/offline-db');
-            await clearLocalDatabase();
-            await clearAppState();
-        } catch (e) {
-            console.warn('Failed to clear IndexedDB:', e);
-        }
-        window.location.href = `${import.meta.env.BASE_URL}#/`;
+        await performSignOut(signOut);
     };
 
     const handleProfileComplete = async (selectedAge: AgeClassification) => {

@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { lazy, useEffect, useMemo } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import { useSeasonScoped } from './lib/season-scope';
-import { setupRealtimeSubscription, teardownRealtimeSubscription } from './lib/realtime';
-import { fetchTeamData } from './lib/server-pull';
-import { performSignOut } from './lib/sign-out';
+import { APP_ROOT, DEFAULT_VIEW_PATH } from './lib/navigation';
+import Wordmark from './components/Wordmark';
 import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
@@ -15,161 +14,100 @@ import LandingPage from './pages/Landing';
 import TermsAndConditions from './pages/legal/TermsAndConditions';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import CommunityGuidelines from './pages/legal/CommunityGuidelines';
-import Sidebar from './components/Sidebar';
-import ArchivedSeasonBanner from './components/ArchivedSeasonBanner';
-
-// Import consolidated components from src/components
-import SprintPlanning from './components/SprintPlanning';
-import ScoutingReports from './components/ScoutingReports';
-import PreMatchChecklist from './components/PreMatchChecklist';
-import MatchPlanner from './components/MatchPlanner';
-import AdminSettings from './components/AdminSettings';
-import EditProfile from './components/EditProfile';
+import AppShell, { useAppShell } from './components/AppShell';
 import DashboardHome from './components/DashboardHome';
 import QueryProvider from './components/QueryProvider';
 
-function Dashboard() {
-    const [activeTab, setActiveTab] = useState('dashboard');
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const { user, signOut, isConfigured } = useAuth();
-    const {
-        tasks: allTasks,
-        teamMembers: allTeamMembers,
-        subTeams: allSubTeams,
-        theme,
-        setTheme,
-        seasons,
-        currentSeasonId,
-        setCurrentSeason,
-        currentTeamId,
-        teams,
-    } = useAppStore();
-    const navigate = useNavigate();
+/*
+ * Feature views are code-split.
+ *
+ * Every one of these used to be a static import pulled into the entry chunk, because the
+ * views were `activeTab === '...' &&` branches rather than routes and a branch cannot be
+ * split. Splitting them is also what fixes the standing build warning that `offline-db.ts`
+ * was "both statically and dynamically imported, defeating its own code-split" — the sync
+ * layer's dynamic importers now sit behind a route boundary rather than beside one.
+ *
+ * `DashboardHome` is deliberately NOT lazy. It is the view the app opens on, so splitting it
+ * would buy nothing and cost a spinner on every cold start.
+ */
+const SprintPlanning = lazy(() => import('./components/SprintPlanning'));
+const PreMatchChecklist = lazy(() => import('./components/PreMatchChecklist'));
+const ScoutingReports = lazy(() => import('./components/ScoutingReports'));
+const MatchPlanner = lazy(() => import('./components/MatchPlanner'));
+const AdminSettings = lazy(() => import('./components/AdminSettings'));
+const EditProfile = lazy(() => import('./components/EditProfile'));
 
-    // Season scoping goes through `useSeasonScoped`, which is the one definition of
-    // "belongs to the season on screen". It used to be written out here and in two other
-    // components; the roster is team-scoped rather than season-scoped, so it is not one of
-    // them.
-    const tasks = useSeasonScoped(allTasks);
-    const subTeams = useSeasonScoped(allSubTeams);
-    const teamMembers = allTeamMembers.filter(m => m.teamId === currentTeamId);
+/*
+ * Route adapters.
+ *
+ * These exist so the feature components keep the prop APIs their own test files are written
+ * against, while the shell stays the one place the roster is filtered by team and the
+ * sub-teams by season.
+ */
+function SprintPlanningRoute() {
+    const { teamMembers, subTeams } = useAppShell();
+    // `useSeasonScoped`, not `s.tasks`. The board shows THIS season's work; handing it the
+    // raw collection is precisely the defect Sprint 4 found in ScoutingReports, where a
+    // whole prior season's rows had been mixed into the current list with no way to tell
+    // them apart.
+    const tasks = useSeasonScoped(useAppStore((s) => s.tasks));
+    // The store's `timeline[].type` is a widened string; the component's prop type is the
+    // union it is actually drawn from. This narrowing used to sit inline in `Dashboard()`.
+    const tasksForComponent = useMemo(
+        () =>
+            tasks.map((t) => ({
+                ...t,
+                timeline: t.timeline.map((e) => ({ ...e, type: e.type as 'comment' | 'history' })),
+            })),
+        [tasks],
+    );
+    return <SprintPlanning tasks={tasksForComponent} teamMembers={teamMembers} subTeams={subTeams} />;
+}
 
-    // Adapt store data to component props format
-    const tasksForComponents = tasks.map(t => ({
-        ...t,
-        timeline: t.timeline.map(e => ({
-            ...e,
-            type: e.type as 'comment' | 'history'
-        }))
-    }));
+function AdminSettingsRoute() {
+    const { teamMembers, subTeams, canManageTeam } = useAppShell();
 
-    const handleSignOut = () => performSignOut(signOut);
-
-    // Who can reach the admin screens.
-    //
-    // Mirrors the server's `can_manage_roster` capability (admin or coach) rather than the
-    // V1 `isCoach` boolean, which branched on one of the schema's four roles and left
-    // mentors indistinguishable from students. This is UX only: the database refuses the
-    // writes regardless of what the sidebar renders.
-    const currentUserRole = teamMembers.find(m => m.userId === user?.id)?.role;
-    const canManageTeam = currentUserRole === 'admin' || currentUserRole === 'coach';
-
-    // Fetch team data when team changes
-    useEffect(() => {
-        if (currentTeamId) {
-            fetchTeamData(currentTeamId);
-        } else {
-            // If we don't have a team, explicitly wait against a hydration delay and then redirect
-            const timeout = setTimeout(() => {
-                const state = useAppStore.getState();
-                if (!state.currentTeamId) {
-                    navigate('/onboarding');
-                }
-            }, 1000); // 1s grace period for persisted state to load
-            
-            return () => clearTimeout(timeout);
-        }
-    }, [currentTeamId, navigate]);
-
-    // Realtime subscription lifecycle — subscribe when team is selected & online
-    useEffect(() => {
-        if (!currentTeamId) return;
-
-        setupRealtimeSubscription(currentTeamId);
-
-        const handleOnline = () => setupRealtimeSubscription(currentTeamId);
-        const handleOffline = () => teardownRealtimeSubscription();
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-            teardownRealtimeSubscription();
-        };
-    }, [currentTeamId]);
-
-    return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden transition-colors duration-200">
-            <Sidebar
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                isMobileMenuOpen={isMobileMenuOpen}
-                setIsMobileMenuOpen={setIsMobileMenuOpen}
-                canManageTeam={canManageTeam}
-                user={user}
-                isConfigured={isConfigured ?? false}
-                onSignOut={handleSignOut}
-                onSwitchTeam={() => navigate('/onboarding')}
-                theme={theme}
-                setTheme={setTheme}
-                tasks={tasks}
-                seasons={seasons}
-                currentSeasonId={currentSeasonId}
-                setCurrentSeason={setCurrentSeason}
-                teams={teams}
-                currentTeamId={currentTeamId}
-            />
-
-            {/* Main Content Area */}
-            <main className="flex-1 h-full overflow-hidden relative pt-16 lg:pt-0">
-                <div className="h-full w-full overflow-y-auto bg-slate-50 dark:bg-slate-900 pl-4 pt-4 pb-4 lg:pl-6 lg:pt-6 lg:pb-6 [&>*]:pr-4 lg:[&>*]:pr-6">
-                    {/* Every view below is season-scoped, so the "this season is read-only"
-                        state belongs here once rather than in each of them. */}
-                    <ArchivedSeasonBanner />
-                    {activeTab === 'dashboard' && <DashboardHome setActiveTab={setActiveTab} />}
-                    {activeTab === 'kanban' && (
-                        <SprintPlanning
-                            tasks={tasksForComponents}
-                            teamMembers={teamMembers}
-                            subTeams={subTeams}
-                        />
-                    )}
-                    {activeTab === 'checklist' && <PreMatchChecklist />}
-                    {activeTab === 'scouting' && <ScoutingReports />}
-                    {activeTab === 'planner' && <MatchPlanner />}
-                    {activeTab === 'profile' && <EditProfile />}
-                    {activeTab === 'admin' && (
-                        canManageTeam ? (
-                            <AdminSettings
-                                teamMembers={teamMembers}
-                                subTeams={subTeams}
-                            />
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
-                                    <Activity className="text-red-500" size={32} />
-                                </div>
-                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Access Denied</h2>
-                                <p className="text-slate-600 dark:text-slate-400 max-w-md">
-                                    Only the team admin and coaches have access to the Admin Settings page. Please contact them if you believe this is an error.
-                                </p>
-                            </div>
-                        )
-                    )}
+    // Hiding the nav item is UX; this is what happens when someone follows a deep link or a
+    // bookmark from back when they were a coach. The database refuses the writes either way.
+    if (!canManageTeam) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+                <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                    <Activity className="text-red-500" size={26} />
                 </div>
-            </main>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Access Denied</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400 max-w-prose">
+                    Only the team admin and coaches have access to the Admin Settings page. Please
+                    contact them if you believe this is an error.
+                </p>
+            </div>
+        );
+    }
+
+    return <AdminSettings teamMembers={teamMembers} subTeams={subTeams} />;
+}
+
+/** The full-screen brand state shared by the loading and auth-callback screens. */
+function SplashScreen({ message }: { message: string }) {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+            <div className="text-center">
+                <div className="relative inline-flex items-center justify-center w-24 h-24 mb-6">
+                    <div className="absolute inset-0 bg-gradient-to-r from-forge-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse" />
+                    <div className="relative w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-overlay border border-slate-700/50 p-2">
+                        <img
+                            src={`${import.meta.env.BASE_URL}falcon_logo.png`}
+                            className="w-full h-full object-contain"
+                            alt="FalconForge"
+                        />
+                    </div>
+                </div>
+                <Wordmark size="lg" className="mb-4 justify-center" />
+                <div className="flex items-center justify-center gap-2 text-slate-400">
+                    <div className="w-4 h-4 border-2 border-forge-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm font-medium">{message}</p>
+                </div>
+            </div>
         </div>
     );
 }
@@ -178,88 +116,30 @@ function App() {
     const { user, isLoading, isSigningOut } = useAuth();
     const { theme, initializeStore } = useAppStore();
 
-    // Initialize store on mount
     useEffect(() => {
         initializeStore();
     }, [initializeStore]);
 
-    // Apply theme on mount
     useEffect(() => {
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        document.documentElement.classList.toggle('dark', theme === 'dark');
     }, [theme]);
 
-    // Show loading screen while checking auth or during signout sequence
     if (isLoading || isSigningOut) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-                <div className="text-center">
-                    {/* Logo with pulsing gradient backdrop */}
-                    <div className="relative inline-flex items-center justify-center w-24 h-24 mb-6">
-                        {/* Pulsing gradient background */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse"></div>
-                        {/* Logo container - matches Login page */}
-                        <div className="relative w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-xl border border-slate-700/50 p-2">
-                            <img
-                                src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                                className="w-full h-full object-contain"
-                                alt="FalconForge Logo"
-                            />
-                        </div>
-                    </div>
-                    <h1 className="text-3xl font-black italic tracking-tighter mb-4">
-                        <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span>
-                        <span className="text-slate-300">FORGE</span>
-                    </h1>
-                    <div className="flex items-center justify-center gap-2 text-slate-400">
-                        <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-sm font-medium">
-                            {isSigningOut ? 'Signing out securely...' : 'Preparing your workspace...'}
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <SplashScreen
+                message={isSigningOut ? 'Signing out securely...' : 'Preparing your workspace...'}
+            />
         );
     }
 
     return (
         <QueryProvider>
             <Routes>
-                {/* Public landing page */}
-                <Route path="/" element={
-                    user ? <Navigate to="/dashboard" replace /> : <LandingPage />
-                } />
+                <Route path="/" element={user ? <Navigate to={APP_ROOT} replace /> : <LandingPage />} />
 
-                {/* Authentication routes */}
-                <Route path="/login" element={
-                    user ? <Navigate to="/onboarding" replace /> : <LoginPage />
-                } />
+                <Route path="/login" element={user ? <Navigate to="/onboarding" replace /> : <LoginPage />} />
 
-                <Route path="/auth/callback" element={
-                    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-                        <div className="text-center">
-                            <div className="relative w-24 h-24 mx-auto mb-8">
-                                <div className="absolute inset-0 bg-orange-500/20 rounded-3xl blur-xl animate-pulse"></div>
-                                <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center border border-slate-700/50 shadow-2xl p-2">
-                                    <img
-                                        src={`${import.meta.env.BASE_URL}falcon_logo.png`}
-                                        className="w-full h-full object-contain animate-pulse"
-                                        alt="FalconForge Logo"
-                                    />
-                                </div>
-                            </div>
-                            <h2 className="text-xl font-black italic tracking-tighter mb-2"><span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">FALCON</span><span className="text-slate-300">FORGE</span></h2>
-                            <p className="text-sm text-slate-400 mb-4">Authenticating</p>
-                            <div className="flex items-center justify-center gap-2 text-slate-400">
-                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                                <p className="text-sm font-medium">Securing your session...</p>
-                            </div>
-                        </div>
-                    </div>
-                } />
+                <Route path="/auth/callback" element={<SplashScreen message="Securing your session..." />} />
 
                 {/* Legal pages - public */}
                 <Route path="/legal/terms" element={<TermsAndConditions />} />
@@ -267,22 +147,33 @@ function App() {
                 <Route path="/legal/community" element={<CommunityGuidelines />} />
 
                 {/* Onboarding routes - require auth */}
-                <Route path="/onboarding" element={
-                    user ? <Onboarding /> : <Navigate to="/" replace />
-                } />
+                <Route path="/onboarding" element={user ? <Onboarding /> : <Navigate to="/" replace />} />
+                <Route path="/create-team" element={user ? <CreateTeam /> : <Navigate to="/" replace />} />
+                <Route path="/join/:code?" element={<JoinTeam />} />
 
-                <Route path="/create-team" element={
-                    user ? <CreateTeam /> : <Navigate to="/" replace />
-                } />
+                {/*
+                 * The app proper. Every view is a real URL: `#/app/board` is bookmarkable, the
+                 * back button walks the views, and a reload lands where it left off.
+                 *
+                 * `/dashboard` is kept as a redirect rather than deleted — it is the URL the
+                 * app has been handing out since V1, so it is in browser histories, in the
+                 * PWA's start-up state and quite possibly in someone's bookmarks bar.
+                 */}
+                <Route path="/dashboard" element={<Navigate to={APP_ROOT} replace />} />
+                <Route path={APP_ROOT} element={user ? <AppShell /> : <Navigate to="/" replace />}>
+                    <Route index element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
+                    <Route path="dashboard" element={<DashboardHome />} />
+                    <Route path="board" element={<SprintPlanningRoute />} />
+                    <Route path="checklist" element={<PreMatchChecklist />} />
+                    <Route path="scouting" element={<ScoutingReports />} />
+                    <Route path="planner" element={<MatchPlanner />} />
+                    <Route path="profile" element={<EditProfile />} />
+                    <Route path="admin" element={<AdminSettingsRoute />} />
+                    {/* An unknown view under /app is a stale link, not a dead end. */}
+                    <Route path="*" element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
+                </Route>
 
-                <Route path="/join/:code?" element={
-                    <JoinTeam />
-                } />
-
-                {/* Main app - require auth and team */}
-                <Route path="/*" element={
-                    user ? <Dashboard /> : <Navigate to="/" replace />
-                } />
+                <Route path="*" element={<Navigate to={user ? APP_ROOT : '/'} replace />} />
             </Routes>
         </QueryProvider>
     );

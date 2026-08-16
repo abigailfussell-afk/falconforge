@@ -46,6 +46,15 @@ vi.mock('../../lib/offline-db', () => ({
     clearAppState: vi.fn().mockResolvedValue(undefined),
 }));
 
+// The shared sign-out helper, observable. It calls through to the auth `signOut` it is
+// handed, so the behavioural assertions below still exercise the real path.
+const mockPerformSignOut = vi.fn(async (signOut: () => Promise<void>) => {
+    await signOut();
+});
+vi.mock('../../lib/sign-out', () => ({
+    performSignOut: (...args: any[]) => (mockPerformSignOut as any)(...args),
+}));
+
 const mockNavigate = vi.fn();
 let mockParams = { code: 'ABC12345' };
 
@@ -242,16 +251,47 @@ describe('JoinTeam', () => {
                 isConfigured: false,
                 signOut: mockSignOut
             });
-            
+
             render(<JoinTeam />, { wrapper: TestWrapper });
-            
+
             fireEvent.click(screen.getByRole('button', { name: /Log Out/i }));
-            
+
             await waitFor(() => {
                 expect(mockSignOut).toHaveBeenCalled();
             });
-            
+
             expect(screen.getByText('Signing out securely...')).toBeDefined();
+        });
+
+        /*
+         * REGRESSION: JoinTeam had its own sign-out.
+         *
+         * Sprint 1 collapsed two verbatim copies (App.tsx, Onboarding.tsx) into
+         * `performSignOut` because a step missed in one copy leaks the previous user's data
+         * into the next session on a shared team laptop. This third copy was missed, and it
+         * had drifted exactly as predicted: it reset the store and cleared IndexedDB, but
+         * never called `teardownRealtimeSubscription()` (so a live subscription could
+         * repopulate the store after the reset) and never swept the `sb-*-auth-token` keys
+         * (so the session survived in localStorage whenever the network call did not land).
+         *
+         * The test above cannot catch that — it asserts the auth `signOut` was called, and
+         * BOTH implementations do that. What distinguishes them is which one runs the full
+         * teardown, so that is what this asserts.
+         */
+        it('signs out through the shared helper, not its own copy of the teardown', async () => {
+            (authObj.useAuth as any).mockReturnValue({
+                isConfigured: false,
+                signOut: mockSignOut,
+            });
+
+            render(<JoinTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('button', { name: /Log Out/i }));
+
+            await waitFor(() => {
+                expect(mockPerformSignOut).toHaveBeenCalledTimes(1);
+            });
+            // Handed the auth signOut, so the helper's timeout handling wraps the real call.
+            expect(mockPerformSignOut).toHaveBeenCalledWith(mockSignOut);
         });
     });
 });

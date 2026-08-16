@@ -1,0 +1,53 @@
+/*
+ * Inter, self-hosted.
+ *
+ * WHY NOT THE CDN
+ *
+ * index.html used to carry `<link href="https://fonts.googleapis.com/css2?family=Inter...">`
+ * plus two preconnects. That is the same defect class as C1 (the Tailwind Play CDN) one
+ * layer down: a cross-origin request is not precached by Workbox, so a cold offline start
+ * rendered in the fallback stack. It was also doing nothing even online — `App.tsx`'s
+ * `font-sans` re-applied Tailwind's default system stack over the `body` rule, so the app
+ * paid for a render-blocking stylesheet and two DNS handshakes on every cold load and then
+ * rendered in Segoe UI anyway. Both halves are fixed here: the file is local (so Workbox
+ * precaches it via the existing `woff2` glob) and `font-sans` resolves to it (tailwind.config).
+ *
+ * WHY NOT `@import '@fontsource-variable/inter'`
+ *
+ * That entry pulls seven subsets — cyrillic, cyrillic-ext, greek, greek-ext, vietnamese,
+ * latin, latin-ext. `unicode-range` means a browser only DOWNLOADS what a page uses, but
+ * Workbox precaches by glob and would have put all ~218 KB into the offline install for the
+ * benefit of nobody. The two subsets below are the ones an FTC roster actually needs.
+ *
+ * `latin-ext` is here rather than dropped for 85 KB: it carries the Central and Eastern
+ * European letters (ł, ř, ő, ș). Without it a name like "Kowalczyk-Wróbel" renders its one
+ * accented glyph in the fallback font, mid-word, which looks like a rendering bug. The
+ * browser fetches it only for a page that contains those characters, so the common case is
+ * still one 48 KB file.
+ *
+ * One variable file covers weights 100-900, so `font-light` through `font-black` all resolve
+ * without a separate download per weight. No italic face is shipped: the wordmark is the only
+ * italic in the app and it is set in a synthesised oblique already.
+ */
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}

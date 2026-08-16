@@ -8,16 +8,20 @@ import {
     ArrowRight,
     Activity
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
+import { pathFor } from '../lib/navigation';
 
-interface DashboardHomeProps {
-    setActiveTab: (tab: string) => void;
-}
-
-export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
+export default function DashboardHome() {
     const { user } = useAuth();
+    const navigate = useNavigate();
+
+    // Was `setActiveTab(id)`, a prop threaded down from the tab switch. The tiles below name
+    // the same view ids they always did; `pathFor` turns one into the route it now has, so
+    // the dashboard's shortcuts produce real history entries and a back button that works.
+    const goTo = (id: string) => navigate(pathFor(id));
     const { tasks: allTasks, matchPlans: allMatchPlans, scoutingReports: allScoutingReports } = useAppStore();
 
     // One definition of "belongs to the season on screen", shared with App and MatchPlanner.
@@ -54,109 +58,112 @@ export default function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         ...tasks.map(t => ({ type: 'task', title: t.title, date: t.createdAt, id: t.id }))
     ].sort((a, b) => b.date - a.date).slice(0, 5);
 
+    const openCount = tasks.filter(t => ['To Do', 'In Progress', 'Testing'].includes(t.status)).length;
+
     return (
-        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4">
             {/* Header / Welcome */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-orange-600 to-orange-500 rounded-3xl p-8 text-white shadow-xl">
+            <div className="relative overflow-hidden bg-gradient-to-r from-forge-600 to-forge-500 rounded-2xl px-5 py-4 text-white shadow-raised">
                 <div className="relative z-10">
-                    <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {firstName}! 👋</h1>
-                    <p className="text-orange-100 text-lg opacity-90 max-w-xl">
-                        Your robotics Command Center is ready. You have {tasks.filter(t => ['To Do', 'In Progress', 'Testing'].includes(t.status)).length} open tasks for this sprint.
+                    <h1 className="text-xl sm:text-2xl font-bold mb-0.5">Welcome back, {firstName}! 👋</h1>
+                    <p className="text-forge-100 text-sm opacity-90 max-w-prose">
+                        Your robotics Command Center is ready. You have {openCount} open {openCount === 1 ? 'task' : 'tasks'} for this sprint.
                     </p>
                 </div>
                 {/* Decorative elements */}
-                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 right-10 w-32 h-32 bg-orange-400/20 rounded-full blur-2xl"></div>
+                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 right-10 w-28 h-28 bg-forge-400/20 rounded-full blur-2xl" />
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {stats.map((stat, i) => (
-                    <div
-                        key={i}
-                        onClick={() => setActiveTab(stat.link)}
-                        className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer hover:shadow-md hover:border-orange-300 dark:hover:border-orange-600 transition-all"
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {stats.map((stat) => (
+                    <button
+                        key={stat.label}
+                        onClick={() => goTo(stat.link)}
+                        className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card text-left hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition-all"
                     >
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className={`${stat.bg} ${stat.color} p-2 rounded-lg`}>
-                                <stat.icon size={18} />
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <div className={`${stat.bg} ${stat.color} p-1.5 rounded-md shrink-0`}>
+                                <stat.icon size={15} />
                             </div>
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{stat.label}</span>
+                            <span className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{stat.label}</span>
                         </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</div>
-                    </div>
+                        <div className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">{stat.value}</div>
+                    </button>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Quick Actions */}
-                <div className="lg:col-span-2 space-y-4">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <PlusCircle size={20} className="text-orange-500" />
+                <div className="lg:col-span-2 space-y-2.5">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <PlusCircle size={16} className="text-forge-500" />
                         Quick Actions
                     </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {quickActions.map((action, i) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {quickActions.map((action) => (
                             <button
-                                key={i}
-                                onClick={() => setActiveTab(action.id)}
-                                className="group relative bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-orange-500/50 transition-all text-left overflow-hidden"
+                                key={action.id}
+                                onClick={() => goTo(action.id)}
+                                className="group relative bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card hover:shadow-raised hover:border-forge-500/50 transition-all text-left overflow-hidden"
                             >
-                                <div className="relative z-10">
-                                    <div className={`${action.color} text-white w-12 h-12 rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                                        <action.icon size={24} />
+                                <div className="relative z-10 flex items-start gap-3">
+                                    <div className={`${action.color} text-white w-9 h-9 rounded-lg flex items-center justify-center shrink-0 shadow-card group-hover:scale-105 transition-transform`}>
+                                        <action.icon size={18} />
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">{action.label}</h3>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400">{action.desc}</p>
+                                    <div className="min-w-0">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">{action.label}</h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">{action.desc}</p>
+                                    </div>
                                 </div>
-                                <ArrowRight className="absolute top-6 right-6 text-slate-300 dark:text-slate-600 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
-                                <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <ArrowRight size={16} className="absolute top-3.5 right-3 text-slate-300 dark:text-slate-600 group-hover:text-forge-500 group-hover:translate-x-0.5 transition-all" />
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Recent Activity */}
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Activity size={20} className="text-orange-500" />
+                <div className="space-y-2.5">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Activity size={16} className="text-forge-500" />
                         Recent Activity
                     </h2>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden text-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card overflow-hidden">
                         {recentActivity.length > 0 ? (
                             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                                {recentActivity.map((item, i) => (
-                                    <div
-                                        key={i}
-                                        className="p-4 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
-                                        onClick={() => setActiveTab(item.type === 'plan' ? 'planner' : item.type === 'scout' ? 'scouting' : 'kanban')}
+                                {recentActivity.map((item) => (
+                                    <button
+                                        key={`${item.type}-${item.id}`}
+                                        className="w-full text-left px-3 py-2 flex items-start gap-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                        onClick={() => goTo(item.type === 'plan' ? 'planner' : item.type === 'scout' ? 'scouting' : 'kanban')}
                                     >
-                                        <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${item.type === 'plan' ? 'bg-orange-500' :
+                                        <div className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'plan' ? 'bg-forge-500' :
                                             item.type === 'scout' ? 'bg-green-500' : 'bg-blue-500'
                                             }`} />
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 dark:text-white truncate">
+                                            <p className="text-xs font-medium text-slate-900 dark:text-white truncate">
                                                 {item.type === 'plan' ? 'Match Plan: ' :
                                                     item.type === 'scout' ? 'Scouting: ' : 'Task: '}
                                                 {item.title}
                                             </p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            <p className="text-2xs text-slate-500 dark:text-slate-400">
                                                 {new Date(item.date).toLocaleDateString()}
                                             </p>
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-8 text-center">
-                                <TrendingUp className="mx-auto text-slate-300 mb-2" size={32} />
-                                <p className="text-slate-500 dark:text-slate-400">No activity yet. Start by adding a task or scouting report!</p>
+                            <div className="px-4 py-8 text-center">
+                                <TrendingUp className="mx-auto text-slate-300 dark:text-slate-600 mb-2" size={26} />
+                                <p className="text-xs text-slate-500 dark:text-slate-400">No activity yet. Start by adding a task or scouting report!</p>
                             </div>
                         )}
-                        <div className="p-3 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-100 dark:border-slate-700">
+                        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-100 dark:border-slate-700">
                             <button
-                                onClick={() => setActiveTab('kanban')}
-                                className="w-full text-center text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline"
+                                onClick={() => goTo('kanban')}
+                                className="w-full text-center text-2xs font-bold text-forge-600 dark:text-forge-400 hover:underline"
                             >
                                 View all project updates
                             </button>

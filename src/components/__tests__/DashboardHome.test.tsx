@@ -39,7 +39,7 @@ describe('DashboardHome', () => {
     it('renders the dashboard widgets', () => {
         render(
             <MemoryRouter>
-                <DashboardHome setActiveTab={vi.fn()} />
+                <DashboardHome />
             </MemoryRouter>
         );
 
@@ -70,7 +70,7 @@ describe('DashboardHome', () => {
 
         render(
             <MemoryRouter>
-                <DashboardHome setActiveTab={vi.fn()} />
+                <DashboardHome />
             </MemoryRouter>
         );
 
@@ -100,7 +100,7 @@ describe('DashboardHome', () => {
 
         render(
             <MemoryRouter>
-                <DashboardHome setActiveTab={vi.fn()} />
+                <DashboardHome />
             </MemoryRouter>
         );
 

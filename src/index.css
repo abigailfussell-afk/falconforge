@@ -1,5 +1,7 @@
 /* FalconForge - Global Styles */
 
+@import './styles/fonts.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -21,7 +23,10 @@ body {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  /* Inter comes from the `font-sans` token in tailwind.config now, not from a hand-written
+     stack here. This rule used to name Inter and lose to `font-sans` on the very next
+     element, which is why Inter never rendered. `theme()` keeps the two in agreement. */
+  font-family: theme('fontFamily.sans');
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -85,42 +90,61 @@ h6 {
   background: #64748b;
 }
 
-/* Calendar grid */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-}
-
 /* Focus visible for accessibility */
 :focus-visible {
-  outline: 2px solid #ea580c;
+  outline: 2px solid theme('colors.forge.600');
   outline-offset: 2px;
 }
 
-/* Touch-friendly tap targets - only for primary action buttons, not text links */
+/*
+ * Touch targets, opt-in.
+ *
+ * WHAT THIS REPLACED, AND WHY IT HAD TO GO
+ *
+ * There used to be a `@media (pointer: coarse)` block here matching `button[class*="bg-"]`,
+ * `button[class*="p-"]`, `a[class*="border-"]` and friends, forcing 44x44 on every hit. As a
+ * substring match on the class ATTRIBUTE it could not tell a utility from a coincidence:
+ * `p-` matched `px-2`, `py-1`, `placeholder-slate-400` and `pointer-events-none`; `bg-`
+ * matched `bg-transparent` and, through `hover:bg-slate-50`, essentially every interactive
+ * element in the app. The practical result on a phone was that nearly everything was forced
+ * to 44px wide — including the icon buttons inside a table row and the inline text links in
+ * the checklist — which is where the sprint board's cramped feel on a phone came from. It
+ * also could not be overridden locally without an `!important`, because nothing in the
+ * markup could see it coming.
+ *
+ * `touch-target` is the same 44px promise, applied by the component that actually is a
+ * primary action. It reads in the markup, so a review can see which controls claim it, and a
+ * control that should be small (a row's inline delete, a segmented control) simply does not
+ * ask.
+ *
+ * `pointer: coarse` still gates it: a mouse does not need a 44px button, and forcing one on
+ * the desktop is the "blown up" density this sprint is fixing.
+ */
+.touch-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (pointer: coarse) {
-
-  /* Buttons with backgrounds are primary actions - apply touch targets */
-  button[class*="bg-"],
-  button[class*="border-"],
-  a[class*="bg-"],
-  a[class*="border-"] {
-    min-height: 44px;
-    min-width: 44px;
+  .touch-target {
+    min-height: theme('minHeight.touch');
+    min-width: theme('minWidth.touch');
   }
 
-  /* Icon buttons with padding (like hamburger menu, theme toggle) need touch targets */
-  button[class*="p-"],
-  a[class*="p-"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Form inputs always need touch-friendly targets */
-  input[type="checkbox"],
-  input[type="radio"] {
-    min-height: 44px;
-    min-width: 44px;
+  /*
+   * iOS Safari zooms the viewport when a focused form control computes below 16px, and it
+   * does not zoom back out. Sprint 5's type scale puts `text-base` at 14px, so without this
+   * every text field on an iPhone would yank the layout sideways on focus — at a venue,
+   * with the keyboard open. This floor and the retuned scale in tailwind.config are one
+   * change: do not remove either alone.
+   *
+   * Desktop keeps the dense 13-14px, because a mouse has no such failure mode.
+   */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 
@@ -135,11 +159,6 @@ h6 {
   }
 }
 
-/* Transition utilities */
-.transition-smooth {
-  transition: all 0.2s ease-in-out;
-}
-
 /* Glass morphism effect */
 .glass {
   background: rgba(255, 255, 255, 0.1);
@@ -151,17 +170,40 @@ h6 {
   background: rgba(15, 23, 42, 0.7);
 }
 
-/* Custom spacing for scrollable containers */
-.custom-scrollbar {
-  padding-right: 2px;
+/*
+ * Scrollable regions reserve their scrollbar instead of having it padded around.
+ *
+ * THE HACK THIS REPLACES
+ *
+ * The main content region was written as `pl-4 pt-4 pb-4 lg:pl-6 [&>*]:pr-4 lg:[&>*]:pr-6` —
+ * padding on three sides of the scroll container and the fourth side pushed onto every direct
+ * CHILD with an arbitrary variant, so that the overlay scrollbar would sit in the gap rather
+ * than on top of the content. It worked, at the cost of a rule every future child of that
+ * container had to know about: a child that set its own `pr-*` silently lost its gutter, and a
+ * child rendered inside a wrapper never got one.
+ *
+ * `scrollbar-gutter: stable` is the platform answer — the browser reserves the track whether
+ * or not a scrollbar is showing, so padding is symmetric and ordinary again, and the layout
+ * no longer shifts by 8px the moment a list grows past one screen.
+ */
+.scroll-region {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
+/* A slimmer track for scrollable areas nested inside a panel, where the 8px default reads
+   as a second border. */
+.scroll-region-thin {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.scroll-region-thin::-webkit-scrollbar {
   width: 5px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
+.scroll-region-thin::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.5);
   border-radius: 10px;
 }
 
