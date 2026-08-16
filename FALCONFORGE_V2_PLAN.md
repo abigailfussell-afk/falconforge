@@ -350,6 +350,15 @@ the final walkthrough and tags `v2.0.0-beta`.
 **Discovered / parking lot:**
 
 *From Sprint 6:*
+- **🔴 CI does not run on sprint branches.** `ci.yml` triggers on `push: branches: [main,
+  'refactor/**']` and on `pull_request`. Every `v2/sprint-*` branch since Sprint 1 has been pushed
+  with **no CI run at all** — confirmed by the Actions API after pushing
+  `v2/sprint-6-licensing`: zero workflows fired. So the only CI signal a sprint has ever had is
+  the one that arrives *after* it merges to `main`, which is the worst possible moment for it. The
+  Gate is run locally and reported, which is why this has not hurt yet, but it means "CI green"
+  has never been true of a sprint branch before its merge. Add `'v2/**'` to the trigger list, or
+  open PRs. One line either way; the reason it is 🔴 is that it silently inverts the point of
+  having CI.
 - **`transfer_team_admin` and the other admin RPCs are EXECUTE-granted to `anon`** as well as
   `authenticated`, via the schema's default privileges. B25's fix makes that harmless (an
   anonymous caller now gets `false` from every capability rather than NULL), but granting
