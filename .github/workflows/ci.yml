@@ -91,3 +91,43 @@ jobs:
 
       - name: Behavioural database tests (RLS + data layer)
         run: npm run test:db
+
+  smoke:
+    name: Smoke pack drives the built app in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # The smoke pack talks to real PostgREST and real RLS through a real browser, so it
+      # needs the same stack the database job builds.
+      - name: Start local stack (applies all migrations)
+        run: supabase start
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts builds the app and serves it with `vite preview` rather than
+      # running the dev server. That is not a detail: the dev server has no service worker, so
+      # an offline navigation cannot fetch a lazy chunk and renders blank -- which would have
+      # this job asserting things about the harness rather than the product, in the one
+      # codebase where offline behaviour is the product.
+      - name: Smoke pack
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

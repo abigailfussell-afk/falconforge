@@ -31,7 +31,15 @@ export default defineConfig({
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
-    workers: process.env.CI ? 2 : undefined,
+    /*
+     * Capped deliberately. Every spec in this pack shares ONE Postgres, ONE preview server and
+     * one machine, so workers past about four buy no wall-clock and cost determinism: at the
+     * default 8 the pack failed one test per run, a different one each time, always on an app
+     * boot or a reload that ran out of patience under contention. Verified as contention rather
+     * than a defect by running the offline spec serially three times -- green every time, so
+     * offline cold-boot with a stored session genuinely works.
+     */
+    workers: process.env.CI ? 2 : 4,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
     // Generous, because these wait on a real database and a real sync drain -- and because
     // the whole point of src/test/timeouts.ts is that a budget which cannot elapse is a lie.

@@ -114,7 +114,29 @@ export async function createTeam(
 ): Promise<void> {
     await page.goto('/#/create-team');
 
+    const done = page.getByRole('button', { name: 'Go to Dashboard' });
+    const next = page.getByRole('button', { name: /^(Next|Create Team)$/ });
+
     for (let step = 0; step < 8; step++) {
+        /*
+         * Wait for the step to SETTLE before touching it, rather than sleeping a fixed 400ms.
+         *
+         * While `create_team_as_admin` is in flight the primary button renders a spinner and
+         * no label, so it matches neither locator -- there is a real window in which the
+         * wizard shows nothing this helper can act on. A fixed sleep lost that race as soon as
+         * the pack ran its specs in parallel and the machine got busy, and it failed as
+         * "element(s) not found" on a button that was simply still loading.
+         */
+        const state = await Promise.race([
+            done.waitFor({ state: 'visible', timeout: 45_000 }).then(() => 'done' as const),
+            next.waitFor({ state: 'visible', timeout: 45_000 }).then(() => 'next' as const),
+        ]);
+
+        if (state === 'done') {
+            await done.click();
+            break;
+        }
+
         // Every step's acceptance checkbox, if this step has one.
         const box = page.locator('input[type="checkbox"]').first();
         if (await box.isVisible().catch(() => false)) await box.check().catch(() => {});
@@ -125,16 +147,8 @@ export async function createTeam(
         const number = page.getByPlaceholder('e.g., 12345');
         if (await number.isVisible().catch(() => false)) await number.fill(teamNumber);
 
-        const done = page.getByRole('button', { name: 'Go to Dashboard' });
-        if (await done.isVisible().catch(() => false)) {
-            await done.click();
-            break;
-        }
-
-        const next = page.getByRole('button', { name: /^(Next|Create Team)$/ });
         await expect(next).toBeEnabled({ timeout: 20_000 });
         await next.click();
-        await page.waitForTimeout(400); // let the step transition settle before re-probing
     }
 
     await page.waitForURL(/#\/(app|onboarding|\/?$)/, { timeout: 45_000 });
@@ -144,6 +158,10 @@ export async function createTeam(
 /** Navigate to a view by its rail id and wait for the shell to agree it is on screen. */
 export async function goToView(page: Page, navId: string, path: string): Promise<void> {
     await page.goto(`/#/app/${path}`);
+    // The shell first. `page.goto` is a full document load, so the app boots from scratch --
+    // restoring the session, hydrating the store -- and asserting on a nav item before the
+    // shell exists asks a question the app has not finished answering.
+    await page.waitForSelector('[data-testid="app-nav"]', { state: 'attached', timeout: 45_000 });
     await page.waitForSelector(`[data-testid="nav-${navId}"][aria-current="page"]`, {
         state: 'attached',
         timeout: 30_000,
