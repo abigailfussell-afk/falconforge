@@ -267,6 +267,25 @@ manual walkthrough: register team → gift license → invite each role → veri
 - Error boundaries per route; dead-letter UI reviewed (a coach can understand and retry).
 - Playwright smoke pack (5–8 flows: register, invite/join, create task offline→sync, new season,
   scouting entry, checklist) run in CI against the local stack.
+  - **It also owns SCREENSHOT CAPTURE, and should be the first thing built in the sprint.**
+    Decided with Kevin at Sprint 6's close. Sprint 5 and Sprint 6 both have "screenshots at
+    375 / 768 / 1280" in their exit criteria and both satisfied it by hand; Sprint 6 could not
+    satisfy it at all. The Browser pane has two distinct failure modes: it cannot capture unless
+    the pane is *displayed* (no pane, no compositing, no frames — this is what actually cost
+    Sprint 6 its captures), and above ~1024px it composites an emulated viewport into its own
+    surface without scaling up, so a 1280-wide page lands in a fifth of the image. Playwright is
+    headless, so display state is irrelevant, and takes an arbitrary viewport plus
+    `fullPage: true`.
+  - A `scripts/capture-screens.mjs` that signs in against the seeded local stack
+    (`scripts/seed-review-states.mjs`, Sprint 6) and captures the main views at three widths
+    turns a per-sprint manual ritual into a Gate artifact. ~100 lines.
+  - **It does not replace looking at the app.** All three defects Sprint 6 found in the browser
+    came from poking around, not from assertions — a script only checks what somebody already
+    thought to check. Playwright is for proving and re-proving; the pane is for looking.
+  - Caveat worth writing down: Playwright's Chromium is not Safari, so it emulates iOS rather
+    than being it. Sprint 6's iOS zoom bug was caught by measuring computed styles, which
+    Playwright does equally well — but genuine Safari zoom-on-focus behaviour still wants a real
+    device before beta.
 - README rewritten to match reality; `.agent/` folder pruned (aspirational skill docs deleted or
   marked); seed script for a demo team so beta coaches see a populated example.
 - Beta ops: simple feedback link in-app, error logging story (even just structured console +

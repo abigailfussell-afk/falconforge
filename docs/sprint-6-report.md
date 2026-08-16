@@ -266,10 +266,31 @@ for. And `Math.floor` reported "ends in 0 days" for a licence with eleven hours 
 | End-to-end walkthrough: register → gift → invite each role → verify capabilities | **Partially met, and I want to be precise.** The licensing halves were walked end to end in a browser against constructed states. What I did **not** do is a fresh registration through the sign-up form followed by four real invite-and-join round trips, because signup needs email confirmation on the local stack; role capabilities are covered instead by the 265-assertion RLS suite, which is stronger evidence for *capabilities* but not for the *flow*. Worth doing by hand before beta. |
 
 Two exit-criteria items I could not fully satisfy, stated plainly rather than counted as done:
-the walkthrough above, and **screenshots at 1280px** — the Browser pane composites an emulated
-viewport without scaling up, so a 1280-wide capture is unreadable, exactly as the hand-off warned.
-I verified 375 and 768 by measurement (computed styles, overflow checks, disabled states) rather
-than by image. If you want wide captures for the record, widen the pane and I will retake them.
+the walkthrough above, and **screenshots** — none were captured at any width.
+
+Two distinct causes, and the bigger one was not the documented limitation. The Browser pane cannot
+capture unless the pane is *displayed* — no pane, no compositing, no frames — and it was hidden for
+most of this sprint, which is why every `screenshot` and several `computer` calls timed out and I
+fell back to measurement. Separately, and as the hand-off warned, above ~1024px it composites an
+emulated viewport into its own surface without scaling up, so a 1280 capture is unreadable. The
+hand-off explicitly said to ask about wide captures up front rather than discovering the problem at
+the end; I discovered it at the end.
+
+What I verified instead, at 375 and 768: computed font sizes on every control, `scrollWidth` vs
+`innerWidth` for overflow, disabled states with their titles, and banner presence/absence by
+testid. For those properties that is stronger evidence than an image. The one thing a screenshot
+adds — an element present in the DOM but *invisible* because a class generated no CSS, which was
+Sprint 5's worst defect — was closed deterministically instead: every `forge-*` shade introduced
+this sprint (`50/300/400/500/600/700/900`, including the `dark:` and `/opacity` variants) was
+confirmed to emit a real rule with a real declaration in the built CSS, against a ramp that defines
+50–950.
+
+**Decided with Kevin at close: screenshot capture moves to Playwright as Sprint 7's first commit**
+(see §6, Sprint 7). Headless, so display state stops mattering; arbitrary viewports and
+`fullPage: true`, so 1280 works; scripted against the seeded local stack, so it becomes a Gate
+artifact rather than a per-sprint manual ritual that both Sprint 5 and Sprint 6 performed by hand.
+It does not replace looking at the app — all three defects above came from poking around, and a
+script only checks what somebody already thought to check.
 
 ---
 
