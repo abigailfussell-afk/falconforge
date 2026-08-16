@@ -3,6 +3,8 @@ import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown, Bookmark
 import { useAppStore, selectChecklist } from '../lib/store';
 import { useSeasonScope } from '../lib/season-scope';
 import { getMemberDisplayName } from '../lib/member-utils';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
 
 const PreMatchChecklist: React.FC = () => {
     const [isEditingChecklist, setIsEditingChecklist] = useState(false);
@@ -83,7 +85,10 @@ const PreMatchChecklist: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col max-w-wide mx-auto w-full">
+        // max-w-prose, not max-w-wide: a checklist row is a checkbox and a few words, and
+        // at 800px the rows read as mostly gutter — 120px of dead margin each side at
+        // 1280px for no legibility gain.
+        <div className="h-full flex flex-col max-w-prose mx-auto w-full">
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-full">
                 <div className="p-3 md:p-4 border-b border-slate-100 dark:border-slate-700 flex flex-row flex-wrap justify-between items-start sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-900/50">
                     <div>
@@ -136,16 +141,15 @@ const PreMatchChecklist: React.FC = () => {
                             onChange={(e) => setTemplateName(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
                             placeholder="Template name, e.g. Standard pre-match"
-                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                            className="field flex-1"
                         />
-                        <button
+                        <Button
                             data-testid="confirm-save-template"
                             onClick={handleSaveTemplate}
                             disabled={!templateName.trim()}
-                            className="rounded bg-forge-600 px-4 py-2 font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Save
-                        </button>
+                        </Button>
                     </div>
                 )}
                 <div className="divide-y divide-slate-100 dark:divide-slate-700 flex-1 scroll-region-thin">
@@ -188,33 +192,41 @@ const PreMatchChecklist: React.FC = () => {
                             key={item.id}
                             className={`px-3 py-2 transition-colors ${item.checked ? 'bg-green-50/50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'} ${isEditingChecklist ? 'flex flex-col gap-1.5' : 'flex items-center gap-3'}`}
                         >
-                            {/* First row: checkbox + item name */}
-                            <div className="flex items-center gap-2.5 w-full">
-                                <div className="cursor-pointer shrink-0" onClick={() => toggleCheck(item.id)}>
-                                    {!isEditingChecklist && (
-                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
-                                            <CheckCircle2 size={13} fill="currentColor" className={item.checked ? 'text-white' : ''} />
-                                        </div>
+                            {/* First row: checkbox + item name. A real <button> in view mode —
+                                the old clickable div/span pair was invisible to the keyboard,
+                                and toggling items is this page's whole job. */}
+                            {!isEditingChecklist ? (
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCheck(item.id)}
+                                    disabled={!canEdit}
+                                    className="flex items-center gap-2.5 w-full text-left disabled:cursor-not-allowed"
+                                >
+                                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
+                                        <CheckCircle2 size={13} fill="currentColor" className={item.checked ? 'text-white' : ''} />
+                                    </span>
+                                    <span className={`text-sm font-medium flex-1 transition-colors ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                        {item.text}
+                                    </span>
+                                    {item.assignedTo && (
+                                        <span className="text-2xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md shrink-0">
+                                            {getAssignmentDisplay(item.assignedTo)}
+                                        </span>
                                     )}
-                                </div>
-
-                                <span onClick={() => toggleCheck(item.id)} className={`text-sm font-medium flex-1 cursor-pointer transition-colors ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                </button>
+                            ) : (
+                                <span className="text-sm font-medium w-full text-slate-700 dark:text-slate-200">
                                     {item.text}
                                 </span>
+                            )}
 
-                                {/* Show assignment badge in view mode */}
-                                {!isEditingChecklist && item.assignedTo && (
-                                    <span className="text-2xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded shrink-0">
-                                        {getAssignmentDisplay(item.assignedTo)}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Second row: controls (only in edit mode) */}
+                            {/* Second row: controls (only in edit mode). No hand-tuned indent:
+                                edit mode drops the checkbox, so text and controls both align to
+                                the row's left edge instead of chasing a 30px offset with pl-10. */}
                             {isEditingChecklist && (
-                                <div className="flex items-center justify-between gap-2 pl-0 md:pl-10">
+                                <div className="flex items-center justify-between gap-2">
                                     <select
-                                        className="text-xs border border-slate-200 dark:border-slate-600 rounded p-1.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex-1 max-w-36"
+                                        className="field text-xs p-1.5 flex-1 max-w-xs"
                                         value={item.assignedTo || ''}
                                         onChange={(e) => updateAssignment(item.id, e.target.value)}
                                     >
@@ -228,25 +240,30 @@ const PreMatchChecklist: React.FC = () => {
                                     </select>
 
                                     <div className="flex items-center gap-1">
-                                        <button
+                                        <IconButton
                                             onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'up'); }}
-                                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 disabled:opacity-30"
+                                            className="p-1.5"
                                             disabled={index === 0}
                                             title="Move up"
                                         >
                                             <ChevronUp size={18} />
-                                        </button>
-                                        <button
+                                        </IconButton>
+                                        <IconButton
                                             onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'down'); }}
-                                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 disabled:opacity-30"
+                                            className="p-1.5"
                                             disabled={index === checklist.length - 1}
                                             title="Move down"
                                         >
                                             <ChevronDown size={18} />
-                                        </button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteChecklistItem(item.id); }} className="text-red-500 hover:text-red-700 p-1.5 ml-1">
+                                        </IconButton>
+                                        <IconButton
+                                            danger
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteChecklistItem(item.id); }}
+                                            className="p-1.5 ml-1"
+                                            title="Delete item"
+                                        >
                                             <Trash2 size={18} />
-                                        </button>
+                                        </IconButton>
                                     </div>
                                 </div>
                             )}
@@ -260,9 +277,11 @@ const PreMatchChecklist: React.FC = () => {
                                 onChange={(e) => setNewChecklistItem(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
                                 placeholder="Add new item..."
-                                className="flex-1 border rounded px-3 py-2 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
+                                className="field flex-1"
                             />
-                            <button onClick={handleAddChecklistItem} className="bg-forge-600 text-white px-4 py-2 rounded font-bold">Add</button>
+                            {/* Disabled on empty input — the old button accepted the tap and
+                                silently did nothing. */}
+                            <Button onClick={handleAddChecklistItem} disabled={!newChecklistItem.trim()}>Add</Button>
                         </div>
                     )}
                 </div>

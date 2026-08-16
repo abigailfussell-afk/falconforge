@@ -71,12 +71,33 @@ describe('PreMatchChecklist', () => {
     it('calls toggleChecklistItem when clicking an item', () => {
         render(<PreMatchChecklist />);
 
-        // Find the first checklist item text and its parent button
+        // Regression (Sprint 5.5): the row used to be a clickable div/span pair, so this
+        // `.closest('button')` was null and the old `if` guard silently skipped the whole
+        // assertion. A real <button> is also what makes the item keyboard-reachable —
+        // ticking items is this page's entire job.
         const checkButton = screen.getByText('Check batteries').closest('button');
-        if (checkButton) {
-            fireEvent.click(checkButton);
-            expect(mockStore.toggleChecklistItem).toHaveBeenCalled();
-        }
+        expect(checkButton).not.toBeNull();
+        fireEvent.click(checkButton!);
+        expect(mockStore.toggleChecklistItem).toHaveBeenCalledWith('1');
+    });
+
+    it('disables Add until the new-item field has text', () => {
+        // Regression (Sprint 5.5): the Add button used to accept the tap and silently
+        // do nothing on an empty field.
+        render(<PreMatchChecklist />);
+
+        fireEvent.click(screen.getByTestId('edit-checklist'));
+
+        const addBtn = screen.getByText('Add').closest('button') as HTMLButtonElement;
+        expect(addBtn.disabled).toBe(true);
+
+        fireEvent.change(screen.getByPlaceholderText('Add new item...'), {
+            target: { value: 'Check camera mount' },
+        });
+        expect(addBtn.disabled).toBe(false);
+
+        fireEvent.click(addBtn);
+        expect(mockStore.addChecklistItem).toHaveBeenCalledWith('Check camera mount');
     });
 
     it('calls addChecklistItem when adding new item', () => {
