@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, RefreshCw, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import SectionHeader from './ui/SectionHeader';
+import EmptyState from './ui/EmptyState';
 
 interface Invite {
     id: string;
@@ -209,24 +213,16 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     return (
         <div className="space-y-4">
             {/* Header with create button */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Link2 className="text-forge-600" size={20} />
-                    <h4 className="font-semibold text-slate-700 dark:text-slate-200">Invite Links</h4>
-                </div>
-                <button
-                    onClick={createInvite}
-                    disabled={isCreating}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-forge-600 text-white text-sm font-medium rounded-lg hover:bg-forge-700 transition disabled:opacity-50"
-                >
-                    {isCreating ? (
-                        <RefreshCw size={14} className="animate-spin" />
-                    ) : (
-                        <Link2 size={14} />
-                    )}
-                    Generate Link
-                </button>
-            </div>
+            <SectionHeader
+                icon={Link2}
+                title="Invite Links"
+                action={
+                    <Button size="sm" onClick={createInvite} busy={isCreating}>
+                        {!isCreating && <Link2 size={14} />}
+                        Generate Link
+                    </Button>
+                }
+            />
 
             {/* Error display */}
             {error && (
@@ -242,11 +238,11 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                     Loading invites...
                 </div>
             ) : invites.length === 0 ? (
-                <div className="p-4 text-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <Link2 size={24} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-                    <p className="text-sm">No active invite links.</p>
-                    <p className="text-xs mt-1">Generate a link to invite members to your team.</p>
-                </div>
+                <EmptyState
+                    icon={Link2}
+                    title="No active invite links."
+                    body="Generate a link to invite members to your team."
+                />
             ) : (
                 <ul className="space-y-2">
                     {invites.map((invite) => (
@@ -271,9 +267,8 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button
+                                <IconButton
                                     onClick={() => copyInviteLink(invite.code)}
-                                    className="p-2 text-slate-400 hover:text-forge-600 dark:hover:text-forge-400 transition"
                                     title="Copy invite link"
                                 >
                                     {copiedCode === invite.code ? (
@@ -281,14 +276,14 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                                     ) : (
                                         <Copy size={16} />
                                     )}
-                                </button>
-                                <button
+                                </IconButton>
+                                <IconButton
+                                    danger
                                     onClick={() => revokeInvite(invite.id)}
-                                    className="p-2 text-slate-400 hover:text-red-500 transition"
                                     title="Revoke invite"
                                 >
                                     <Trash2 size={16} />
-                                </button>
+                                </IconButton>
                             </div>
                         </li>
                     ))}

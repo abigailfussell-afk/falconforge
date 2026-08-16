@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { User, Save, Edit3, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
 
 const EditProfile = () => {
     const { user, updateProfile, isConfigured } = useAuth();
@@ -29,7 +31,7 @@ const EditProfile = () => {
     if (!isConfigured || !user) return null;
 
     return (
-        <div className="max-w-wide mx-auto w-full">
+        <div className="max-w-panel mx-auto w-full">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Edit Profile</h2>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-6">
@@ -61,26 +63,27 @@ const EditProfile = () => {
                                         value={editDisplayName}
                                         onChange={(e) => setEditDisplayName(e.target.value)}
                                         placeholder="Enter your name"
-                                        className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
+                                        className="field flex-1"
                                         onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
                                         autoFocus
                                     />
-                                    <button
+                                    <Button
                                         onClick={handleSaveProfile}
-                                        disabled={isSavingProfile || !editDisplayName.trim()}
-                                        className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 transition disabled:opacity-50"
+                                        busy={isSavingProfile}
+                                        disabled={!editDisplayName.trim()}
+                                        title="Save name"
                                     >
-                                        <Save size={18} />
-                                    </button>
-                                    <button
+                                        {!isSavingProfile && <Save size={18} />}
+                                    </Button>
+                                    <IconButton
                                         onClick={() => {
                                             setIsEditingProfile(false);
                                             setProfileMessage(null);
                                         }}
-                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2"
+                                        title="Cancel"
                                     >
                                         <X size={18} />
-                                    </button>
+                                    </IconButton>
                                 </div>
                             ) : (
                                 <>
@@ -93,17 +96,17 @@ const EditProfile = () => {
                         </div>
                     </div>
                     {!isEditingProfile && (
-                        <button
+                        <Button
+                            variant="secondary"
                             onClick={() => {
                                 setEditDisplayName(user.user_metadata?.full_name || '');
                                 setIsEditingProfile(true);
                                 setProfileMessage(null);
                             }}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition"
                         >
                             <Edit3 size={16} />
                             Edit Name
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

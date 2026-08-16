@@ -3,6 +3,9 @@ import { Layers, Plus, Trash2, Check } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
 import { useSeasonScope } from '../lib/season-scope';
+import IconButton from './ui/IconButton';
+import SectionHeader from './ui/SectionHeader';
+import EmptyState from './ui/EmptyState';
 
 interface SubTeamManagerProps {
     subTeams: SubTeam[];
@@ -30,10 +33,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-4">
-            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">
-                <Layers className="text-forge-600" size={18} />
-                <h3 className="text-base font-bold text-slate-800 dark:text-white">Sub-Teams &amp; Assignments</h3>
-            </div>
+            <SectionHeader icon={Layers} title="Sub-Teams & Assignments" />
 
             <div className="flex gap-2 mb-3">
                 <input
@@ -50,29 +50,27 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                      * whose tooltip would have told them why.
                      */
                     title={canEdit ? undefined : 'This season is archived and read-only'}
-                    className="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50"
+                    className="field flex-1 min-w-0 disabled:opacity-50"
                     onKeyDown={(e) => e.key === 'Enter' && addSubTeam()}
                 />
-                <button
+                <IconButton
                     data-testid="add-sub-team"
                     onClick={addSubTeam}
                     disabled={!canEdit}
                     title={canEdit ? 'Add sub-team' : 'This season is archived and read-only'}
-                    className="touch-target shrink-0 bg-forge-600 text-white px-2 rounded-lg hover:bg-forge-700 transition-colors w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="touch-target shrink-0"
                     aria-label="Add sub-team"
                 >
                     <Plus size={18} />
-                </button>
+                </IconButton>
             </div>
 
             {subTeams.length === 0 ? (
-                <div className="text-center py-6 px-4">
-                    <Layers size={28} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-                    <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-1">No sub-teams yet</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-500 max-w-prose mx-auto">
-                        Create sub-teams to organize your members by role (e.g., Pit Crew, Drivers, Build Team). Add a sub-team using the form above, then assign members to it.
-                    </p>
-                </div>
+                <EmptyState
+                    icon={Layers}
+                    title="No sub-teams yet"
+                    body="Create sub-teams to organize your members by role (e.g., Pit Crew, Drivers, Build Team). Add a sub-team using the form above, then assign members to it."
+                />
             ) : (
                 <div className="space-y-2 max-h-panel scroll-region-thin">
                     {subTeams.map((subTeam) => (
@@ -88,15 +86,16 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                     >
                                         {editingSubTeamId === subTeam.id ? 'Done' : 'Manage Members'}
                                     </button>
-                                    <button
+                                    <IconButton
+                                        danger
                                         onClick={() => storeRemoveSubTeam(subTeam.id)}
                                         disabled={!canEdit}
                                         title={canEdit ? 'Delete sub-team' : 'This season is archived and read-only'}
-                                        className="touch-target text-slate-400 hover:text-red-500 p-1 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="touch-target"
                                         aria-label={`Delete ${subTeam.name}`}
                                     >
                                         <Trash2 size={16} />
-                                    </button>
+                                    </IconButton>
                                 </div>
                             </div>
 
@@ -105,7 +104,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                     teamMembers.length === 0 ? (
                                         <p className="text-xs text-slate-400 italic">Add members to your Team Roster first before assigning them to sub-teams.</p>
                                     ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-1.5">
                                             {teamMembers.map(m => {
                                                 const assigned = subTeam.memberIds.includes(m.id);
                                                 return (
