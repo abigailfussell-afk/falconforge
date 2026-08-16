@@ -30,6 +30,18 @@ export interface AppShellContext {
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
     canManageTeam: boolean;
+    /**
+     * Mirrors the server's `can_manage_meetings` capability: the admin, a coach OR A MENTOR.
+     *
+     * A separate boolean from {@link canManageTeam} because it is a genuinely different set.
+     * Sprint 8 is the first feature where `mentor` means anything — the role has been in the
+     * schema since Sprint 3 with no capability distinguishing it from `student` — so this is
+     * the first place the two answers diverge rather than one being a rename of the other.
+     * UX only; the database refuses the writes regardless.
+     */
+    canManageMeetings: boolean;
+    /** This user's row on the current team. The roster is keyed by member id, not user id. */
+    currentMember: TeamMember | null;
     /** Platform operator, per `is_platform_operator()`. Null until the answer is known. */
     isOperator: boolean | null;
 }
@@ -85,8 +97,14 @@ export default function AppShell() {
     // V1 `isCoach` boolean, which branched on one of the schema's four roles and left mentors
     // indistinguishable from students. This is UX only: the database refuses the writes
     // regardless of what the sidebar renders.
-    const currentUserRole = teamMembers.find((m) => m.userId === user?.id)?.role;
+    const currentMember = useMemo(
+        () => teamMembers.find((m) => m.userId === user?.id) ?? null,
+        [teamMembers, user?.id],
+    );
+    const currentUserRole = currentMember?.role;
     const canManageTeam = currentUserRole === 'admin' || currentUserRole === 'coach';
+    // `can_manage_meetings` server-side. Mentors run the schedule; they do not run the roster.
+    const canManageMeetings = canManageTeam || currentUserRole === 'mentor';
 
     /*
      * Platform-operator status, asked of the database rather than inferred.
@@ -147,7 +165,14 @@ export default function AppShell() {
         };
     }, [currentTeamId]);
 
-    const context: AppShellContext = { teamMembers, subTeams, canManageTeam, isOperator };
+    const context: AppShellContext = {
+        teamMembers,
+        subTeams,
+        canManageTeam,
+        canManageMeetings,
+        currentMember,
+        isOperator,
+    };
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden">

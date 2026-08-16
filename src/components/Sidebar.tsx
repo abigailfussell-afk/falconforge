@@ -207,7 +207,10 @@ export default function Sidebar({ canManageTeam, isOperator = false, onSignOut, 
                     ))}
                 </nav>
 
-                <div className="mt-auto p-3 pt-0 space-y-2 safe-area-bottom">
+                {/* `pb-3` as well as `safe-area-bottom`: the safe-area rule sits outside
+                    Tailwind's utilities layer and overrides padding rather than adding to it,
+                    so this is the gutter a browser gets when the `@supports` test fails. */}
+                <div className="mt-auto px-3 pt-0 pb-3 space-y-2 safe-area-bottom">
                     {/* The progress meter is the first thing to go when the viewport is short
                         — see `.hide-when-short` in index.css. With a phone keyboard open this
                         footer was crowding the nav out of its own drawer. */}

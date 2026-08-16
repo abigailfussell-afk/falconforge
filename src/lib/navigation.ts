@@ -1,6 +1,7 @@
 import {
     LayoutDashboard,
     Activity,
+    CalendarDays,
     CheckSquare,
     ClipboardCheck,
     Gamepad2,
@@ -78,6 +79,16 @@ export const APP_VIEWS: AppView[] = [
     { id: 'checklist', path: 'checklist', label: 'Pre-Match Checklist', icon: CheckSquare, inNav: true },
     { id: 'scouting', path: 'scouting', label: 'Scouting Reports', icon: ClipboardCheck, inNav: true },
     { id: 'planner', path: 'planner', label: 'Match Planner', icon: Gamepad2, inNav: true },
+    /*
+     * Meetings is visible to EVERYBODY, unlike Admin Settings.
+     *
+     * The schedule is the whole of the student experience of this feature — hiding the nav
+     * item from students would leave them with no way to find out when anything is, and no
+     * route to the check-in screen a QR scan lands on. The page itself renders the manager or
+     * the read-only schedule depending on `can_manage_meetings`, which is the first capability
+     * in the app that separates a mentor from a student.
+     */
+    { id: 'meetings', path: 'meetings', label: 'Meetings', icon: CalendarDays, inNav: true },
     { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresManage: true, startsGroup: true },
     { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresOperator: true },
     { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
