@@ -10,7 +10,7 @@ interface SyncStatusIndicatorProps {
 
 export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndicatorProps) {
     const {
-        isOnline, syncStatus, pendingChanges, failedChanges,
+        isOnline, syncStatus, pendingChanges, failedChanges, failureReasons,
         lastSyncTime, sync, retryFailedChanges, error,
     } = useSync();
     const isConfigured = isSupabaseConfigured();
@@ -94,9 +94,27 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                     {failedChanges} {failedChanges === 1 ? 'change' : 'changes'} didn&apos;t save
                 </span>
             </div>
-            <p className="text-red-200/80 leading-snug">
-                They&apos;re still stored on this device. Retry when you have a connection.
-            </p>
+            {/*
+              * WHY, when the server told us (B24).
+              *
+              * A change refused by a policy used to arrive here after nine minutes with only
+              * "didn't save" to show for it, because PostgREST reports every policy refusal as
+              * the same sentence about row-level security. The reason is worked out at
+              * classification time and stored with the parked change, so this is the only place
+              * it can be said — and it is what turns "retry when you have a connection", which
+              * is wrong for a lapsed licence, into something actionable.
+              */}
+            {failureReasons.length > 0 ? (
+                <ul className="flex flex-col gap-1 text-red-200/90 leading-snug">
+                    {failureReasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                    ))}
+                </ul>
+            ) : (
+                <p className="text-red-200/80 leading-snug">
+                    They&apos;re still stored on this device. Retry when you have a connection.
+                </p>
+            )}
             <button
                 onClick={() => retryFailedChanges().then(() => sync())}
                 disabled={!isOnline || syncStatus === 'syncing'}

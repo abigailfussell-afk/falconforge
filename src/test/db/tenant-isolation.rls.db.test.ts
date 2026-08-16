@@ -489,6 +489,106 @@ describe('B21 — a user cannot insert themselves into somebody else’s team', 
     });
 });
 
+describe('B25 — a capability that answers NULL is not a refusal', () => {
+    /*
+     * B21'S CLASS, FOUND AGAIN THREE SPRINTS LATER, AND FOR THE SAME REASON: A CHECK THAT
+     * READS AS AIRTIGHT AND IS NOT EVALUATED.
+     *
+     * `can_manage_billing(team)` was `SELECT current_team_role(team) = 'admin'`, and
+     * `current_team_role` is NULL for somebody who is not an approved member of that team.
+     * `NULL = 'admin'` is NULL, so the capability returned NULL, and `NOT NULL` is NULL rather
+     * than true. Every plpgsql guard shaped like
+     *
+     *     IF NOT can_manage_billing(p_team_id) THEN RETURN error; END IF;
+     *
+     * was therefore SKIPPED for a non-member. `transfer_team_admin` is that shape, is
+     * SECURITY DEFINER (so its writes do not meet RLS), and is EXECUTE-granted to
+     * `authenticated` and `anon` by the schema's default privileges.
+     *
+     * Why no policy was ever wrong, and why that hid it: RLS coerces a NULL `USING` result to
+     * false, so `USING (can_manage_billing(id))` denied a non-member correctly the whole time.
+     * The 261-assertion isolation suite exercises policies, and every one of them was right.
+     * The bug lived exclusively in the RPC guards, and the one RPC with the vulnerable shape
+     * had no caller in the UI — so nothing in the app or the suite ever executed it.
+     *
+     * Found by a Sprint 6 test that expected another team's admin to be refused a nomination
+     * and got `success: true` back. Fixed with `coalesce(..., false)` in the three affected
+     * capability functions, which corrects every guard at once rather than one at a time.
+     */
+    it('a non-member gets false, not NULL, from every capability function', async () => {
+        const { serviceClient } = await import('./stack');
+        const svc = serviceClient();
+
+        for (const fn of ['can_manage_billing', 'can_manage_roster', 'can_manage_structure', 'can_manage_content'] as const) {
+            const { data } = await svc.rpc(fn, { p_team_id: teamB.id });
+            expect(data, `${fn} answered NULL for a caller with no membership (B25)`).toBe(false);
+        }
+    });
+
+    /*
+     * The exploit the NULL enabled, asserted end to end rather than through the helper above.
+     * Team A's admin is a non-member of team B, so `can_manage_billing(teamB)` was NULL for
+     * them and the guard was skipped — they could hand team B's admin role to a member of
+     * team B of their choosing.
+     *
+     * THE TARGET IS ATTESTED FIRST, DELIBERATELY. Without that, the vulnerable version fails
+     * anyway — at `enforce_member_role_eligibility`, because a coach who has never accepted the
+     * terms cannot hold the admin role — and the test would pass for a reason unrelated to the
+     * bug it is named for. That is exactly how a regression test rots into a tautology. The
+     * real precondition for the exploit is a target who HAS attested somewhere (anyone who has
+     * ever created a team, or accepted a handover), so the test constructs that.
+     */
+    it('another team\'s admin cannot transfer this team\'s admin role', async () => {
+        const { serviceClient } = await import('./stack');
+        const svc = serviceClient();
+        await fixtures.attest(teamB.coach.id, 'terms');
+
+        const { data } = await teamA.admin.client.rpc('transfer_team_admin', {
+            p_team_id: teamB.id,
+            p_new_member_id: teamB.coach.memberId,
+        });
+
+        expect(data, 'transfer_team_admin accepted an outsider').toMatchObject({ success: false });
+
+        const after = await svc
+            .from('team_members')
+            .select('role')
+            .eq('id', teamB.admin.memberId)
+            .single();
+        expect(after.data?.role, "team B's admin role was moved by an outsider").toBe('admin');
+    });
+
+    it('an outsider cannot nominate a successor for this team', async () => {
+        const { data } = await teamA.admin.client.rpc('nominate_team_admin', {
+            p_team_id: teamB.id,
+            p_new_member_id: teamB.coach.memberId,
+        });
+
+        // The specific refusal, not merely `success: false`. Any number of unrelated reasons
+        // produce a falsy result — "already the admin", "not approved yet" — and a test that
+        // accepts any of them would pass on the vulnerable build if an earlier case had
+        // already moved the role.
+        expect(data).toMatchObject({
+            success: false,
+            error: 'Only the team admin can nominate a successor',
+        });
+    });
+
+    /*
+     * A student IS an approved member, so `current_team_role` returned 'student' and the
+     * comparison was a real false — the guard fired. Included as the control that shows B25
+     * was specifically about NON-membership, which is why every in-team test passed.
+     */
+    it('a student was always refused, which is why this stayed hidden', async () => {
+        const { data } = await teamA.users.student.client.rpc('transfer_team_admin', {
+            p_team_id: teamA.id,
+            p_new_member_id: teamA.users.student.memberId,
+        });
+
+        expect(data).toMatchObject({ success: false });
+    });
+});
+
 describe('capabilities are enforced by the database, not by the sidebar', () => {
     it('a student cannot create a season or a sub-team (can_manage_structure)', async () => {
         await expectDenied(

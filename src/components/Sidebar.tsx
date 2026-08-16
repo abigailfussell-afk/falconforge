@@ -36,11 +36,13 @@ import { navViewsFor, pathFor } from '../lib/navigation';
 interface SidebarProps {
     /** Mirrors the server's `can_manage_roster` capability: the admin or a coach. */
     canManageTeam: boolean;
+    /** Platform operator — reveals the operator view. UX only; the route self-gates. */
+    isOperator?: boolean;
     onSignOut: () => void;
     onSwitchTeam: () => void;
 }
 
-export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: SidebarProps) {
+export default function Sidebar({ canManageTeam, isOperator = false, onSignOut, onSwitchTeam }: SidebarProps) {
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
     const { user, isConfigured } = useAuth();
@@ -59,7 +61,7 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
     // Sprint 4 for good reason.
     const tasks = useSeasonScoped(allTasks);
     const currentTeam = teams.find((t) => t.id === currentTeamId);
-    const views = navViewsFor(canManageTeam);
+    const views = navViewsFor(canManageTeam, isOperator);
 
     const doneCount = tasks.filter((t) => t.status === 'Done').length;
     const donePercent = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0;

@@ -4,6 +4,7 @@ import {
     getPendingSyncCount,
     getPendingSyncItems,
     getSyncFailureCount,
+    getTerminalFailureReasons,
     moveToDeadLetter,
     retrySyncFailures,
     SyncQueueItem,
@@ -12,6 +13,10 @@ import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
 import { findEntity, SYNCED_ENTITIES, type RemoteTable } from './entity-registry';
+import {
+    classifySyncFailure,
+    type SyncFailureContext,
+} from './sync-failure-classification';
 import { pullFromServer } from './server-pull';
 import {
     withTimeout,
@@ -92,6 +97,15 @@ interface UseSyncResult {
     pendingChanges: number;
     /** Changes that exhausted their retries and are parked, not lost (B2). */
     failedChanges: number;
+    /**
+     * Distinct reasons among the parked changes that were refused rather than merely
+     * unreachable (B24).
+     *
+     * De-duplicated, because one lapsed licence produces one explanation however many changes
+     * it stopped — a list repeating "your team's licence has lapsed" eleven times tells the
+     * user nothing the first line did not.
+     */
+    failureReasons: string[];
     lastSyncTime: Date | null;
     sync: () => Promise<void>;
     /** Re-queue every parked change. Resolves to how many were restored. */
@@ -104,6 +118,7 @@ export function useSync(): UseSyncResult {
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
     const [pendingChanges, setPendingChanges] = useState(0);
     const [failedChanges, setFailedChanges] = useState(0);
+    const [failureReasons, setFailureReasons] = useState<string[]>([]);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
@@ -148,12 +163,30 @@ export function useSync(): UseSyncResult {
     // Update pending changes count
     useEffect(() => {
         const updatePendingCount = async () => {
-            const [pending, failed] = await Promise.all([
-                getPendingSyncCount(),
-                getSyncFailureCount(),
-            ]);
-            setPendingChanges(pending);
-            setFailedChanges(failed);
+            /*
+             * Guarded, because this runs on an interval.
+             *
+             * An unguarded throw here becomes an unhandled rejection every five seconds for as
+             * long as the app is open — and it is a READ of local state, so failing it changes
+             * nothing the user can act on. The right response is to leave the last known counts
+             * on screen and try again on the next tick.
+             *
+             * Not hypothetical: adding `getTerminalFailureReasons` to this list broke a test
+             * suite whose offline-db mock predated it, and the symptom was not an assertion
+             * failure but a file that hung for fifteen minutes.
+             */
+            try {
+                const [pending, failed, reasons] = await Promise.all([
+                    getPendingSyncCount(),
+                    getSyncFailureCount(),
+                    getTerminalFailureReasons(),
+                ]);
+                setPendingChanges(pending);
+                setFailedChanges(failed);
+                setFailureReasons(reasons);
+            } catch (err) {
+                console.warn('Could not read the sync queue counts:', err);
+            }
         };
 
         updatePendingCount();
@@ -283,6 +316,7 @@ export function useSync(): UseSyncResult {
     const retryFailedChanges = useCallback(async () => {
         const restored = await retrySyncFailures();
         setFailedChanges(await getSyncFailureCount());
+        setFailureReasons(await getTerminalFailureReasons());
         setPendingChanges(await getPendingSyncCount());
         return restored;
     }, []);
@@ -292,6 +326,7 @@ export function useSync(): UseSyncResult {
         syncStatus,
         pendingChanges,
         failedChanges,
+        failureReasons,
         lastSyncTime,
         sync,
         retryFailedChanges,
@@ -307,8 +342,29 @@ export interface DrainResult {
     retried: number;
     /** Items that exhausted {@link MAX_SYNC_RETRIES} and were parked (B2). */
     deadLettered: number;
+    /**
+     * Items parked without spending their retries, because the refusal cannot succeed on
+     * retry (B24). Counted separately from {@link deadLettered} because the two mean different
+     * things to a user: one is "we could not reach the server five times", the other is "the
+     * server will never accept this, and here is why".
+     */
+    terminal: number;
     /** True if the run stopped early because its token was cancelled (B6). */
     cancelled: boolean;
+}
+
+/**
+ * What the classifier needs to know, gathered once per drain.
+ *
+ * Read from the store rather than the server: the drain runs offline, and a device that
+ * cannot ask must still be able to recognise the refusals it already has the answer to.
+ */
+function currentFailureContext(): SyncFailureContext {
+    const state = useAppStore.getState();
+    return {
+        entitlementStatus: state.entitlement?.status ?? null,
+        archivedSeasonIds: new Set(state.seasons.filter((s) => s.isArchived).map((s) => s.id)),
+    };
 }
 
 /**
@@ -323,10 +379,11 @@ export interface DrainResult {
  * from draining, and must not be lost either (B2).
  */
 export async function drainSyncQueue(token: SyncToken = { cancelled: false }): Promise<DrainResult> {
-    const result: DrainResult = { pushed: 0, retried: 0, deadLettered: 0, cancelled: false };
+    const result: DrainResult = { pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: false };
 
     // Ordered by timestamp, NOT primary key — see getPendingSyncItems (B1).
     const queueItems = await getPendingSyncItems();
+    const context = currentFailureContext();
 
     for (const item of queueItems) {
         if (token.cancelled) {
@@ -339,6 +396,27 @@ export async function drainSyncQueue(token: SyncToken = { cancelled: false }): P
             await db.syncQueue.delete(item.id);
             result.pushed++;
         } catch (err) {
+            /*
+             * A refusal that no retry can satisfy is parked NOW, with its reason (B24).
+             *
+             * The work is preserved exactly as B2 requires — same store, same retry affordance
+             * in the UI — so this trades none of the engine's safety for the nine minutes and
+             * the silence it removes. `retrySyncFailures` can still put it back on the queue
+             * once the licence is renewed or the season reopened, which is the only thing that
+             * WILL change the answer.
+             */
+            const classification = classifySyncFailure(item, err, context);
+            if (classification.terminal) {
+                console.warn(
+                    `Sync item ${item.id} was refused by a rule that retrying cannot satisfy: ` +
+                    `${classification.reason}`,
+                    err,
+                );
+                await moveToDeadLetter(item, err, classification.reason);
+                result.terminal++;
+                continue;
+            }
+
             // Update retry count
             const newRetryCount = (item.retryCount || 0) + 1;
 

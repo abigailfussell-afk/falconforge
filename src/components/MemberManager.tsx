@@ -4,6 +4,7 @@ import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember, MemberRole } from '../types';
 import { getMemberDisplayName } from '../lib/member-utils';
 import { useAuth } from '../lib/auth';
+import { useEntitlement } from '../lib/entitlement';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import SectionHeader from './ui/SectionHeader';
@@ -48,6 +49,15 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     // Member awaiting the remove confirmation (null when the dialog is closed).
     const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
     const { profile, isOffline } = useAuth();
+    /*
+     * Seat capacity, for the approval decision.
+     *
+     * Read here rather than passed in: this is the only screen that approves anybody, and the
+     * store copy is the same one `EntitlementPanel` renders, so the two cannot disagree about
+     * how many seats are left.
+     */
+    const { isKnown, seatsUsed, seatsTotal, seatsUnlimited, seatsRemaining, isAtCapacity } =
+        useEntitlement();
 
     /**
      * Seats are the admin's alone — `enforce_seat_capacity` refuses them to anyone else, so
@@ -111,16 +121,32 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         fetchPendingMembers();
     }, [teamId]);
 
-    // Approve a pending member
+    /*
+     * Approve a pending member — WHICH IS WHAT CONSUMES A SEAT.
+     *
+     * `status` and `seat_assigned` move in ONE statement, deliberately. Seats are purchased team
+     * capacity and approval is the gate: `enforce_seat_capacity` counts approved seat-holders
+     * before allowing another, so setting both columns together means the trigger refuses the
+     * whole approval atomically when the team is full. Two separate updates would let a member
+     * be approved into a team with no seat for them, which is the state the model exists to
+     * prevent.
+     *
+     * The trigger's message names the numbers ("No licensed seats available for this team (10 of
+     * 10 in use)"), so it is shown verbatim rather than replaced with something vaguer. Two
+     * admins approving at once from different devices is a real race, and this is where it
+     * surfaces — which is why the console handles the refusal even when the seat count said
+     * there was room.
+     */
     const approveMember = async (memberId: string) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
+        setError(null);
 
         try {
             const { error: updateError } = await supabaseSync
                 .from('team_members')
-                .update({ status: 'approved' })
+                .update({ status: 'approved', seat_assigned: true })
                 .eq('id', memberId);
 
             if (updateError) throw updateError;
@@ -129,7 +155,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
             onMembersChange();
         } catch (err: any) {
             console.error('Error approving member:', err);
-            setError('Failed to approve member');
+            setError(err?.message || 'Failed to approve member');
         } finally {
             setProcessingIds(prev => {
                 const next = new Set(prev);
@@ -183,34 +209,6 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         } catch (err: any) {
             console.error('Error updating role:', err);
             setError('Failed to update role');
-        } finally {
-            setProcessingIds(prev => {
-                const next = new Set(prev);
-                next.delete(memberId);
-                return next;
-            });
-        }
-    };
-
-    // Assign or release one of the team's licensed seats.
-    const toggleSeat = async (memberId: string, currentlyAssigned: boolean) => {
-        if (!supabaseSync || !isSupabaseConfigured()) return;
-
-        setProcessingIds(prev => new Set(prev).add(memberId));
-
-        try {
-            const { error: updateError } = await supabaseSync
-                .from('team_members')
-                .update({ seat_assigned: !currentlyAssigned })
-                .eq('id', memberId);
-
-            // `enforce_seat_capacity` refuses this when the team has no seat left, so the
-            // message has to be the database's rather than a generic one.
-            if (updateError) throw updateError;
-            onMembersChange();
-        } catch (err: any) {
-            console.error('Error updating seat assignment:', err);
-            setError(err?.message || 'Failed to update seat assignment');
         } finally {
             setProcessingIds(prev => {
                 const next = new Set(prev);
@@ -293,12 +291,46 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
             {pendingMembers.length > 0 && (
                 <div className="border border-amber-200 dark:border-amber-800 rounded-lg overflow-hidden">
                     <div className="bg-amber-50 dark:bg-amber-900/30 p-3 border-b border-amber-200 dark:border-amber-800">
-                        <div className="flex items-center gap-2">
-                            <Clock size={18} className="text-amber-600 dark:text-amber-400" />
-                            <h4 className="font-semibold text-amber-800 dark:text-amber-300">
-                                Pending Approvals ({pendingMembers.length})
-                            </h4>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <Clock size={18} className="text-amber-600 dark:text-amber-400" />
+                                <h4 className="font-semibold text-amber-800 dark:text-amber-300">
+                                    Pending Approvals ({pendingMembers.length})
+                                </h4>
+                            </div>
+                            {/*
+                              * THE SEAT MATH, WHERE THE DECISION IS MADE.
+                              *
+                              * The brief's scenario: an admin shares the code with 20 people and
+                              * has 10 seats. Ten of those requests cannot be approved, and an
+                              * admin who only finds that out by clicking Approve ten times and
+                              * reading a database error on the eleventh has been failed by this
+                              * screen. `seatsRemaining` is null for an unlimited grant, which is
+                              * not a number and is not rendered as one.
+                              */}
+                            {isKnown && !seatsUnlimited && (
+                                <span
+                                    data-testid="pending-seat-math"
+                                    className={`text-xs font-semibold ${isAtCapacity
+                                        ? 'text-red-700 dark:text-red-400'
+                                        : 'text-amber-800 dark:text-amber-300'
+                                        }`}
+                                >
+                                    {isAtCapacity
+                                        ? `No seats left — ${seatsUsed} of ${seatsTotal ?? 0} in use`
+                                        : `${seatsRemaining} of ${seatsTotal ?? 0} seats free`}
+                                </span>
+                            )}
                         </div>
+                        {isAtCapacity && (
+                            <p
+                                data-testid="pending-capacity-warning"
+                                className="mt-2 text-xs text-amber-800/90 dark:text-amber-300/90"
+                            >
+                                Approving anyone needs a free seat. Remove a member, or add seats,
+                                and these requests will still be here.
+                            </p>
+                        )}
                     </div>
                     <ul className="divide-y divide-amber-100 dark:divide-amber-900/30">
                         {pendingMembers.map((member) => (
@@ -314,7 +346,23 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                         size="sm"
                                         onClick={() => approveMember(member.id)}
                                         busy={processingIds.has(member.id)}
-                                        title="Approve"
+                                        /*
+                                         * Disabled on capacity and on offline, each with its own
+                                         * reason. Approval is a direct Supabase write, not a
+                                         * queued one, so offline genuinely means "not now" —
+                                         * the same distinction `isOffline` draws elsewhere on
+                                         * this screen.
+                                         */
+                                        disabled={!viewerIsAdmin || isOffline || isAtCapacity}
+                                        title={
+                                            !viewerIsAdmin
+                                                ? 'Only the team admin can approve members'
+                                                : isOffline
+                                                    ? 'Approving needs a connection'
+                                                    : isAtCapacity
+                                                        ? 'No licensed seats left — remove a member or add seats first'
+                                                        : 'Approve'
+                                        }
                                         aria-label="Approve"
                                     >
                                         {!processingIds.has(member.id) && <UserCheck size={16} />}
@@ -385,23 +433,36 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                             )}
                                         </select>
 
-                                        {/* Licensed seat. Read-only for anyone but the admin. */}
-                                        <button
-                                            onClick={() => toggleSeat(member.id, member.seatAssigned)}
-                                            disabled={processingIds.has(member.id) || !viewerIsAdmin}
-                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition-colors disabled:opacity-50 ${member.seatAssigned
+                                        {/*
+                                          * SEAT STATE, NOT A SEAT CONTROL.
+                                          *
+                                          * Sprint 5 shipped a per-row toggle here, and Sprint 6
+                                          * deleted it. Under the model this sprint settled on,
+                                          * a seat is not a thing an admin hands out separately:
+                                          * an APPROVED member holds one and a removed member
+                                          * does not, so approval and removal are the only two
+                                          * actions that change the count. A toggle offered a
+                                          * third, contradictory answer — an approved member
+                                          * with no seat, which billed for nobody and granted
+                                          * everything, since no policy consults `seat_assigned`.
+                                          *
+                                          * Kept as a badge because "does this person cost a
+                                          * seat" is still worth seeing on the row.
+                                          */}
+                                        <span
+                                            className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded ${member.seatAssigned
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                                 : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
                                                 }`}
                                             title={
-                                                viewerIsAdmin
-                                                    ? (member.seatAssigned ? 'Holds a licensed seat' : 'No seat assigned')
-                                                    : 'Only the team admin can assign licensed seats'
+                                                member.seatAssigned
+                                                    ? 'Holds one of the team’s licensed seats. Removing this member frees it.'
+                                                    : 'Not using a seat. Approved members use one — this row predates that rule.'
                                             }
                                         >
                                             <DollarSign size={12} />
                                             {member.seatAssigned ? 'Seated' : 'No seat'}
-                                        </button>
+                                        </span>
 
                                         {/* Remove Button */}
                                         <IconButton

@@ -38,6 +38,17 @@ export interface SyncFailure extends SyncQueueItem {
     failedAt: number;
     /** Error text from the final attempt. */
     lastError: string;
+    /**
+     * Why retrying is pointless, in words a coach can act on — set only for a change parked
+     * WITHOUT exhausting its retries (B24).
+     *
+     * Absent means the change failed five times for reasons nobody could name, which is a
+     * different thing to tell somebody than "your team's licence has lapsed". The raw
+     * `lastError` for these is always the same sentence — PostgREST reports every policy
+     * refusal as "new row violates row-level security policy for table x" whatever the
+     * policy's reason was — so this is the only place the actual cause survives.
+     */
+    terminalReason?: string;
 }
 
 class FalconForgeDatabase extends Dexie {
@@ -330,18 +341,27 @@ export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
 }
 
 /**
- * Park a change that exhausted its retries, instead of deleting it.
+ * Park a change that cannot be pushed, instead of deleting it.
  *
  * The queue entry is removed so the drain can make progress, but the change itself is
  * preserved so it can be retried later or inspected. Losing a scouting report entered at a
  * competition because five pushes happened to fail is not an acceptable outcome (B2).
+ *
+ * `terminalReason` distinguishes the two ways a change gets here: it exhausted five attempts
+ * (absent), or it was refused by a rule that retrying cannot satisfy and was parked on the
+ * first attempt (present, B24). Both keep the work; only the second can explain itself.
  */
-export async function moveToDeadLetter(item: SyncQueueItem, error: unknown): Promise<void> {
+export async function moveToDeadLetter(
+    item: SyncQueueItem,
+    error: unknown,
+    terminalReason?: string,
+): Promise<void> {
     await db.transaction('rw', db.syncQueue, db.syncFailures, async () => {
         await db.syncFailures.put({
             ...item,
             failedAt: Date.now(),
             lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+            ...(terminalReason ? { terminalReason } : {}),
         });
         await db.syncQueue.delete(item.id);
     });
@@ -363,6 +383,20 @@ export async function getPendingRecordIds(tableName: string): Promise<Set<string
 
 export async function getSyncFailureCount(): Promise<number> {
     return await db.syncFailures.count();
+}
+
+/**
+ * The distinct reasons among parked changes that were refused rather than unreachable (B24).
+ *
+ * De-duplicated: one lapsed licence stops every queued change, and eleven copies of the same
+ * sentence is worse than one. Order follows `failedAt`, so the oldest explanation reads first.
+ */
+export async function getTerminalFailureReasons(): Promise<string[]> {
+    const failures = await db.syncFailures.orderBy('failedAt').toArray();
+    const reasons = failures
+        .map((f) => f.terminalReason)
+        .filter((r): r is string => typeof r === 'string' && r.length > 0);
+    return [...new Set(reasons)];
 }
 
 export async function getSyncFailures(): Promise<SyncFailure[]> {

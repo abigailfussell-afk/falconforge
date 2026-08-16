@@ -134,12 +134,22 @@ export class Fixtures {
         return { id: data.user.id, email, token: mintAccessToken(data.user.id, email) };
     }
 
-    /** Record an attestation. The admin role is refused without one. */
-    async attest(userId: string, type = 'coach_terms'): Promise<void> {
+    /**
+     * Record an attestation. The admin role is refused without one.
+     *
+     * Idempotent: several tests in a suite may need the same person to have accepted the same
+     * terms, and "they have already agreed" is not a failure. Sprint 6 widened the unique key
+     * to (user_id, attestation_type, version) so that a version bump keeps the older
+     * acceptance, which turned a repeat call from a silent overwrite into a 23505.
+     */
+    async attest(userId: string, type = 'coach_terms', version = '1.0'): Promise<void> {
         const { error } = await this.svc
             .from('user_attestations')
-            .insert({ user_id: userId, attestation_type: type } as never);
-        if (error) throw new Error(`attest(${type}) failed: ${error.message}`);
+            .upsert({ user_id: userId, attestation_type: type, version } as never, {
+                onConflict: 'user_id,attestation_type,version',
+                ignoreDuplicates: true,
+            });
+        if (error) throw new Error(`attest(${type}@${version}) failed: ${error.message}`);
     }
 
     /**

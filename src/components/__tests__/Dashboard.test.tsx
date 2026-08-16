@@ -24,6 +24,9 @@ vi.mock('../../lib/sync', () => ({
         syncStatus: 'idle',
         pendingChanges: 0,
         failedChanges: 0,
+        // Added in Sprint 6 (B24). Omitting it made SyncStatusIndicator read `.length` of
+        // undefined -- the same mock-drift class as the offline-db mock below.
+        failureReasons: [],
         lastSyncTime: new Date(),
         sync: vi.fn(),
         retryFailedChanges: vi.fn().mockResolvedValue(0),
@@ -45,10 +48,26 @@ vi.mock('../../lib/supabase', () => ({
 // this file already mocks above. The mock survived deletion for a while because vitest only
 // resolves a factory mock when something imports the path, so it sat here doing nothing.
 
-// Mock offline-db
+/*
+ * Mock offline-db.
+ *
+ * The counting helpers are declared even though this suite asserts nothing about them, because
+ * `useSync` calls them on an interval and a factory mock throws when an omitted export is
+ * ACCESSED rather than when it is imported. Sprint 6 added `getTerminalFailureReasons` to
+ * `sync.ts`, and its absence here made every poll throw inside an async effect — which did not
+ * fail an assertion, it hung the file for fifteen minutes. Mock drift, exactly as
+ * `mock-drift.test.ts` warns.
+ */
 vi.mock('../../lib/offline-db', () => ({
     db: { syncQueue: { toArray: vi.fn().mockResolvedValue([]) } },
     clearLocalDatabase: vi.fn(),
+    getPendingSyncCount: vi.fn().mockResolvedValue(0),
+    getPendingSyncItems: vi.fn().mockResolvedValue([]),
+    getSyncFailureCount: vi.fn().mockResolvedValue(0),
+    getTerminalFailureReasons: vi.fn().mockResolvedValue([]),
+    getSyncFailures: vi.fn().mockResolvedValue([]),
+    moveToDeadLetter: vi.fn(),
+    retrySyncFailures: vi.fn().mockResolvedValue(0),
 }));
 
 // Mock dexie-react-hooks

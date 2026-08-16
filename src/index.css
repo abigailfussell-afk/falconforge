@@ -179,10 +179,30 @@ h6 {
    * change: do not remove either alone.
    *
    * Desktop keeps the dense 13-14px, because a mouse has no such failure mode.
+   *
+   * THE `.field` SELECTORS ARE LOAD-BEARING, AND THEIR ABSENCE WAS A LIVE BUG.
+   *
+   * This floor was written as element selectors (specificity 0,0,1). Sprint 5.5 then introduced
+   * `.field` — a CLASS (0,1,0) that applies `text-sm`, i.e. 13px — and a class beats an element
+   * whatever the source order. So from the moment `.field` landed, every control carrying it
+   * computed 13px on a phone and this block silently protected nothing: measured at 375px with
+   * `(pointer: coarse)` matching and `maxTouchPoints: 5`, all seven controls on the operator
+   * console reported `font-size: 13px`.
+   *
+   * That is precisely the failure the floor exists to prevent — iOS Safari zooms the viewport on
+   * focus and does not zoom back — and it applied to every form in the app, not just the new ones.
+   * `input.field` &c. are 0,1,1, so they win regardless of how Tailwind orders its layers. Raising
+   * specificity rather than reaching for `!important`, so a call site can still override
+   * deliberately.
+   *
+   * Do not "simplify" this back to bare element selectors.
    */
   input,
   select,
-  textarea {
+  textarea,
+  input.field,
+  select.field,
+  textarea.field {
     font-size: 16px;
   }
 }

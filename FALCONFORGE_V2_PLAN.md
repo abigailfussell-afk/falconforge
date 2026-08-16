@@ -267,6 +267,25 @@ manual walkthrough: register team → gift license → invite each role → veri
 - Error boundaries per route; dead-letter UI reviewed (a coach can understand and retry).
 - Playwright smoke pack (5–8 flows: register, invite/join, create task offline→sync, new season,
   scouting entry, checklist) run in CI against the local stack.
+  - **It also owns SCREENSHOT CAPTURE, and should be the first thing built in the sprint.**
+    Decided with Kevin at Sprint 6's close. Sprint 5 and Sprint 6 both have "screenshots at
+    375 / 768 / 1280" in their exit criteria and both satisfied it by hand; Sprint 6 could not
+    satisfy it at all. The Browser pane has two distinct failure modes: it cannot capture unless
+    the pane is *displayed* (no pane, no compositing, no frames — this is what actually cost
+    Sprint 6 its captures), and above ~1024px it composites an emulated viewport into its own
+    surface without scaling up, so a 1280-wide page lands in a fifth of the image. Playwright is
+    headless, so display state is irrelevant, and takes an arbitrary viewport plus
+    `fullPage: true`.
+  - A `scripts/capture-screens.mjs` that signs in against the seeded local stack
+    (`scripts/seed-review-states.mjs`, Sprint 6) and captures the main views at three widths
+    turns a per-sprint manual ritual into a Gate artifact. ~100 lines.
+  - **It does not replace looking at the app.** All three defects Sprint 6 found in the browser
+    came from poking around, not from assertions — a script only checks what somebody already
+    thought to check. Playwright is for proving and re-proving; the pane is for looking.
+  - Caveat worth writing down: Playwright's Chromium is not Safari, so it emulates iOS rather
+    than being it. Sprint 6's iOS zoom bug was caught by measuring computed styles, which
+    Playwright does equally well — but genuine Safari zoom-on-focus behaviour still wants a real
+    device before beta.
 - README rewritten to match reality; `.agent/` folder pruned (aspirational skill docs deleted or
   marked); seed script for a demo team so beta coaches see a populated example.
 - Beta ops: simple feedback link in-app, error logging story (even just structured console +
@@ -324,7 +343,52 @@ the final walkthrough and tags `v2.0.0-beta`.
 
 | 2026-08-15 | Sprint 5.5 — UI polish: primitive kit, feedback pass, density pass; auth deadlock fixed | `v2/sprint-5.5-ui-polish` | **Complete.** Gate green (lint / 344 unit / 87 integration / build); no `supabase/` changes. Ran from the post-Sprint-5 UI review's findings. **The 🔴 restored-session bug is fixed and root-caused** — `onAuthStateChange` awaited a supabase REST call while supabase-js held its auth Web Lock, deadlocking the client on itself; profile sync now defers out of the callback (B23 regression test, verified to fail without the fix; reload-with-session verified live). The missing layer over the Sprint 5 tokens landed: `src/components/ui/` (Button/IconButton/Modal/EmptyState/SectionHeader) + `.field` — 8 primary-button recipes, 5 modal widths, 7 input recipes and three disabled opacities collapse to one each, `max-w-panel`/`max-w-dialog`/`z-dialog` go from dead tokens to the modal defaults, and ConfirmDialog composes the kit. Feedback pass: scouting Save no longer silently no-ops on an empty team number (disabled + explanatory title, under test); four keyboard-unreachable primary actions became real buttons (scouting cards, calendar rows, checklist items — under test); the native `confirm()` in MemberManager became ConfirmDialog; Reject got the busy spinner Approve had; the sync button answers hover and explains its disabled states; ± steppers got touch targets, hover, and a floor at zero. Density pass: calendar rows ~124px → ~88px of vertical cost and the view fills its frame; task-modal padding halved; checklist 800px → 608px column; EditProfile → `max-w-panel`; scouting/sub-team grids gain xl/2xl steps; dashboard's dead lower half became an Upcoming Deadlines panel. `as any` 58 → **55**; arbitrary values still 1 (the documented one). Verified in the browser end to end on the local stack. |
 
+| 2026-08-16 | **Sprint 5.5 merged and deployed** | `main` | **Complete.** `--no-ff` merge (`909a163`), Gate green on the merged main (lint / 344 unit / 87 integration / build; `supabase/` untouched so no `db:verify`). CI and Deploy both green; falcon-forge.com verified serving `index-D4lvFf5W.js` — byte-identical to the local build — with the custom domain intact. The `onAuthStateChange` deadlock fix is live. (Said at the time to be something "production users were hitting on every reload" — corrected: production is greenfield since Sprint 3's reset, so the only person hitting it was Kevin.) |
+
+| 2026-08-16 | Sprint 6 — Licensing & admin console + legal | `v2/sprint-6-licensing` | **Complete.** Gate + `db:verify` + `test:rls` + `test:db` green (lint / 470 unit +2 skips / 87 integration / build / 20 schema assertions / 265 rls / 364 db). `as any` stays **55**; arbitrary values still 1. **Seat semantics decided by Kevin at kickoff: seats are purchased TEAM CAPACITY and the gate is JOIN APPROVAL** — one seat per approved member including the admin, refused when full by `enforce_seat_capacity`, and **no policy consults `seat_assigned`** (assertion 19 fails if one starts to). That answers the hand-off's decision 1 without per-member RLS: the enforcement point becomes an action that is inherently online and rare, so the offline write path never consults licensing at all. Approval sets `status` + `seat_assigned` in one statement so the trigger refuses atomically; invites are capped at the seats free (`max_uses` had been in the schema since Sprint 3 unset). **Found B25, a live cross-tenant privilege escalation**: `can_manage_billing` was `current_team_role(t) = 'admin'`, which is **NULL** for a non-member, so `IF NOT can_manage_billing(...)` never fired and `transfer_team_admin` — SECURITY DEFINER, EXECUTE-granted to `authenticated` and `anon` — accepted an outsider. Verified as an exploit (`success: true`), fixed with `coalesce(..., false)` at the root. No policy was ever wrong, which is why 261 isolation assertions went green over it: RLS coerces NULL to false, and the one RPC with the vulnerable shape had no caller. **B24**: the sync drain gains error classification — but narrower than first written. A policy refusal is terminal only when local state already explains it (read-only team, or archived season), because PostgREST reports a cross-tenant write, an unlicensed write, an archived-season write **and a write naming a not-yet-synced season** with one identical 42501; the wider rule was refused by B19's own regression test, which models an outage with a CHECK-rejected title and then corrects the queued payload in place. **Ownership transfer** is a two-party handshake (nominate → the successor attests → transfer), because `enforce_member_role_eligibility` was a gate with no door: nothing had ever written the successor's attestation. `operator_transfer_team_admin` rescues a stranded team, audited in a new `operator_actions` table with a SELECT policy and no others. Legal documents rewritten (no uptime guarantee, discontinuation at any time, licence/seat terms, discretionary refunds, the COPPA posture spelled out to match the schema) and versioned to 2.0, with `ReAttestationPrompt` making the bump real; `src/pages/legal` 0% → covered by 32 claim-level tests. **Deploy is now manual** (`workflow_dispatch` only) — justified in `deploy.yml` by the second forward migration landing on the one database holding the operator identity no API path can recreate, which is Sprint 4's incident in a different costume. The first version of that justification claimed a bad deploy would show a lock screen to real users; **corrected, because production is greenfield** — `auth.users` was emptied at Sprint 3's reset and there is nobody to lock out but Kevin, who holds the service key. Reverting to auto is defensible until beta onboarding. **Found by running the app, not the suite: the 16px iOS zoom floor had been protecting nothing since Sprint 5.5** — it was written as element selectors and `.field` is a class applying 13px, so every form control in the app was below the floor on every phone; measured at 13px, fixed to 16px, guarded by a source-level test because jsdom cannot apply `index.css`. Also found by looking: an under-18 could be nominated as admin (the roster carries no age, so the refusal landed on the student at acceptance), and a lapsed team's panel read "4 of 0". Three defects in my own new code were caught by the suite: a fail-CLOSED attestation read, an **infinite render loop** (an effect depending on the `user` object; ~2M iterations and a 2.7 GB log), and mock drift from B24's new import that hung a test file for fifteen minutes rather than failing it. |
+
 **Discovered / parking lot:**
+
+*From Sprint 6:*
+- **🔴 CI does not run on sprint branches.** `ci.yml` triggers on `push: branches: [main,
+  'refactor/**']` and on `pull_request`. Every `v2/sprint-*` branch since Sprint 1 has been pushed
+  with **no CI run at all** — confirmed by the Actions API after pushing
+  `v2/sprint-6-licensing`: zero workflows fired. So the only CI signal a sprint has ever had is
+  the one that arrives *after* it merges to `main`, which is the worst possible moment for it. The
+  Gate is run locally and reported, which is why this has not hurt yet, but it means "CI green"
+  has never been true of a sprint branch before its merge. Add `'v2/**'` to the trigger list, or
+  open PRs. One line either way; the reason it is 🔴 is that it silently inverts the point of
+  having CI.
+- **`transfer_team_admin` and the other admin RPCs are EXECUTE-granted to `anon`** as well as
+  `authenticated`, via the schema's default privileges. B25's fix makes that harmless (an
+  anonymous caller now gets `false` from every capability rather than NULL), but granting
+  anonymous EXECUTE on team-administration functions is still wrong by default-deny. A
+  `REVOKE EXECUTE ... FROM anon` sweep over the RPC surface is a contained forward migration
+  and wants its own behavioural test per function, so it was not bolted onto this sprint.
+- **`team_members` carries no `age_classification`, so the console cannot pre-filter successor
+  candidates.** `nominate_team_admin` now refuses an under-18 up front, which puts the error in
+  front of the admin instead of the student — but the dropdown still lists them. Fixing it
+  properly means either denormalising the age onto `team_members` (a schema change, and one more
+  column for `sync_user_to_team_members` to keep in step) or a second read. Neither is worth it
+  before Sprint 9 touches the guardian model.
+- **`team_entitlement` is `security_invoker`, so the operator console lists only teams the
+  operator can already read.** Gifting works from a team id, which is what a support
+  conversation produces, so this is a real limitation rather than a blocker. Cross-tenant
+  visibility for the operator needs its own policy and its own isolation tests — deliberately
+  not smuggled in alongside a UI sprint.
+- **The trial licence in `create_team_as_admin` is still there.** Sprint 6 built the operator
+  gifting UI that replaces it for real teams, but self-serve registration still issues itself a
+  90-day unlimited grant, because a team with no licence is read-only and registration would be
+  dead on arrival without one. Deleting the `INSERT INTO license_grants` block turns registration
+  into "create team, then pay" and belongs with Stripe in Sprint 10.
+- **A seat-count *reduction* has no admin-facing path yet.** The semantics are decided (allow it,
+  never remove anybody, refuse new approvals until back under capacity) and `EntitlementPanel`
+  renders the over-capacity state, but capacity only changes through the operator RPC until
+  Stripe lands. The guard that refuses a downgrade-driven approval already exists — it is
+  `enforce_seat_capacity` — so Sprint 10 needs the purchase UI, not new enforcement.
+- **`MEMBER_REQUIRED_ATTESTATIONS` is now an empty named constant with a documented reason.**
+  Kept rather than deleted so the join flow records that it asks for nothing deliberately. If a
+  fourth sprint passes with it still empty, delete it.
 
 *From Sprint 5.5:*
 - **Due dates render one day early for US-negative UTC offsets.** A date picked as

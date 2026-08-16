@@ -1,81 +1,124 @@
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
+import LegalPage, { LegalSection } from './LegalPage';
 
+/**
+ * Acceptable use.
+ *
+ * The sprint brief asks for "acceptable use" rather than "community guidelines", and the
+ * difference is not cosmetic: guidelines suggest, a policy is enforceable and is referenced by the
+ * Terms. The route stays `/legal/community` because it is linked from existing attestations and
+ * from `privacy_and_guidelines`, which every account has already accepted.
+ */
 export default function CommunityGuidelines() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 md:p-8">
-            <div className="max-w-3xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <Link
-                        to="/login"
-                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                    >
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <div className="flex items-center gap-3">
-                        <Users className="text-forge-500" size={28} />
-                        <h1 className="text-2xl font-bold text-white">Community Guidelines & Code of Conduct</h1>
-                    </div>
-                </div>
+        <LegalPage
+            title="Acceptable Use"
+            icon={Users}
+            attestation="community_guidelines"
+            effective="16 August 2026"
+        >
+            <p className="mb-6 text-sm text-slate-300">
+                FalconForge is a workspace shared by students, mentors and coaches, most of them
+                minors. The standard is simple: behave as you would in a school robotics workshop
+                with your coach standing next to you. This policy forms part of the Terms.
+            </p>
 
-                {/* Content */}
-                <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-6 md:p-8 shadow-xl">
-                    <p className="text-slate-400 text-sm mb-6">
-                        All users must follow these guidelines to ensure a safe and respectful environment.
-                    </p>
+            <LegalSection heading="1. Treat people well">
+                <ul className="list-inside list-disc space-y-1">
+                    <li>
+                        No harassment, bullying, threats, or targeting anyone — including opposing
+                        teams. Scouting notes are about robots and strategy, not about people.
+                    </li>
+                    <li>
+                        No discriminatory or hateful content of any kind.
+                    </li>
+                    <li>
+                        No sexual content. This is used by children; there is no version of this that
+                        is acceptable.
+                    </li>
+                    <li>
+                        Disagree about strategy as much as you like. Do it about the strategy.
+                    </li>
+                </ul>
+            </LegalSection>
 
-                    <div className="prose prose-invert prose-slate max-w-none">
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">1. Respect Others</h2>
-                        <ul className="list-disc list-inside text-slate-300 space-y-2">
-                            <li>Treat all users with respect</li>
-                            <li>No harassment, bullying, or discrimination</li>
-                            <li>No abusive or threatening behavior</li>
-                        </ul>
+            <LegalSection heading="2. Look after each other's information">
+                <ul className="list-inside list-disc space-y-1">
+                    <li>
+                        Do not share another member&apos;s personal details outside the team,
+                        especially a minor&apos;s.
+                    </li>
+                    <li>
+                        Do not post photographs of minors without the consent of their parent or
+                        guardian.
+                    </li>
+                    <li>
+                        Invite codes are keys to your team. Share them with your team, not publicly.
+                    </li>
+                    <li>
+                        Do not use one account for several people. Everyone who works on the team gets
+                        their own membership — that is what the seats are for.
+                    </li>
+                </ul>
+            </LegalSection>
 
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">2. Appropriate Content</h2>
-                        <p className="text-slate-300 mb-4">Do not post or share:</p>
-                        <ul className="list-disc list-inside text-slate-300 space-y-2">
-                            <li>Offensive or explicit content</li>
-                            <li>Hate speech</li>
-                            <li>Illegal material</li>
-                            <li>Personal information without consent</li>
-                        </ul>
+            <LegalSection heading="3. Compete honestly">
+                <ul className="list-inside list-disc space-y-1">
+                    <li>
+                        Record scouting observations honestly. Do not fabricate data about another
+                        team.
+                    </li>
+                    <li>
+                        Do not attempt to access another team&apos;s data. If you find a way to, tell
+                        us — we will thank you rather than pursue you.
+                    </li>
+                    <li>
+                        Follow <em>FIRST</em>&apos;s own rules and Gracious Professionalism. Nothing
+                        here overrides them.
+                    </li>
+                </ul>
+            </LegalSection>
 
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">3. Safety and Privacy</h2>
-                        <ul className="list-disc list-inside text-slate-300 space-y-2">
-                            <li>Do not attempt to access private data</li>
-                            <li>Do not share login credentials</li>
-                            <li>Respect team and school privacy expectations</li>
-                        </ul>
+            <LegalSection heading="4. Do not break the Service">
+                <ul className="list-inside list-disc space-y-1">
+                    <li>
+                        No attempts to bypass access controls, licensing, or seat limits.
+                    </li>
+                    <li>
+                        No automated scraping or load that would degrade the Service for other teams.
+                    </li>
+                    <li>
+                        No uploading malware, or using FalconForge to store content unrelated to your
+                        robotics team.
+                    </li>
+                </ul>
+            </LegalSection>
 
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">4. Appropriate Use</h2>
-                        <ul className="list-disc list-inside text-slate-300 space-y-2">
-                            <li>Use the Service only for educational and team-related purposes</li>
-                            <li>Do not spam, disrupt, or misuse features</li>
-                        </ul>
+            <LegalSection heading="5. If something is wrong, tell us">
+                <p>
+                    If you see behaviour that breaches this policy — particularly anything involving
+                    the safety of a young person — contact us directly. You do not need your
+                    coach&apos;s permission to do that, and we will not tell them you did unless you
+                    want us to.
+                </p>
+                <p>
+                    If a young person is in immediate danger, contact your local emergency services
+                    first. We are one person with a database; they can actually help.
+                </p>
+            </LegalSection>
 
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">5. Enforcement</h2>
-                        <p className="text-slate-300 mb-4">Violations may result in:</p>
-                        <ul className="list-disc list-inside text-slate-300 space-y-2">
-                            <li>Content removal</li>
-                            <li>Account suspension</li>
-                            <li>Removal from teams</li>
-                            <li>Termination of access</li>
-                        </ul>
-
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">6. Reporting</h2>
-                        <p className="text-slate-300">
-                            Users should report violations to their coach or through the app's reporting tools.
-                        </p>
-
-                        <h2 className="text-lg font-semibold text-white mt-8 mb-4">7. Acknowledgment</h2>
-                        <p className="text-slate-300">
-                            By using the Service, users agree to follow these Community Guidelines.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <LegalSection heading="6. What happens if this policy is broken">
+                <p>
+                    Depending on what happened, we may remove content, remove a member from a team,
+                    suspend an account, or remove a team. Where it is safe and practical, we will
+                    explain why and give you a chance to respond first. Where a young person may be
+                    at risk, we will act first and explain afterwards.
+                </p>
+                <p>
+                    The team admin is responsible for their team&apos;s conduct on FalconForge, which
+                    is one of the things they accept when they take the role on.
+                </p>
+            </LegalSection>
+        </LegalPage>
     );
 }

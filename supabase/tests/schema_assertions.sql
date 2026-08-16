@@ -445,4 +445,145 @@ BEGIN
     END IF;
 END $$;
 
+-- 16. The admin-nomination column is guarded by a trigger, not only by its RPC.
+--
+--     `teams_update_manager` grants UPDATE on `teams` to `can_manage_roster`, which is admin
+--     OR COACH. So the column that decides who may become admin is writable over plain REST
+--     by somebody who must not decide it. `enforce_admin_nomination_authority` is what closes
+--     that, and it is the kind of guard that gets dropped by a later refactor of `teams`
+--     because nothing else references it.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'teams'
+          AND column_name = 'pending_admin_member_id'
+    ) THEN
+        RAISE EXCEPTION 'teams.pending_admin_member_id is missing';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'enforce_admin_nomination_authority_trigger'
+          AND tgrelid = 'public.teams'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION
+            'enforce_admin_nomination_authority_trigger is missing from teams -- a coach can '
+            'PATCH pending_admin_member_id to their own row and then accept it';
+    END IF;
+END $$;
+
+-- 17. The admin role is still gated on an 18+ account AND a terms attestation.
+--
+--     Ownership transfer (Sprint 6) reaches `role = 'admin'` from a second direction, and
+--     both new paths deliberately delegate eligibility to this one trigger rather than
+--     repeating it. If the trigger goes, transfer silently stops requiring the successor to
+--     have agreed to anything -- which is the entire legal point of the handshake.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'enforce_member_role_eligibility_trigger'
+          AND tgrelid = 'public.team_members'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION 'enforce_member_role_eligibility_trigger is missing from team_members';
+    END IF;
+
+    IF position('user_attestations' IN pg_get_functiondef(
+        'public.enforce_member_role_eligibility()'::regprocedure)) = 0 THEN
+        RAISE EXCEPTION
+            'enforce_member_role_eligibility no longer consults user_attestations -- an admin '
+            'could hold the role without having accepted the terms';
+    END IF;
+END $$;
+
+-- 18. Attestations keep their history: the unique key includes `version`.
+--
+--     With the key on (user_id, attestation_type) alone, `recordAttestation`'s upsert
+--     REPLACED the previous acceptance when a document version was bumped, so the record of
+--     what somebody agreed to before was destroyed by them agreeing to something new. That is
+--     the one thing a legal attestation exists to prove.
+DO $$
+DECLARE
+    v_cols text;
+BEGIN
+    SELECT string_agg(a.attname, ',' ORDER BY a.attname)
+      INTO v_cols
+    FROM pg_constraint c
+    JOIN unnest(c.conkey) AS k(attnum) ON true
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+    WHERE c.conrelid = 'public.user_attestations'::regclass
+      AND c.contype = 'u';
+
+    IF v_cols IS DISTINCT FROM 'attestation_type,user_id,version' THEN
+        RAISE EXCEPTION
+            'user_attestations unique key is (%) -- expected it to include `version`, or '
+            'bumping a document version overwrites the prior acceptance', coalesce(v_cols, 'none');
+    END IF;
+END $$;
+
+-- 19. No policy enforces seats per member, and that is deliberate.
+--
+--     Decided at Sprint 6 kickoff: seats are purchased TEAM CAPACITY and the gate is join
+--     approval (`enforce_seat_capacity`), never the write path. A policy that grew a
+--     `seat_assigned` predicate would put licensing on the critical path of every offline
+--     write at a competition and lock out a member whose device cannot ask. If this assertion
+--     ever needs deleting, that is a product decision with an offline story attached, not a
+--     tidy-up.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s.%s (%s)', tablename, cmd, policyname), ', ')
+      INTO offenders
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND coalesce(qual, '') || coalesce(with_check, '') LIKE '%seat_assigned%';
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION
+            'Policies now reference seat_assigned: %. Seats are team capacity enforced at '
+            'approval; per-member seat enforcement in the write path breaks offline use.',
+            offenders;
+    END IF;
+END $$;
+
+-- 20. B25 — every capability function returns a definite boolean, never NULL.
+--
+--     `current_team_role` is NULL for a non-member, so `current_team_role(x) = 'admin'`
+--     returns NULL and `IF NOT can_manage_billing(x)` does not fire: the guard is SKIPPED and
+--     the function continues as though the caller were authorised. RLS coerces NULL to false,
+--     so every policy was correct and nothing revealed it; `transfer_team_admin` was the shape
+--     that mattered and had no caller.
+--
+--     Asserted behaviourally against a uuid that belongs to no team, because the bug is
+--     invisible in the function's text -- the broken version and the fixed version differ
+--     only by a `coalesce` that is easy to drop in a later edit.
+DO $$
+DECLARE
+    v_nowhere uuid := '00000000-0000-0000-0000-000000000000';
+BEGIN
+    -- Spelled out one at a time rather than looped, so a failure names the function.
+    IF can_manage_billing(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'can_manage_billing returns NULL for a non-member -- B25: every '
+                        '`IF NOT can_manage_billing(...)` guard is skipped';
+    END IF;
+    IF can_manage_roster(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'can_manage_roster returns NULL for a non-member (B25)';
+    END IF;
+    IF can_manage_structure(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'can_manage_structure returns NULL for a non-member (B25)';
+    END IF;
+    IF can_manage_content(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'can_manage_content returns NULL for a non-member (B25)';
+    END IF;
+
+    IF can_manage_billing(v_nowhere) OR can_manage_roster(v_nowhere)
+       OR can_manage_structure(v_nowhere) OR can_manage_content(v_nowhere) THEN
+        RAISE EXCEPTION 'A capability function grants a non-member access to a team';
+    END IF;
+END $$;
+
 SELECT 'schema assertions passed' AS result;

@@ -43,7 +43,16 @@ describe('attestations', () => {
           attestation_type: 'terms',
           version: ATTESTATION_VERSIONS.terms
         }),
-        { onConflict: 'user_id,attestation_type' }
+        /*
+         * VERSION IS PART OF THE CONFLICT TARGET, and this assertion is the reason to state it
+         * rather than loosen the matcher.
+         *
+         * Sprint 6 widened the unique key to (user_id, attestation_type, version) so that
+         * accepting v2 of the terms keeps the record of having accepted v1 — the one question a
+         * legal attestation exists to answer. An upsert naming only two of those columns matches
+         * no unique index and errors outright, so the two have to move together.
+         */
+        { onConflict: 'user_id,attestation_type,version' }
       );
     });
 

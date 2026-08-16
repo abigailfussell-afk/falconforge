@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, RefreshCw, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
+import { useEntitlement } from '../lib/entitlement';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import SectionHeader from './ui/SectionHeader';
@@ -25,6 +26,16 @@ interface InviteManagerProps {
     teamId: string;
 }
 
+/**
+ * How long a generated code lasts.
+ *
+ * 24 hours was the schema's DEFAULT and this component's hardcoded value. Raised to a week:
+ * "share this with your team" is a weekend-shaped task, and a code that dies overnight produces
+ * a second support conversation for every first one. Still bounded, because a code that never
+ * expires is a credential.
+ */
+const INVITE_LIFETIME_HOURS = 24 * 7;
+
 export default function InviteManager({ teamId }: InviteManagerProps) {
     const [invites, setInvites] = useState<Invite[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +44,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     const [error, setError] = useState<string | null>(null);
 
     const { user, isOffline } = useAuth();
+    const { seatsRemaining, seatsUnlimited, isAtCapacity, isKnown } = useEntitlement();
 
     // Fetch active invites for this team
     const fetchInvites = async () => {
@@ -107,7 +119,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             // Generate a random 8-character code
             const code = generateInviteCode();
             const expiresAt = new Date();
-            expiresAt.setHours(expiresAt.getHours() + 24); // 24-hour expiration
+            expiresAt.setHours(expiresAt.getHours() + INVITE_LIFETIME_HOURS);
 
             if (!user) throw new Error('Not authenticated');
 
@@ -118,7 +130,21 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                     code: code,
                     created_by: user.id,
                     expires_at: expiresAt.toISOString(),
-                    max_uses: null,
+                    /*
+                     * CAPPED AT THE SEATS ACTUALLY AVAILABLE.
+                     *
+                     * `max_uses` has been in the schema since Sprint 3 and nothing ever set it.
+                     * The brief's scenario is an admin sharing one code with twenty people while
+                     * holding ten seats: without a cap, ten of those people sign up, sit as
+                     * pending requests that CANNOT be approved, and get no explanation — and the
+                     * admin has a queue they cannot clear. Capping the code stops the limbo
+                     * forming instead of managing it afterwards.
+                     *
+                     * Null for an unlimited grant, and null when this device has not read the
+                     * entitlement — an uncapped code is the safe failure here, because the seat
+                     * check still happens at approval where it always did.
+                     */
+                    max_uses: seatsRemaining,
                     use_count: 0
                 } as any)
                 .select()
@@ -217,7 +243,19 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                 icon={Link2}
                 title="Invite Links"
                 action={
-                    <Button size="sm" onClick={createInvite} busy={isCreating}>
+                    <Button
+                        size="sm"
+                        onClick={createInvite}
+                        busy={isCreating}
+                        disabled={isOffline || isAtCapacity}
+                        title={
+                            isOffline
+                                ? 'Generating a link needs a connection'
+                                : isAtCapacity
+                                    ? 'Every seat is in use — a new code could not be approved by anyone'
+                                    : 'Generate an invite link'
+                        }
+                    >
                         {!isCreating && <Link2 size={14} />}
                         Generate Link
                     </Button>
@@ -292,7 +330,24 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
 
             {/* Info note */}
             <p className="text-xs text-slate-400 dark:text-slate-500">
-                Invite links expire after 24 hours. Members who join via invite will need coach approval.
+                Invite links last a week. Anyone who joins with one waits as a request until the
+                team admin approves them, which is when they take up a licensed seat.
+                {/*
+                  * Suppressed at capacity, where "capped at the 0 seats you have free" is a
+                  * sentence nobody should read. The Generate button is already disabled with its
+                  * own reason, and the pending list says the same thing more usefully. Found by
+                  * looking at a seeded 3-of-3 team rather than by any assertion.
+                  */}
+                {isKnown && !seatsUnlimited && !isAtCapacity && (
+                    <>
+                        {' '}
+                        New links are capped at the{' '}
+                        <strong>
+                            {seatsRemaining} seat{seatsRemaining === 1 ? '' : 's'}
+                        </strong>{' '}
+                        you have free, so nobody signs up for a place that is not there.
+                    </>
+                )}
             </p>
         </div>
     );
