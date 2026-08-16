@@ -357,6 +357,16 @@ the final walkthrough and tags `v2.0.0-beta`.
 **Discovered / parking lot:**
 
 *From Sprint 8:*
+- **🔴 `npm run capture` screenshots whatever the DEV SERVER is serving, which can be stale
+  CSS.** A dev server started before a `tailwind.config.js` change keeps serving the old
+  generated stylesheet, so the capture produced a set of images in which the event manager's
+  table had silently collapsed to a stack at every width — the class existed in the JSX and
+  not in the CSS. The BUILD was correct throughout; only the artifact lied, and it lied in a
+  way that looks exactly like a responsive bug. Cost twenty minutes of diagnosing a layout
+  that was never broken. The smoke pack does not have this problem because it serves a
+  production build through `vite preview`; the capture script should do the same, or at
+  minimum refuse to run against a server older than the config it is capturing. Same class as
+  Sprint 2's "a stale service worker serves the previous build indefinitely".
 - **A coach who is offline while a student checks in ONLINE will dead-letter their override.**
   `setAttendance` reuses the existing local record's id so the coach's change becomes an
   UPDATE, which covers every ordinary case - but a device that has not pulled since the scan
