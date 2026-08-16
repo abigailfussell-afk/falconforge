@@ -8,9 +8,11 @@ import { TeamSlice, createTeamSlice, teamInitialState } from './slices/createTea
 import { ScoutingSlice, createScoutingSlice, scoutingInitialState } from './slices/createScoutingSlice';
 import { ChecklistSlice, createChecklistSlice, checklistInitialState } from './slices/createChecklistSlice';
 import { MatchPlanSlice, createMatchPlanSlice, matchPlanInitialState } from './slices/createMatchPlanSlice';
+import { MeetingSlice, createMeetingSlice, meetingInitialState } from './slices/createMeetingSlice';
 import type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
+    Meeting, MeetingAttendance,
 } from '../types';
 
 /**
@@ -38,6 +40,7 @@ import type {
 export type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
+    Meeting, MeetingAttendance,
 };
 
 // Re-exported so the many existing `import { selectChecklist, TeamEntitlement } from './store'`
@@ -94,7 +97,8 @@ export interface AppState extends
     TeamSlice,
     ScoutingSlice,
     ChecklistSlice,
-    MatchPlanSlice {
+    MatchPlanSlice,
+    MeetingSlice {
     // UI state
     theme: 'light' | 'dark';
     isLoading: boolean;
@@ -132,6 +136,7 @@ const INITIAL_DATA_STATE = {
     ...scoutingInitialState,
     ...checklistInitialState,
     ...matchPlanInitialState,
+    ...meetingInitialState,
     isLoading: false,
 };
 
@@ -145,6 +150,7 @@ export const useAppStore = create<AppState>()(
             ...createScoutingSlice(set, get),
             ...createChecklistSlice(set, get),
             ...createMatchPlanSlice(set, get),
+            ...createMeetingSlice(set, get),
 
             theme: 'dark',
             isLoading: false,
@@ -241,6 +247,12 @@ export const useAppStore = create<AppState>()(
                 checklistsBySeason: state.checklistsBySeason,
                 checklistTemplates: state.checklistTemplates,
                 matchPlans: state.matchPlans,
+                // The whole schedule and every attendance record, persisted like every other
+                // collection -- a student opening the app in a car park with no signal has to
+                // be able to read what time the meeting starts, and a coach has to be able to
+                // take the roster at a venue that has none.
+                meetings: state.meetings,
+                meetingAttendance: state.meetingAttendance,
                 seasons: state.seasons,
                 currentSeasonId: state.currentSeasonId,
                 // Persisted so a team that goes offline still knows its licence lapsed,

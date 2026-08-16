@@ -29,7 +29,19 @@
  * so they have no per-record identity and none of the array semantics below apply. They
  * stay special-cased in sync.ts, which is honest about what they are.
  */
-import type { Task, ScoutingReport, MatchPlan, Season, SubTeam, TeamMember } from '../types';
+import type {
+    Task,
+    ScoutingReport,
+    MatchPlan,
+    Season,
+    SubTeam,
+    TeamMember,
+    Meeting,
+    MeetingAttendance,
+    MeetingEventType,
+    AttendanceStatus,
+    AttendanceMethod,
+} from '../types';
 import type { AppState } from './store';
 import type { Database } from './database.types';
 
@@ -318,6 +330,137 @@ const teamMembers: EntityDefinition<TeamMember> = {
     setInStore: (s, items) => s.setTeamMembers(items),
 };
 
+/**
+ * The schedule.
+ *
+ * Sprint 3 left `meetings` and `meeting_attendance` out of the registry deliberately — "a
+ * registry entry with nothing reading it is dead code" — and put them in the parking lot for
+ * whichever sprint built the UI. This is that sprint.
+ *
+ * Registering them does more than name the mapping: `SYNC_PULL_TABLES` and `realtime.ts` are
+ * both derived from this list, so a meeting cancelled on the coach's laptop reaches every
+ * student's phone, and the whole feature works offline through the same queue as everything
+ * else. That is also why the migration gives both tables REPLICA IDENTITY FULL (B7/B22).
+ */
+const meetings: EntityDefinition<Meeting> = {
+    serverAssigned: [] as const,
+    localKey: 'meetings',
+    remoteTable: 'meetings',
+    toRemote: (m) => ({
+        id: m.id,
+        team_id: m.teamId,
+        season_id: m.seasonId,
+        title: m.title,
+        description: m.description || null,
+        location: m.location || null,
+        event_type: m.eventType,
+        // Empty means "no check-in", which is NULL in a column with a four-digit CHECK and a
+        // partial unique index that excludes NULLs. `''` would fail both.
+        public_code: m.publicCode || null,
+        attendance_required: m.attendanceRequired,
+        starts_at: toISO(m.startsAt),
+        ends_at: toISO(m.endsAt),
+        // NULL means "the default window". Writing the derived value here instead would make
+        // every meeting permanently overridden the first time it was saved.
+        checkin_opens_at: toISO(m.checkinOpensAt),
+        checkin_closes_at: toISO(m.checkinClosesAt),
+        recurrence_rule: m.recurrenceRule || null,
+        series_id: m.seriesId || null,
+        created_by: m.createdBy || null,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description || '',
+        location: r.location || '',
+        eventType: toEventType(r.event_type),
+        publicCode: r.public_code || '',
+        attendanceRequired: r.attendance_required ?? true,
+        startsAt: toEpochMillis(r.starts_at) ?? 0,
+        endsAt: toEpochMillis(r.ends_at),
+        checkinOpensAt: toEpochMillis(r.checkin_opens_at),
+        checkinClosesAt: toEpochMillis(r.checkin_closes_at),
+        recurrenceRule: r.recurrence_rule || '',
+        seriesId: r.series_id || '',
+        createdBy: r.created_by || '',
+        seasonId: r.season_id,
+    }),
+    getFromStore: (s) => s.meetings,
+    setInStore: (s, items) => s.setMeetings(items),
+};
+
+/**
+ * Attendance.
+ *
+ * Pushed by the coach's roster save and pulled like anything else. A student's own check-in
+ * does NOT come through here — it goes through `check_in_with_code`, because the window can
+ * only be judged against the server's clock. See the migration's header.
+ *
+ * No `season_id`: this is the one season-scoped table without one, reaching its season
+ * through its meeting. `team_id` is denormalised so RLS can scope it without a join, and the
+ * composite foreign key is what keeps the copy honest.
+ */
+const meetingAttendance: EntityDefinition<MeetingAttendance> = {
+    serverAssigned: [] as const,
+    localKey: 'meetingAttendance',
+    remoteTable: 'meeting_attendance',
+    toRemote: (a) => ({
+        id: a.id,
+        team_id: a.teamId,
+        meeting_id: a.meetingId,
+        team_member_id: a.teamMemberId,
+        status: a.status,
+        method: a.method,
+        notes: a.notes || null,
+        attested_by: a.attestedBy || null,
+        attested_at: toISO(a.attestedAt),
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        meetingId: r.meeting_id,
+        teamMemberId: r.team_member_id,
+        status: toAttendanceStatus(r.status),
+        method: toAttendanceMethod(r.method),
+        notes: r.notes || '',
+        attestedBy: r.attested_by || '',
+        attestedAt: toEpochMillis(r.attested_at),
+    }),
+    getFromStore: (s) => s.meetingAttendance,
+    setInStore: (s, items) => s.setMeetingAttendance(items),
+};
+
+const EVENT_TYPES: readonly string[] = [
+    'practice', 'team_meeting', 'build', 'competition', 'outreach', 'fundraiser', 'deadline',
+];
+const ATTENDANCE_STATUSES: readonly string[] = ['present', 'excused', 'absent'];
+const ATTENDANCE_METHODS: readonly string[] = ['qr', 'code', 'coach'];
+
+/**
+ * Narrow a server string to the event-type union.
+ *
+ * Same rule as `toMemberRole` below and for the same reason: a value the client was not built
+ * for must land on something renderable rather than flow into code comparing against
+ * literals. `team_meeting` is the neutral choice — it is the only type with no special
+ * behaviour attached to it.
+ */
+function toEventType(value: unknown): MeetingEventType {
+    return EVENT_TYPES.includes(value as string) ? (value as MeetingEventType) : 'team_meeting';
+}
+
+/**
+ * Same, for attendance status — but falling back to `absent` would be a LIE about a person,
+ * so an unrecognised value becomes `excused`: the state that counts neither for nor against
+ * anybody. (The only way to reach this is a schema change; 'late' was removed in Sprint 8 and
+ * never had a row.)
+ */
+function toAttendanceStatus(value: unknown): AttendanceStatus {
+    return ATTENDANCE_STATUSES.includes(value as string) ? (value as AttendanceStatus) : 'excused';
+}
+
+function toAttendanceMethod(value: unknown): AttendanceMethod {
+    return ATTENDANCE_METHODS.includes(value as string) ? (value as AttendanceMethod) : 'coach';
+}
+
 const MEMBER_ROLES: readonly string[] = ['admin', 'coach', 'mentor', 'student'];
 const MEMBER_STATUSES: readonly string[] = ['pending', 'approved', 'removed'];
 
@@ -350,7 +493,18 @@ function toMemberStatus(value: unknown): TeamMember['status'] {
  * `sync.ts` derives the set of tables the queue may touch from this list, so a pull-only
  * entity being absent here is what makes it pull-only.
  */
-export const SYNCED_ENTITIES = [seasons, subTeams, tasks, scoutingReports, matchPlans] as const;
+export const SYNCED_ENTITIES = [
+    seasons,
+    subTeams,
+    tasks,
+    scoutingReports,
+    matchPlans,
+    // Meetings before attendance: `meeting_attendance` carries a composite FK into
+    // `meetings(id, team_id)`, so a roster saved in the same drain as the meeting it belongs
+    // to must not be pushed first. Order in this array IS the push order.
+    meetings,
+    meetingAttendance,
+] as const;
 
 /** Read from the server, never pushed by the client. */
 export const PULL_ONLY_ENTITIES = [teamMembers] as const;
