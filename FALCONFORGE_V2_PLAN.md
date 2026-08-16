@@ -339,6 +339,24 @@ the final walkthrough and tags `v2.0.0-beta`.
   timeout should not be able to leave the app in a state that *asks for data it already
   has*, whatever the underlying stall turns out to be. Left alone deliberately — it is
   auth lifecycle, not UI, and Sprint 5 had no business widening into the sync/auth core.
+  - **Root cause found and fix verified (2026-08-15, UI-review session).** The stall is a
+    self-deadlock in supabase-js, triggered by our own callback: `auth.tsx`'s
+    `onAuthStateChange` handler `await`s `ensureUserProfile()` — a PostgREST call — inside
+    the callback. supabase-js emits `INITIAL_SESSION`/`SIGNED_IN` while still holding the
+    `sb-<ref>-auth-token` Web Lock; the REST call resolves its access token via
+    `getSession()`, which wants that same lock; the client queues it internally (so
+    `navigator.locks.query()` shows the lock held with an EMPTY pending queue) and neither
+    side ever proceeds. Supabase's docs explicitly warn not to call other Supabase
+    functions synchronously inside `onAuthStateChange`. Reproduced 100% on the local stack
+    on every reload-with-stored-session AND on password sign-in; depending on whether the
+    5s timeout loses or wins the race against the `INITIAL_SESSION` `setState`, the user
+    gets either the documented age-profile screen or an **indefinite "Preparing your
+    workspace..."** — the timeout does not cover the second ordering. Verified fix (left
+    uncommitted in the working tree for review): defer the profile-sync block out of the
+    callback with `setTimeout(0)` and release `isLoading` in a `.finally()`. After the
+    patch, reload-with-session lands on a fully-loaded dashboard every time. Needs a named
+    regression test when it lands (Rule 6); a supabase-js upgrade is a complementary
+    hardening, not a substitute — the callback pattern is the bug.
 - **`MemberManager`'s role `<select>` for the admin's own row is disabled with no title.**
   Correct behaviour (the one-admin unique index means `transfer_team_admin` is the only
   path), but it is a dead control with no explanation, the same class Sprint 4 fixed
