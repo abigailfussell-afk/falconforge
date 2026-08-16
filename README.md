@@ -216,6 +216,14 @@ Everything visual comes from `tailwind.config.js`. If you find yourself typing a
 bracket, the token is missing — add it there rather than inline (there is exactly one
 arbitrary value left in `src/`, and it carries a comment explaining why it earns its place).
 
+**The component kit** (`src/components/ui/`, Sprint 5.5) is the layer between the tokens and
+the views: `Button` (primary/secondary/danger, `busy` ties the spinner to the disable),
+`IconButton`, `Modal` (owns the overlay, `shadow-overlay`, the named widths and the dialog
+ARIA; `stacked` puts a confirm above another modal), `EmptyState`, `SectionHeader`, and the
+`.field` class in `index.css` for every input/select/textarea. Hand-rolling one of these in a
+view is how the app accumulated eight primary-button recipes — reach for the kit, and extend
+it if it can't express what you need.
+
 **Type.** The named scale is *retuned*, not extended: `text-sm` is 13px and `text-base` is
 14px, against Tailwind's 14/16. Retuning the names is what makes a density pass reach every
 view at once instead of waiting for each one to opt in. `text-2xs` (11px) is the step below
