@@ -1,6 +1,7 @@
 # Sprint 6 — Licensing & admin console + legal
 
-Branch `v2/sprint-6-licensing`, off the merged `main` (`909a163`). Five commits. Not pushed.
+Branch `v2/sprint-6-licensing`, off the merged `main` (`909a163`). Nine commits, pushed to
+`origin`. **Not merged, and not deployed.**
 
 ---
 
@@ -61,7 +62,25 @@ decision is enforced against a future sprint, not just documented.
 **2. TERMINAL classification in Sprint 6 — done, but narrower than I first wrote it.** See B24.
 
 **3. Deploy: manual for Sprint 6.** `deploy.yml` loses its `push` trigger; CI still runs on every
-push. Rationale recorded in the workflow itself, with a note to revisit in Sprint 7 hardening.
+push. Rationale recorded in the workflow itself.
+
+**I overstated the case for it, and Kevin corrected me at close.** I argued that a mis-read
+`team_entitlement` would "show a lock screen to real users". There are no real users: production was
+`db reset --linked` at Sprint 3 with `auth.users` emptied, and it holds his account, his
+`platform_operators` row, TestTeam and one gift grant. Nobody can be locked out but him, and he holds
+the service key. `deploy.yml`, the plan log and the Sprint 7 hand-off have all been corrected, because
+that premise would otherwise be inherited and decided on.
+
+The reason that survives is the **migration**, not the bundle: this is the second forward migration on
+the frozen schema, landing on the one database holding an operator identity no API path can recreate,
+and Sprint 4's incident was exactly a bundle deployed against a database that did not match. Worth one
+click. With no users, reverting to auto-deploy is defensible today; the honest trigger for keeping it
+manual is beta onboarding.
+
+The same correction applies to **B25's severity**. It is a real escalation and it must be fixed before
+teams onboard — but exploiting it needs an authenticated member of a *different* team, and production
+has one team and one user. Describing it as live-exploitable-now was wrong, and my offer of a
+standalone hotfix ahead of the sprint was over-cautious.
 
 **Your fourth question — ownership transfer — turned out to be the sharpest thing raised.** The
 warm path existed since Sprint 3 with no caller; the version you described (a teacher who has
@@ -69,7 +88,7 @@ already left) was the one no API path could do at all.
 
 ---
 
-## B25 — a live cross-tenant privilege escalation
+## B25 — a cross-tenant privilege escalation
 
 Found by a test I expected to pass trivially: another team's admin nominating into this team
 returned `success: true`.
@@ -105,8 +124,14 @@ alone so the diff says only what it means. Four regression tests, each verified 
 vulnerable definitions, plus **schema assertion 20**, which asserts the behaviour rather than the
 function text because the broken and fixed versions differ by one `coalesce` that is easy to drop.
 
-**This is live on production right now.** It is on this branch, unpushed. Flagged to you mid-sprint
-so you could choose to hotfix it ahead of the rest; no reply, so it ships with the sprint.
+**Unfixed on production until this merges and deploys — but not exploitable there, and I said
+otherwise.** Reaching it requires an authenticated member of a *different* team, and production has
+one team and one user. I flagged it mid-sprint as live and offered a standalone hotfix; that was
+over-cautious, built on the same wrong premise as the deploy argument above. It must be fixed before
+beta teams onboard, and this branch does that.
+
+The bug itself is not diminished by any of that: it is B21's class, it survived 261 isolation
+assertions, and once there are two tenants it is directly exploitable.
 
 ---
 

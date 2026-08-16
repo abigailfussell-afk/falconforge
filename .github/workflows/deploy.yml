@@ -6,19 +6,24 @@ name: Deploy
 #
 # MANUAL SINCE SPRINT 6, DELIBERATELY. The `push` trigger is gone.
 #
-# Sprint 6 is the first sprint whose bugs can REMOVE somebody's access rather than merely look
-# wrong: a mis-read `team_entitlement` shows a lock screen to real users, and a defect in the
-# admin console can lock the only admin out of the console that would fix it. Until Sprint 5 the
-# worst a bad deploy could do was render badly, which is why auto-deploy was fine and why Kevin
-# declined to change it at Sprint 5's merge. The argument is different now, and §7.3 of the plan
-# anticipated exactly this point.
+# NOT because a bad deploy would lock users out. Production is still GREENFIELD: it was
+# `db reset --linked` at Sprint 3 with `auth.users` emptied, and it holds Kevin's account, his
+# `platform_operators` row, TestTeam and one gift grant. There is nobody else to lock out, and he
+# holds the service key. An earlier version of this comment claimed a mis-read `team_entitlement`
+# "shows a lock screen to real users" — there are none until beta teams onboard, and inflating the
+# stakes is how a precaution stops being taken seriously.
+#
+# THE REASON THAT SURVIVES IS THE MIGRATION, NOT THE BUNDLE. Sprint 6 carries the second forward
+# migration on the frozen schema, against the one database holding the operator identity that
+# `grant_team_license` checks and that no API path can recreate. Sprint 4's incident was a bundle
+# deployed against a database missing its columns; ordering those two by hand is worth one click.
 #
 # CI still runs on every push to main, so nothing about verification is weakened — only the moment
-# the live site changes moves under human control. Deploy from the Actions tab ("Run workflow"),
-# having looked at the merged build first.
+# the live site changes moves under human control. Deploy from the Actions tab ("Run workflow").
 #
-# Revisit in Sprint 7 hardening: with error boundaries per route, a Playwright smoke pack in CI
-# and the PWA update prompt in place, automatic deploys become defensible again.
+# Revisit at the end of Sprint 7, or at beta onboarding, whichever comes first. With no users,
+# reverting to auto-deploy is defensible today; once real teams are on it, the argument this comment
+# originally made stops being premature and starts being correct.
 on:
   workflow_dispatch:
 

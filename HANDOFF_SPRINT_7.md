@@ -18,13 +18,17 @@ and **pushed** — but not merged. Before any Sprint 7 work:
      Deploy from the Actions tab. Confirm with Kevin before doing that, and see decision 1 below.
   4. Only then branch `v2/sprint-7-hardening` off the merged main.
 
-**🔴 B25 IS A LIVE CROSS-TENANT PRIVILEGE ESCALATION ON PRODUCTION UNTIL THIS DEPLOYS.**
-`can_manage_billing` returned NULL rather than false for a non-member, so every
+**B25 — a cross-tenant privilege escalation, unfixed on production until this deploys, but NOT a
+fire drill.** `can_manage_billing` returned NULL rather than false for a non-member, so every
 `IF NOT can_manage_billing(...)` guard in plpgsql was skipped — and `transfer_team_admin` is that
 shape, is SECURITY DEFINER, and is EXECUTE-granted to `authenticated` **and `anon`**. Confirmed as a
-working exploit, not a theory. The fix is in this branch. Kevin was offered a standalone hotfix at
-Sprint 6's close and chose to ship it with the sprint; if the merge slips, revisit that. Details in
-`docs/sprint-6-report.md`.
+working exploit against a two-team fixture, not a theory.
+
+**Calibrate it honestly, which the first draft of this hand-off did not.** Exploiting it needs an
+authenticated member of a *different* team, and production has one team and one user. So it is
+unreachable in practice right now and must simply be fixed before beta teams onboard — which this
+branch does. Ship it with the sprint; a standalone hotfix was offered at Sprint 6's close and was
+correctly declined as over-cautious. Details in `docs/sprint-6-report.md`.
 
 **Note the migration.** `20260818000000_v2_licensing_admin.sql` is the second forward migration on
 the frozen schema. It is additive or loosening throughout and does not touch `license_grants`,
@@ -63,14 +67,18 @@ own smoke pack has somewhere to run before a merge rather than after one.
 
 ## THREE DECISIONS ARE KEVIN'S, NOT YOURS. Ask all three in your first message and wait.
 
-  1. **Deploy posture, now that the hardening is being built.** Sprint 6 made deploys manual because
-     it was the first sprint whose bugs could *remove* access — a mis-read entitlement shows a lock
-     screen to real users, and an admin-console defect can lock the only admin out of the console
-     that would fix it. §7.3 suggested manual "until Sprint 7 hardening", and this is that sprint.
-     Once error boundaries per route, the PWA update prompt and a CI smoke pack are in place, going
-     back to auto-deploy on `main` becomes defensible again. **Ask at the START of the sprint what
-     he wants at the END of it**, because it changes whether you build a post-deploy smoke check
-     (see 2) and it is the difference between "merge ships it" and "merge then click".
+  1. **Deploy posture, now that the hardening is being built.** Sprint 6 made deploys manual, and
+     **the reason recorded in `deploy.yml` was initially overstated and has been corrected — read it
+     rather than assuming.** Production is still GREENFIELD: `db reset --linked` at Sprint 3 emptied
+     `auth.users`, and it holds only Kevin's account, his `platform_operators` row, TestTeam and one
+     gift grant. There are no users to lock out, and he holds the service key. The surviving argument
+     is the MIGRATION — the second forward migration on a frozen schema, against the one database
+     holding an operator identity no API path can recreate, which is Sprint 4's incident in a
+     different costume.
+     So with no users, reverting to auto-deploy is defensible *today*. **Ask at the START of the
+     sprint what he wants at the END of it**, because it decides whether you build a post-deploy
+     smoke check (see 2) and it is the difference between "merge ships it" and "merge then click".
+     The honest trigger for going back to manual permanently is beta onboarding, not this sprint.
 
   2. **Should the smoke pack also run against PRODUCTION after a deploy?** Against the local stack
      it is a pre-merge gate. Against production it is the thing that tells a solo maintainer within
