@@ -206,9 +206,9 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
 
                 <div className="mt-auto p-3 pt-0 space-y-2 safe-area-bottom">
                     {/* The progress meter is the first thing to go when the viewport is short
-                        — see the `tall` screen in tailwind.config. With a phone keyboard open
-                        this footer was crowding the nav out of its own drawer. */}
-                    <div className="hidden tall:block bg-slate-100 dark:bg-slate-700/60 rounded-lg px-3 py-2">
+                        — see `.hide-when-short` in index.css. With a phone keyboard open this
+                        footer was crowding the nav out of its own drawer. */}
+                    <div className="hide-when-short bg-slate-100 dark:bg-slate-700/60 rounded-lg px-3 py-2">
                         <div className="flex justify-between items-baseline text-xs text-slate-600 dark:text-slate-300">
                             <span className="font-medium">Tasks Done</span>
                             <span className="font-bold tabular-nums">

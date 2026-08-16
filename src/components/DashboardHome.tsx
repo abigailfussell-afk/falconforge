@@ -87,7 +87,11 @@ export default function DashboardHome() {
                             <div className={`${stat.bg} ${stat.color} p-1.5 rounded-md shrink-0`}>
                                 <stat.icon size={15} />
                             </div>
-                            <span className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{stat.label}</span>
+                            {/* Wraps rather than truncates. `truncate` here clipped "SPRINT
+                                PROGRESS" and "SCOUTING REPORTS" to "SPRINT PROGR…" on a 375px
+                                phone in the two-column grid — a label you cannot read is worse
+                                than a tile one line taller. */}
+                            <span className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-tight">{stat.label}</span>
                         </div>
                         <div className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">{stat.value}</div>
                     </button>

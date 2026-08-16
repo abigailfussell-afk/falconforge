@@ -126,6 +126,27 @@ h6 {
   justify-content: center;
 }
 
+/*
+ * Ornament yields to navigation when the viewport is SHORT.
+ *
+ * Every other breakpoint in this app is about width. The case that actually bites is height:
+ * opening the keyboard on a phone cuts the visual viewport to roughly 375x350, and the
+ * sidebar drawer's footer would otherwise crowd out the nav — the reason the drawer is open
+ * at all. `hide-when-short` is worn by the parts that are nice to have rather than needed.
+ *
+ * This is a hand-written media query rather than a `screens: { tall: { raw: ... } }` entry in
+ * tailwind.config, because that entry silently produced NO rule at all: the config parsed,
+ * the class was in the markup, and `hidden tall:block` compiled to plain `hidden` — so the
+ * element was invisible at every height rather than at short ones. Caught by screenshotting
+ * the drawer and noticing the progress meter had gone missing on a full-height phone. A
+ * height breakpoint is unusual enough that spelling it out here also documents itself.
+ */
+@media (max-height: 599px) {
+  .hide-when-short {
+    display: none;
+  }
+}
+
 @media (pointer: coarse) {
   .touch-target {
     min-height: theme('minHeight.touch');

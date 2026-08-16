@@ -308,6 +308,25 @@ Not the happy path — the states the hand-off named:
 
 ---
 
+## 🟡 Two things the SCREENSHOTS found that even the DOM measurements did not
+
+**Stat tile labels truncated on a phone.** The very first 375px capture showed "SPRINT
+PROGR…" and "SCOUTING REP…" — my own density pass had put `truncate` on the label in a
+two-column grid where the full text does not fit. Every measurement said the layout was fine,
+because it was: nothing overflowed, nothing was clipped out of the viewport. It was just
+unreadable. Now wraps to two lines; a tile one line taller beats a label you cannot read.
+
+**The `tall:` breakpoint generated no CSS at all.** I had added
+`screens: { tall: { raw: '(min-height: 600px)' } }` to `tailwind.config` and written
+`hidden tall:block` on the sidebar's progress meter. The config parsed, the class was in the
+markup, the build succeeded — and Tailwind emitted **no rule**, so the class was plain `hidden`
+and the meter was invisible at *every* height rather than only short ones. I noticed because
+the meter was missing from a full-height 375×812 drawer screenshot. Worse, my earlier
+"1 of 6 → 5 of 6 nav items" measurement was partly measuring this bug rather than the fix.
+Replaced with a hand-written `@media (max-height: 599px) { .hide-when-short }` in `index.css`,
+verified present in the built CSS and verified switching at both heights in the browser. A
+height breakpoint is unusual enough that spelling it out documents itself.
+
 ## 🟡 Three things the browser found that the suite did not
 
 **An empty checklist rendered nothing at all.** Header, rule, white space. It was
@@ -384,21 +403,27 @@ origin's storage and signing in fresh clears it.
 - [x] **Route deep-link test** — all six views, plus back-button, redirect and unknown-route
       cases.
 - [x] **No duplicated nav** — asserted as `getByText` and `toHaveLength(1)`, and falsified.
-- [ ] **Screenshots at 375 / 768 / 1280 for every main view** — ⚠️ **blocked**, see below.
+- [x] **Screenshots at 375 and 768 / 1024** — captured in-session once the Browser pane was
+      opened, and reviewed there. **1280 is the gap**: see below.
 - [ ] **Kevin reviews look & feel before merge** — waiting on you.
 
 ### On the screenshots
 
-I could not capture them. The Browser pane has to be displayed for the page to composite
-frames, and it was not, so every `screenshot` call returned *"the Browser pane is not
-displayed"*. Everything screenshots would have shown was instead measured directly from the DOM
-and is reported above — geometry, overflow, truncation, computed fonts and sizes, control
-counts per breakpoint — but that is evidence, not a look-and-feel review, and it is not a
-substitute for your eyes on it.
+Captured at **375** (dashboard, sprint board, checklist, scouting, the open drawer, and the
+archived-season board), at **768** (board), and at **1024** (dashboard, board, admin — 1024 is
+the `lg` breakpoint, so this is the first width showing the desktop rail rather than the
+drawer).
 
-**Open the Browser pane and I will capture the full set in one pass.** The dev server config is
-`dev` in `.claude/launch.json` (port 5188), the local stack is seeded, and the sign-in is
-`coach@example.test` / `sprint5-local-only`.
+**1280 could not be captured legibly.** The Browser pane composites an emulated viewport into
+its own surface without scaling up, so a 1280-wide page renders into roughly a fifth of the
+capture — the layout is verifiably correct (rail 224px, content 1008px, four board columns, one
+banner) but far too small to review by eye. 1024 and 1280 differ only in available content
+width, and the content stop is `max-w-app` (1440px), so nothing reflows between them; the DOM
+measurements for 1280 are in the table above. **If you want true 1280 captures, widen the
+Browser pane and say so — I will redo the set.**
+
+**Two defects were found by looking at the screenshots**, which is the whole argument for
+taking them — see below.
 
 ---
 

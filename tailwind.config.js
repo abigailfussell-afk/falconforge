@@ -36,20 +36,6 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
-      screens: {
-        /*
-         * Enough vertical room to show the nice-to-haves.
-         *
-         * Every other breakpoint in this app is about width, but the case that actually
-         * bites is height: on a phone, opening the keyboard cuts the visual viewport to
-         * roughly 375x350, and the sidebar drawer's footer (progress meter, user card, team
-         * card, sync + theme) is `shrink-0`, so it kept its full height and squeezed the
-         * NAV — the reason the drawer is open at all — down to about 24px of scrollable
-         * strip. Ornament should yield to navigation, not the other way round.
-         */
-        tall: { raw: '(min-height: 600px)' },
-      },
-
       fontFamily: {
         /*
          * Inter, finally.
