@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
@@ -12,6 +12,7 @@ import ArchivedSeasonBanner from './ArchivedSeasonBanner';
 import LicenceBanner from './LicenceBanner';
 import OfflineBanner from './OfflineBanner';
 import AppUpdatePrompt from './AppUpdatePrompt';
+import RouteErrorBoundary from './RouteErrorBoundary';
 import ReAttestationPrompt from './ReAttestationPrompt';
 import type { SubTeam, TeamMember } from '../types';
 
@@ -65,6 +66,7 @@ function RouteFallback() {
  */
 export default function AppShell() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, signOut } = useAuth();
 
     const allTeamMembers = useAppStore((s) => s.teamMembers);
@@ -207,9 +209,17 @@ export default function AppShell() {
                         <ArchivedSeasonBanner />
                         <LicenceBanner />
                         <div className="flex-1 min-h-0">
-                            <Suspense fallback={<RouteFallback />}>
-                                <Outlet context={context} />
-                            </Suspense>
+                            {/*
+                             * The boundary is INSIDE the shell, so a crashing view leaves the
+                             * sidebar, season picker and sync indicator working and the user can
+                             * navigate away from it. `resetKey` is the pathname, which makes
+                             * navigating away the reset -- no reload required.
+                             */}
+                            <RouteErrorBoundary resetKey={location.pathname}>
+                                <Suspense fallback={<RouteFallback />}>
+                                    <Outlet context={context} />
+                                </Suspense>
+                            </RouteErrorBoundary>
                         </div>
                     </div>
                 </div>
