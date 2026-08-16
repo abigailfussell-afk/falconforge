@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Task, TaskStatus, TaskType, SubTeam, TeamMember, TimelineEvent } from '../types';
 import { Plus, Calendar as CalendarIcon, List, Layout, Archive } from 'lucide-react';
-import { useCurrentUser } from '../lib/user-context';
 import { useAppStore } from '../lib/store';
+import { useAuth } from '../lib/auth';
 import { useSeasonScope } from '../lib/season-scope';
 import { useTasksQuery } from '../lib/queries';
 import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
@@ -42,7 +42,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
     useTasksQuery(currentTeamId);
 
     // Get current logged-in user for comments
-    const { currentUser } = useCurrentUser();
+    const { profile } = useAuth();
 
     const getMemberName = (id: string) => {
         const m = teamMembers.find(mem => mem.id === id);
@@ -101,7 +101,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
             const statusEvent: TimelineEvent = {
                 id: Date.now().toString(),
                 type: 'history',
-                authorId: currentUser?.id || 'System',
+                authorId: profile?.id || 'System',
                 content: `moved to ${activeTask.status}`,
                 timestamp: Date.now()
             };
@@ -133,7 +133,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
         const comment: TimelineEvent = {
             id: Date.now().toString(),
             type: 'comment',
-            authorId: currentUser?.id || 'guest',
+            authorId: profile?.id || 'guest',
             content: text,
             timestamp: Date.now()
         };

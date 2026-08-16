@@ -40,16 +40,10 @@ vi.mock('../../lib/supabase', () => ({
     supabaseSync: null,
 }));
 
-// Mock user context
-vi.mock('../../lib/user-context', () => ({
-    useCurrentUser: vi.fn(() => ({
-        id: 'user-1',
-        currentUserRole: 'coach',
-        isCoachOrAdmin: true,
-        isCreator: true,
-        canEdit: true,
-    })),
-}));
+// There was a `vi.mock('../../lib/user-context', ...)` here. That module is gone — its
+// profile, offline flag and display-name derivations were merged into the auth context, which
+// this file already mocks above. The mock survived deletion for a while because vitest only
+// resolves a factory mock when something imports the path, so it sat here doing nothing.
 
 // Mock offline-db
 vi.mock('../../lib/offline-db', () => ({

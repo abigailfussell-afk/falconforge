@@ -1,6 +1,7 @@
 import { teardownRealtimeSubscription } from './realtime';
 import { useAppStore } from './store';
 import { clearLocalDatabase, clearAppState } from './offline-db';
+import { PROFILE_CACHE_KEY } from './profile-cache';
 
 /** How long to wait on Supabase before giving up and clearing local state anyway. */
 const SIGN_OUT_TIMEOUT_MS = 3000;
@@ -38,6 +39,12 @@ export async function performSignOut(
             }
         });
         localStorage.removeItem('falconforge-sync-timestamps');
+        // The cached display profile, cleared here as well as by the SIGNED_OUT handler in
+        // auth.tsx. Belt and braces for the same reason the token sweep above is: this path
+        // ends in a hard `window.location.reload()`, so it races the auth event, and on a
+        // shared team laptop losing that race means the next person sees the previous one's
+        // name in the sidebar until their own profile resolves.
+        localStorage.removeItem(PROFILE_CACHE_KEY);
 
         try {
             await withTimeout(signOut(), SIGN_OUT_TIMEOUT_MS, 'Sign out timeout');

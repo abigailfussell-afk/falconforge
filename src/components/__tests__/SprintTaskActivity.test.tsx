@@ -12,9 +12,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import SprintTaskActivity from '../SprintTaskActivity';
 import type { TeamMember, TimelineEvent } from '../../types';
 
-const mockUseCurrentUser = vi.fn();
-vi.mock('../../lib/user-context', () => ({
-    useCurrentUser: () => mockUseCurrentUser(),
+// `user-context` was merged into the auth context in Sprint 5; the feed reads the profile
+// and its derived display name off `useAuth()` now.
+const mockUseAuth = vi.fn();
+vi.mock('../../lib/auth', () => ({
+    useAuth: () => mockUseAuth(),
 }));
 
 const member = (over: Partial<TeamMember> = {}): TeamMember => ({
@@ -41,8 +43,8 @@ const event = (over: Partial<TimelineEvent> = {}): TimelineEvent => ({
 });
 
 beforeEach(() => {
-    mockUseCurrentUser.mockReturnValue({
-        currentUser: { id: 'user-signed-in' },
+    mockUseAuth.mockReturnValue({
+        profile: { id: 'user-signed-in', email: '', fullName: 'Signed In User', avatarUrl: null },
         displayName: 'Signed In User',
         initials: 'SI',
     });

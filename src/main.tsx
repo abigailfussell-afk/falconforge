@@ -2,13 +2,18 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { AuthProvider } from './lib/auth';
-import { CurrentUserProvider } from './lib/user-context';
 import App from './App';
 import './index.css';
 
 // React Query's provider lives in <QueryProvider>, rendered inside App (C4). There used to be
 // a second QueryClientProvider here with a 5-minute staleTime; because the providers nested,
 // every useQuery resolved against the inner client and this config never applied to anything.
+//
+// `CurrentUserProvider` used to wrap <App /> inside AuthProvider. It derived everything it
+// held from `useAuth()` and then made its OWN `users` read and kept its OWN localStorage
+// cache of the same person — a second profile source over one row, which is how renaming
+// yourself could change your name in the sidebar and not on your own comments. It is merged
+// into AuthProvider: one read, one cache, `useAuth().profile`.
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -20,9 +25,7 @@ root.render(
     <React.StrictMode>
         <HashRouter>
             <AuthProvider>
-                <CurrentUserProvider>
-                    <App />
-                </CurrentUserProvider>
+                <App />
             </AuthProvider>
         </HashRouter>
     </React.StrictMode>

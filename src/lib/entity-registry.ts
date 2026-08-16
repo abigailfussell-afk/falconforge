@@ -6,7 +6,7 @@
  * The same four facts about each entity -- its store key, its Supabase table name, and the
  * two directions of its field mapping -- used to be spelled out in four different places:
  *
- *   - `transformXFromSupabase` in transformers.ts   (remote -> local)
+ *   - `transformXFromSupabase` in transformers.ts   (remote -> local)  [deleted, Sprint 5]
  *   - a `switch` in sync.transformToSupabaseSchema  (local -> remote)
  *   - a `switch` in sync.updateLocalDatabase        (store writes, full pull)
  *   - a `switch` in sync.mergeIntoStore             (store writes, delta pull)

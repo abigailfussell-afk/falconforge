@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link2, Copy, Check, RefreshCw, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
-import { useCurrentUser } from '../lib/user-context';
 import { useAuth } from '../lib/auth';
 
 interface Invite {
@@ -29,8 +28,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const { isOffline } = useCurrentUser();
-    const { user } = useAuth();
+    const { user, isOffline } = useAuth();
 
     // Fetch active invites for this team
     const fetchInvites = async () => {

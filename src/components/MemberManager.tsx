@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { X, UserCheck, UserX, Crown, GraduationCap, DollarSign, Shield, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember, MemberRole } from '../types';
-import { useCurrentUser } from '../lib/user-context';
 import { getMemberDisplayName } from '../lib/member-utils';
+import { useAuth } from '../lib/auth';
 
 interface PendingMember {
     id: string;
@@ -40,7 +40,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
-    const { currentUser, isOffline } = useCurrentUser();
+    const { profile, isOffline } = useAuth();
 
     /**
      * Seats are the admin's alone — `enforce_seat_capacity` refuses them to anyone else, so
@@ -48,7 +48,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
      * database owns, not the rule itself.
      */
     const viewerIsAdmin =
-        teamMembers.find((m) => m.userId === currentUser?.id)?.role === 'admin';
+        teamMembers.find((m) => m.userId === profile?.id)?.role === 'admin';
 
     // Fetch pending members for this team
     const fetchPendingMembers = async () => {

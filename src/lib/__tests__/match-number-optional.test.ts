@@ -10,10 +10,23 @@
  * directions so the sentinel cannot come back.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { transformScoutingReportFromSupabase } from '@/lib/transformers';
+import { findEntity } from '@/lib/entity-registry';
 
 // sync.ts is mocked globally in setup.ts; the real pure function is what we want here.
 const { transformToSupabaseSchema } = await vi.importActual<typeof import('@/lib/sync')>('@/lib/sync');
+
+/*
+ * Straight at the registry.
+ *
+ * This test used to import `transformScoutingReportFromSupabase` from `lib/transformers.ts`,
+ * a shim whose whole body was `findEntity('scouting_reports').fromRemote(row)`. By Sprint 5
+ * it had exactly one caller left — this file — so the shim existed only to be tested, which
+ * is the definition of dead code. Testing the registry directly is also what makes these
+ * assertions mean what they claim: B18 is a property of the entity definition, and a test
+ * that goes through a wrapper can only ever prove the wrapper forwards.
+ */
+const scoutingReports = findEntity('scouting_reports')!;
+const transformScoutingReportFromSupabase = (row: unknown) => scoutingReports.fromRemote(row);
 
 describe('scouting report match number is optional (B18)', () => {
     it('maps a NULL match_number to undefined, not 0', () => {
