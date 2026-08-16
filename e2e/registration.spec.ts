@@ -50,4 +50,23 @@ test.describe('registration', () => {
         // And the team is NOT in the lapsed/read-only state.
         await expect(page.getByTestId('licence-lapsed-banner')).toHaveCount(0);
     });
+
+    test('a brand-new account is not asked to re-accept the documents it accepted a minute ago', async ({ page }) => {
+        /*
+         * `SIGNUP_REQUIRED_ATTESTATIONS` had exactly one consumer -- ReAttestationPrompt, which
+         * CHECKS it. Nothing ever WROTE it: the sign-up form's privacy acceptance arrived as a
+         * parameter named `_isPrivacyAccepted` and was discarded. So the record was missing
+         * rather than merely out of date, and every new account met "We've updated our legal
+         * documents ... since you last accepted them" on its first screen, about documents it
+         * had accepted seconds earlier.
+         *
+         * The re-attestation prompt for genuinely OLD acceptances is intended and stays. This
+         * asserts only that a fresh account is not caught by it.
+         */
+        await signUp(page, { fullName: 'Smoke Coach', email: uniqueEmail('coach') });
+        await createTeam(page, { teamName: unique('Fresh Falcons') });
+
+        await expect(page.getByRole('dialog', { name: 'Updated legal documents' })).toHaveCount(0);
+        await expect(page.getByText(/updated our legal documents/i)).toHaveCount(0);
+    });
 });

@@ -168,7 +168,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     }
 
     return (
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2 w-full" data-testid="sync-status">
             {statusButton}
             {failureNotice}
         </div>

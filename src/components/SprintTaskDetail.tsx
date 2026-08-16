@@ -75,6 +75,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             value={task.title}
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"
+                            data-testid="task-title-input"
                             className="field text-base font-semibold"
                         />
                     </div>
@@ -233,7 +234,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <Button variant="secondary" onClick={onClose}>
                             Cancel
                         </Button>
-                        <Button onClick={onSave} disabled={!task.title.trim()}>
+                        <Button onClick={onSave} disabled={!task.title.trim()} data-testid="save-task">
                             Save Task
                         </Button>
                     </div>

@@ -54,11 +54,26 @@ export default defineConfig({
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     ],
 
+    /*
+     * A real BUILD served by `vite preview`, not the dev server.
+     *
+     * This is not fussiness. The dev server has no service worker, so an offline navigation
+     * cannot fetch a React.lazy chunk and the app renders a blank page -- which says nothing
+     * about the shipped app, where Workbox precaches 36 entries. Testing offline behaviour
+     * against a dev server measures the harness rather than the product, and offline behaviour
+     * is the whole point of this codebase.
+     *
+     * The env applies to the BUILD as well as the serve, because `import.meta.env.VITE_*` is
+     * inlined at build time -- which is also why the smoke pack cannot inherit whatever the
+     * developer's env files happen to say that day.
+     */
     webServer: {
-        command: `npm run dev -- --port ${PORT} --strictPort`,
+        command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
         url: `http://127.0.0.1:${PORT}`,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        // Never reuse: a stale preview is serving a stale bundle, and this pack exists to
+        // catch exactly that class of thing.
+        reuseExistingServer: false,
+        timeout: 180_000,
         env: {
             VITE_SUPABASE_URL: LOCAL_SUPABASE_URL,
             VITE_SUPABASE_ANON_KEY: LOCAL_ANON_KEY,

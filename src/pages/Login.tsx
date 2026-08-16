@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { Mail, Lock, User, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { AgeClassification } from '../types';
+import { recordAttestation, SIGNUP_REQUIRED_ATTESTATIONS } from '../lib/attestations';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 type SignupStep = 1 | 2;
@@ -73,7 +74,7 @@ export default function LoginPage() {
     };
 
     // Step 2: Create the account with all information
-    const handleStep2Submit = async (selectedAge: AgeClassification, _isPrivacyAccepted: boolean) => {
+    const handleStep2Submit = async (selectedAge: AgeClassification, isPrivacyAccepted: boolean) => {
         setIsLoading(true);
         setError(null);
 
@@ -95,6 +96,35 @@ export default function LoginPage() {
             if (!user) {
                 setError('Failed to create account. Please try again.');
                 return;
+            }
+
+            /*
+             * Record the acceptance the form just collected.
+             *
+             * It was previously discarded -- the parameter was named `_isPrivacyAccepted` to
+             * silence the unused-argument warning. `SIGNUP_REQUIRED_ATTESTATIONS` existed and
+             * had exactly one consumer: `ReAttestationPrompt`, which CHECKS it. Nothing ever
+             * WROTE it, so the checkbox on the sign-up form was consent the app asked for,
+             * displayed a legal document for, and then did not keep.
+             *
+             * Two consequences, and the second is the one that gets noticed. A product whose
+             * COPPA posture rests on attestation records was not recording the one every user
+             * gives; and because the record was missing rather than merely old, every brand-new
+             * account met "We've updated our legal documents ... since you last accepted them"
+             * on its very first screen. Found by the registration smoke flow, on an account
+             * thirty seconds old.
+             *
+             * Non-fatal by design: if confirmations are enabled there may be no session yet, and
+             * an account that exists must not be lost to a failed audit write. ReAttestationPrompt
+             * remains the backstop and will ask properly rather than spuriously.
+             */
+            if (isPrivacyAccepted) {
+                for (const type of SIGNUP_REQUIRED_ATTESTATIONS) {
+                    const result = await recordAttestation(type);
+                    if (!result.success) {
+                        console.warn(`Could not record ${type} at sign-up:`, result.error);
+                    }
+                }
             }
 
             // Success! Show email verification message
