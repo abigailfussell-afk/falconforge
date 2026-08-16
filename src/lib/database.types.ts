@@ -507,6 +507,58 @@ export type Database = {
           },
         ]
       }
+      operator_actions: {
+        Row: {
+          action: string
+          created_at: string
+          detail: Json
+          id: string
+          notes: string | null
+          operator_user_id: string
+          team_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          notes?: string | null
+          operator_user_id: string
+          team_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          notes?: string | null
+          operator_user_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_actions_operator_user_id_fkey"
+            columns: ["operator_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_actions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "operator_actions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_operators: {
         Row: {
           created_at: string
@@ -874,6 +926,9 @@ export type Database = {
           id: string
           name: string
           owner_id: string
+          pending_admin_member_id: string | null
+          pending_admin_nominated_at: string | null
+          pending_admin_nominated_by: string | null
           team_number: string | null
           updated_at: string
         }
@@ -882,6 +937,9 @@ export type Database = {
           id?: string
           name: string
           owner_id: string
+          pending_admin_member_id?: string | null
+          pending_admin_nominated_at?: string | null
+          pending_admin_nominated_by?: string | null
           team_number?: string | null
           updated_at?: string
         }
@@ -890,6 +948,9 @@ export type Database = {
           id?: string
           name?: string
           owner_id?: string
+          pending_admin_member_id?: string | null
+          pending_admin_nominated_at?: string | null
+          pending_admin_nominated_by?: string | null
           team_number?: string | null
           updated_at?: string
         }
@@ -897,6 +958,20 @@ export type Database = {
           {
             foreignKeyName: "teams_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_pending_admin_member_fkey"
+            columns: ["pending_admin_member_id", "id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "teams_pending_admin_nominated_by_fkey"
+            columns: ["pending_admin_nominated_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -982,10 +1057,19 @@ export type Database = {
       }
     }
     Functions: {
+      accept_team_admin_nomination: {
+        Args: { p_team_id: string }
+        Returns: Json
+      }
+      admin_nomination_ttl: { Args: never; Returns: string }
       can_manage_billing: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_content: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_roster: { Args: { p_team_id: string }; Returns: boolean }
       can_manage_structure: { Args: { p_team_id: string }; Returns: boolean }
+      cancel_team_admin_nomination: {
+        Args: { p_team_id: string }
+        Returns: Json
+      }
       create_team_as_admin: {
         Args: { season_name: string; team_name: string; team_number?: string }
         Returns: Json
@@ -1009,11 +1093,20 @@ export type Database = {
         Args: { p_meeting_id: string; p_team_id: string }
         Returns: boolean
       }
+      nominate_team_admin: {
+        Args: { p_new_member_id: string; p_team_id: string }
+        Returns: Json
+      }
+      operator_transfer_team_admin: {
+        Args: { p_new_member_id: string; p_notes?: string; p_team_id: string }
+        Returns: Json
+      }
       season_is_open: {
         Args: { p_season_id: string; p_team_id: string }
         Returns: boolean
       }
       team_can_write: { Args: { p_team_id: string }; Returns: boolean }
+      team_seats_remaining: { Args: { p_team_id: string }; Returns: number }
       transfer_team_admin: {
         Args: { p_new_member_id: string; p_team_id: string }
         Returns: Json
