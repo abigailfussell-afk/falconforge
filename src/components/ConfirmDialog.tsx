@@ -13,6 +13,9 @@ interface ConfirmDialogProps {
     message: string;
     confirmLabel?: string;
     cancelLabel?: string;
+    /** Optional test ids so callers replacing a hand-rolled confirm keep their selectors. */
+    confirmTestId?: string;
+    cancelTestId?: string;
     onConfirm: () => void;
     onCancel: () => void;
 }
@@ -22,6 +25,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     message,
     confirmLabel = 'Delete',
     cancelLabel = 'Cancel',
+    confirmTestId,
+    cancelTestId,
     onConfirm,
     onCancel,
 }) => (
@@ -30,10 +35,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{title}</h3>
         <p className="text-slate-600 dark:text-slate-300 mb-6">{message}</p>
         <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={onCancel}>
+            <Button variant="secondary" onClick={onCancel} data-testid={cancelTestId}>
                 {cancelLabel}
             </Button>
-            <Button variant="danger" onClick={onConfirm}>
+            <Button variant="danger" onClick={onConfirm} data-testid={confirmTestId}>
                 {confirmLabel}
             </Button>
         </div>
