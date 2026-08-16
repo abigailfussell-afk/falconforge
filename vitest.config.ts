@@ -1,5 +1,6 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config';
+import { TEST_TIMEOUT_MS } from './src/test/timeouts';
 
 export default defineConfig({
     test: {
@@ -8,6 +9,11 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
+        // Vitest's default is 5000ms -- identical to the `asyncUtilTimeout` that
+        // `setup.ts` configures, which made that budget unreachable and turned a slow
+        // render under load into an opaque "Test timed out in 5000ms" with no assertion
+        // named. `src/test/timeouts.ts` holds the pair and the measurements.
+        testTimeout: TEST_TIMEOUT_MS,
         include: ['src/**/*.{test,spec}.{ts,tsx}'],
         exclude: [
             'node_modules',
