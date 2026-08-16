@@ -154,12 +154,7 @@ function App() {
                 {/*
                  * The app proper. Every view is a real URL: `#/app/board` is bookmarkable, the
                  * back button walks the views, and a reload lands where it left off.
-                 *
-                 * `/dashboard` is kept as a redirect rather than deleted — it is the URL the
-                 * app has been handing out since V1, so it is in browser histories, in the
-                 * PWA's start-up state and quite possibly in someone's bookmarks bar.
                  */}
-                <Route path="/dashboard" element={<Navigate to={APP_ROOT} replace />} />
                 <Route path={APP_ROOT} element={user ? <AppShell /> : <Navigate to="/" replace />}>
                     <Route index element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
                     <Route path="dashboard" element={<DashboardHome />} />
@@ -173,6 +168,19 @@ function App() {
                     <Route path="*" element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
                 </Route>
 
+                {/*
+                 * Anything unrecognised goes home rather than to a blank screen — signed in,
+                 * that is the app; signed out, the landing page.
+                 *
+                 * This is also what keeps `#/dashboard` working. That is the URL the app
+                 * handed out from V1 through Sprint 4, so it is in browser histories, in the
+                 * PWA's stored start-up state and quite possibly in someone's bookmarks bar,
+                 * and it must not become a dead link. There WAS an explicit
+                 * `<Route path="/dashboard">` here saying so; falsifying the route tests
+                 * (rule 10) showed deleting it changed nothing, because this line already
+                 * covered it. Two lines for one behaviour, one of which could rot unnoticed —
+                 * so the redundant one is gone and the reason lives here.
+                 */}
                 <Route path="*" element={<Navigate to={user ? APP_ROOT : '/'} replace />} />
             </Routes>
         </QueryProvider>

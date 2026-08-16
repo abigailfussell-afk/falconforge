@@ -282,6 +282,39 @@ describe('Dashboard Navigation', () => {
         );
     });
 
+    /*
+     * REGRESSION: a route must hand its view SEASON-SCOPED data.
+     *
+     * Sprint 4 replaced six copies of `x.seasonId === currentSeasonId` with `useSeasonScoped`
+     * and discovered, in the process, that ScoutingReports had never had one at all — a whole
+     * prior season of opponents had been listed alongside the current season's with no way to
+     * tell them apart. The route adapters this sprint introduced are a brand-new place for
+     * exactly that mistake: they read collections out of the store and pass them down as
+     * props, so an adapter that reaches for `s.tasks` instead of `useSeasonScoped(s.tasks)`
+     * silently reopens it. (One of them did, mid-sprint.)
+     *
+     * jsdom does not need a viewport for this: the assertion is about which records reach the
+     * component, not about how they are laid out.
+     */
+    it('hands the board only the current season’s tasks', async () => {
+        setupStore({
+            seasons: [
+                { id: 'season-1', name: '2025-2026', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 },
+                { id: 'season-0', name: '2024-2025', gameTitle: '', fieldImageData: '', isArchived: true, createdAt: 500 },
+            ],
+            currentSeasonId: 'season-1',
+            tasks: [
+                { id: 't-now', title: 'Rebuild the intake', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
+                { id: 't-old', title: 'LAST SEASON drivetrain', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 900, tags: [], seasonId: 'season-0' },
+            ],
+        });
+
+        renderApp('/app/board');
+
+        await waitFor(() => expect(screen.getByText('Rebuild the intake')).toBeDefined());
+        expect(screen.queryByText('LAST SEASON drivetrain')).toBeNull();
+    });
+
     it('renders the sign-out button', () => {
         renderApp();
         expect(document.querySelector('button[title="Sign out"]')).not.toBeNull();

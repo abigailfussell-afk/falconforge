@@ -149,28 +149,62 @@ const PreMatchChecklist: React.FC = () => {
                     </div>
                 )}
                 <div className="divide-y divide-slate-100 dark:divide-slate-700 flex-1 scroll-region-thin">
+                    {/*
+                     * THE EMPTY STATE.
+                     *
+                     * This was `checklist.map(...)` and nothing else, so a season whose
+                     * checklist has no items rendered a completely blank panel — a header, a
+                     * rule, and white space. That is not a rare corner: "blank" is one of the
+                     * three sources Sprint 4's rollover wizard offers for a new season's
+                     * checklist, so it is what a team sees on the first day of a new season
+                     * if they pick it. The only way to add anything is behind the "Edit
+                     * Checklist" button in the header, which an empty panel gives nobody a
+                     * reason to press.
+                     */}
+                    {checklist.length === 0 && !isEditingChecklist && (
+                        <div className="px-4 py-10 text-center">
+                            <CheckCircle2 size={26} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                            <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                                This checklist is empty
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-prose mx-auto mb-3">
+                                {canEdit
+                                    ? 'Add the things your team checks before every match — battery secured, bumpers on, driver station charged.'
+                                    : 'Nothing was recorded on this season’s checklist.'}
+                            </p>
+                            {canEdit && (
+                                <button
+                                    data-testid="checklist-empty-add"
+                                    onClick={() => setIsEditingChecklist(true)}
+                                    className="touch-target gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-forge-600 text-white hover:bg-forge-700 transition-colors"
+                                >
+                                    Add the first item
+                                </button>
+                            )}
+                        </div>
+                    )}
                     {checklist.map((item, index) => (
                         <div
                             key={item.id}
-                            className={`p-4 transition ${item.checked ? 'bg-green-50/50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'} ${isEditingChecklist ? 'flex flex-col gap-2' : 'flex items-center gap-4'}`}
+                            className={`px-3 py-2 transition-colors ${item.checked ? 'bg-green-50/50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'} ${isEditingChecklist ? 'flex flex-col gap-1.5' : 'flex items-center gap-3'}`}
                         >
                             {/* First row: checkbox + item name */}
-                            <div className="flex items-center gap-4 w-full">
-                                <div className="cursor-pointer flex-shrink-0" onClick={() => toggleCheck(item.id)}>
+                            <div className="flex items-center gap-2.5 w-full">
+                                <div className="cursor-pointer shrink-0" onClick={() => toggleCheck(item.id)}>
                                     {!isEditingChecklist && (
-                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
-                                            <CheckCircle2 size={16} fill="currentColor" className={item.checked ? 'text-white' : ''} />
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
+                                            <CheckCircle2 size={13} fill="currentColor" className={item.checked ? 'text-white' : ''} />
                                         </div>
                                     )}
                                 </div>
 
-                                <span onClick={() => toggleCheck(item.id)} className={`text-lg font-medium flex-1 cursor-pointer transition ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                <span onClick={() => toggleCheck(item.id)} className={`text-sm font-medium flex-1 cursor-pointer transition-colors ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
                                     {item.text}
                                 </span>
 
                                 {/* Show assignment badge in view mode */}
                                 {!isEditingChecklist && item.assignedTo && (
-                                    <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-2 py-1 rounded flex-shrink-0">
+                                    <span className="text-2xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded shrink-0">
                                         {getAssignmentDisplay(item.assignedTo)}
                                     </span>
                                 )}

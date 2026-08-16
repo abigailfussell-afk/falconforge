@@ -173,8 +173,20 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
                     </div>
                 </div>
 
-                {/* The one nav list. */}
-                <nav data-testid="app-nav" className="flex-1 p-3 scroll-region space-y-0.5">
+                {/*
+                 * Nav and footer share ONE scroll region, with the nav first.
+                 *
+                 * They used to be siblings: `<nav className="flex-1 scroll-region">` and a
+                 * `shrink-0` footer. That gives the footer its full height unconditionally and
+                 * makes the NAV absorb every shortfall — so with a phone keyboard open
+                 * (~375x350) the navigation was a 24px scrolling sliver underneath a
+                 * full-size progress meter and two profile cards. Sharing one scroller and
+                 * pushing the footer down with `mt-auto` keeps it pinned to the bottom when
+                 * there is room, and lets it scroll off the end when there is not — so the
+                 * thing you opened the drawer FOR is the thing you see first.
+                 */}
+                <div className="flex-1 min-h-0 scroll-region flex flex-col">
+                <nav data-testid="app-nav" className="p-3 space-y-0.5">
                     {views.map((view) => (
                         <div key={view.id}>
                             {view.startsGroup && (
@@ -192,8 +204,11 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
                     ))}
                 </nav>
 
-                <div className="p-3 pt-0 space-y-2 shrink-0 safe-area-bottom">
-                    <div className="bg-slate-100 dark:bg-slate-700/60 rounded-lg px-3 py-2">
+                <div className="mt-auto p-3 pt-0 space-y-2 safe-area-bottom">
+                    {/* The progress meter is the first thing to go when the viewport is short
+                        — see the `tall` screen in tailwind.config. With a phone keyboard open
+                        this footer was crowding the nav out of its own drawer. */}
+                    <div className="hidden tall:block bg-slate-100 dark:bg-slate-700/60 rounded-lg px-3 py-2">
                         <div className="flex justify-between items-baseline text-xs text-slate-600 dark:text-slate-300">
                             <span className="font-medium">Tasks Done</span>
                             <span className="font-bold tabular-nums">
@@ -280,6 +295,7 @@ export default function Sidebar({ canManageTeam, onSignOut, onSwitchTeam }: Side
                             </div>
                         </>
                     )}
+                </div>
                 </div>
             </aside>
         </>

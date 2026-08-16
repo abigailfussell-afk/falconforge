@@ -384,8 +384,20 @@ describe('auth lifecycle', () => {
        * selecting `age_classification` from — two round trips to one row on every sign-in,
        * on a connection that at a competition is frequently a tethered phone. The columns
        * are merged into a single select; this is what stops the second one coming back.
+       *
+       * Both halves are asserted, and the second half is the one that bites. A call COUNT
+       * alone cannot catch the regression: `tableStub` resolves to whatever the test handed
+       * it regardless of which columns were asked for, so reverting the select to
+       * `age_classification` still returned a full row to the provider and still passed.
+       * Falsifying this (rule 10) is how that was found. The argument is the real assertion.
        */
       expect(users.select).toHaveBeenCalledTimes(1);
+      expect(users.select).toHaveBeenCalledWith(
+        expect.stringContaining('full_name'),
+      );
+      expect(users.select).toHaveBeenCalledWith(
+        expect.stringContaining('age_classification'),
+      );
     });
 
     it('falls back to auth metadata per field when the users row cannot be read', async () => {
