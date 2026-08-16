@@ -335,6 +335,7 @@ npm run test:integration # real IndexedDB, real store, no network
 npm run test:db          # real Postgres — needs `npm run db:start` (Docker)
 npm run test:rls         # the tenant-isolation subset of test:db
 npm run test:coverage    # all three suites, merged, with thresholds
+npm run test:e2e         # Playwright smoke pack — a real browser, a real build
 ```
 
 `test:db` runs the data layer against a real local Supabase stack: the sync drain and pull
@@ -344,6 +345,31 @@ can reach another team's rows. It also asserts what the capability model permits
 guardian reaches their child and nothing else, and that a team whose licence has lapsed can
 read everything and write nothing. It fails loudly if the stack is not running rather than
 skipping — a security suite that passes with no database is worse than none.
+
+### The smoke pack, and looking at the app
+
+```bash
+npm run test:e2e   # six flows in a browser: register, invite/join/approve, offline→sync,
+                   # new season, scouting, checklist
+npm run capture    # screenshots of every view at 375 / 768 / 1280
+npm run venue      # the competition simulation: offline for a session, then reconnect
+npm run seed:review  # the awkward licensing states (at capacity, lapsed, stranded)
+npm run seed:demo    # one ordinary populated team, for demos and screenshots
+```
+
+The smoke pack runs against a **production build served by `vite preview`**, not the dev server.
+That is deliberate rather than fussy: the dev server has no service worker, so an offline
+navigation cannot fetch a `React.lazy` chunk and the app renders blank — testing offline
+behaviour against it would measure the harness rather than the product, in the one codebase
+where offline behaviour *is* the product.
+
+None of these replace opening the app and looking at it. Every UI defect found in Sprints 5, 6
+and 7 came from poking around, not from an assertion; a script only checks what somebody already
+thought to check.
+
+All of these scripts **refuse at the network layer** if the app under test is talking to the
+hosted project, because `.env.local` points at production and `.env.development.local` is
+gitignored — one deleted file and localhost is talking to the real database.
 
 ## Project Structure
 
@@ -370,6 +396,13 @@ falconforge/
 │   │   ├── AppShell.tsx       # Sidebar + banner + <Outlet>, the app frame
 │   │   └── Sidebar.tsx        # ONE nav definition, rail at lg / drawer below
 │   └── test/db/               # Local-Postgres test harness + fixtures
+├── e2e/                       # Playwright smoke pack (helpers + six flows)
+├── scripts/
+│   ├── seed-review-states.mjs # awkward licensing states, localhost only
+│   ├── seed-demo-team.mjs     # one ordinary populated team, localhost only
+│   ├── capture-screens.mjs    # screenshots at 375 / 768 / 1280
+│   ├── venue-simulation.mjs   # offline for a session, then reconnect
+│   └── check-production.mjs   # READ-ONLY post-deploy check of the live site
 ├── supabase/
 │   ├── migrations/            # The schema. Source of truth.
 │   └── tests/                 # schema_assertions.sql
@@ -379,10 +412,13 @@ falconforge/
 ## Roadmap
 
 Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle, the
-new-season wizard, and the UI/density/routing pass have landed; next is the licensing and
-admin console with the legal pages, then beta hardening for FTC kickoff. After beta: meetings
-and attendance UI, guardian accounts, Stripe billing, and team data export — the schema for the
-first three is already live.
+UI/density/routing pass, the licensing and admin console with the legal pages, and the beta
+hardening sprint have all landed. Next: meetings and attendance UI, guardian accounts, Stripe
+billing, and team data export — the schema for the first three is already live.
+
+Running the beta is documented separately in [`docs/beta-ops.md`](docs/beta-ops.md): backups and
+when to take them, the error-review cadence, and the rule that governs deploys — **schema changes
+are ordered by hand, everything else ships on merge**.
 
 ## License
 

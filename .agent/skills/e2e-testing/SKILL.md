@@ -17,7 +17,7 @@ This skill documents the browser-based end-to-end testing approach for FalconFor
 ## Prerequisites
 
 1. Dev server running at `http://localhost:3000` (`npm run dev`)
-2. Test credentials: `jkfussell@gmail.com` / `scooby`
+2. Test credentials: use a seeded local account (`npm run seed:demo` prints one). NEVER put a real password in this repository -- it is public.
 3. Browser subagent available (Antigravity browser tool)
 
 ## Test Scenarios Reference
@@ -65,7 +65,7 @@ Execute categories in order: A → B → C → D → E → F → G → H. Docume
 Most test scenarios require authentication first. Use this login flow as a prerequisite:
 
 1. Navigate to `http://localhost:3000`
-2. If on login page: Enter `jkfussell@gmail.com` and `scooby`, click Sign In
+2. If on login page: enter the seeded local account's email and password, click Sign In
 3. If on onboarding page: Select first available team
 4. Verify Dashboard is loaded (sidebar visible, team name shown)
 

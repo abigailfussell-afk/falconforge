@@ -52,7 +52,7 @@ Use the browser_subagent to verify when needed:
 ```
 Login Verification:
 1. Navigate to http://localhost:3000
-2. Enter email: jkfussell@gmail.com, password: scooby
+2. Enter the seeded local account's email and password (`npm run seed:demo` prints them)
 3. Click Sign In
 4. Verify: Redirects to team picker or dashboard
 
