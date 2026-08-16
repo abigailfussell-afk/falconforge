@@ -10,6 +10,7 @@ import { performSignOut } from '../lib/sign-out';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
 import LicenceBanner from './LicenceBanner';
+import ReAttestationPrompt from './ReAttestationPrompt';
 import type { SubTeam, TeamMember } from '../types';
 
 /**
@@ -152,6 +153,13 @@ export default function AppShell() {
                 onSignOut={() => performSignOut(signOut)}
                 onSwitchTeam={() => navigate('/onboarding')}
             />
+
+            {/*
+             * Over the shell, not instead of it. A consent refresh is not a lockout: the user has
+             * already accepted a previous version, so the app keeps rendering behind this and the
+             * dialog is dismissible. See ReAttestationPrompt for why that is the right posture.
+             */}
+            <ReAttestationPrompt />
 
             <main className="flex-1 min-w-0 h-full overflow-hidden pt-header lg:pt-0">
                 {/*

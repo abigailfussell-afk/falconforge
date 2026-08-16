@@ -163,14 +163,30 @@ export function useSync(): UseSyncResult {
     // Update pending changes count
     useEffect(() => {
         const updatePendingCount = async () => {
-            const [pending, failed, reasons] = await Promise.all([
-                getPendingSyncCount(),
-                getSyncFailureCount(),
-                getTerminalFailureReasons(),
-            ]);
-            setPendingChanges(pending);
-            setFailedChanges(failed);
-            setFailureReasons(reasons);
+            /*
+             * Guarded, because this runs on an interval.
+             *
+             * An unguarded throw here becomes an unhandled rejection every five seconds for as
+             * long as the app is open — and it is a READ of local state, so failing it changes
+             * nothing the user can act on. The right response is to leave the last known counts
+             * on screen and try again on the next tick.
+             *
+             * Not hypothetical: adding `getTerminalFailureReasons` to this list broke a test
+             * suite whose offline-db mock predated it, and the symptom was not an assertion
+             * failure but a file that hung for fifteen minutes.
+             */
+            try {
+                const [pending, failed, reasons] = await Promise.all([
+                    getPendingSyncCount(),
+                    getSyncFailureCount(),
+                    getTerminalFailureReasons(),
+                ]);
+                setPendingChanges(pending);
+                setFailedChanges(failed);
+                setFailureReasons(reasons);
+            } catch (err) {
+                console.warn('Could not read the sync queue counts:', err);
+            }
         };
 
         updatePendingCount();

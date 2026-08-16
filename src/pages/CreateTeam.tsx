@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Loader2, Users, Shield, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { recordAttestation } from '../lib/attestations';
+import { recordAttestation, COACH_REQUIRED_ATTESTATIONS } from '../lib/attestations';
 
 type Step = 'attestation' | 'details' | 'complete';
 
@@ -122,12 +122,22 @@ export default function CreateTeam() {
         setError(null);
 
         try {
-            // Record the combined coach attestation
-            const attestResult = await recordAttestation('coach_terms');
-            if (!attestResult.success) {
-                setError(attestResult.error || 'Failed to record attestation');
-                setIsLoading(false);
-                return;
+            /*
+             * Record every attestation creating a team requires, from the named constant.
+             *
+             * `COACH_REQUIRED_ATTESTATIONS` sat unused for three sprints while this line
+             * hardcoded the single type it contains. Using it means adding a required document is
+             * a one-line change in `attestations.ts` rather than a hunt for call sites — and it
+             * is the same mechanism `AcceptAdminNomination` uses for the transfer path, so the two
+             * ways of becoming an admin cannot end up requiring different things.
+             */
+            for (const type of COACH_REQUIRED_ATTESTATIONS) {
+                const attestResult = await recordAttestation(type);
+                if (!attestResult.success) {
+                    setError(attestResult.error || 'Failed to record attestation');
+                    setIsLoading(false);
+                    return;
+                }
             }
 
             // Call the create team function

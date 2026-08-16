@@ -6,18 +6,34 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import type { AttestationType } from '../types';
 
-// Current versions of legal documents
-// Increment these when documents are updated to require re-attestation
+/**
+ * Current versions of the legal documents. Raising one requires re-acceptance.
+ *
+ * THIS IS THE ONLY PLACE A VERSION IS WRITTEN. `LegalPage` reads the number from here rather than
+ * stating its own, because a page that carried its own version could display 2.0 while the app
+ * still accepted 1.0 — and both numbers would look correct in isolation.
+ *
+ * Sprint 6 rewrote the three documents substantively (no uptime guarantee, discontinuation at any
+ * time, licence and seat terms, discretionary refunds, the COPPA posture spelled out), so the
+ * three that have prose behind them go to 2.0. Since Sprint 6 the previous acceptance is KEPT
+ * rather than overwritten — `user_attestations`' unique key includes `version` — so raising a
+ * number no longer destroys the record of what somebody agreed to before.
+ *
+ * The bare age and acknowledgement types stay at 1.0 deliberately: nothing about what they assert
+ * has changed, and forcing re-acceptance of "I am 18 or over" because the ToS was reworded trains
+ * people to click through without reading.
+ */
 export const ATTESTATION_VERSIONS: Record<AttestationType, string> = {
-    terms: '1.0',
-    privacy: '1.0',
-    community_guidelines: '1.0',
+    terms: '2.0',
+    privacy: '2.0',
+    community_guidelines: '2.0',
     age_18_plus: '1.0',
     coppa_responsibility: '1.0',
     billing_acknowledgement: '1.0',
     age_13_plus: '1.0',
-    privacy_and_guidelines: '1.0',  // New combined type
-    coach_terms: '1.0',              // New combined type
+    // Combined types, whose text is the documents above — so they move with them.
+    privacy_and_guidelines: '2.0',
+    coach_terms: '2.0',
 };
 
 /**
@@ -71,29 +87,50 @@ export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [];
  */
 export async function getOutdatedAttestations(
     types: AttestationType[],
+    userId: string,
 ): Promise<AttestationType[]> {
-    if (!supabase || !isSupabaseConfigured() || types.length === 0) return types;
+    /*
+     * THE USER IS PASSED IN, NOT FETCHED.
+     *
+     * The first draft called `supabase.auth.getUser()` here, which is a second round-trip for
+     * something every caller already has from `useAuth()` — and it made this function unusable
+     * from a mounted effect in any test that mocks the Supabase client without stubbing `auth`.
+     * That produced 44 warnings across `Dashboard.test.tsx` before it produced a single useful
+     * signal. `recordAttestation` still fetches, because it is called from flows that do not
+     * have the auth context to hand; this one always does.
+     *
+     * EVERY FAILURE PATH RETURNS `[]`, NOT `types`.
+     *
+     * Also from the first draft: returning `types` when Supabase was unconfigured meant "assume
+     * everything needs re-accepting", which is fail-CLOSED and wrong twice over — in demo mode it
+     * prompts somebody with no account to accept terms that cannot be recorded, and on a flaky
+     * connection it produces a dialog that reappears on every failed read, a nag with no way to
+     * comply. "We cannot tell" is not "you are out of date".
+     */
+    if (!supabase || !isSupabaseConfigured() || types.length === 0 || !userId) return [];
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return types;
+    try {
+        const { data, error } = await supabase
+            .from('user_attestations')
+            .select('attestation_type, version')
+            .eq('user_id', userId)
+            .in('attestation_type', types);
 
-    const { data, error } = await supabase
-        .from('user_attestations')
-        .select('attestation_type, version')
-        .eq('user_id', user.id)
-        .in('attestation_type', types);
+        if (error) {
+            console.warn('Could not read attestations; assuming they are current:', error.message);
+            return [];
+        }
 
-    // A read failure must not force somebody to re-accept terms they have already agreed to —
-    // that is a nag loop for anyone with a flaky connection. Treat "cannot tell" as "fine".
-    if (error) {
-        console.warn('Could not read attestations; assuming they are current:', error.message);
+        const accepted = new Set(
+            (data ?? []).map((row) => `${row.attestation_type}@${row.version}`),
+        );
+        return types.filter((type) => !accepted.has(`${type}@${ATTESTATION_VERSIONS[type]}`));
+    } catch (err) {
+        // Called from a mounted effect, so an unguarded throw here becomes an unhandled rejection
+        // rather than a handled failure.
+        console.warn('Could not read attestations; assuming they are current:', err);
         return [];
     }
-
-    const accepted = new Set(
-        (data ?? []).map((row) => `${row.attestation_type}@${row.version}`),
-    );
-    return types.filter((type) => !accepted.has(`${type}@${ATTESTATION_VERSIONS[type]}`));
 }
 
 /**

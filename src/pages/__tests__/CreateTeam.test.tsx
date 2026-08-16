@@ -25,9 +25,23 @@ vi.mock('../../lib/supabase', () => ({
 }));
 
 // Mock attestations
-vi.mock('../../lib/attestations', () => ({
-    recordAttestation: vi.fn().mockResolvedValue({ success: true, error: null }),
-}));
+/*
+ * `COACH_REQUIRED_ATTESTATIONS` is spread from the real module rather than stubbed.
+ *
+ * CreateTeam iterates the constant instead of hardcoding `'coach_terms'` (Sprint 6), so a mock
+ * that omitted it made the component throw rather than fail an assertion — which is a mock
+ * disagreeing with the module it stands in for, the exact drift `mock-drift.test.ts` exists to
+ * catch. Stubbing only the network call and importing the list keeps them in step.
+ */
+vi.mock('../../lib/attestations', async () => {
+    const actual = await vi.importActual<typeof import('../../lib/attestations')>(
+        '../../lib/attestations',
+    );
+    return {
+        ...actual,
+        recordAttestation: vi.fn().mockResolvedValue({ success: true, error: null }),
+    };
+});
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();

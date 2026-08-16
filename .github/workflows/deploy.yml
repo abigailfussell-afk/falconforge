@@ -3,10 +3,23 @@ name: Deploy
 # Replaces the manual "Add files via upload" deploys. Building in CI means the deployed
 # bundle always corresponds to a known commit, and old bundles stop accumulating: the
 # gh-pages branch is replaced wholesale each time rather than added to.
+#
+# MANUAL SINCE SPRINT 6, DELIBERATELY. The `push` trigger is gone.
+#
+# Sprint 6 is the first sprint whose bugs can REMOVE somebody's access rather than merely look
+# wrong: a mis-read `team_entitlement` shows a lock screen to real users, and a defect in the
+# admin console can lock the only admin out of the console that would fix it. Until Sprint 5 the
+# worst a bad deploy could do was render badly, which is why auto-deploy was fine and why Kevin
+# declined to change it at Sprint 5's merge. The argument is different now, and §7.3 of the plan
+# anticipated exactly this point.
+#
+# CI still runs on every push to main, so nothing about verification is weakened — only the moment
+# the live site changes moves under human control. Deploy from the Actions tab ("Run workflow"),
+# having looked at the merged build first.
+#
+# Revisit in Sprint 7 hardening: with error boundaries per route, a Playwright smoke pack in CI
+# and the PWA update prompt in place, automatic deploys become defensible again.
 on:
-  push:
-    branches: [main]
-  # Allows a re-deploy from the Actions tab without pushing anything.
   workflow_dispatch:
 
 # Never let two deploys race. Do NOT cancel a deploy in progress -- a half-finished
