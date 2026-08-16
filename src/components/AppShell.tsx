@@ -10,6 +10,8 @@ import { performSignOut } from '../lib/sign-out';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
 import LicenceBanner from './LicenceBanner';
+import OfflineBanner from './OfflineBanner';
+import AppUpdatePrompt from './AppUpdatePrompt';
 import ReAttestationPrompt from './ReAttestationPrompt';
 import type { SubTeam, TeamMember } from '../types';
 
@@ -194,6 +196,14 @@ export default function AppShell() {
                          * gives the archived season precedence, so this renders one banner rather
                          * than the two stacked ones that happen by accident.
                          */}
+                        {/*
+                         * Above those two, and on a different axis: connectivity and a waiting
+                         * update are not alternative answers to "why can't I edit this?", and
+                         * either can be true at the same time as a lapsed licence. Both are one
+                         * compact line so the stack stays honest rather than becoming a wall.
+                         */}
+                        <AppUpdatePrompt />
+                        <OfflineBanner />
                         <ArchivedSeasonBanner />
                         <LicenceBanner />
                         <div className="flex-1 min-h-0">
