@@ -1,6 +1,6 @@
 # Sprint 7 — Beta hardening & launch
 
-Branch `v2/sprint-7-hardening`, off the merged `main` (`cafc0d3`). Thirteen commits. **Not merged,
+Branch `v2/sprint-7-hardening`, off the merged `main` (`cafc0d3`). Fifteen commits. **Not merged,
 not pushed, not deployed.**
 
 ---
