@@ -12,6 +12,7 @@ import SprintCalendar from './SprintCalendar';
 import SprintArchived from './SprintArchived';
 import SprintTaskDetail from './SprintTaskDetail';
 import ConfirmDialog from './ConfirmDialog';
+import Button from './ui/Button';
 
 
 interface SprintPlanningProps {
@@ -201,32 +202,32 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
 
     return (
         <div className="h-full flex flex-col">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 md:mb-4 md:px-4 gap-3 md:gap-4">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Sprint Planning</h2>
-
-                <div className="flex flex-row items-center justify-between w-full md:w-auto gap-3">
-                    <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 p-1 rounded-lg">
-                        <button onClick={() => setView('board')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'board' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Board"><Layout size={18} /></button>
-                        <button onClick={() => setView('list')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'list' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="List"><List size={18} /></button>
-                        <button onClick={() => setView('calendar')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'calendar' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Calendar"><CalendarIcon size={18} /></button>
-                        <button onClick={() => setView('archived')} className={`p-2 rounded-md transition flex items-center justify-center ${view === 'archived' ? 'bg-white dark:bg-slate-600 shadow text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}`} title="Archived"><Archive size={18} /></button>
-                    </div>
-
-                    <button
-                        onClick={createNewTask}
-                        disabled={!canEdit}
-                        title={
-                            canEdit
-                                ? 'New item'
-                                : currentSeasonId
-                                    ? 'This season is archived and read-only'
-                                    : 'Select a season first'
-                        }
-                        className="flex items-center justify-center gap-2 bg-forge-600 text-white px-2 md:px-4 py-2 rounded-lg hover:bg-forge-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        <Plus size={20} /><span className="hidden md:inline">New Item</span>
-                    </button>
+            {/* The sidebar's active label already names this page, so the toolbar row
+                carries no heading — just the view switcher and the New Item action. */}
+            <div className="flex flex-row items-center justify-between mb-3 md:mb-4 md:px-4 gap-3">
+                <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-700 p-1 rounded-lg">
+                    <button onClick={() => setView('board')} className={`p-2 rounded-md transition-colors flex items-center justify-center ${view === 'board' ? 'bg-white dark:bg-slate-600 shadow-card text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-600/60'}`} title="Board"><Layout size={18} /></button>
+                    <button onClick={() => setView('list')} className={`p-2 rounded-md transition-colors flex items-center justify-center ${view === 'list' ? 'bg-white dark:bg-slate-600 shadow-card text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-600/60'}`} title="List"><List size={18} /></button>
+                    <button onClick={() => setView('calendar')} className={`p-2 rounded-md transition-colors flex items-center justify-center ${view === 'calendar' ? 'bg-white dark:bg-slate-600 shadow-card text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-600/60'}`} title="Calendar"><CalendarIcon size={18} /></button>
+                    <button onClick={() => setView('archived')} className={`p-2 rounded-md transition-colors flex items-center justify-center ${view === 'archived' ? 'bg-white dark:bg-slate-600 shadow-card text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-600/60'}`} title="Archived"><Archive size={18} /></button>
                 </div>
+
+                <Button
+                    onClick={createNewTask}
+                    disabled={!canEdit}
+                    title={
+                        canEdit
+                            ? 'New item'
+                            : currentSeasonId
+                                ? 'This season is archived and read-only'
+                                : 'Select a season first'
+                    }
+                    // `!px-2 md:!px-4`: keeps the icon-only mobile width; without the important
+                    // modifier the md size recipe's px-4 would win the cascade at every width.
+                    className="!px-2 md:!px-4"
+                >
+                    <Plus size={20} /><span className="hidden md:inline">New Item</span>
+                </Button>
             </div>
 
             <div className="flex-1 overflow-hidden md:px-4">

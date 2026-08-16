@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { TeamMember, TimelineEvent } from '../types';
 import { Send, Trash2 } from 'lucide-react';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
 import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
 import { useAuth } from '../lib/auth';
 
@@ -52,30 +54,32 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
     };
 
     return (
-        <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
-            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Activity &amp; Comments</h3>
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
+            <h3 className="font-bold text-slate-800 dark:text-white mb-3">Activity &amp; Comments</h3>
 
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-4">
                 <input
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     placeholder="Add a comment..."
-                    className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
+                    className="field flex-1"
                     onKeyDown={(e) => e.key === 'Enter' && submit()}
                 />
-                <button onClick={submit} className="bg-forge-600 text-white p-2 rounded-lg hover:bg-forge-700 flex items-center justify-center">
+                {/* `!px-2.5`: the sm recipe's px-3 would win the cascade over a plain px-2.5,
+                    so the icon-only override needs the important modifier. */}
+                <Button size="sm" onClick={submit} disabled={!newComment.trim()} className="!px-2.5" title="Send comment">
                     <Send size={18} />
-                </button>
+                </Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {timeline.map((event) => {
                     const author = describeAuthor(event.authorId);
 
                     return (
-                        <div key={event.id} className="flex gap-3 text-sm">
-                            <div className="mt-1 w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 flex-shrink-0">
+                        <div key={event.id} className="flex items-start gap-3 text-sm">
+                            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 flex-shrink-0">
                                 {author.initials}
                             </div>
                             <div className="flex-1 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-r-lg rounded-bl-lg">
@@ -90,9 +94,14 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                                 </div>
                                 {event.type === 'comment' && (
                                     <div className="flex justify-end mt-2">
-                                        <button onClick={() => onDeleteComment(event.id)} className="text-xs text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded inline-flex items-center gap-1 transition-colors">
+                                        <IconButton
+                                            danger
+                                            onClick={() => onDeleteComment(event.id)}
+                                            className="p-1 text-xs gap-1"
+                                            title="Delete comment"
+                                        >
                                             <Trash2 size={12} /> Delete
-                                        </button>
+                                        </IconButton>
                                     </div>
                                 )}
                             </div>

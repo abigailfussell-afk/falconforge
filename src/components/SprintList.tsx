@@ -13,23 +13,37 @@ const SprintList: React.FC<SprintListProps> = ({ tasks, openTask, getMemberName 
             <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-table">
                 <thead className="bg-slate-50 dark:bg-slate-700 text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
                     <tr>
-                        <th className="p-4">Title</th>
-                        <th className="p-4">Type</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4">Assigned</th>
-                        <th className="p-4">Due Date</th>
-                        <th className="p-4">Created</th>
+                        <th className="px-3 py-2">Title</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Assigned</th>
+                        <th className="px-3 py-2">Due Date</th>
+                        <th className="px-3 py-2">Created</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {tasks.map(task => (
-                        <tr key={task.id} onClick={() => openTask(task)} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition">
-                            <td className="p-4 font-medium text-slate-900 dark:text-white">{task.title || 'Untitled'}</td>
-                            <td className="p-4"><span className={`text-2xs uppercase font-bold px-2 py-0.5 rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{task.type}</span></td>
-                            <td className="p-4">{task.status}</td>
-                            <td className="p-4">{getMemberName(task.assignedTo)}</td>
-                            <td className="p-4">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}</td>
-                            <td className="p-4 text-slate-400">{new Date(task.createdAt).toLocaleDateString()}</td>
+                        <tr
+                            key={task.id}
+                            onClick={() => openTask(task)}
+                            // A table row cannot be a <button>, so it carries the button semantics
+                            // itself: tabbable, Enter/Space-activatable.
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    openTask(task);
+                                }
+                            }}
+                            className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        >
+                            <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{task.title || 'Untitled'}</td>
+                            <td className="px-3 py-2"><span className={`text-2xs uppercase font-bold px-2 py-0.5 rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{task.type}</span></td>
+                            <td className="px-3 py-2">{task.status}</td>
+                            <td className="px-3 py-2">{getMemberName(task.assignedTo)}</td>
+                            <td className="px-3 py-2">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}</td>
+                            <td className="px-3 py-2 text-slate-400">{new Date(task.createdAt).toLocaleDateString()}</td>
                         </tr>
                     ))}
                 </tbody>
