@@ -57,3 +57,7 @@ supabase_schema.txt
 # Local database dumps taken before destructive operations. Never commit these:
 # they contain real user rows and auth data.
 backups/
+
+# Screenshot captures from scripts/capture-screens.mjs. Regenerable in one command
+# (npm run capture), and binary, so they are an artifact rather than a source file.
+screenshots/
