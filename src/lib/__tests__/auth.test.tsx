@@ -260,8 +260,50 @@ describe('auth lifecycle', () => {
       const hook = renderHook(() => useAuth(), { wrapper });
       await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
       fromMock.mockClear();
-      return { ...hook, handler: () => handler };
+      // The profile sync is deferred out of the callback with setTimeout(0) — awaiting a
+      // supabase call inside onAuthStateChange deadlocks the client's auth lock (see
+      // auth.tsx). Dispatching an event therefore means: run the callback, then let the
+      // deferred macrotask run. `rawHandler` hands back the unwrapped callback for the
+      // deadlock regression test, which asserts on the callback's own promise.
+      const dispatch = async (event: string, s: unknown) => {
+        await handler(event, s);
+        await new Promise((r) => setTimeout(r, 0));
+      };
+      return { ...hook, handler: () => dispatch, rawHandler: () => handler };
     }
+
+    it('B23: the auth-change callback resolves without awaiting the profile sync', async () => {
+      // supabase-js emits SIGNED_IN / INITIAL_SESSION while holding the sb-*-auth-token
+      // Web Lock and waits for the callback's promise before releasing it. The profile
+      // sync needs getSession(), which needs that same lock — so a callback that awaits
+      // it deadlocks the whole auth client: on a reload with a stored session the app
+      // hung on "Preparing your workspace..." forever. A profile call that never settles
+      // stands in for the deadlock here: the callback must resolve anyway.
+      const never = new Promise(() => { /* deliberately unsettled */ });
+      fromMock.mockImplementation(() => {
+        const chain: Record<string, unknown> = {};
+        chain.select = vi.fn(() => chain);
+        chain.eq = vi.fn(() => chain);
+        chain.insert = vi.fn(() => never);
+        chain.upsert = vi.fn(() => never);
+        chain.single = vi.fn(() => never);
+        return chain;
+      });
+
+      const { rawHandler } = await captureHandler();
+
+      let callbackResolved = false;
+      await act(async () => {
+        void rawHandler()('SIGNED_IN', session()).then(() => {
+          callbackResolved = true;
+        });
+        // One flushed macrotask is all the deferral needs; the profile call itself
+        // never settles, so if the callback awaited it we would still be waiting.
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      expect(callbackResolved).toBe(true);
+    });
 
     it('SIGNED_IN records the user, ensures a profile and loads the age classification', async () => {
       fromMock.mockImplementation(() =>
@@ -354,7 +396,14 @@ describe('auth lifecycle', () => {
       });
       const hook = renderHook(() => useAuth(), { wrapper });
       await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
-      return { ...hook, handler: () => handler };
+      // Same deferred dispatch as the onAuthStateChange describe above: the profile sync
+      // runs one macrotask after the callback (the callback must not await supabase calls
+      // while supabase-js holds its auth lock), so flush that tick before asserting.
+      const dispatch = async (event: string, s: unknown) => {
+        await handler(event, s);
+        await new Promise((r) => setTimeout(r, 0));
+      };
+      return { ...hook, handler: () => dispatch };
     }
 
     it('resolves the profile from the users row, in the same read as the age classification', async () => {
