@@ -83,7 +83,16 @@ export function handleRealtimeDelete(tableName: string, recordId: string): void 
     }
 
     if (tableName === 'checklists') {
-        // Blob-synced, one row per season, and the row id IS the season id (see
+        // A template deleted elsewhere. Checked FIRST, because a template carries its own
+        // generated id rather than a season id — treating one as a season would file an
+        // empty list under a key that is not a season and leave the template in the library.
+        const templates = store.checklistTemplates;
+        if (templates.some((t) => t.id === recordId)) {
+            store.setChecklistTemplates(templates.filter((t) => t.id !== recordId));
+            return;
+        }
+
+        // Otherwise: blob-synced, one row per season, and the row id IS the season id (see
         // `updateChecklist` in store.ts). So the deleted record's id names the season whose
         // checklist just went away, and no extra lookup is needed.
         store.setChecklistForSeason(recordId, []);

@@ -3,7 +3,14 @@
 **Frozen at the end of Sprint 3 (2026-08-15).** Everything from here is a forward migration:
 no more squashing, no more editing a migration that has already been applied anywhere.
 
-The authoritative definition is `supabase/migrations/20260816*`, and the invariants are
+**Forward migrations since the freeze:**
+
+| Migration | Sprint | What it added |
+|---|---|---|
+| `20260817000000_v2_season_lifecycle.sql` | 4 | `seasons.game_title`, `seasons.is_archived`, the `season_is_open` / `meeting_season_is_open` predicates, and the rewritten season-scoped write policies. Plus `REPLICA IDENTITY FULL` on `seasons` (B22). |
+
+The authoritative definition is `supabase/migrations/20260816*` plus the forward migrations
+above, and the invariants are
 enforced by `supabase/tests/schema_assertions.sql` (structure) and `src/test/db/` (behaviour).
 This document explains the shape and the reasoning; when it disagrees with the SQL, the SQL
 is right and this file is stale.
@@ -125,6 +132,41 @@ values ('<your auth.users id>', 'primary operator');
 The composite is the part that matters: a plain `season_id` FK would let a row in team A
 point at team B's season, and no policy would notice, because every policy looks only at
 `team_id`.
+
+`seasons` also carries `game_title` (the FTC game — "DECODE" — as distinct from the team's
+label for the year) and `is_archived`, both added in Sprint 4.
+
+### An archived season is read-only, in the database
+
+`is_archived` is NOT NULL with a default of `false`, and that NOT NULL is load-bearing
+rather than tidy: the policies read `NOT is_archived`, and NULL is neither true nor false,
+so a nullable flag would make a season with no value silently reject every write.
+
+`season_is_open(season_id, team_id)` gates the **INSERT, UPDATE and DELETE** policy of every
+season-scoped table. `meeting_attendance` is the one table with no `season_id` of its own, so
+it uses `meeting_season_is_open(meeting_id, team_id)` and reaches its season through the
+meeting. SELECT is untouched everywhere — a prior season is read-only, not hidden.
+
+**Why this is in RLS and not in the client.** The client that matters is the one that was
+offline when the season rolled over: it still believes last season is current, its copy of
+the flag is stale, and every guard in the store passes. That is the same argument Sprint 3
+made for licensing, and it is why `docs/ai-features-reference.md`-style "the UI won't offer
+it" is not an answer. The client-side half (`useSeasonScope`, the disabled controls) exists
+so the app does not QUEUE a write the server will refuse — the difference between an action
+that is visibly unavailable and one that appears to work, sits at "1 pending" with no reason
+given, and dead-letters nine minutes later.
+
+**Two deliberate exemptions:**
+
+- **`seasons` itself is not gated on its own flag.** Un-archiving is an UPDATE of the season
+  row, so gating it would make archival a one-way door recoverable only with a service key.
+- **A checklist TEMPLATE is exempt.** `is_template = true` rows carry the season they were
+  captured from as *provenance*, not scope — the same reason `checklists_one_per_season`
+  excludes them. Without the exemption, saving a template while looking back at last
+  season's checklist is refused, which is the single most likely moment to want one. It
+  cannot be used to smuggle a write into a closed season: templates are invisible to the
+  working-checklist read path, and flipping one to `is_template = false` is caught by the
+  UPDATE policy's `WITH CHECK`, which sees the row as it would become.
 
 **The checklist row id IS the season id.** Blob-synced records have no per-record identity to
 merge on, so two devices editing offline must agree on the row id without being able to talk
@@ -262,8 +304,11 @@ and registration becomes "create team, then pay".
 
 - **`sub_team_members`** — the app models sub-team membership as the `sub_teams.member_ids`
   array. A join table would need per-row conflict resolution the offline queue does not have.
-- **A `seasons.is_archived` flag** — Sprint 4 owns read-only prior seasons and can add it as a
-  forward migration.
+- **A season-rollover RPC.** `create_team_as_admin` seeds a team's FIRST season server-side,
+  which is right for registration — that cannot happen offline anyway. A rollover can, and
+  the sprint's exit criteria require it to, so it is composed client-side out of the same
+  `queueForSync` calls a hand-created season, sub-team and checklist already use. See
+  `rollOverSeason` in `createSeasonSlice.ts`.
 - **Stripe columns** — Sprint 10 adds them. The entitlement question does not change when
   billing arrives, only who inserts the row.
 - **Meetings/guardian UI types in the client** — the schema is live, the client does not sync
@@ -286,6 +331,8 @@ and registration becomes "create team, then pay".
 | One admin per team | partial unique index | assertion 11 |
 | One checklist per season | partial unique index | assertion 13 |
 | `team_entitlement` is `security_invoker` | view options | assertion 12 |
+| `seasons.is_archived` exists and is NOT NULL | migration | assertion 14 |
+| Every season-scoped write policy consults the archive | migration | assertion 15 |
 | **What the policies actually permit** | — | `src/test/db/tenant-isolation.rls.db.test.ts` |
 
 The last row is the one that matters most. Everything above it proves the schema can be

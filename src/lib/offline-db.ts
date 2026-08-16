@@ -241,6 +241,28 @@ export async function queueForSync(
     operation: 'create' | 'update' | 'delete',
     data: any
 ) {
+    /*
+     * ORDER IS FIXED HERE, AT CALL TIME — NOT INSIDE THE TRANSACTION.
+     *
+     * Almost every caller is a store action that fires this and moves on
+     * (`queueForSync(...).catch(console.error)`), so a burst of writes issued in one tick
+     * produces a set of Dexie transactions that are IN FLIGHT SIMULTANEOUSLY. Allocating
+     * the timestamp inside the transaction callback made the queue's order depend on the
+     * order IndexedDB happened to schedule those transactions in, which nothing guarantees.
+     *
+     * B1 exists because draining in the wrong order applies a delete before its create, or
+     * an update before the row exists. Sprint 4's rollover leans on that guarantee harder
+     * than anything before it: one click queues a season, its sub-teams and its checklist,
+     * and `season_id` is NOT NULL with a composite foreign key, so the season row MUST be
+     * pushed first. Deleting a season leans on it in the other direction — the children's
+     * deletes have to precede the parent's.
+     *
+     * Taking the number before awaiting anything makes the order the one the caller wrote,
+     * which is the order the user acted in. A collapsed entry (below) discards its
+     * allocation and keeps the original; timestamps only have to increase, not be dense.
+     */
+    const timestamp = nextQueueTimestamp();
+
     await db.transaction('rw', db.syncQueue, async () => {
         const pending = await db.syncQueue
             .where('tableName')
@@ -255,7 +277,7 @@ export async function queueForSync(
                 recordId,
                 operation,
                 data,
-                timestamp: nextQueueTimestamp(),
+                timestamp,
                 retryCount: 0,
             });
             return;

@@ -29,6 +29,7 @@ const mockScoutingReports = [
         parking: 'Full Park',
         rating: 4,
         endGameNotes: 'Great performance!',
+        seasonId: 'season-1',
     },
     {
         id: 'report-2',
@@ -44,6 +45,7 @@ const mockScoutingReports = [
         parking: 'No Park',
         rating: 2,
         endGameNotes: 'Needs improvement',
+        seasonId: 'season-1',
     },
 ];
 
@@ -53,6 +55,9 @@ const mockStore = {
     updateScoutingReport: vi.fn(),
     deleteScoutingReport: vi.fn(),
     currentSeasonId: 'season-1',
+    // Sprint 4: every view now asks whether its season is archived, so the mocked
+    // store needs the season the records belong to.
+    seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
 };
 
 describe('ScoutingReports', () => {
@@ -162,6 +167,45 @@ describe('ScoutingReports', () => {
             screen.queryByText(/Click.*to begin/i);
         // The empty state should be shown
         expect(emptyState).toBeDefined();
+    });
+
+    it('shows only the CURRENT season’s reports', () => {
+        // This page was the one view that never filtered by season: it rendered the store's
+        // whole `scoutingReports` array, so a team's second season showed the first
+        // season's opponents mixed in with no way to tell them apart — and the dashboard's
+        // scouting count, which DID filter, disagreed with the list. Missed because the
+        // filter was copy-pasted per component instead of shared.
+        (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => {
+            const state = {
+                ...mockStore,
+                scoutingReports: [
+                    ...mockScoutingReports,
+                    { ...mockScoutingReports[0], id: 'last-year', teamNumber: '99999', seasonId: 'season-0' },
+                ],
+            };
+            return typeof selector === 'function' ? selector(state) : state;
+        });
+
+        render(<ScoutingReports />);
+
+        expect(screen.getByText(/12345/)).toBeDefined();
+        expect(screen.queryByText(/99999/)).toBeNull();
+    });
+
+    it('does not offer writes on an archived season', () => {
+        (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => {
+            const state = {
+                ...mockStore,
+                seasons: [{ ...mockStore.seasons[0], isArchived: true }],
+            };
+            return typeof selector === 'function' ? selector(state) : state;
+        });
+
+        render(<ScoutingReports />);
+
+        expect((screen.getByTestId('scout-match') as HTMLButtonElement).disabled).toBe(true);
+        // The reports themselves are still listed — read-only, not hidden.
+        expect(screen.getByText(/12345/)).toBeDefined();
     });
 });
 

@@ -373,7 +373,7 @@ describe('AppStore', () => {
 
     describe('Seasons', () => {
         beforeEach(() => {
-            useAppStore.setState({ seasons: [], currentSeasonId: null });
+            useAppStore.setState({ seasons: [], currentSeasonId: null, currentTeamId: 'team-1' });
         });
 
         it('should add a season and set it as current', () => {
@@ -383,6 +383,21 @@ describe('AppStore', () => {
             expect(state.seasons).toHaveLength(1);
             expect(state.seasons[0].name).toBe('New Season');
             expect(state.currentSeasonId).toBe(state.seasons[0].id);
+            expect(state.seasons[0].isArchived).toBe(false);
+        });
+
+        it('should carry the game title', () => {
+            useAppStore.getState().addSeason('2027-2028 Season', '', 'DECODE');
+            expect(useAppStore.getState().seasons[0].gameTitle).toBe('DECODE');
+        });
+
+        it('refuses to create a season with no team', () => {
+            // `seasons.team_id` is NOT NULL, and every season-scoped row references the
+            // season compositely with the team. A season with no team is unpushable — and
+            // so is everything created under it afterwards, which is the worse half.
+            useAppStore.setState({ currentTeamId: null });
+            expect(useAppStore.getState().addSeason('Orphan')).toBeNull();
+            expect(useAppStore.getState().seasons).toHaveLength(0);
         });
     });
 

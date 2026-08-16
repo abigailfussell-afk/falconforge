@@ -58,11 +58,15 @@ vi.mock('@/lib/store', () => {
         matchPlans: [{ id: 'mp-1' }],
         subTeams: [{ id: 'st-1' }],
         checklistsBySeason: { 'season-1': [{ id: 'cl-1', text: 'Test', checked: false }] },
+        // Templates share the `checklists` table, so a DELETE has to work out which of the
+        // two it names before it can act on it.
+        checklistTemplates: [{ id: 'tpl-1', name: 'Standard', items: [], seasonId: 'season-1' }],
         setTasks: vi.fn(),
         setScoutingReports: vi.fn(),
         setMatchPlans: vi.fn(),
         setSubTeams: vi.fn(),
         setChecklistForSeason: vi.fn(),
+        setChecklistTemplates: vi.fn(),
     };
     return {
         useAppStore: {
@@ -227,6 +231,16 @@ describe('realtime', () => {
             handleRealtimeDelete('checklists', 'season-1');
             const store = useAppStore.getState();
             expect(store.setChecklistForSeason).toHaveBeenCalledWith('season-1', []);
+        });
+
+        it('should remove a deleted TEMPLATE from the library, not a season’s checklist', () => {
+            // Templates live in the same table as working checklists but carry their own
+            // generated id. Treating one as a season id would file an empty list under a key
+            // that is not a season AND leave the template in the library.
+            handleRealtimeDelete('checklists', 'tpl-1');
+            const store = useAppStore.getState();
+            expect(store.setChecklistTemplates).toHaveBeenCalledWith([]);
+            expect(store.setChecklistForSeason).not.toHaveBeenCalledWith('tpl-1', []);
         });
 
         it('should not throw for unknown table names', () => {

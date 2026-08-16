@@ -318,8 +318,40 @@ the final walkthrough and tags `v2.0.0-beta`.
 | 2026-08-15 | Sprint 3 — V2 schema: tenancy, roles, licensing, guardians, meetings. **Schema frozen.** | `v2/sprint-3-schema` | **Complete.** Gate + `db:verify` + `test:rls` green (lint / 272 unit / 83 integration / 299 db / 258 rls / build). 7 migrations squashed to 6; the API-role grants survived intact. Roles are admin\|coach\|mentor\|student with a one-admin index and an 18+ trigger; four capability functions replace `is_team_coach`; `team_members`' five SELECT policies became one. `license_grants` + a `security_invoker` `team_entitlement` view make an expired team read-only *in the database*. Guardian and meetings tables landed schema-only. `season_id` is NOT NULL everywhere with composite `(season_id, team_id)` FKs, checklists are per-season (C6), and the `!x.seasonId \|\|` filters are deleted. **Found and closed B21**, a cross-tenant privilege escalation in the V1 policies. Schema assertions 6 → 14, RLS suite 180 → 258. Verified in the browser end to end: register → seeded season/sub-teams/checklist → edits sync. |
 | 2026-08-15 | **Production migrated to the V2 schema** — `supabase db reset --linked` | `main` | **Complete.** `db push` cannot apply a squash (the first `CREATE TABLE users` collides), so the hosted project was reset from the new baseline. Greenfield decision applied: the testing data was discarded, with a full dump taken first into `backups/` (gitignored). `auth.users` emptied too, so the next signup is a genuine first run. Verified against the hosted project: all 14 schema assertions pass, every table and the `team_entitlement` view answer anon with `200 []`, `create_team_as_admin` responds and the old name is 404, and the live bundle is byte-identical to the merged build. B21's interim `ALTER POLICY` is superseded by the permanent V2 policy. |
 | 2026-08-15 | Operator seeded; `TestTeam` moved from the automatic trial to an open-ended gift | `main` | **Complete.** Kevin's user id inserted into `platform_operators` (the table ships empty by design; no API path can write it). The gift was issued through `grant_team_license` rather than a direct insert, which verified the operator path end to end: the RPC refused a caller with no operator identity and accepted the operator. The automatic 90-day trial was then revoked with an audit note rather than deleted, so the grant history reads honestly. Entitlement now `active / unlimited / open-ended`. The trial block in `create_team_as_admin` still exists for new self-serve teams and is still slated for removal when Stripe lands. |
+| 2026-08-15 | Sprint 4 — Season lifecycle | `v2/sprint-4-seasons` | **Complete.** Gate + `db:verify` + `test:db` + `test:rls` green (lint / 324 unit / 87 integration / 320 db / 261 rls / build). The first forward migration on the frozen schema: `seasons.game_title` + `is_archived`, and `season_is_open` gating the INSERT/UPDATE/DELETE policy of every season-scoped table, so a prior season is read-only **in the database** rather than in a disabled button. Rollover is client-side through the existing queue (an RPC cannot run offline, and the exit criteria require it to): season → cloned sub-teams (`member_ids = '{}'`, fresh uuids) → fresh checklist → archive, in one drain. Verified offline in a browser end to end. `useSeasonScope()`/`useSeasonScoped()` replace six duplicated filters and **found that ScoutingReports never filtered by season at all**. Season deletion now cascades locally to match the server. **Found and fixed B22** (season deletions never reached other devices — `seasons` was missing `REPLICA IDENTITY FULL`) and a queue-ordering hazard in `queueForSync` (B1's guarantee was incidental, not guaranteed). Schema assertions 13 → 15. `as any` 68 → 67. |
 
 **Discovered / parking lot:**
+
+*From Sprint 4:*
+- **`CreateTeam`'s default season name rolls over in January, not at kickoff.**
+  `defaultSeasonName()` returns `<currentYear>-<nextYear>`, so a team registering in March
+  2027 is offered "2027-2028 Season" when they are in fact in the 2026-2027 season.
+  `suggestNextSeasonName` in `season-rules.ts` has the kickoff-aware fallback; CreateTeam
+  was left alone because it is a different question (a brand-new team's FIRST season) and
+  the Sprint 3 report verified its current behaviour in a browser. One line, plus a test,
+  wherever Sprint 6's registration rework touches it.
+- **A device offline during a rollover can still queue writes to the now-archived season.**
+  Its copy of `is_archived` is stale, so the store guards pass, and the writes are refused
+  on arrival and dead-lettered. Narrow: the pull that brings the archive back also fixes the
+  UI, so the window is one sync interval, and the work is parked rather than lost. It is the
+  same class as the entitlement refusal Sprint 6 owns and wants the same answer — classify a
+  policy refusal that cannot succeed on retry as TERMINAL, and surface it. See the note
+  below.
+- **An entitlement refusal still burns five retries over nine minutes.** Sprint 3 raised
+  this and Sprint 4 deliberately did not widen into it: the honest fix is a change to
+  `sync.ts`'s failure classification (a 403 from a policy that depends on licensing or
+  archival will never succeed on its own), and that touches the sync engine and needs its
+  own regression tests under rule 6. Sprint 6 owns it, together with the read-only banner.
+  Sprint 4's contribution is that rollover does not ADD a case: the action is not offered to
+  an unlicensed team, and the archived-season guards refuse to queue.
+- **Checklist templates have no management UI.** They can be saved from the Pre-Match
+  Checklist page and picked in the rollover wizard, which is the loop the sprint brief
+  asked for, but there is no way to rename, preview or delete one from the app
+  (`deleteChecklistTemplate` exists in the store with no caller). Sprint 5's UI pass or
+  wherever the checklist page is next touched.
+- **`transformers.ts` is still a thin shim** (carried over from Sprint 2) and
+  `useSeasonScoped` now covers the filtering half of what its remaining callers do. Delete
+  it when Sprint 5 touches the components that import it.
 
 *From Sprint 3:*
 - **✅ B21 patched on production 2026-08-15** (`ALTER POLICY` on the hosted project, verified

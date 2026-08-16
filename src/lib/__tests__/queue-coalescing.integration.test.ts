@@ -101,3 +101,45 @@ describe('queue coalescing (B14)', () => {
         expect(after.data.title).toBe('v2');
     });
 });
+
+describe('B1 — queue order is the order the caller wrote, not the order Dexie committed', () => {
+    /*
+     * Almost every caller is a store action that fires `queueForSync(...)` and moves on
+     * without awaiting, so one user gesture can leave several Dexie transactions in flight
+     * at once. The timestamp used to be allocated INSIDE the transaction callback, which
+     * made the drain order depend on the order IndexedDB happened to schedule them in —
+     * nothing guarantees that, and B1 is the bug where the wrong order applies a delete
+     * before its create or an update before the row exists.
+     *
+     * Sprint 4's rollover is the caller that leans on this hardest: one click queues a
+     * season, its cloned sub-teams and its checklist, and `season_id` is NOT NULL with a
+     * composite foreign key — so the season MUST be pushed first or every child fails its
+     * constraint. Deleting a season needs the opposite order for the same reason.
+     */
+    it('preserves call order across concurrent, unawaited queue writes', async () => {
+        const writes = [
+            queueForSync('seasons', 'season-new', 'create', { id: 'season-new' }),
+            queueForSync('sub_teams', 'st-1', 'create', { id: 'st-1' }),
+            queueForSync('sub_teams', 'st-2', 'create', { id: 'st-2' }),
+            queueForSync('checklists', 'season-new', 'update', { seasonId: 'season-new' }),
+        ];
+        await Promise.all(writes);
+
+        const drained = await getPendingSyncItems();
+        expect(drained.map((i) => i.recordId)).toEqual([
+            'season-new', 'st-1', 'st-2', 'season-new',
+        ]);
+        expect(drained[0].tableName).toBe('seasons');
+    });
+
+    it('issues strictly increasing timestamps even within one millisecond', async () => {
+        await Promise.all(
+            Array.from({ length: 25 }, (_, i) => queueForSync('tasks', `task-${i}`, 'create', { id: i })),
+        );
+
+        const stamps = (await getPendingSyncItems()).map((i) => i.timestamp);
+        for (let i = 1; i < stamps.length; i++) {
+            expect(stamps[i]).toBeGreaterThan(stamps[i - 1]);
+        }
+    });
+});

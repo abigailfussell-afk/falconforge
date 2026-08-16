@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layers, Plus, Trash2, Check } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
+import { useSeasonScope } from '../lib/season-scope';
 
 interface SubTeamManagerProps {
     subTeams: SubTeam[];
@@ -16,6 +17,9 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
     const storeAddSubTeam = useAppStore((state) => state.addSubTeam);
     const storeRemoveSubTeam = useAppStore((state) => state.removeSubTeam);
     const storeToggleMemberInSubTeam = useAppStore((state) => state.toggleMemberInSubTeam);
+    // A prior season's sub-teams and their assignments are history. `season_is_open` gates
+    // sub_teams' write policies too, so these are refused server-side either way.
+    const { canEdit } = useSeasonScope();
 
     const addSubTeam = () => {
         if (newSubTeamName.trim()) {
@@ -37,12 +41,16 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                     value={newSubTeamName}
                     onChange={(e) => setNewSubTeamName(e.target.value)}
                     placeholder="New Sub-Team Name (e.g. Pit Crew)"
-                    className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white"
+                    disabled={!canEdit}
+                    className="flex-1 p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50"
                     onKeyDown={(e) => e.key === 'Enter' && addSubTeam()}
                 />
                 <button
+                    data-testid="add-sub-team"
                     onClick={addSubTeam}
-                    className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10"
+                    disabled={!canEdit}
+                    title={canEdit ? 'Add sub-team' : 'This season is archived and read-only'}
+                    className="bg-orange-600 text-white p-2 rounded-lg hover:bg-orange-700 transition flex items-center justify-center w-10 h-10 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <Plus size={20} />
                 </button>
@@ -65,13 +73,17 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                 <div className="flex gap-2 items-center">
                                     <button
                                         onClick={() => setEditingSubTeamId(editingSubTeamId === subTeam.id ? null : subTeam.id)}
-                                        className={`text-xs px-3 py-1.5 rounded-full transition ${editingSubTeamId === subTeam.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
+                                        disabled={!canEdit}
+                                        title={canEdit ? undefined : 'This season is archived and read-only'}
+                                        className={`text-xs px-3 py-1.5 rounded-full transition disabled:opacity-40 disabled:cursor-not-allowed ${editingSubTeamId === subTeam.id ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                     >
                                         {editingSubTeamId === subTeam.id ? 'Done' : 'Manage Members'}
                                     </button>
                                     <button
                                         onClick={() => storeRemoveSubTeam(subTeam.id)}
-                                        className="text-slate-400 hover:text-red-500 p-1"
+                                        disabled={!canEdit}
+                                        title={canEdit ? 'Delete sub-team' : 'This season is archived and read-only'}
+                                        className="text-slate-400 hover:text-red-500 p-1 disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         <Trash2 size={18} />
                                     </button>

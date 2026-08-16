@@ -206,7 +206,43 @@ export interface MatchPlan {
 export interface Season {
   id: string;
   name: string;
+  /**
+   * The FTC game this season plays — "DECODE", "CENTERSTAGE". Distinct from {@link name},
+   * which is the team's label for the year ("2026-2027 Season"). `''` means not recorded;
+   * the column is nullable with a not-blank CHECK, and the mapping trims to null.
+   */
+  gameTitle: string;
   fieldImageData: string;  // Base64 encoded image data for offline support
   teamId?: string;  // Scoped to Team
+  /**
+   * A prior season: fully readable, accepts no writes to anything it scopes.
+   *
+   * This is UX in front of a database rule, not the rule itself. `season_is_open()` gates
+   * the INSERT/UPDATE/DELETE policy of every season-scoped table, so a client that has not
+   * heard about the archive yet still cannot write — which is the case that matters, since
+   * a device offline during the rollover is exactly the one that still thinks last season
+   * is current.
+   */
+  isArchived: boolean;
   createdAt: number;
+}
+
+/**
+ * A saved checklist a team can start a new season from.
+ *
+ * Stored in `checklists` with `is_template = true`, which exempts the row from
+ * `checklists_one_per_season` — so a team may keep several, while still having exactly one
+ * WORKING checklist per season. A template's `season_id` records only where it was captured
+ * from; nothing reads it as scope.
+ *
+ * Templates travel with their own generated id rather than the season-derived id working
+ * checklists use, because the convergence problem that convention solves does not exist
+ * here: a template is created once, by one device, deliberately.
+ */
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  items: ChecklistItem[];
+  /** The season this template was captured from. Provenance, not scope. */
+  seasonId: string;
 }

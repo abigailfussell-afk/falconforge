@@ -83,10 +83,15 @@ describe('MatchPlanner', () => {
         deleteMatchPlan: mockDeleteMatchPlan,
         currentSeasonId: 'season-1',
         currentTeamId: 'team-1',
+        // Sprint 4: the planner asks whether its season is archived before offering a save.
+        seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
         getCurrentSeason: () => ({
             id: 'season-1',
             name: 'Test Season',
+            gameTitle: '',
             fieldImageData: '',
+            isArchived: false,
+            createdAt: 1000,
         }),
     };
 

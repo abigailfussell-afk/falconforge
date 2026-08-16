@@ -121,6 +121,12 @@ END $$;
 --    must have REPLICA IDENTITY FULL, or Postgres omits team_id from the DELETE payload,
 --    the filter never matches, and cross-device deletions silently never arrive (B7).
 --    relreplident: 'd' = default (primary key), 'f' = full.
+--
+--    THIS LIST MUST MATCH `SYNCED_TABLES` IN realtime.ts, which is SYNCED_ENTITIES plus
+--    checklists. It did not: `seasons` has been in SYNCED_ENTITIES all along and was missing
+--    here, so season deletions never propagated (B22, fixed in the Sprint 4 migration). The
+--    list was written from the set of tables B7 happened to name rather than from what the
+--    client subscribes to, which is how one table sat outside a rule everything else obeyed.
 DO $$
 DECLARE
     offenders text;
@@ -129,7 +135,8 @@ BEGIN
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
-      AND c.relname IN ('tasks', 'scouting_reports', 'match_plans', 'checklists', 'sub_teams')
+      AND c.relname IN (
+          'seasons', 'sub_teams', 'tasks', 'scouting_reports', 'match_plans', 'checklists')
       AND c.relreplident <> 'f';
 
     IF offenders IS NOT NULL THEN
@@ -367,6 +374,74 @@ BEGIN
           AND indexname = 'checklists_one_per_season'
     ) THEN
         RAISE EXCEPTION 'The one-checklist-per-season unique index is missing';
+    END IF;
+END $$;
+
+-- 14. The season lifecycle columns exist, and `is_archived` is NOT NULL.
+--
+--     NOT NULL is the invariant, not the column's presence. The write policies below read
+--     `NOT is_archived`, and NULL is neither true nor false — so a nullable flag would turn
+--     a season with no value into one that silently rejects every write, which presents as
+--     "my team cannot save anything" with nothing in the UI to explain it.
+DO $$
+DECLARE
+    v_is_nullable text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'seasons' AND column_name = 'game_title'
+    ) THEN
+        RAISE EXCEPTION 'seasons.game_title is missing';
+    END IF;
+
+    SELECT is_nullable INTO v_is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'seasons' AND column_name = 'is_archived';
+
+    IF v_is_nullable IS NULL THEN
+        RAISE EXCEPTION 'seasons.is_archived is missing';
+    END IF;
+
+    IF v_is_nullable <> 'NO' THEN
+        RAISE EXCEPTION
+            'seasons.is_archived is nullable -- NULL is neither archived nor open, and every '
+            'season-scoped write policy would deny on it';
+    END IF;
+END $$;
+
+-- 15. Every season-scoped WRITE policy consults the archive predicate.
+--
+--     "A prior season is read-only" is only as real as the weakest table it is spelled out
+--     on. One table left off this rule is a hole nobody finds until a coach edits a task in
+--     last year's season and it silently sticks.
+--
+--     SELECT is deliberately excluded: an archived season is read-only, not hidden.
+--     `meeting_attendance` is the only one that reaches its season through `meetings`, so it
+--     is checked against the predicate that does the same.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(format('%s.%s', p.tablename, p.cmd), ', ' ORDER BY p.tablename, p.cmd)
+      INTO offenders
+    FROM pg_policies p
+    JOIN (VALUES
+        ('tasks', 'season_is_open'),
+        ('scouting_reports', 'season_is_open'),
+        ('match_plans', 'season_is_open'),
+        ('checklists', 'season_is_open'),
+        ('meetings', 'season_is_open'),
+        ('sub_teams', 'season_is_open'),
+        ('meeting_attendance', 'meeting_season_is_open')
+    ) AS expected(name, predicate) ON expected.name = p.tablename
+    WHERE p.schemaname = 'public'
+      AND p.cmd IN ('INSERT', 'UPDATE', 'DELETE')
+      AND coalesce(p.qual, '') || coalesce(p.with_check, '') NOT LIKE '%' || expected.predicate || '%';
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION
+            'Season-scoped write policies that do not check whether the season is archived: %',
+            offenders;
     END IF;
 END $$;
 

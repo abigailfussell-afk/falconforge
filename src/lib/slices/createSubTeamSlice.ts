@@ -1,5 +1,6 @@
 import type { SubTeam } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
+import { canWriteToSeason } from '../season-rules';
 
 export interface SubTeamSlice {
     subTeams: SubTeam[];
@@ -15,13 +16,16 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
     setSubTeams: (subTeams: SubTeam[]) => set({ subTeams }),
 
     addSubTeam: (name: string) => {
-        const { currentSeasonId, currentTeamId } = get();
+        const { currentSeasonId, currentTeamId, seasons } = get();
         // `sub_teams.season_id` is NOT NULL and referenced compositely with team_id. A
         // sub-team with no season is unpushable, so it is not created.
         if (!currentSeasonId) {
             console.warn('[store] addSubTeam ignored: no season is selected');
             return;
         }
+        // A prior season's sub-teams are history; `season_is_open` refuses the INSERT.
+        if (!canWriteToSeason(seasons, currentSeasonId, 'addSubTeam')) return;
+
         const newSubTeam: SubTeam = {
             id: generateId(),
             name,
@@ -39,13 +43,23 @@ export const createSubTeamSlice = (set: any, get: any): SubTeamSlice => ({
     },
 
     removeSubTeam: (id: string) => {
-        set((state: any) => ({
-            subTeams: state.subTeams.filter((t: SubTeam) => t.id !== id)
+        const state = get();
+        const existing = state.subTeams.find((t: SubTeam) => t.id === id);
+        if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'removeSubTeam')) return;
+
+        set((s: any) => ({
+            subTeams: s.subTeams.filter((t: SubTeam) => t.id !== id)
         }));
         queueForSync('sub_teams', id, 'delete', { id }).catch(console.error);
     },
 
     toggleMemberInSubTeam: (subTeamId: string, teamMemberId: string) => {
+        const current = get();
+        const target = current.subTeams.find((t: SubTeam) => t.id === subTeamId);
+        if (target && !canWriteToSeason(current.seasons, target.seasonId, 'toggleMemberInSubTeam')) {
+            return;
+        }
+
         set((state: any) => {
             const updatedSubTeams = state.subTeams.map((subTeam: SubTeam) => {
                 if (subTeam.id === subTeamId) {

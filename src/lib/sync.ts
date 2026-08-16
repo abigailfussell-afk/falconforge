@@ -441,8 +441,16 @@ export function transformToSupabaseSchema(tableName: string, data: any): any {
             // V1 used the team id here and wrote `seasonId || null` into a NOT NULL column
             // (C6): one checklist shared by every season, and an unpushable row whenever no
             // season was selected.
+            //
+            // A TEMPLATE is the one exception, and it is an exception because the reason for
+            // the convention does not apply: a template is created once, deliberately, by
+            // one device, so there is nothing for two offline clients to converge on. It
+            // therefore carries its own generated id -- which it must, since the season id
+            // is already taken by that season's working checklist and
+            // `checklists_one_per_season` exempts templates rather than making room for
+            // them. The working-checklist branch below is unchanged and unconditional.
             return {
-                id: data.seasonId,
+                id: data.isTemplate ? data.id : data.seasonId,
                 team_id: data.teamId,
                 season_id: data.seasonId,
                 name: data.name || 'Pre-Match Checklist',

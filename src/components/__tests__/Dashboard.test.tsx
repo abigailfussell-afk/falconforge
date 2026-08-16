@@ -88,7 +88,7 @@ function setupStore(overrides: Record<string, any> = {}) {
         checklistsBySeason: {},
         scoutingReports: [],
         matchPlans: [],
-        seasons: [{ id: 'season-1', name: '2025-2026', fieldImageData: '', createdAt: 1000 }],
+        seasons: [{ id: 'season-1', name: '2025-2026', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
         currentSeasonId: 'season-1',
         theme: 'dark',
         isLoading: false,

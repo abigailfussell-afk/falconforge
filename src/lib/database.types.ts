@@ -605,7 +605,9 @@ export type Database = {
         Row: {
           created_at: string
           field_image_data: string | null
+          game_title: string | null
           id: string
+          is_archived: boolean
           name: string
           team_id: string
           updated_at: string
@@ -613,7 +615,9 @@ export type Database = {
         Insert: {
           created_at?: string
           field_image_data?: string | null
+          game_title?: string | null
           id?: string
+          is_archived?: boolean
           name: string
           team_id: string
           updated_at?: string
@@ -621,7 +625,9 @@ export type Database = {
         Update: {
           created_at?: string
           field_image_data?: string | null
+          game_title?: string | null
           id?: string
+          is_archived?: boolean
           name?: string
           team_id?: string
           updated_at?: string
@@ -999,6 +1005,14 @@ export type Database = {
       is_profile_guardian: { Args: { p_profile_id: string }; Returns: boolean }
       is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       join_team_with_invite: { Args: { invite_code: string }; Returns: Json }
+      meeting_season_is_open: {
+        Args: { p_meeting_id: string; p_team_id: string }
+        Returns: boolean
+      }
+      season_is_open: {
+        Args: { p_season_id: string; p_team_id: string }
+        Returns: boolean
+      }
       team_can_write: { Args: { p_team_id: string }; Returns: boolean }
       transfer_team_admin: {
         Args: { p_new_member_id: string; p_team_id: string }

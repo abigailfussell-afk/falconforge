@@ -76,8 +76,15 @@ export interface TestTeam {
 const base64url = (input: Buffer | string): string =>
     Buffer.from(input).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-/** Sign an HS256 JWT with the stack's secret — the same algorithm and secret GoTrue uses. */
-function mintAccessToken(userId: string, email: string): string {
+/**
+ * Sign an HS256 JWT with the stack's secret — the same algorithm and secret GoTrue uses.
+ *
+ * Exported because the data-layer suites sign the APP's own Supabase client in as a fixture
+ * user (`signInAppClientAs`), rather than asserting through `TestUser.client`. They each
+ * used to carry their own copy of this; one definition means the claim set cannot drift
+ * between the client a test asserts with and the client the code under test uses.
+ */
+export function mintAccessToken(userId: string, email: string): string {
     const secret = process.env.SUPABASE_JWT_SECRET;
     if (!secret) throw new Error('SUPABASE_JWT_SECRET missing; is globalSetup running?');
 

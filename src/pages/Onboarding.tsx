@@ -17,7 +17,7 @@ interface PendingTeam {
 export default function Onboarding() {
     const navigate = useNavigate();
     const { user, signOut, ageClassification, updateAgeClassification } = useAuth();
-    const { teams, setTeams, setCurrentTeam, currentTeamId, setSeasons } = useAppStore();
+    const { teams, setTeams, setCurrentTeam, currentTeamId } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
@@ -99,34 +99,28 @@ export default function Onboarding() {
         }
     };
 
-    const handleSelectTeam = async (teamId: string) => {
+    /*
+     * Pick a team, and let the ONE read path load it.
+     *
+     * This used to do its own `.from('seasons').select(...)` with a hand-written row-to-
+     * Season mapping — a fourth read path that C3 missed because it reads only one table on
+     * one screen. It was wrong in three ways that all follow from being hand-written:
+     *
+     *   * It listed columns explicitly, so `is_archived` and `game_title` were simply
+     *     dropped. A user arriving through this screen would have seen every archived season
+     *     as editable until the next background pull corrected it.
+     *   * It had never heard of the sync queue, so a season created offline and still
+     *     queued was replaced by the server's copy — B3, in the one place it had not been
+     *     fixed.
+     *   * It needed a network. With none, it silently did nothing, which is not what an
+     *     offline-first app should do on its team picker.
+     *
+     * `Dashboard` calls `fetchTeamData(currentTeamId)` on mount, which pulls seasons through
+     * `pullFromServer` with the registry's mapping and the pending-record protection. There
+     * was never anything for this to add.
+     */
+    const handleSelectTeam = (teamId: string) => {
         setCurrentTeam(teamId);
-
-        // Fetch seasons for the selected team from Supabase
-        if (supabaseSync) {
-            try {
-                const { data: seasonsData, error } = await supabaseSync
-                    .from('seasons')
-                    .select('id, team_id, name, field_image_data, created_at')
-                    .eq('team_id', teamId) as { data: any[] | null; error: any };
-
-                if (!error && seasonsData && seasonsData.length > 0) {
-                    // Map Supabase data to store's Season type
-                    const seasons = seasonsData.map(s => ({
-                        id: s.id,
-                        name: s.name,
-                        fieldImageData: s.field_image_data || '',
-                        teamId: s.team_id,
-                        createdAt: new Date(s.created_at).getTime(),
-                    }));
-                    setSeasons(seasons);
-                }
-                // If no seasons or error, keep the default season (graceful fallback)
-            } catch (err) {
-                console.warn('Failed to load seasons:', err);
-            }
-        }
-
         navigate('/');
     };
 

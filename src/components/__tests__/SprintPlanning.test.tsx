@@ -80,6 +80,9 @@ const mockStore = {
     updateTask: vi.fn(),
     deleteTask: vi.fn(),
     currentSeasonId: 'season-1',
+    // Sprint 4: every view now asks whether its season is archived, so the mocked
+    // store needs the season the records belong to.
+    seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
 };
 
 // Import after mocks
