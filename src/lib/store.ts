@@ -45,6 +45,32 @@ export type {
 export { selectChecklist } from './slices/createChecklistSlice';
 export type { TeamEntitlement } from './slices/createTeamSlice';
 
+/**
+ * Apply the persisted theme to the document, if there is a document.
+ *
+ * The guard is the point. This runs from `onRehydrateStorage`, which fires when zustand has
+ * finished reading persisted state out of IndexedDB — and that is ASYNCHRONOUS, so it can land
+ * at a moment nobody scheduled. Under Vitest that moment is sometimes after the test file's
+ * jsdom environment has been torn down, and the callback then threw
+ *
+ *     ReferenceError: document is not defined
+ *
+ * as an UNHANDLED error rather than a failed assertion, which fails the whole run while every
+ * test still reports as passing. It is a race against teardown, so it depends on how quickly
+ * rehydration completes: green on a fast developer machine, red on a two-core CI runner.
+ *
+ * Found by the first CI run that ever covered this code — `ci.yml` did not trigger on sprint
+ * branches until Sprint 7, so the six sprints of work merged before it had never been through a
+ * GitHub runner at all.
+ *
+ * The fallback a few lines below the store already guards with `typeof window !== 'undefined'`
+ * for exactly this reason; this callback simply did not.
+ */
+export function applyPersistedTheme(theme: string | undefined): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+}
+
 /*
  * NO SEED DATA LIVES HERE ANY MORE.
  *
@@ -223,8 +249,8 @@ export const useAppStore = create<AppState>()(
                 theme: state.theme,
             }),
             onRehydrateStorage: () => (state) => {
-                // Apply theme as soon as persisted state is rehydrated from IndexedDB
-                document.documentElement.classList.toggle('dark', state?.theme === 'dark');
+                // Apply theme as soon as persisted state is rehydrated from IndexedDB.
+                applyPersistedTheme(state?.theme);
             },
         }
     )
