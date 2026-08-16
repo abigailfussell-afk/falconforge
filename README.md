@@ -8,6 +8,12 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 - **Pre-Match Checklist** - Customizable checklists for competition day, saveable as team templates
 - **Scouting Reports** - Track opponent capabilities during competitions
 - **Match Planner** - Draw autonomous paths and game strategies on the field
+- **Meetings & Attendance** - Schedule practices, build sessions, competitions, outreach and
+  deadlines, one-off or recurring. Every occurrence gets its own four-digit code and QR poster,
+  so students check themselves in by scanning with their phone's own camera — and a code
+  photographed at last week's session will not work at this one. Coaches, mentors and admins
+  take the roster (table, or a rapid-tap grid for walking the room) and read a per-member
+  season summary; students get a read-only schedule as a list or a calendar
 - **Seasons** - Each year starts fresh: a new-season wizard clones your sub-team structure
   (never its member assignments), empties the board, scouting log and match plans, and makes
   the previous season read-only while keeping every row of it browsable
@@ -264,10 +270,36 @@ all three or in none. Every view is a real route (`#/app/board`), deep-linkable 
 defensive style: the sidebar used to be two components with two copies of everything, and
 those assertions are what stop it becoming two again.
 
+Some views are one nav entry with two experiences rather than a gate: **Meetings** is visible
+to everybody, because the schedule is the whole of a student's use of the feature, and the page
+renders the event manager or the read-only schedule depending on `can_manage_meetings`.
+
 Views can be gated on a capability — `requiresManage` (admin or coach) and `requiresOperator`
 (the platform operator). Both are UX only: the routes render their own refusal for anyone who
 follows a deep link, and the database refuses the writes regardless. `navViewsFor` defaults
 `isOperator` to false so adding a gated view cannot leak into an existing caller's nav.
+
+## Attendance, and the one thing that is not offline-first
+
+Everything in FalconForge is a queued write that works with no signal — including **the coach's
+attendance roster**, which is the path that matters at a venue with dead WiFi.
+
+**Student self check-in is the exception, deliberately.** A check-in is a claim about the
+present moment, and an offline client has no credible account of what the present moment is.
+Queue it and the check-in window, the dead code from last week, and "a student cannot check in
+for a meeting they did not attend" all become requests the client is trusted to honour.
+`check_in_with_code` is therefore an RPC that judges the window against the server's `now()`,
+and the check-in screen says plainly what to do when there is no signal: ask a coach, whose
+roster works offline. Same shape as seat capacity — put enforcement on an action that is
+inherently online, so the offline write path never consults a rule it cannot evaluate.
+
+Two more properties worth knowing:
+
+- **Nobody is ever auto-marked absent.** A member with no record renders "—" and stays that way
+  until a coach saves the roster, because an unsaved roster is a fact about the coach rather
+  than about the student. "Mark rest absent" exists, and it is a coach saying so on purpose.
+- **An excused absence leaves the denominator** of an attendance rate rather than counting as a
+  miss, and a member with no records at all gets "—" rather than 0%.
 
 ## Licensing, seats, and who may do what
 
@@ -383,6 +415,7 @@ falconforge/
 │   │   ├── slices/            # One file per data domain, typed set/get
 │   │   ├── navigation.ts      # The app's views, defined ONCE (nav + routes)
 │   │   ├── season-scope.ts    # "which season, and may I edit it" — one answer
+│   │   ├── meetings.ts        # Event palette, check-in window, codes, recurrence
 │   │   ├── offline-db.ts      # Dexie: sync queue, dead letters, sync metadata
 │   │   ├── sync.ts            # The write path: queue drain, retry, dead-letter
 │   │   ├── server-pull.ts     # The read path: every server read, one rule
@@ -394,9 +427,12 @@ falconforge/
 │   ├── styles/fonts.css       # Self-hosted Inter @font-face
 │   ├── components/            # Feature UI
 │   │   ├── AppShell.tsx       # Sidebar + banner + <Outlet>, the app frame
-│   │   └── Sidebar.tsx        # ONE nav definition, rail at lg / drawer below
+│   │   ├── Sidebar.tsx        # ONE nav definition, rail at lg / drawer below
+│   │   └── meetings/          # Schedule, roster, QR, poster, check-in
+│   │       ├── useSchedule.ts # "this season's events, split at now" — one answer
+│   │       └── format.ts      # Dates and times, local, in one place
 │   └── test/db/               # Local-Postgres test harness + fixtures
-├── e2e/                       # Playwright smoke pack (helpers + six flows)
+├── e2e/                       # Playwright smoke pack (helpers + seven specs)
 ├── scripts/
 │   ├── seed-review-states.mjs # awkward licensing states, localhost only
 │   ├── seed-demo-team.mjs     # one ordinary populated team, localhost only
@@ -413,8 +449,8 @@ falconforge/
 
 Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle, the
 UI/density/routing pass, the licensing and admin console with the legal pages, and the beta
-hardening sprint have all landed. Next: meetings and attendance UI, guardian accounts, Stripe
-billing, and team data export — the schema for the first three is already live.
+hardening sprint have all landed, and so has the meetings and attendance UI. Next: guardian
+accounts, Stripe billing, and team data export — the schema for the first two is already live.
 
 Running the beta is documented separately in [`docs/beta-ops.md`](docs/beta-ops.md): backups and
 when to take them, the error-review cadence, and the rule that governs deploys — **schema changes
