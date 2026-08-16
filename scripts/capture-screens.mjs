@@ -46,8 +46,8 @@ const APP = process.env.CAPTURE_BASE_URL ?? 'http://localhost:5188';
 const OUT = process.env.CAPTURE_OUT_DIR ?? 'screenshots';
 
 /** Iron Falcons' admin: 12 of 15 seats, and the platform operator. See the seeder. */
-const EMAIL = 'reviewer@falconforge.test';
-const PASSWORD = 'ForgeReview!2026-local';
+const EMAIL = process.env.CAPTURE_EMAIL ?? 'reviewer@falconforge.test';
+const PASSWORD = process.env.CAPTURE_PASSWORD ?? 'ForgeReview!2026-local';
 
 const WIDTHS = [375, 768, 1280];
 
@@ -63,7 +63,9 @@ const VIEWS = [
     { file: 'scouting', hash: '#/app/scouting', nav: 'scouting' },
     { file: 'match-planner', hash: '#/app/planner', nav: 'planner' },
     { file: 'admin-console', hash: '#/app/admin', nav: 'admin' },
-    { file: 'operator-console', hash: '#/app/operator', nav: 'operator' },
+    // Optional: the operator view is only in the nav for a platform operator, and the capture
+    // account is not always one (the demo team's coach is not). Skipped rather than failed.
+    { file: 'operator-console', hash: '#/app/operator', nav: 'operator', optional: true },
     { file: 'edit-profile', hash: '#/app/profile', nav: null },
 ];
 
@@ -192,6 +194,10 @@ async function main() {
         await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
 
         for (const view of VIEWS) {
+            if (view.optional && !(await page.locator(`[data-testid="nav-${view.nav}"]`).count())) {
+                console.log(`  ${width}w  ${view.file} — skipped (not available to this account)`);
+                continue;
+            }
             await page.goto(`${APP}/${view.hash}`, { waitUntil: 'domcontentloaded' });
             await settle(page, view);
             await dismissReAttestation(page);
