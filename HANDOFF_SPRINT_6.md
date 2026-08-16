@@ -2,10 +2,67 @@
 
 Open a fresh Opus 5 session in `C:\Claude\falconforge` and give it everything below.
 
+*(Updated after Sprint 5.5 — the "Sprint 5.5 happened" section below amends this file;
+where they disagree, the 5.5 section wins.)*
+
+---
+
+**FIRST: merge Sprint 5.5.** The branch `v2/sprint-5.5-ui-polish` (11 commits) is complete,
+Gate-green, and reviewed in the session that built it, but not merged. Before any Sprint 6
+work:
+
+  1. `git checkout main && git merge --no-ff v2/sprint-5.5-ui-polish` with a merge message
+     in the style of Sprint 5's (`332f2bd`): one line naming the sprint and its headline —
+     the auth-deadlock fix and the UI primitive kit.
+  2. Run the full Gate **on main after the merge** and report real output.
+  3. `main` auto-deploys to falcon-forge.com on push, and this merge contains an auth-path
+     fix that production users hit on every reload. **Confirm with Kevin in chat before
+     pushing**, then push and verify CI + Deploy go green.
+  4. Only then branch `v2/sprint-6-licensing` off the merged main.
+
 ---
 
 Read FALCONFORGE_V2_PLAN.md §5 (engineering rules — binding) and §6 Sprint 6, then
 execute Sprint 6 under those rules. Branch v2/sprint-6-licensing off main.
+
+## Sprint 5.5 happened after this hand-off was written
+
+A UI-polish sprint ran between Sprint 5 and you. What it changes about this brief:
+
+  - **The 🔴 restored-session auth bug described under "will bite you" below is FIXED.**
+    Root cause: `auth.tsx`'s `onAuthStateChange` callback awaited a supabase REST call while
+    supabase-js still held the `sb-*-auth-token` Web Lock — the client deadlocked on itself.
+    The profile sync now defers out of the callback (`setTimeout(0)`), guarded by regression
+    test **B23** in `auth.test.tsx`. It will no longer interrupt your local testing. The
+    narrow lesson stands for your registration work: never await a supabase call inside
+    `onAuthStateChange`.
+  - **A UI primitive kit exists and rule 8 extends to it: build the admin console FROM it.**
+    `src/components/ui/`: `Button` (primary/secondary/danger; `busy` ties spinner to
+    disable), `IconButton` (`danger` variant), `Modal` (owns overlay, `shadow-overlay`,
+    named widths `sm`/`panel`/`dialog`/`wide`, dialog ARIA; `stacked` raises a confirm above
+    another modal), `EmptyState`, `SectionHeader`, and the `.field` class in `index.css` for
+    every input/select/textarea. `ConfirmDialog` composes it. Hand-rolling a button, modal,
+    input, empty state or section header in your new screens is a regression — the kit
+    exists because Sprint 5 grew eight primary-button recipes. README's design-system
+    section documents it.
+  - **`MemberManager.tsx` moved further** than described below: the native `confirm()` is
+    now `ConfirmDialog`, Approve/Reject both use `Button busy`, the header is a
+    `SectionHeader`, the empty state is an `EmptyState`, and the admin's own disabled role
+    select carries a title pointing at role transfer. Still true: seat toggle wired to
+    `seat_assigned`, capacity-refusal handling, and no notion of a seats total.
+  - **Numbers moved:** `as any` is **55** (only down). Unit suite is **344 tests + 2
+    pre-existing skips** across 28 files. Coverage thresholds unchanged at 72/67/69/74.
+  - **New parking-lot items from 5.5** (§8): due dates render a day early in US timezones
+    (UTC-midnight epochs rendered via local `getDate()` — pre-existing, inherited by the new
+    dashboard deadlines panel); two `!px-*` important-modifier overrides on Button callers,
+    with the suggested escape hatch if the pattern spreads.
+  - **Local-stack conveniences left in place:** `.env.development.local` currently points
+    dev mode at the **local** Supabase stack (gitignored; production keys untouched in
+    `.env.local`) — delete it if you want dev against production, and mind the restart
+    caveat below. `.claude/launch.json` gained a `dev-review` config on port **5189** for
+    when another session holds 5188. The local stack has a seeded review account
+    (`reviewer@falconforge.test` / `ForgeReview!2026-local`, team "Iron Falcons") — local
+    Docker only, wiped by every `supabase db reset`.
 
 Read first, in this order:
   - docs/sprint-5-report.md   — what just shipped, and what it leaves in your way
@@ -123,7 +180,7 @@ Numbers you will want:
     currently **0% covered** across all three files — if you rewrite them as the brief says,
     you will move that number, and `Onboarding.tsx` (59% statements, 23% functions) is the
     other weak spot and is exactly what the registration-flow work touches.
-  - **`as any` is 58.** Only down.
+  - **`as any` is 55 after Sprint 5.5.** Only down.
   - **`test:rls` is 261 assertions and `test:db` is 320.** Both are back in your Gate:
     you will be writing migrations, so `db:verify` (needs Docker) and `test:rls` apply.
   - **Legal pages are 81 / 97 / 114 lines** — small, so a rewrite is cheap. Attestation
@@ -135,17 +192,10 @@ Numbers you will want:
 
 Three things outside your scope that will bite you:
 
-  - **A restored session can drop you on "Almost Done! Please complete your profile"**, for a
-    user whose profile is complete. `supabase.auth.getSession()` takes the
-    `lock:sb-<ref>-auth-token` Web Lock and never resolves, the 5s safety timeout in
-    `auth.tsx` fires, and `isLoading` goes false with `ageClassification` still null. It is
-    **pre-existing** — reproduced on unmodified `main` in a separate worktree, same origin,
-    same stored session — and it is live on production. It will interrupt your local testing
-    constantly: clearing site data for the origin and signing in fresh clears it. It is in
-    the parking lot for Sprint 7, but you are the sprint that owns the registration and
-    onboarding path, so if you find yourself in `auth.tsx` anyway, this is the neighbour.
-    The narrow lesson: the timeout must not be able to leave the app asking for data it
-    already has.
+  - ~~A restored session can drop you on "Almost Done!..."~~ — **FIXED in Sprint 5.5** (see
+    the section at the top). Kept here so you know the paragraph's absence from your local
+    testing is expected, not luck. B23 in `auth.test.tsx` is the regression test; treat
+    `onAuthStateChange` as a no-supabase-calls zone.
 
   - **`.env.local` points at the HOSTED project. Do not overwrite it** (Sprint 2 did, and it
     was unrecoverable). For local work write `.env.development.local`, which takes priority
