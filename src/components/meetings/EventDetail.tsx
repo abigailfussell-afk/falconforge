@@ -35,7 +35,7 @@ import EmptyState from '../ui/EmptyState';
 export default function EventDetail() {
     const { meetingId } = useParams<{ meetingId: string }>();
     const navigate = useNavigate();
-    const meeting = useMeeting(meetingId);
+    const { status, meeting } = useMeeting(meetingId);
     const { canManageMeetings } = useAppShell();
     const currentTeamId = useAppStore((s) => s.currentTeamId);
     const { rows, tally } = useRoster(meetingId);
@@ -51,6 +51,8 @@ export default function EventDetail() {
     const [closing, setClosing] = useState(false);
     const [closeError, setCloseError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+
+    if (status === 'loading') return <LoadingEvent />;
 
     if (!meeting) {
         return (
@@ -110,7 +112,7 @@ export default function EventDetail() {
     }
 
     return (
-        <div className="space-y-4">
+        <div data-testid="event-detail" className="space-y-4">
             <Link
                 to="/app/meetings"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-forge-600 dark:hover:text-forge-400"
@@ -180,7 +182,7 @@ export default function EventDetail() {
                     }
                 />
             ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_20rem] gap-4 items-start">
+                <div className="grid grid-cols-1 xl:grid-cols-event-detail gap-4 items-start">
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <Stat label="Checked in" value={tally.present} tone="text-green-500" />
@@ -276,7 +278,7 @@ export default function EventDetail() {
                             <p className="mt-3 text-center text-2xs font-bold uppercase tracking-wider text-slate-400">
                                 Or enter code
                             </p>
-                            <p className="text-center font-mono text-2xl font-bold tracking-[0.15em] text-slate-800 dark:text-white">
+                            <p className="text-center font-mono text-2xl font-bold tracking-code text-slate-800 dark:text-white">
                                 {formatCode(meeting.publicCode)}
                             </p>
                             <p className="mt-1 text-center text-2xs text-slate-500 dark:text-slate-400">
@@ -330,6 +332,15 @@ export default function EventDetail() {
                     </aside>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Rehydration is asynchronous; a deep link can arrive before it finishes. */
+function LoadingEvent() {
+    return (
+        <div className="flex items-center justify-center py-20" role="status" aria-label="Loading event">
+            <div className="w-6 h-6 border-2 border-forge-500 border-t-transparent rounded-full animate-spin" />
         </div>
     );
 }

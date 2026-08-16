@@ -27,10 +27,18 @@ import EmptyState from '../ui/EmptyState';
 export default function CheckInPoster() {
     const { meetingId } = useParams<{ meetingId: string }>();
     const navigate = useNavigate();
-    const meeting = useMeeting(meetingId);
+    const { status, meeting } = useMeeting(meetingId);
     const teams = useAppStore((s) => s.teams);
     const currentTeamId = useAppStore((s) => s.currentTeamId);
     const team = teams.find((t) => t.id === currentTeamId);
+
+    if (status === 'loading') {
+        return (
+            <div className="flex items-center justify-center py-20" role="status" aria-label="Loading poster">
+                <div className="w-6 h-6 border-2 border-forge-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     if (!meeting || !tracksAttendance(meeting) || !meeting.publicCode) {
         return (
@@ -67,7 +75,7 @@ export default function CheckInPoster() {
 
             {/* 8.5in wide with a half-inch of breathing room, so what is on screen is what
                 comes out of the printer rather than a surprise at the paper tray. */}
-            <div className="mx-auto flex w-full max-w-[7.5in] flex-col items-center px-6 py-10 text-center text-black">
+            <div className="mx-auto flex w-full max-w-letter flex-col items-center px-6 py-10 text-center text-black">
                 <div className="mb-6 flex items-center gap-3">
                     <span className="text-2xl font-black italic tracking-tighter">
                         FALCON<span className="text-slate-500">FORGE</span>
@@ -83,7 +91,7 @@ export default function CheckInPoster() {
                     )}
                 </div>
 
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-600">
+                <p className="text-sm font-bold uppercase tracking-poster text-slate-600">
                     Scan to check in
                 </p>
                 <h1 className="mt-2 text-4xl font-bold leading-tight">{meeting.title}</h1>
@@ -92,13 +100,13 @@ export default function CheckInPoster() {
                     {meeting.location ? ` · ${meeting.location}` : ''}
                 </p>
 
-                <div className="mt-8 rounded-2xl border-4 border-black p-4">
+                <div className="mt-8 w-full max-w-md rounded-2xl border-4 border-black p-3 sm:p-4">
                     <QrCode code={meeting.publicCode} size={420} monochrome />
                 </div>
 
                 <div className="mt-8 flex w-full items-center gap-4">
                     <span className="h-px flex-1 bg-slate-300" />
-                    <span className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
+                    <span className="text-sm font-bold uppercase tracking-poster text-slate-500">
                         No camera?
                     </span>
                     <span className="h-px flex-1 bg-slate-300" />
@@ -108,7 +116,7 @@ export default function CheckInPoster() {
                     Open FalconForge → Meetings → <span className="font-bold">Enter code</span>
                 </p>
                 {/* Tracked and spaced to be read from the back of a classroom. */}
-                <p className="mt-2 font-mono text-6xl font-bold tracking-[0.15em]">
+                <p className="mt-2 font-mono text-6xl font-bold tracking-code">
                     {formatCode(meeting.publicCode)}
                 </p>
 

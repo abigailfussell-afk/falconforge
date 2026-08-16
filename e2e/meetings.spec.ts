@@ -1,0 +1,243 @@
+import { test, expect } from '@playwright/test';
+import { guardLocalBackend, signUp, createTeam, unique, uniqueEmail, goToView, waitForSync } from './helpers';
+
+/**
+ * Sprint 8 — the meetings flow, driven the way a coach and a student drive it.
+ *
+ * The RLS and DB suites already prove the RULES (who may write, when a code is valid, what
+ * `check_in_with_code` refuses). What they cannot prove is that the FLOW works: that the form
+ * a coach fills in produces a meeting with a code on it, that the code on the poster is the
+ * code the check-in screen accepts, and that a scan lands on a receipt.
+ *
+ * The other reason this file exists is layout. Two of Sprint 8's defects were arrangement
+ * bugs — the splash wordmark and the check-in badge both rendered on the same line as the
+ * element above them — and jsdom computes no layout at all, so a unit test renders the broken
+ * version and the fixed version identically. Those get real measurements, at the bottom.
+ */
+test.beforeEach(async ({ context }) => {
+    await guardLocalBackend(context);
+});
+
+test('a coach creates an event, gets a code, and a student checks in with it', async ({ page }) => {
+    const email = uniqueEmail('meet-coach');
+    await signUp(page, { fullName: 'Meet Coach', email });
+    await createTeam(page, { teamName: unique('Meetings') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await expect(page.getByRole('heading', { name: 'Meetings & Events' })).toBeVisible();
+
+    // --- create ---------------------------------------------------------------
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Build session — chassis rebuild');
+
+    // Today, starting a few minutes ago, so check-in is genuinely OPEN by the time the
+    // student arrives. A future event would make the rest of this test unreachable.
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    await page
+        .getByTestId('event-date')
+        .fill(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+    await page.getByTestId('event-start').fill(`${pad(Math.max(1, now.getHours()))}:00`);
+
+    await page.getByTestId('save-event').click();
+
+    // Saving navigates to the event it created.
+    await expect(page.getByRole('heading', { name: /chassis rebuild/ })).toBeVisible({ timeout: 30_000 });
+
+    // --- the code -------------------------------------------------------------
+    const codeText = await page.locator('text=/^FF-\\d{4}$/').first().innerText();
+    const code = codeText.replace(/\D/g, '');
+    expect(code).toMatch(/^\d{4}$/);
+
+    // The QR is generated client-side, so it must actually appear rather than 404 as an
+    // <img> pointed at a server that is not there.
+    await expect(page.getByRole('img', { name: new RegExp(`check-in code FF-${code}`) })).toBeVisible({
+        timeout: 30_000,
+    });
+
+    // --- the poster -----------------------------------------------------------
+    await page.getByRole('link', { name: /print poster/i }).click();
+    await expect(page.getByText('SCAN TO CHECK IN')).toBeVisible();
+    // Black on white, whatever the app's theme is. A dark poster empties a school's toner.
+    const posterBackground = await page
+        .locator('.print-surface')
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(posterBackground).toBe('rgb(255, 255, 255)');
+    await page.getByRole('button', { name: /back to event/i }).click();
+
+    // --- the student ----------------------------------------------------------
+    // The event was created through the offline QUEUE, so its code does not resolve on the
+    // server until the drain gets there. See `waitForSync`.
+    await page.goto('/#/app/meetings');
+    await waitForSync(page);
+
+    // A second account joining the same team would need an invite round trip; what this half
+    // is proving is that the CODE the coach was shown is the code the check-in screen accepts,
+    // and the coach can answer that themselves — `check_in_with_code` never takes a member id,
+    // it derives one from the session, so nobody can check anybody else in regardless.
+    await page.goto(`/#/app/checkin/${code}`);
+    await expect(page.getByText("You're checking in to")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Check-in open')).toBeVisible();
+
+    await page.getByTestId('confirm-checkin').click();
+    await expect(page.getByRole('heading', { name: "You're checked in" })).toBeVisible({
+        timeout: 30_000,
+    });
+    await expect(page.getByText('QR scan')).toBeVisible();
+
+    // --- and it cannot be done twice -----------------------------------------
+    // A reload, not a `goto`: the receipt is already AT this URL, and navigating to the URL
+    // you are on is a no-op that leaves the component holding its "recorded" state. This is
+    // the same trap that made the capture script screenshot the previous view.
+    await page.goto(`/#/app/checkin/${code}`);
+    await page.reload();
+    await page.getByTestId('confirm-checkin').click();
+    await expect(page.getByRole('heading', { name: 'Already recorded' })).toBeVisible({
+        timeout: 30_000,
+    });
+});
+
+test('a recurring series gives every occurrence its own code', async ({ page }) => {
+    // The property the whole design turns on, asserted end to end rather than only in the
+    // store: a student who photographs one poster must not be able to use it next week.
+    const email = uniqueEmail('meet-series');
+    await signUp(page, { fullName: 'Series Coach', email });
+    await createTeam(page, { teamName: unique('Series') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Weekly build');
+    await page.getByTestId('repeats-toggle').click();
+    await expect(page.getByText(/Creates \d+ events/)).toBeVisible();
+    await page.getByTestId('save-event').click();
+
+    await page.goto('/#/app/meetings');
+    await page.waitForSelector('[data-testid="upcoming-events"]', { timeout: 30_000 });
+
+    const codes = await page.locator('text=/^FF-\\d{4}$/').allInnerTexts();
+    expect(codes.length).toBeGreaterThan(3);
+    expect(new Set(codes).size, 'two occurrences share a check-in code').toBe(codes.length);
+});
+
+test('a typed code is refused outside its window', async ({ page }) => {
+    const email = uniqueEmail('meet-window');
+    await signUp(page, { fullName: 'Window Coach', email });
+    await createTeam(page, { teamName: unique('Window') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Next month');
+    // Well beyond the default fifteen-minute lead.
+    const future = new Date(Date.now() + 30 * 86_400_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    await page
+        .getByTestId('event-date')
+        .fill(`${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`);
+    await page.getByTestId('save-event').click();
+
+    const codeText = await page.locator('text=/^FF-\\d{4}$/').first().innerText();
+    const code = codeText.replace(/\D/g, '');
+
+    // The create is a queued write; the code does not resolve on the server until it lands.
+    await page.goto('/#/app/meetings');
+    await waitForSync(page);
+
+    await page.goto(`/#/app/checkin/${code}`);
+    await page.getByTestId('confirm-checkin').click();
+
+    // Judged against the SERVER's clock, which is the entire reason this is an RPC.
+    await expect(page.getByRole('heading', { name: 'Too early' })).toBeVisible({ timeout: 30_000 });
+});
+
+/**
+ * The two layout properties jsdom cannot check, measured in a real browser.
+ *
+ * Both of these shipped broken and were found by looking at the app, which is exactly the
+ * class of defect the plan says a script only catches once somebody has thought to check it.
+ * These are the "thought to check it" part.
+ */
+test.describe('layout properties', () => {
+    test('the splash wordmark sits centred BELOW the logo, not beside it', async ({ page }) => {
+        // `#/auth/callback` renders the splash with no session, which is the only way to hold
+        // a screen still that otherwise exists for a few hundred milliseconds.
+        await page.goto('/#/auth/callback');
+
+        const logo = page.getByTestId('splash-logo');
+        const wordmark = page.getByTestId('splash-wordmark');
+        await expect(logo).toBeVisible();
+
+        const logoBox = (await logo.boundingBox())!;
+        const markBox = (await wordmark.locator('span').first().boundingBox())!;
+
+        // The bug: two inline-level boxes sharing a line, so the mark sat to the RIGHT of the
+        // logo and level with its bottom edge.
+        expect(markBox.y, 'the wordmark is not below the logo').toBeGreaterThanOrEqual(
+            logoBox.y + logoBox.height,
+        );
+        expect(
+            Math.abs(logoBox.x + logoBox.width / 2 - (markBox.x + markBox.width / 2)),
+            'the wordmark is not centred on the logo',
+        ).toBeLessThan(2);
+    });
+
+    test('the sidebar footer keeps its gutter above the viewport edge', async ({ page }) => {
+        const email = uniqueEmail('meet-layout');
+        await signUp(page, { fullName: 'Layout Coach', email });
+        await createTeam(page, { teamName: unique('Layout') });
+
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.goto('/#/app/dashboard');
+        await page.waitForSelector('[data-testid="app-nav"]', { timeout: 45_000 });
+
+        // `.safe-area-bottom` set `padding-bottom: env(safe-area-inset-bottom)` from outside
+        // Tailwind's utilities layer, so it BEAT the `p-3` beside it and computed to 0px on
+        // every device without a notch — putting the sync indicator flush against the bottom
+        // of the screen.
+        const padding = await page
+            .locator('[data-testid="sidebar"] .safe-area-bottom')
+            .evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom));
+
+        expect(padding, 'the sidebar footer has no bottom gutter').toBeGreaterThanOrEqual(12);
+    });
+});
+
+test('a code the server has not seen yet is not blamed on the student', async ({ page }) => {
+    /*
+     * The window between a coach pressing Save and the drain reaching the server.
+     *
+     * The code is perfectly good and exists on the coach's device; the server is simply
+     * behind. Telling a student "that code does not match a meeting for your team" in that
+     * moment is a false statement that sends them to find a coach for a problem that fixes
+     * itself in seconds. Found by this pack, which checks in faster than a human can.
+     *
+     * Deliberately NOT waiting for sync, which is the opposite of every other test here.
+     */
+    const email = uniqueEmail('meet-unsynced');
+    await signUp(page, { fullName: 'Unsynced Coach', email });
+    await createTeam(page, { teamName: unique('Unsynced') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Just created');
+    await page.getByTestId('save-event').click();
+    await expect(page.getByRole('heading', { name: 'Just created' })).toBeVisible({
+        timeout: 30_000,
+    });
+
+    const codeText = await page.locator('text=/^FF-\\d{4}$/').first().innerText();
+    const code = codeText.replace(/\D/g, '');
+
+    // Cut the network the moment the event exists locally, so the push cannot land and the
+    // race is deterministic rather than a matter of who wins on the day.
+    await page.route('**/rest/v1/meetings**', (route) =>
+        route.request().method() === 'POST' ? route.abort() : route.continue(),
+    );
+
+    await page.goto(`/#/app/checkin/${code}`);
+    await page.getByTestId('confirm-checkin').click();
+
+    await expect(page.getByRole('heading', { name: 'Not synced yet' })).toBeVisible({
+        timeout: 30_000,
+    });
+    await expect(page.getByText(/has not finished syncing/i)).toBeVisible();
+});

@@ -169,7 +169,7 @@ function FilterChip({
 /** Column headings, shown only where the rows are actually laid out in columns. */
 function ColumnHeadings() {
     return (
-        <div className="hidden lg:grid grid-cols-[9rem_1fr_11rem_6rem_5rem] gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 text-2xs font-bold uppercase tracking-wider text-slate-400">
+        <div className="hidden lg:grid grid-cols-schedule gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 text-2xs font-bold uppercase tracking-wider text-slate-400">
             <span>When</span>
             <span>Event</span>
             <span>Attendance</span>
@@ -199,7 +199,7 @@ function EventRow({
     const isNext = state === 'open';
 
     return (
-        <li className="grid grid-cols-1 lg:grid-cols-[9rem_1fr_11rem_6rem_5rem] items-start gap-x-3 gap-y-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+        <li className="grid grid-cols-1 lg:grid-cols-schedule items-start gap-x-3 gap-y-2 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/30">
             <div className={isNext ? 'text-forge-600 dark:text-forge-400' : 'text-slate-500 dark:text-slate-400'}>
                 <p className="text-xs font-bold uppercase tracking-wide">
                     {badge.weekday} {badge.month} {badge.day}
@@ -301,7 +301,7 @@ function PastEventRow({ meeting }: { meeting: Meeting }) {
     const recorded = tally.present + tally.excused + tally.absent;
 
     return (
-        <li className="grid grid-cols-1 lg:grid-cols-[9rem_1fr_11rem_6rem_5rem] items-start gap-x-3 gap-y-2 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+        <li className="grid grid-cols-1 lg:grid-cols-schedule items-start gap-x-3 gap-y-2 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/30">
             <div>
                 <p className="text-xs font-bold uppercase tracking-wide">
                     {badge.weekday} {badge.month} {badge.day}

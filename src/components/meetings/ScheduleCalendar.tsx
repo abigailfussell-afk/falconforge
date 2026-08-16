@@ -131,7 +131,7 @@ export default function ScheduleCalendar({ interactive = false }: ScheduleCalend
 
             <div
                 data-testid="calendar-grid"
-                className={`grid grid-cols-7 ${mode === 'month' ? 'auto-rows-[minmax(5.5rem,auto)]' : 'auto-rows-[minmax(11rem,auto)]'}`}
+                className={`grid grid-cols-7 ${mode === 'month' ? 'auto-rows-calendar-month' : 'auto-rows-calendar-week'}`}
             >
                 {days.map((day) => {
                     const events = byDay.get(day) ?? [];

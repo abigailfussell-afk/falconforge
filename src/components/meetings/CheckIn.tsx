@@ -112,13 +112,40 @@ export default function CheckIn() {
                 return;
             }
 
+            /*
+             * "UNKNOWN CODE" MEANS TWO DIFFERENT THINGS, and only the client can tell them
+             * apart.
+             *
+             * An event is created through the offline queue like everything else, so between
+             * a coach pressing Save and the drain reaching the server there is a window in
+             * which the code exists on the coach's laptop and nowhere else. A student who
+             * scans the poster in that window gets `unknown_code` from a server that is simply
+             * behind — and "that code does not match a meeting for your team" is then a false
+             * statement about a code that is perfectly good, sending them to find a coach for
+             * a problem that fixes itself in seconds.
+             *
+             * The client knows: it has the meeting in its own store. So when the code resolves
+             * locally and the server disagrees, say what is actually happening.
+             *
+             * Found by the smoke pack, which creates an event and checks in immediately —
+             * faster than a human, which is exactly why it caught it.
+             */
             const result = data as unknown as Outcome;
-            setOutcome(result);
-            setPhase(result.success ? 'recorded' : 'refused');
+            const refined: Outcome =
+                result.reason === 'unknown_code' && meeting
+                    ? {
+                          ...result,
+                          reason: 'not_synced',
+                          error: 'This event has not finished syncing yet. Try again in a few seconds, or ask a coach to mark you present.',
+                      }
+                    : result;
+
+            setOutcome(refined);
+            setPhase(refined.success ? 'recorded' : 'refused');
 
             // Pull the row straight back so the schedule and the coach's roster agree with
             // the receipt the student is looking at, rather than waiting for the next tick.
-            if (result.success) void pullFromServer({ teamId: currentTeamId, mode: 'full' });
+            if (refined.success) void pullFromServer({ teamId: currentTeamId, mode: 'full' });
         } finally {
             setBusy(false);
         }
@@ -350,7 +377,7 @@ export default function CheckIn() {
 
             <div
                 data-testid="code-display"
-                className="mt-3 rounded-xl border-2 border-forge-500 bg-white dark:bg-slate-800 px-4 py-3 text-center font-mono text-3xl font-bold tracking-[0.2em] text-slate-800 dark:text-white"
+                className="mt-3 rounded-xl border-2 border-forge-500 bg-white dark:bg-slate-800 px-4 py-3 text-center font-mono text-3xl font-bold tracking-poster text-slate-800 dark:text-white"
                 aria-live="polite"
             >
                 {typed ? formatCode(typed.padEnd(4, '·')) : 'FF-····'}
@@ -406,6 +433,7 @@ const REFUSAL_HEADINGS: Record<string, string> = {
     window_not_open: 'Too early',
     window_closed: 'Check-in has closed',
     unknown_code: 'That code did not match',
+    not_synced: 'Not synced yet',
     already_recorded: 'Already recorded',
     not_a_member: 'Not on this team',
     team_read_only: "Your team's licence has lapsed",

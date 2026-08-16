@@ -36,7 +36,7 @@ import EmptyState from '../ui/EmptyState';
 export default function AttendanceRoster() {
     const { meetingId } = useParams<{ meetingId: string }>();
     const navigate = useNavigate();
-    const meeting = useMeeting(meetingId);
+    const { status: lookup, meeting } = useMeeting(meetingId);
     const { canManageMeetings } = useAppShell();
     const { isArchived } = useSeasonScope();
     const setAttendance = useAppStore((s) => s.setAttendance);
@@ -60,6 +60,8 @@ export default function AttendanceRoster() {
             return true;
         });
     }, [rows, search, filter]);
+
+    if (lookup === 'loading') return <LoadingEvent />;
 
     if (!meeting) {
         return (
@@ -131,7 +133,7 @@ export default function AttendanceRoster() {
     };
 
     return (
-        <div className="space-y-4">
+        <div data-testid="attendance-roster" className="space-y-4">
             <Link
                 to={`/app/meetings/${meeting.id}`}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-forge-600 dark:hover:text-forge-400"
@@ -252,6 +254,15 @@ export default function AttendanceRoster() {
                     <span className="text-slate-400">{tally.unrecorded} open</span>
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** Rehydration is asynchronous; a deep link can arrive before it finishes. */
+function LoadingEvent() {
+    return (
+        <div className="flex items-center justify-center py-20" role="status" aria-label="Loading event">
+            <div className="w-6 h-6 border-2 border-forge-500 border-t-transparent rounded-full animate-spin" />
         </div>
     );
 }

@@ -83,8 +83,8 @@ export default function QrCode({ code, size = 240, monochrome = false, className
         // than showing a broken square.
         return (
             <div
-                className="flex items-center justify-center rounded-xl bg-white p-4 text-center"
-                style={{ width: size, height: size }}
+                className="flex aspect-square items-center justify-center rounded-xl bg-white p-4 text-center"
+                style={{ width: size, maxWidth: '100%' }}
             >
                 <p className="text-sm font-medium text-slate-700">
                     Could not draw the QR. Members can still enter {formatCode(code)} by hand.
@@ -93,18 +93,24 @@ export default function QrCode({ code, size = 240, monochrome = false, className
         );
     }
 
+    /*
+     * `size` is a CEILING, not a fixed width.
+     *
+     * The poster asks for 420px because that is what reads from across a classroom, and at
+     * 375px of viewport that overflowed its own frame — the QR spilled past the border box on
+     * a phone. `maxWidth: 100%` plus a square aspect ratio keeps it as large as it can be and
+     * no larger, which is what "big enough to scan" actually means on a device you are holding.
+     */
     return (
         <div
-            className={`bg-white rounded-xl flex items-center justify-center ${className}`}
-            style={{ width: size, height: size }}
+            className={`bg-white rounded-xl flex items-center justify-center aspect-square ${className}`}
+            style={{ width: size, maxWidth: '100%' }}
         >
             {dataUrl ? (
                 <img
                     src={dataUrl}
                     alt={`QR code for check-in code ${formatCode(code)}`}
-                    width={size}
-                    height={size}
-                    className="w-full h-full"
+                    className="h-full w-full"
                 />
             ) : (
                 <div

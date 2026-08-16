@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { indexedDBStorage } from './offline-db';
@@ -267,6 +268,40 @@ export const useAppStore = create<AppState>()(
         }
     )
 );
+
+/**
+ * Has persisted state finished coming back from IndexedDB?
+ *
+ * WHY A ROUTE NEEDS TO KNOW
+ *
+ * Rehydration is asynchronous, so on a COLD LOAD of a deep link — `#/app/meetings/<uuid>`,
+ * which is what a bookmark and a shared link are — there is a window in which the store is
+ * genuinely empty and a lookup by id genuinely finds nothing. A route that renders "that
+ * event is not on this device" from that is telling the user something false, and it does it
+ * on exactly the path somebody followed deliberately.
+ *
+ * Found by the capture script, which screenshots at whatever moment it is ready rather than
+ * when the app is: the 768px roster capture came out as the not-found state. In a browser the
+ * window is short enough to read as a flicker, which is precisely why nobody had noticed it.
+ *
+ * `persist.hasHydrated()` is zustand's own answer rather than a timer — `AppShell` waits out a
+ * flat 1000ms for the same class of problem, and a timer is either too short on a cold phone
+ * or too long on a laptop.
+ */
+export function useStoreHydrated(): boolean {
+    const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
+
+    useEffect(() => {
+        if (hydrated) return;
+        // Both callbacks: `onFinishHydration` fires for a hydration still in flight, and the
+        // `hasHydrated` check above covers one that finished before this component mounted.
+        const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true));
+        if (useAppStore.persist.hasHydrated()) setHydrated(true);
+        return unsub;
+    }, [hydrated]);
+
+    return hydrated;
+}
 
 // Theme is now applied via onRehydrateStorage callback (async from IndexedDB).
 // As a fallback, we default to dark mode until rehydration completes to prevent

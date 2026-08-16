@@ -9,7 +9,7 @@
  * reports into the current list.
  */
 import { useMemo } from 'react';
-import { useAppStore } from '../../lib/store';
+import { useAppStore, useStoreHydrated } from '../../lib/store';
 import { useSeasonScoped } from '../../lib/season-scope';
 import { getMemberDisplayName, getMemberInitials } from '../../lib/member-utils';
 import { tallyAttendance, type AttendanceTally } from '../../lib/meetings';
@@ -54,13 +54,36 @@ export function useSchedule(now: number = Date.now()): Schedule {
     }, [meetings, now]);
 }
 
-/** One meeting by id, from any season — a deep link may name an archived one. */
-export function useMeeting(meetingId: string | undefined): Meeting | null {
+/**
+ * One meeting by id, from any season — a deep link may name an archived one.
+ *
+ * `status` is the point of the return shape. On a COLD LOAD of `#/app/meetings/<uuid>` — a
+ * bookmark, or the link a coach pasted into the team chat — the store is genuinely empty for
+ * a moment while IndexedDB rehydrates, and "not found" and "not yet loaded" are
+ * indistinguishable from the collection alone. Rendering the not-found state from that tells
+ * the user something false on the exact path they followed deliberately.
+ *
+ * Caught by the capture script, which screenshots when IT is ready rather than when the app
+ * is: the 768px roster capture came out as "That event is not on this device". In a browser
+ * the window is short enough to read as a flicker, which is why nobody had noticed.
+ */
+export type MeetingLookup =
+    | { status: 'loading'; meeting: null }
+    | { status: 'found'; meeting: Meeting }
+    | { status: 'missing'; meeting: null };
+
+export function useMeeting(meetingId: string | undefined): MeetingLookup {
     const meetings = useAppStore((s) => s.meetings);
-    return useMemo(
-        () => (meetingId ? meetings.find((m) => m.id === meetingId) ?? null : null),
-        [meetings, meetingId],
-    );
+    const hydrated = useStoreHydrated();
+
+    return useMemo(() => {
+        if (!meetingId) return { status: 'missing', meeting: null };
+        const meeting = meetings.find((m) => m.id === meetingId);
+        if (meeting) return { status: 'found', meeting };
+        return hydrated
+            ? { status: 'missing', meeting: null }
+            : { status: 'loading', meeting: null };
+    }, [meetings, meetingId, hydrated]);
 }
 
 export interface RosterRow {
