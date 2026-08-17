@@ -161,14 +161,22 @@ describe('the coach card', () => {
 });
 
 describe('the student card', () => {
-    it('offers check-in only while the window is open', () => {
+    it('offers check-in only while the window is open, WITHOUT handing over the code', () => {
+        /*
+         * The link used to be `/app/checkin/0842` — the app giving the student the credential
+         * and then asking them to confirm it, so one tap marked them present from anywhere.
+         * That makes the QR poster decorative and the check-in window meaningless. Kevin found
+         * it testing with a friend.
+         *
+         * The destination is the code-entry screen with an EMPTY field. The only route that
+         * carries a code is the one a scan produces, which arrives from outside the app.
+         */
         useAppStore.setState({ meetings: [meeting({ startsAt: Date.now() - 60_000 })] });
         renderInShell({});
 
-        expect(screen.getByRole('link', { name: /check in now/i })).toHaveAttribute(
-            'href',
-            '/app/checkin/0842',
-        );
+        const link = screen.getByRole('link', { name: /enter code to check in/i });
+        expect(link).toHaveAttribute('href', '/app/checkin');
+        expect(link.getAttribute('href')).not.toMatch(/\d{4}/);
     });
 
     it('says when to come back rather than showing a dead button', () => {
@@ -177,7 +185,7 @@ describe('the student card', () => {
         useAppStore.setState({ meetings: [meeting({ startsAt: Date.now() + 6 * 60 * 60_000 })] });
         renderInShell({});
 
-        expect(screen.queryByRole('link', { name: /check in now/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /enter code/i })).not.toBeInTheDocument();
         expect(screen.getByText(/check in from/i)).toBeInTheDocument();
     });
 

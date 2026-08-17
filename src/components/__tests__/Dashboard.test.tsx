@@ -363,7 +363,7 @@ describe('Dashboard Navigation', () => {
         expect(screen.getByText('Test Team')).toBeDefined();
     });
 
-    it('redirects to landing page when user is not authenticated', async () => {
+    it('sends an unauthenticated visitor to LOG IN, remembering where they were going', async () => {
         // Override auth to return no user
         const authModule = await import('../../lib/auth');
         vi.mocked(authModule.useAuth).mockReturnValue({
@@ -374,10 +374,22 @@ describe('Dashboard Navigation', () => {
             signOut: vi.fn(),
         } as any);
 
-        renderApp();
+        const router = renderApp('/app/checkin/0842');
 
-        // Should show landing page elements instead of dashboard nav
-        expect(screen.getByText(/Everything your team needs/i)).toBeDefined();
+        /*
+         * This used to assert the LANDING page, and that was the bug Kevin reported after
+         * testing with a friend: a student who scans a QR poster while signed out was dropped
+         * on the marketing page with the destination discarded, left to work out for
+         * themselves that the answer was "press Log In, then go and find Meetings again".
+         *
+         * Rule 4 of the design brief says a scan while logged out routes through login and
+         * then COMPLETES the check-in. So the guard sends them to the sign-in form and carries
+         * where they were going, which `Login` and `Onboarding` then honour.
+         */
+        expect(screen.getByTestId('email-input')).toBeDefined();
+        expect(router.state.location.pathname).toBe('/login');
+        expect(router.state.location.search).toContain('next=');
+        expect(decodeURIComponent(router.state.location.search)).toContain('/app/checkin/0842');
     });
 });
 

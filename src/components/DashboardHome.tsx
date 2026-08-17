@@ -17,6 +17,7 @@ import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
 import { pathFor } from '../lib/navigation';
 import MeetingWidget from './meetings/MeetingWidget';
+import OpenCheckIns from './meetings/OpenCheckIns';
 
 export default function DashboardHome() {
     const { user } = useAuth();
@@ -145,6 +146,10 @@ export default function DashboardHome() {
                     the column keeps its existing shape for a team that does not use the
                     feature rather than gaining an empty box. */}
                 <div className="space-y-2.5">
+                    {/* Above the next-meeting card: if check-in is open RIGHT NOW that is the
+                        most time-sensitive thing on the whole dashboard. Renders nothing when
+                        nothing is open, which is most of the time. */}
+                    <OpenCheckIns />
                     <MeetingWidget />
                     <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <Activity size={16} className="text-forge-500" />

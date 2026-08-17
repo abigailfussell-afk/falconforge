@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Delete, WifiOff } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
 import { supabaseSync } from '../../lib/supabase';
@@ -57,10 +57,26 @@ export default function CheckIn() {
     const { all, past } = useSchedule();
 
     const scanned = codeParam ? parseCode(codeParam) : null;
+
+    /*
+     * An outcome handed over by whoever navigated here.
+     *
+     * The dashboard's `OpenCheckIns` card calls the RPC itself and then sends the student to
+     * this screen for the receipt — which is the part worth showing, and the part worth
+     * showing again later. Without this the screen mounted fresh in its "confirm" phase and
+     * asked a student who had just checked in to check in, which then answered "already
+     * recorded". Correct, and a ridiculous thing to say to somebody two seconds after
+     * succeeding.
+     */
+    const location = useLocation();
+    const handedOver = (location.state as { outcome?: Outcome } | null)?.outcome ?? null;
+
     const [typed, setTyped] = useState('');
-    const [phase, setPhase] = useState<Phase>(scanned ? 'confirm' : 'entering');
+    const [phase, setPhase] = useState<Phase>(
+        handedOver?.success ? 'recorded' : scanned ? 'confirm' : 'entering',
+    );
     const [busy, setBusy] = useState(false);
-    const [outcome, setOutcome] = useState<Outcome | null>(null);
+    const [outcome, setOutcome] = useState<Outcome | null>(handedOver);
     const [online, setOnline] = useState(() => navigator.onLine);
 
     useEffect(() => {

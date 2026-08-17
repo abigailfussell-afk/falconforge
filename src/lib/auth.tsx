@@ -2,8 +2,10 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { useAppStore } from './store';
+import { withTimeout } from './timeout';
 import { getMemberDisplayName, getMemberInitials } from './member-utils';
 import { PROFILE_CACHE_KEY } from './profile-cache';
+import { ATTESTATION_VERSIONS } from './attestations';
 import type { AgeClassification } from '../types';
 
 /**
@@ -48,6 +50,16 @@ interface AuthContextType extends AuthState {
     updateProfile: (fullName: string) => Promise<{ error: AuthError | null }>;
     updateAgeClassification: (classification: AgeClassification) => Promise<{ error: AuthError | null; success: boolean }>;
 }
+
+/**
+ * How long the app waits for the profile before showing itself anyway.
+ *
+ * Longer than `PER_QUERY_TIMEOUT_MS` (10s) would be pointless — this wraps a request that has
+ * its own patience — and much shorter would flash the app before a fast connection has filled
+ * the sidebar in. The profile is a cache; this is the point at which we stop pretending the
+ * cache is a precondition.
+ */
+const PROFILE_SYNC_TIMEOUT_MS = 8_000;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -194,13 +206,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const user = session.user;
                     setTimeout(() => {
                         useAppStore.getState().setCurrentUserId(user.id);
-                        ensureUserProfile(user).finally(() => {
-                            // Once profile is ensured, finally release the loading lock
-                            setState(prev => ({
-                                ...prev,
-                                isLoading: false
-                            }));
-                        });
+                        /*
+                         * BOUNDED, because `isLoading` is released nowhere else on this path.
+                         *
+                         * The 5s safety timeout above is cleared the moment `getSession()`
+                         * resolves — including when it resolves WITH a user, which is exactly
+                         * when `isLoading` is still true and the profile fetch has not started.
+                         * So from that point the splash was held up by one un-timed-out network
+                         * call: if `ensureUserProfile` never settled, "Preparing your
+                         * workspace..." was permanent. supabase-js applies no request timeout of
+                         * its own, so "never settles" is a real state, not a hypothetical.
+                         *
+                         * Reported from production, where the latency exists; it does not
+                         * reproduce against a local stack on the same machine, which is why the
+                         * suite never saw it.
+                         *
+                         * Releasing early is safe. The profile is a CACHE — `getMemberDisplayName`
+                         * falls back to the email, and the real value lands whenever the request
+                         * finishes. An app the user can use beats a spinner that is technically
+                         * more correct.
+                         */
+                        withTimeout(ensureUserProfile(user), PROFILE_SYNC_TIMEOUT_MS, 'ensureUserProfile')
+                            .catch((err) => {
+                                console.warn('[auth] profile sync did not complete in time:', err);
+                            })
+                            .finally(() => {
+                                setState(prev => ({
+                                    ...prev,
+                                    isLoading: false
+                                }));
+                            });
                     }, 0);
                 }
 
@@ -330,6 +365,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     full_name: fullName,
                     age_classification: ageClassification || null,
                     privacy_accepted: ageClassification ? true : false,
+                    /*
+                     * The version the sign-up form displayed, carried to `handle_new_user`.
+                     *
+                     * The trigger used to hardcode '1.0'. Sprint 6 raised the documents to
+                     * '2.0' on the client, so from then on every new account was recorded as
+                     * having accepted a version the app considered stale, and was told on its
+                     * first screen that the documents had changed since it accepted them --
+                     * thirty seconds after it accepted them.
+                     *
+                     * `ATTESTATION_VERSIONS` stays the ONE place a version is written down;
+                     * this hands the current value to the server rather than the server
+                     * keeping a second copy that drifts. That property is why the trigger was
+                     * wrong and why this is not the same mistake in a new place.
+                     */
+                    privacy_version: ATTESTATION_VERSIONS.privacy_and_guidelines,
                 },
             },
         });

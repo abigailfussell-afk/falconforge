@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { performSignOut } from '../lib/sign-out';
+import { readReturnTo } from '../lib/navigation';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
 
@@ -16,6 +17,12 @@ interface PendingTeam {
 
 export default function Onboarding() {
     const navigate = useNavigate();
+    const location = useLocation();
+    /**
+     * Where the visitor was going before they were asked to sign in — a scanned QR, usually.
+     * Null for anybody who simply opened the app.
+     */
+    const returnTo = readReturnTo(location.search);
     const { user, signOut, ageClassification, updateAgeClassification } = useAuth();
     const { teams, setTeams, setCurrentTeam, currentTeamId } = useAppStore();
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
@@ -121,8 +128,32 @@ export default function Onboarding() {
      */
     const handleSelectTeam = (teamId: string) => {
         setCurrentTeam(teamId);
-        navigate('/');
+        // `/` bounces to the dashboard. A visitor who was going somewhere specific gets to
+        // finish the journey they started at the poster.
+        navigate(returnTo ?? '/');
     };
+
+    /*
+     * One team and somewhere to be: skip the picker.
+     *
+     * The picker exists because an account can belong to several teams, and asking is right
+     * when the answer is genuinely ambiguous. It is not ambiguous for a student with one team
+     * who has just pointed their camera at a poster — there, the screen is a speed bump
+     * between them and the thing they scanned.
+     *
+     * Deliberately narrow: only with a pending `returnTo`, and only when the choice is
+     * forced. Opening the app normally still shows the picker, which is what the existing
+     * flow and its tests describe.
+     */
+    useEffect(() => {
+        if (!returnTo || isLoading) return;
+        if (teams.length !== 1) return;
+        if (currentTeamId === teams[0].id) {
+            navigate(returnTo, { replace: true });
+            return;
+        }
+        setCurrentTeam(teams[0].id);
+    }, [returnTo, isLoading, teams, currentTeamId, setCurrentTeam, navigate]);
 
     const handleSignOut = () => performSignOut(signOut);
 

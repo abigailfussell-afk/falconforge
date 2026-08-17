@@ -124,6 +124,11 @@ describe('auth.tsx', () => {
           full_name: 'John Doe',
           age_classification: null,
           privacy_accepted: false,
+          // The version the sign-up form displayed, so `handle_new_user` records what was
+          // actually accepted rather than the '1.0' it used to hardcode. That hardcode is
+          // why every new account was told, on its first screen, that the documents had
+          // changed since it accepted them -- thirty seconds after accepting them.
+          privacy_version: '2.0',
         }
       }
     });

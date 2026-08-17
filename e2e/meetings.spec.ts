@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { guardLocalBackend, signUp, createTeam, unique, uniqueEmail, goToView, waitForSync } from './helpers';
+import { PASSWORD, guardLocalBackend, signUp, createTeam, unique, uniqueEmail, goToView, waitForSync } from './helpers';
 
 /**
  * Sprint 8 — the meetings flow, driven the way a coach and a student drive it.
@@ -327,4 +327,96 @@ test('a code the server has not seen yet is not blamed on the student', async ({
         timeout: 30_000,
     });
     await expect(page.getByText(/has not finished syncing/i)).toBeVisible();
+});
+
+test('a scan while signed out routes through login and lands on the check-in', async ({ page }) => {
+    /*
+     * Rule 4 of the design brief, and the thing Kevin reported after testing with a friend:
+     * scanning while logged out dropped them on the LANDING page with the destination thrown
+     * away, so they had to work out for themselves that the answer was "press Log In, then go
+     * and find Meetings again".
+     *
+     * The whole point of a QR poster is that it is one action.
+     */
+    const email = uniqueEmail('meet-scan');
+    await signUp(page, { fullName: 'Scan Coach', email });
+    await createTeam(page, { teamName: unique('Scan') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Scanned session');
+
+    const today = await page.evaluate(() => {
+        const d = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return {
+            date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+            hour: `${pad(d.getHours())}:00`,
+        };
+    });
+    await page.getByTestId('event-date').fill(today.date);
+    await page.getByTestId('event-start').fill(today.hour);
+    await page.getByTestId('event-end').fill('23:59');
+    await expect(page.getByTestId('save-event')).toBeEnabled();
+    await page.getByTestId('save-event').click();
+    await expect(page.getByRole('heading', { name: 'Scanned session' })).toBeVisible({ timeout: 30_000 });
+
+    const codeText = await page.locator('text=/^FF-\\d{4}$/').first().innerText();
+    const code = codeText.replace(/\D/g, '');
+    await page.goto('/#/app/meetings');
+    await waitForSync(page);
+
+    // Sign out, then arrive the way a camera does: straight at the check-in URL.
+    await page.getByTestId('sign-out-button').click();
+    await page.waitForURL(/#\/$/, { timeout: 30_000 });
+    // Sign-out finishes with `window.location.reload()`, so the URL changes before the
+    // navigation does. Navigating on top of that in-flight reload cancels one of them.
+    await page.waitForLoadState('load');
+    await expect(page.getByRole('button', { name: 'Log In' }).first()).toBeVisible({
+        timeout: 30_000,
+    });
+
+    // Cold, the way a camera app opens it — a fresh load rather than a hash change on the
+    // page that is already open. `goto` between two hashes of one document does not reload,
+    // and sign-out has just triggered a reload of its own to race with.
+    await page.goto(`/#/app/checkin/${code}`);
+    await page.reload();
+
+    // The LOGIN FORM, not the landing page, and the destination is still on the URL.
+    await expect(page.getByTestId('email-input')).toBeVisible({ timeout: 30_000 });
+    expect(page.url()).toContain('next=');
+
+    await page.getByTestId('email-input').fill(email);
+    await page.getByTestId('password-input').fill(PASSWORD);
+    await page.getByTestId('sign-in-button').click();
+
+    // Straight to the check-in — one team, so the picker is skipped when a destination is
+    // pending. No dashboard, no hunting for Meetings.
+    await page.waitForURL(new RegExp(`#/app/checkin/${code}`), { timeout: 45_000 });
+    await expect(page.getByTestId('confirm-checkin')).toBeVisible({ timeout: 30_000 });
+});
+
+test('a student is never handed the code by the app', async ({ page }) => {
+    /*
+     * The defect Kevin found: the schedule linked to `/app/checkin/<code>` with the code taken
+     * from local data, so one tap marked a student present from anywhere. That makes the
+     * poster decorative and the check-in window meaningless.
+     *
+     * Asserted on the COACH's own schedule view, which is a superset — if no student-facing
+     * check-in affordance carries a code here, none does anywhere.
+     */
+    const email = uniqueEmail('meet-nocode');
+    await signUp(page, { fullName: 'No Code Coach', email });
+    await createTeam(page, { teamName: unique('NoCode') });
+
+    await goToView(page, 'meetings', 'meetings');
+    await page.getByTestId('new-event').click();
+    await page.getByTestId('event-title').fill('Session');
+    await page.getByTestId('save-event').click();
+    await expect(page.getByRole('heading', { name: 'Session' })).toBeVisible({ timeout: 30_000 });
+
+    await page.goto('/#/app/checkin');
+    // Every route into check-in from inside the app arrives with an EMPTY field.
+    await expect(page.getByTestId('code-display')).toHaveText(/FF-·+/);
+    await expect(page.getByTestId('submit-code')).toBeDisabled();
 });

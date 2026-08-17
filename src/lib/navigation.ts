@@ -128,3 +128,43 @@ export function pathFor(id: string): string {
     const view = APP_VIEWS.find((v) => v.id === id);
     return `${APP_ROOT}/${view?.path ?? DEFAULT_VIEW_PATH}`;
 }
+
+/**
+ * Where to send somebody after they sign in, when they asked for somewhere specific.
+ *
+ * WHY THIS EXISTS
+ *
+ * A QR poster encodes `…/#/app/checkin/0842`. Scanning it while signed out used to hit the
+ * `user ? … : <Navigate to="/" />` guard on `/app`, which threw the destination away and left
+ * a student on the marketing page with no idea that the answer was "press Log In, then find
+ * Meetings again". Rule 4 of the design brief says a scan while logged out routes through
+ * login and then COMPLETES the check-in; it did not.
+ *
+ * The destination rides through login as a query parameter and is consumed once.
+ */
+export const RETURN_TO_PARAM = 'next';
+
+/**
+ * Build the login URL that will come back to `path` afterwards.
+ *
+ * `path` is an in-app path like `/app/checkin/0842` — the part after the `#`.
+ */
+export function loginWithReturnTo(path: string): string {
+    // The landing page is nobody's destination; it is where you end up having lost one.
+    if (!path || path === '/' || path.startsWith('/login')) return '/login';
+    return `/login?${RETURN_TO_PARAM}=${encodeURIComponent(path)}`;
+}
+
+/**
+ * Read a return-to target back, refusing anything that is not an in-app path.
+ *
+ * The value arrives from the URL, so it is attacker-controlled in the ordinary sense: a link
+ * of the form `#/login?next=https://elsewhere.example` must not become an open redirect. Only
+ * a single-slash-prefixed relative path is accepted, which excludes `//host` and any scheme.
+ */
+export function readReturnTo(search: string): string | null {
+    const raw = new URLSearchParams(search).get(RETURN_TO_PARAM);
+    if (!raw) return null;
+    if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    return raw;
+}

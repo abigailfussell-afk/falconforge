@@ -12,7 +12,7 @@ import {
     type RecurrenceFrequency,
 } from '../../lib/meetings';
 import type { Meeting } from '../../types';
-import { fromDateTimeInputs, toDateInput, toTimeInput } from './format';
+import { fromDateTimeInputs, isSameDay, toDateInput, toTimeInput } from './format';
 import Toggle from './Toggle';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -58,9 +58,25 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
     const [eventType, setEventType] = useState<Meeting['eventType']>(meeting?.eventType ?? 'build');
     const [date, setDate] = useState(toDateInput(meeting?.startsAt ?? defaultStart));
     const [startTime, setStartTime] = useState(toTimeInput(meeting?.startsAt ?? defaultStart));
-    const [endTime, setEndTime] = useState(
-        toTimeInput(meeting?.endsAt ?? (meeting?.startsAt ?? defaultStart) + 2 * 60 * 60_000),
-    );
+    /*
+     * THE DEFAULT END MUST NOT CROSS MIDNIGHT.
+     *
+     * This form has ONE date field and two time fields, so it cannot express an event that
+     * runs past midnight — and the default was `start + 2 hours`, which does exactly that from
+     * 22:00 onwards. A coach opening "New event" at 22:15 got a 23:00 start and a 01:00 end,
+     * which the form correctly reads as ending twenty-two hours before it begins: Save
+     * disabled, "The end time is before the start", and nothing on screen explaining that the
+     * form did it to itself. Every evening, for the last two hours of every day.
+     *
+     * Found by a smoke test that did not set the times at all — the case a coach hits by just
+     * opening the form. Clamping to 23:59 keeps the default sane; an event that genuinely runs
+     * past midnight is a second date field, and nobody has asked for one.
+     */
+    const [endTime, setEndTime] = useState(() => {
+        const startsAtDefault = meeting?.startsAt ?? defaultStart;
+        const endsAtDefault = meeting?.endsAt ?? startsAtDefault + 2 * 60 * 60_000;
+        return isSameDay(endsAtDefault, startsAtDefault) ? toTimeInput(endsAtDefault) : '23:59';
+    });
     const [location, setLocation] = useState(meeting?.location ?? '');
     const [description, setDescription] = useState(meeting?.description ?? '');
 

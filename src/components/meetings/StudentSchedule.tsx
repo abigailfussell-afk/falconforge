@@ -160,16 +160,29 @@ function NextUpCard({
                 )}
             </div>
 
+            {/*
+              * NO CODE IN THIS LINK, and that is the whole point of the feature.
+              *
+              * It used to be `/app/checkin/<code>` — the app handing the student the
+              * credential and then asking them to confirm it. One tap from a sofa five miles
+              * away marked them present, which makes the QR poster decorative and the
+              * check-in window meaningless. Reported by Kevin after testing with a friend,
+              * and he is right: the code has to come off the poster, through a camera or
+              * through fingers.
+              *
+              * So this goes to the code-entry screen with the field EMPTY. The only route
+              * that carries a code is the one a SCAN produces, from outside the app.
+              */}
             {tracksAttendance(meeting) && meeting.publicCode && (
                 <div className="mt-3">
                     {state === 'open' ? (
                         <Link
-                            to={`/app/checkin/${meeting.publicCode}`}
+                            to="/app/checkin"
                             data-testid="check-in-cta"
                             className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-bold text-white backdrop-blur transition-colors hover:bg-white/25"
                         >
                             <QrIcon size={16} />
-                            Check in now
+                            Enter code to check in
                         </Link>
                     ) : state === 'not_open' ? (
                         <p className="text-sm text-white/90">
@@ -254,11 +267,11 @@ function ScheduleRow({
                     <span className="text-slate-400">No attendance</span>
                 ) : state === 'open' && meeting.publicCode ? (
                     <Link
-                        to={`/app/checkin/${meeting.publicCode}`}
+                        to="/app/checkin"
                         className="inline-flex items-center gap-1.5 rounded-lg bg-forge-600 px-2.5 py-1.5 font-semibold text-white hover:bg-forge-700"
                     >
                         <QrIcon size={13} />
-                        Check in
+                        Enter code
                     </Link>
                 ) : meeting.attendanceRequired ? (
                     <span className="font-medium text-slate-500 dark:text-slate-400">

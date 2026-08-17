@@ -186,12 +186,14 @@ function StudentCard({
             {tracksAttendance(next) && next.publicCode && (
                 <div className="mt-3">
                     {state === 'open' ? (
+                        // No code in the link — see StudentSchedule. The dashboard's
+                        // `OpenCheckIns` card is the fast path, and it asks for the code.
                         <Link
-                            to={`/app/checkin/${next.publicCode}`}
+                            to="/app/checkin"
                             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-700"
                         >
                             <QrIcon size={14} />
-                            Check in now
+                            Enter code to check in
                         </Link>
                     ) : (
                         // A disabled-looking button that does nothing would be worse than a

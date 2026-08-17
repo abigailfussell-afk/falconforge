@@ -1,10 +1,10 @@
 import { lazy, useEffect, useMemo } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { useAppStore } from './lib/store';
 import { useSeasonScoped } from './lib/season-scope';
-import { APP_ROOT, DEFAULT_VIEW_PATH } from './lib/navigation';
+import { APP_ROOT, DEFAULT_VIEW_PATH, loginWithReturnTo, readReturnTo } from './lib/navigation';
 import Wordmark from './components/Wordmark';
 import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
@@ -149,6 +149,32 @@ function SplashScreen({ message }: { message: string }) {
     );
 }
 
+/**
+ * Send an unauthenticated visitor to LOG IN, remembering where they were going.
+ *
+ * This used to be `<Navigate to="/" replace />`, which dropped them on the marketing page with
+ * the destination discarded. For a student who has just pointed their camera at a poster that
+ * is the whole feature failing: they are one tap from checking in and instead they are reading
+ * about robots.
+ */
+function SignInFirst() {
+    const location = useLocation();
+    return <Navigate to={loginWithReturnTo(`${location.pathname}${location.search}`)} replace />;
+}
+
+/**
+ * Signed in and standing on `/login` — go on to wherever they were headed.
+ *
+ * The team picker stays in the path deliberately: an account can belong to several teams and
+ * the app has always insisted on an explicit choice. What changes is that the DESTINATION
+ * survives the detour, so a scanned poster still ends at the check-in screen.
+ */
+function ContinueAfterLogin() {
+    const location = useLocation();
+    const next = readReturnTo(location.search);
+    return <Navigate to={next ? `/onboarding${location.search}` : '/onboarding'} replace />;
+}
+
 function App() {
     const { user, isLoading, isSigningOut } = useAuth();
     const { theme, initializeStore } = useAppStore();
@@ -174,7 +200,7 @@ function App() {
             <Routes>
                 <Route path="/" element={user ? <Navigate to={APP_ROOT} replace /> : <LandingPage />} />
 
-                <Route path="/login" element={user ? <Navigate to="/onboarding" replace /> : <LoginPage />} />
+                <Route path="/login" element={user ? <ContinueAfterLogin /> : <LoginPage />} />
 
                 <Route path="/auth/callback" element={<SplashScreen message="Securing your session..." />} />
 
@@ -192,7 +218,7 @@ function App() {
                  * The app proper. Every view is a real URL: `#/app/board` is bookmarkable, the
                  * back button walks the views, and a reload lands where it left off.
                  */}
-                <Route path={APP_ROOT} element={user ? <AppShell /> : <Navigate to="/" replace />}>
+                <Route path={APP_ROOT} element={user ? <AppShell /> : <SignInFirst />}>
                     <Route index element={<Navigate to={DEFAULT_VIEW_PATH} replace />} />
                     <Route path="dashboard" element={<DashboardHome />} />
                     <Route path="board" element={<SprintPlanningRoute />} />
