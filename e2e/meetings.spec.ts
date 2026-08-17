@@ -205,6 +205,68 @@ test.describe('layout properties', () => {
         ).toBeLessThan(2);
     });
 
+    test('the toggle knob stays inside its track, on and off', async ({ page }) => {
+        /*
+         * The knob was `absolute` with no `left`, so it fell at its STATIC position — and a
+         * <button> centres its inline content, which put the knob in the middle of the track
+         * before `translate-x-4` pushed it 14px past the right edge. It read as
+         * roughly-plausible at desktop size and obviously broken on a phone.
+         *
+         * jsdom computes no layout, so only a real browser can hold this. Measured rather than
+         * eyeballed: the knob must sit inside the track with the same inset at whichever end
+         * it is parked.
+         */
+        const email = uniqueEmail('meet-toggle');
+        await signUp(page, { fullName: 'Toggle Coach', email });
+        await createTeam(page, { teamName: unique('Toggle') });
+        await goToView(page, 'meetings', 'meetings');
+
+        const toggle = page.getByTestId('show-past-toggle');
+        await expect(toggle).toBeVisible();
+
+        const measure = () =>
+            toggle.evaluate((el) => {
+                const knob = el.querySelector('span')!;
+                const t = el.getBoundingClientRect();
+                const k = knob.getBoundingClientRect();
+                return {
+                    insetLeft: k.left - t.left,
+                    insetRight: t.right - k.right,
+                    insetTop: k.top - t.top,
+                    insetBottom: t.bottom - k.bottom,
+                };
+            });
+
+        const off = await measure();
+        expect(off.insetLeft, 'knob escapes the left edge when off').toBeGreaterThanOrEqual(0);
+        expect(off.insetRight, 'knob escapes the right edge when off').toBeGreaterThanOrEqual(0);
+
+        await toggle.click();
+        await expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+        // The knob slides. Measuring immediately catches it mid-flight and reports a real
+        // asymmetry that is only the animation — which is exactly what the first run did.
+        await toggle.locator('span').evaluate(
+            (el) =>
+                new Promise((resolve) => {
+                    const done = () => resolve(null);
+                    el.addEventListener('transitionend', done, { once: true });
+                    // No transition at all (reduced motion, or already settled) still resolves.
+                    setTimeout(done, 600);
+                }),
+        );
+
+        const on = await measure();
+        expect(on.insetLeft, 'knob escapes the left edge when on').toBeGreaterThanOrEqual(0);
+        expect(on.insetRight, 'knob escapes the right edge when on').toBeGreaterThanOrEqual(0);
+
+        // Symmetric: whatever gap the knob leaves at one end when off, it leaves at the other
+        // when on. That is what makes it look deliberate rather than approximately placed.
+        expect(Math.abs(off.insetLeft - on.insetRight)).toBeLessThanOrEqual(1);
+        expect(off.insetTop).toBeGreaterThanOrEqual(0);
+        expect(off.insetBottom).toBeGreaterThanOrEqual(0);
+    });
+
     test('the sidebar footer keeps its gutter above the viewport edge', async ({ page }) => {
         const email = uniqueEmail('meet-layout');
         await signUp(page, { fullName: 'Layout Coach', email });

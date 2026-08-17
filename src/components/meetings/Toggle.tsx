@@ -38,13 +38,30 @@ export default function Toggle({
                 disabled={disabled}
                 data-testid={testId}
                 onClick={() => onChange(!checked)}
-                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-forge-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800 ${
+                // `p-0`: a <button> carries user-agent padding, and the knob is positioned
+                // from the content box, so the padding would offset it.
+                className={`relative h-5 w-9 shrink-0 p-0 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-forge-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800 ${
                     checked ? on : 'bg-slate-300 dark:bg-slate-600'
                 }`}
             >
+                {/*
+                 * `left-0` is not decoration — without it the knob was never positioned at all.
+                 *
+                 * An absolutely positioned element with `left: auto` falls at its STATIC
+                 * position: where it would have sat in normal flow. A <button> centres its
+                 * inline content, so the knob started life centred in the track and the
+                 * `translate-x-4` then pushed it 14px past the right edge — measured, on the
+                 * "on" state of every switch in the feature. It read as roughly-correct at
+                 * desktop size and obviously wrong on a phone, which is where Kevin saw it.
+                 *
+                 * Anchored at `left-0` the geometry is arithmetic rather than luck: a 36px
+                 * track, a 16px knob and 2px of inset each side leave exactly 16px of travel,
+                 * which is what `translate-x-4` moves. Change any of the three and the other
+                 * two have to move with it.
+                 */}
                 <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-card transition-transform ${
-                        checked ? 'translate-x-4' : 'translate-x-0.5'
+                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-card transition-transform ${
+                        checked ? 'translate-x-4' : 'translate-x-0'
                     }`}
                 />
             </button>

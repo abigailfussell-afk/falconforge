@@ -3,8 +3,9 @@ import { Repeat, X } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
 import {
     EVENT_TYPES,
+    CHECKIN_OPENS_BEFORE_MS,
+    CHECKIN_FALLBACK_DURATION_MS,
     formatCode,
-    checkinWindow,
     tracksAttendance,
     parseRecurrenceRule,
     expandRecurrence,
@@ -78,11 +79,25 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
     const [customWindow, setCustomWindow] = useState(
         !!meeting && (meeting.checkinOpensAt !== undefined || meeting.checkinClosesAt !== undefined),
     );
-    const [opensTime, setOpensTime] = useState(
-        toTimeInput(meeting ? checkinWindow(meeting).opensAt : defaultStart - 15 * 60_000),
+    /*
+     * NULL MEANS DERIVED, exactly as it does in the column.
+     *
+     * These used to be plain strings seeded from `defaultStart` — the next round hour, computed
+     * once when the modal mounted. So a coach who opened the form at 7:28pm and then set the
+     * meeting to 3–5pm got a check-in window of 7:45pm–10:00pm: the default for a meeting they
+     * were no longer creating. Reported by Kevin from the screenshot, and the numbers in it are
+     * exactly the mount-time default.
+     *
+     * Keeping the override nullable and deriving the displayed value from the CURRENT start and
+     * end means the window follows the times until somebody deliberately types over it — which
+     * is the same rule `checkin_opens_at`/`checkin_closes_at` follow in the database, and the
+     * same rule the help text under the checkbox promises.
+     */
+    const [opensOverride, setOpensOverride] = useState<string | null>(
+        meeting?.checkinOpensAt !== undefined ? toTimeInput(meeting.checkinOpensAt) : null,
     );
-    const [closesTime, setClosesTime] = useState(
-        toTimeInput(meeting ? checkinWindow(meeting).closesAt : defaultStart + 2 * 60 * 60_000),
+    const [closesOverride, setClosesOverride] = useState<string | null>(
+        meeting?.checkinClosesAt !== undefined ? toTimeInput(meeting.checkinClosesAt) : null,
     );
 
     const [scopePrompt, setScopePrompt] = useState(false);
@@ -92,6 +107,19 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
     const endsAt = fromDateTimeInputs(date, endTime);
     const isDeadline = eventType === 'deadline';
     const canTrack = !isDeadline;
+
+    // What the window would be with nobody overriding it. Same arithmetic as `checkinWindow`,
+    // applied to the times currently in the form rather than to a saved record.
+    const derivedOpens = startsAt === null ? '' : toTimeInput(startsAt - CHECKIN_OPENS_BEFORE_MS);
+    const derivedCloses =
+        endsAt !== null
+            ? toTimeInput(endsAt)
+            : startsAt === null
+              ? ''
+              : toTimeInput(startsAt + CHECKIN_FALLBACK_DURATION_MS);
+
+    const opensTime = opensOverride ?? derivedOpens;
+    const closesTime = closesOverride ?? derivedCloses;
 
     // Disabled with a reason rather than a save that silently does nothing — the class of
     // defect Sprint 5.5 fixed on the scouting form.
@@ -407,7 +435,15 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
                                 <input
                                     type="checkbox"
                                     checked={customWindow}
-                                    onChange={(e) => setCustomWindow(e.target.checked)}
+                                    onChange={(e) => {
+                                        setCustomWindow(e.target.checked);
+                                        // Unticking forgets the override, so ticking again
+                                        // offers the derived window rather than a stale edit.
+                                        if (!e.target.checked) {
+                                            setOpensOverride(null);
+                                            setClosesOverride(null);
+                                        }
+                                    }}
                                     className="h-4 w-4 rounded border-slate-300 text-forge-600 focus:ring-forge-500"
                                 />
                                 Set the check-in window by hand
@@ -420,7 +456,8 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
                                             type="time"
                                             className="field"
                                             value={opensTime}
-                                            onChange={(e) => setOpensTime(e.target.value)}
+                                            onChange={(e) => setOpensOverride(e.target.value)}
+                                            data-testid="checkin-opens"
                                         />
                                     </Field>
                                     <Field label="Check-in closes">
@@ -428,7 +465,8 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
                                             type="time"
                                             className="field"
                                             value={closesTime}
-                                            onChange={(e) => setClosesTime(e.target.value)}
+                                            onChange={(e) => setClosesOverride(e.target.value)}
+                                            data-testid="checkin-closes"
                                         />
                                     </Field>
                                 </div>
