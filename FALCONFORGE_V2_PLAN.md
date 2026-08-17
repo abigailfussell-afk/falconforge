@@ -387,6 +387,26 @@ the final walkthrough and tags `v2.0.0-beta`.
 
 **Discovered / parking lot:**
 
+*From scoping Sprint 9 (2026-08-17), both verified against the live schema:*
+- **🔴 `guardian_consents.version` has a DEFAULT of `'1.0'` in the database.** This is exactly
+  the shape of the Sprint 8 follow-up defect: `handle_new_user` hardcoded the attestation
+  version `'1.0'` in Sprint 3, Sprint 6 raised the documents to `2.0`, and from that moment
+  every new account was told its documents were out of date. `attestations.ts:81-84` states the
+  rule the schema is breaking — the version is a client artefact (`ATTESTATION_VERSIONS`) and
+  "duplicating it in a trigger would create two sources of truth that drift on the next legal
+  rewrite". **Nothing writes this table yet** (only `src/test/db/fixtures.ts` and the RLS suite;
+  both tables are empty locally and production is greenfield), so the default can be dropped
+  for a fraction of what it cost last time. Sprint 9 is the sprint that starts writing it —
+  drop the default *before* the first consent row exists, and have the client pass the version
+  the way signup metadata now does.
+- **The guardian surface is schema-only and has no client at all.** `managed_profiles`
+  (`guardian_user_id`, `full_name`, `birth_year`, `notes`) and `guardian_consents` have shipped
+  since Sprint 3 with RLS and isolation coverage, and `team_members.managed_profile_id` already
+  round-trips through the entity registry (`entity-registry.ts:308,320`) — but neither table is
+  in the registry, so neither syncs offline. Enrolling them is the same piece of work Sprint 8
+  did for `meetings`/`meeting_attendance`, including `REPLICA IDENTITY FULL` if deletes must
+  propagate.
+
 *From the 2026-08-16 cross-sprint retrospective (all verified by measurement; none fixed, and
 each is deferred because it is scoped work rather than because it is unimportant):*
 - **`react-hooks/exhaustive-deps` is written but not enabled — 4 sites.**
