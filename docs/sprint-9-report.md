@@ -21,9 +21,9 @@ Test Files   9 passed (9)           integration
 ✓ built in 4.82s                    build
 schema assertions passed            db:verify
 Test Files  16 passed (16)          test:db
-     Tests  452 passed (452)
+     Tests  454 passed (454)
 Test Files   4 passed (4)           test:rls
-     Tests  312 passed (312)
+     Tests  314 passed (314)
 ```
 
 Screenshots at 375 / 768 / 1280 via `npm run capture`, including the new `guardian-children`.
@@ -86,8 +86,9 @@ asked to survive that.**
 
 - **`current_team_member_id` is `LIMIT 1` with no `ORDER BY`** and does not exclude managed
   rows, so a guardian with two children on one team reached an arbitrary one's attendance —
-  differently between runs. Siblings are supported by design. Fixed for the guardian path; the
-  function itself is in the parking lot.
+  differently between runs, and siblings are supported by design. Worse, `check_in_with_code`
+  resolves the caller with the same function, so a guardian could check their own child in.
+  Both fixed; see "Decided at review" below.
 - **`coppa_responsibility` had no writer.** In `AttestationType` and the database CHECK since
   Sprint 3, checked by nothing, written by nothing. The admin's approval checkbox is now that
   writer.
