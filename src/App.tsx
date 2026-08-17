@@ -180,7 +180,7 @@ function App() {
     const { theme, initializeStore } = useAppStore();
 
     useEffect(() => {
-        initializeStore();
+        initializeStore().catch(console.error);
     }, [initializeStore]);
 
     useEffect(() => {

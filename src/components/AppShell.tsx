@@ -135,7 +135,7 @@ export default function AppShell() {
     // Fetch team data when the team changes.
     useEffect(() => {
         if (currentTeamId) {
-            fetchTeamData(currentTeamId);
+            fetchTeamData(currentTeamId).catch(console.error);
             return;
         }
         // With no team, wait out a possible hydration delay before redirecting — persisted

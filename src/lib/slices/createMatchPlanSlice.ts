@@ -40,7 +40,7 @@ export const createMatchPlanSlice: SliceCreator<MatchPlanSlice> = (set, get) => 
         queueForSync('match_plans', plan.id, 'create', {
             ...plan,
             teamId: state.currentTeamId,
-        });
+        }).catch(console.error);
     },
 
     deleteMatchPlan: (id) => {
@@ -49,7 +49,7 @@ export const createMatchPlanSlice: SliceCreator<MatchPlanSlice> = (set, get) => 
         if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'deleteMatchPlan')) return;
 
         set((s) => ({ matchPlans: s.matchPlans.filter((p) => p.id !== id) }));
-        queueForSync('match_plans', id, 'delete', null);
+        queueForSync('match_plans', id, 'delete', null).catch(console.error);
     },
 
     updateMatchPlan: (id, updates) => {
@@ -68,7 +68,7 @@ export const createMatchPlanSlice: SliceCreator<MatchPlanSlice> = (set, get) => 
                 ...plan,
                 ...updates,
                 teamId: get().currentTeamId,
-            });
+            }).catch(console.error);
         }
     },
 

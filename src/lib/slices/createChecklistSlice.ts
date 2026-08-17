@@ -97,7 +97,7 @@ function updateChecklist(
         items,
         teamId: state.currentTeamId,
         seasonId,
-    });
+    }).catch(console.error);
 }
 
 export const createChecklistSlice: SliceCreator<ChecklistSlice> = (set, get) => ({
@@ -204,7 +204,7 @@ export const createChecklistSlice: SliceCreator<ChecklistSlice> = (set, get) => 
             ...template,
             teamId: state.currentTeamId,
             isTemplate: true,
-        });
+        }).catch(console.error);
         return template.id;
     },
 
@@ -212,7 +212,7 @@ export const createChecklistSlice: SliceCreator<ChecklistSlice> = (set, get) => 
         set((state) => ({
             checklistTemplates: state.checklistTemplates.filter((t) => t.id !== id),
         }));
-        queueForSync('checklists', id, 'delete', { id });
+        queueForSync('checklists', id, 'delete', { id }).catch(console.error);
     },
 
     setChecklistTemplates: (checklistTemplates) => set({ checklistTemplates }),

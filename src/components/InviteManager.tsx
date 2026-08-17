@@ -105,7 +105,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     };
 
     useEffect(() => {
-        fetchInvites();
+        void fetchInvites();
     }, [teamId]);
 
     // Create a new invite code

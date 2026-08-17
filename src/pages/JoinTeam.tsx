@@ -10,7 +10,7 @@ import type { AgeClassification } from '../types';
 export default function JoinTeam() {
     const navigate = useNavigate();
     const { code: urlCode } = useParams<{ code?: string }>();
-    const { user, isConfigured, ageClassification, signOut } = useAuth();
+    const { user, isConfigured, ageClassification, signOut, updateAgeClassification } = useAuth();
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSigningOut, setIsSigningOut] = useState(false);
@@ -97,7 +97,7 @@ export default function JoinTeam() {
         setIsLoading(true);
         setProfileCompleteError(null);
         try {
-            const { error, success } = await useAuth().updateAgeClassification(selectedAge);
+            const { error, success } = await updateAgeClassification(selectedAge);
             if (!success || error) {
                 setProfileCompleteError(error?.message || 'Failed to update profile');
                 return;

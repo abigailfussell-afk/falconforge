@@ -34,10 +34,22 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
                     {archivedTasks.map(task => (
                         <div
                             key={task.id}
-                            className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-700/30 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
-                            onClick={() => openTask(task)}
+                            className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-700/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition"
                         >
-                            <div className="flex-1 min-w-0">
+                            {/*
+                             * The row summary is a real button, not a clickable div.
+                             *
+                             * Restore is a nested control, so the row itself cannot be the
+                             * button — hence a focusable summary beside it. Opening an
+                             * archived task was keyboard-unreachable until Sprint 8's
+                             * retrospective; Sprint 5.5 fixed four rows of exactly this shape
+                             * and did not reach this one. See docs/failure-modes.md §12.
+                             */}
+                            <button
+                                type="button"
+                                onClick={() => openTask(task)}
+                                className="flex-1 min-w-0 text-left cursor-pointer rounded"
+                            >
                                 <h4 className="font-medium text-slate-800 dark:text-white truncate">{task.title}</h4>
                                 <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
                                     <span className="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{getSubTeamName(task.department)}</span>
@@ -50,9 +62,10 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
                                         </>
                                     )}
                                 </div>
-                            </div>
+                            </button>
                             <button
-                                onClick={(e) => { e.stopPropagation(); restoreTask(task.id); }}
+                                type="button"
+                                onClick={() => restoreTask(task.id)}
                                 className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-forge-600 dark:text-forge-400 border border-forge-300 dark:border-forge-700 rounded-lg hover:bg-forge-50 dark:hover:bg-forge-900/20 transition"
                             >
                                 <RotateCcw size={14} />

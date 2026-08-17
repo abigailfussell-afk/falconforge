@@ -40,7 +40,10 @@
  * one day in Sprint 8, because a dev server keeps serving the stylesheet it generated at
  * startup. It builds and serves its own bundle now, on port 5197, and shuts it down afterwards.
  *
- * Output lands in screenshots/<width>w/<view>.png (gitignored; CI uploads it as an artifact).
+ * Output lands in screenshots/<width>w/<view>.png (gitignored). This is a LOCAL command: no
+ * workflow runs it and nothing uploads the images. The line here used to claim CI uploaded them
+ * as an artifact, which was never true — a note about a fix for a stale-verification bug, which
+ * had itself gone stale. Only `test:e2e` uploads anything, and only its own report on failure.
  */
 import { chromium } from '@playwright/test';
 import { mkdir, rm } from 'node:fs/promises';

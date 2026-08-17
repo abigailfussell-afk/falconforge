@@ -148,7 +148,7 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
             queueForSync('meetings', meeting.id, 'create', {
                 ...meeting,
                 teamId: state.currentTeamId,
-            });
+            }).catch(console.error);
         }
         return created.map((m) => m.id);
     },
@@ -218,7 +218,7 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
             queueForSync('meetings', meeting.id, 'update', {
                 ...meeting,
                 teamId: state.currentTeamId,
-            });
+            }).catch(console.error);
         }
     },
 
@@ -239,7 +239,7 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
         }));
 
         for (const meetingId of affected) {
-            queueForSync('meetings', meetingId, 'delete', null);
+            queueForSync('meetings', meetingId, 'delete', null).catch(console.error);
         }
     },
 
@@ -291,7 +291,7 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
         queueForSync('meeting_attendance', record.id, existing ? 'update' : 'create', {
             ...record,
             teamId: state.currentTeamId,
-        });
+        }).catch(console.error);
     },
 
     clearAttendance: (meetingId, teamMemberId) => {
@@ -307,7 +307,7 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
         set((s) => ({
             meetingAttendance: s.meetingAttendance.filter((a) => a.id !== existing.id),
         }));
-        queueForSync('meeting_attendance', existing.id, 'delete', null);
+        queueForSync('meeting_attendance', existing.id, 'delete', null).catch(console.error);
     },
 
     setMeetings: (meetings) => set({ meetings }),

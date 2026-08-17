@@ -33,13 +33,39 @@ jobs:
       - run: npm ci
 
       # Ordered cheapest-first so an obvious break fails in seconds, not minutes.
-      - name: Typecheck
-        run: npx tsc --noEmit
+      #
+      # This calls the npm scripts rather than the tools directly. It used to run
+      # `npx tsc --noEmit`, which meant CI and `npm run lint` were two definitions of the
+      # same step and renaming one would not have touched the other.
+      - name: Lint and typecheck
+        run: npm run lint
 
       - name: Unit tests
+        # UTC is the runner's default; naming it makes a red run reproducible locally.
+        env:
+          TZ: UTC
+        run: npm run test:run
+
+      # The same suite again, at a negative UTC offset. Not belt-and-braces: this project has
+      # had timezone defects in BOTH directions, and either single zone hides one of them.
+      #
+      #   - Sprint 8's create-event default ends `start + 2h`, which crosses midnight. Green
+      #     in US Central at 18:32, red on a UTC runner at 23:32 — caught only because CI
+      #     happened to run inside that five-hour window.
+      #   - Sprint 5.5's due dates render one day EARLY at negative offsets, because a
+      #     date-only value is stored as UTC-midnight epoch millis and read with local
+      #     getDate(). A UTC-only run can never see it.
+      #
+      # Fourteen seconds for a class that has cost two incidents and reaches every user
+      # in the app's own timezone.
+      - name: Unit tests (negative UTC offset)
+        env:
+          TZ: America/Chicago
         run: npm run test:run
 
       - name: Integration tests
+        env:
+          TZ: UTC
         run: npm run test:integration
 
       - name: Build
