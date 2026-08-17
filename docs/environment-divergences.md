@@ -74,6 +74,22 @@ same day.
 
 **Rule.** e2e and captures run against a real build served by `vite preview`. Both do this now.
 
+**And `vite preview` is not automatically safe either.** A real build still installs a service
+worker, and it keeps serving the precached bundle across rebuilds. Verifying the Sprint 8
+retrospective's own UI fix, the page was controlled by `sw.js` and serving `index-DAle-9hg.js`
+while the fresh build on disk was `index-iCBpGKv2.js` — the DOM showed the pre-fix markup and a
+CSS class that had been renamed sprints earlier. The measurement was about to confirm the bug was
+still there, in a build that had fixed it. Same class as Sprint 5's stale worker serving the
+previous `index.html`, which is why deleted Google Fonts links kept appearing.
+
+Before measuring anything in a preview, check what is actually loaded and clear the worker:
+
+```js
+[...document.querySelectorAll('script[src]')].map(s => s.src.split('/').pop())  // compare to dist/
+const rs = await navigator.serviceWorker.getRegistrations(); for (const r of rs) await r.unregister();
+for (const k of await caches.keys()) await caches.delete(k);
+```
+
 ## 5. Schema assertions run as `postgres`, who has every privilege
 
 `supabase/tests/schema_assertions.sql` connects as the superuser, so it cannot see a permission
