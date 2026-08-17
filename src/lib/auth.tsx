@@ -9,6 +9,49 @@ import { ATTESTATION_VERSIONS } from './attestations';
 import type { AgeClassification } from '../types';
 
 /**
+ * Where Supabase sends the browser back to after an email link or an OAuth provider.
+ *
+ * THE ORIGIN ROOT, AND NOTHING ELSE. Both plausible-looking alternatives are broken, and one
+ * of them is broken silently — which is why this is a named helper with the reasoning attached
+ * rather than three string literals that each look obviously correct.
+ *
+ *   `${origin}/auth/reset-password`  — what this app shipped until Sprint 9. A NON-HASH path
+ *   on a HashRouter app hosted on GitHub Pages: Pages has no such file and no `404.html`, so it
+ *   answers with its own 404 page and THE APP NEVER BOOTS. React Router's catch-all never runs
+ *   because nothing ever loaded. Password recovery was dead end to end in production.
+ *
+ *   `${origin}/#/auth/reset-password` — the obvious fix, and it silently discards the token.
+ *   The implicit grant appends its own fragment, giving `/#/auth/reset-password#access_token=…`,
+ *   and a URL has ONE fragment: supabase-js parses `url.hash.substring(1)` as a query string, so
+ *   the first key it finds is `/auth/reset-password#access_token` rather than `access_token`.
+ *   The session is never established, and the screen simply says the link is invalid. Verified
+ *   against `parseParametersFromURL` in `@supabase/auth-js` rather than assumed — it returns
+ *   `access_token: undefined` for that shape and the correct value for this one.
+ *
+ * So: land on `/`, which Pages serves, which leaves the fragment intact for
+ * `detectSessionInUrl` to consume. Where the user goes NEXT is decided by the auth event
+ * (`PASSWORD_RECOVERY`), not by the URL — see the `onAuthStateChange` handler. That also means
+ * this one helper is correct for recovery, for OAuth and for email confirmation alike, instead
+ * of each growing its own path for the next person to get wrong.
+ *
+ * NO `404.html` IS INVOLVED, deliberately. Adding one would not have fixed the original defect
+ * (there was no matching route either, so the catch-all would still have discarded the token),
+ * and with the redirect landing on `/` there is no 404 left to handle. A Pages SPA fallback for
+ * OTHER deep non-hash links is a separate, real question; it is in the parking lot rather than
+ * bundled in here on the strength of sounding related.
+ */
+export function authRedirectUrl(): string {
+    return `${window.location.origin}/`;
+}
+
+/**
+ * The hash route the user is sent to once a recovery session exists.
+ *
+ * Exported so the route table and the test assert against the same string.
+ */
+export const RESET_PASSWORD_PATH = '/auth/reset-password';
+
+/**
  * The signed-in person's displayable profile.
  *
  * Distinct from `user`, and the distinction is the point: `user` is the Supabase AUTH
@@ -239,6 +282,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }, 0);
                 }
 
+                /*
+                 * THE RECOVERY LINK HAS BEEN FOLLOWED.
+                 *
+                 * `detectSessionInUrl` has just consumed `#access_token=…&type=recovery` from
+                 * the origin root and established a session, so the user is now signed in and
+                 * would otherwise land on the dashboard with no idea that the link "did"
+                 * anything — the classic redirect-discards-the-intent failure
+                 * (`docs/failure-modes.md` §14), which is what the old broken flow degenerated
+                 * into on the rare occasions the app booted at all.
+                 *
+                 * Navigating from here rather than from a route means the destination does not
+                 * depend on the URL surviving the round trip, which is exactly what it could
+                 * not do: there is only one fragment and Supabase needs it.
+                 *
+                 * `window.location.hash` rather than a router navigate: this module is outside
+                 * the Router, and assigning the hash is what HashRouter listens to.
+                 */
+                if (event === 'PASSWORD_RECOVERY') {
+                    window.location.hash = `#${RESET_PASSWORD_PATH}`;
+                }
+
                 if (event === 'SIGNED_OUT') {
                     useAppStore.getState().setCurrentUserId(null);
                     // Drop the cached profile with the session. On a shared team laptop the
@@ -392,7 +456,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
+                // See `authRedirectUrl`. Latent today because no provider is configured — and
+                // fixed alongside the other two precisely so the next one to be enabled does
+                // not inherit the bug.
+                redirectTo: authRedirectUrl(),
             },
         });
         return { error };
@@ -404,7 +471,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'azure',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
+                redirectTo: authRedirectUrl(),
                 scopes: 'email profile openid',
             },
         });
@@ -430,7 +497,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!supabase) return { error: { message: 'Supabase not configured' } as AuthError };
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/auth/reset-password`,
+            redirectTo: authRedirectUrl(),
         });
         return { error };
     }, []);
