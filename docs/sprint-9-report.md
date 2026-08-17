@@ -21,9 +21,9 @@ Test Files   9 passed (9)           integration
 ✓ built in 4.82s                    build
 schema assertions passed            db:verify
 Test Files  16 passed (16)          test:db
-     Tests  454 passed (454)
+     Tests  459 passed (459)
 Test Files   4 passed (4)           test:rls
-     Tests  314 passed (314)
+     Tests  319 passed (319)
 ```
 
 Screenshots at 375 / 768 / 1280 via `npm run capture`, including the new `guardian-children`.
@@ -135,6 +135,7 @@ Per `docs/failure-modes.md` §2 — a test not seen red is a test of unknown val
 | Create-and-remove promotion | the attendance-history assertion |
 | Reverted `setTeams` / `requiresTeam` | 3 of the browser-defect regression tests |
 | Put managed rows back into `current_team_member_id` | the guardian check-in refusal test |
+| Granted the guardian RPCs back to `anon` | 2 behavioural refusals + schema assertion 23 |
 
 ---
 
@@ -169,6 +170,31 @@ it did not ship is that the diff was read.
 **`teams` into the entity registry is the next scoped change**, on its own branch: it touches the
 one read path, so it wants its own diff and its own browser pass rather than riding along.
 Deleting `pullGuardianTeams` is part of it.
+
+## Found after the migration landed on production
+
+**The four guardian RPCs shipped EXECUTE-able by `anon`.** `20260822000200` ended with
+`REVOKE ALL ... FROM PUBLIC` — the careful-looking half of the incantation, which does nothing
+on its own, because `20260816000500_v2_grants.sql` sets `ALTER DEFAULT PRIVILEGES ... TO anon`
+and every new function therefore arrives with its own acl entry independent of PUBLIC's.
+`20260819000000_revoke_anon_execute.sql` says this in its header, in as many words, and revokes
+`FROM PUBLIC, anon`. I read that header, cited it in my own migration, and wrote half the fix.
+
+Not exploitable — each is SECURITY DEFINER and asks who the caller is on its first executable
+line, so production returned refusal bodies rather than data. But the missing layer is the one
+that exists *because* "the guard is code, and code is what was wrong the first time" (B25).
+
+Two things follow. `20260822000400` does the revoke properly. And **schema assertion 23 now
+enumerates every SECURITY DEFINER function `anon` can EXECUTE and fails on anything outside a
+named allowlist** — the property `20260819000000` claimed in prose ("adding a function to this
+schema does not silently join or leave the set") and nothing enforced, which is why four
+functions could join it silently. The refusal itself stays behavioural, as anon, because
+`docs/environment-divergences.md` §5 is exactly that a catalogue assertion once approved a
+REVOKE that was a no-op; the assertion's job is drift detection, not proof.
+
+**It was caught by verifying against production, not by the Gate.** `npm run gate:db` was green
+over it — the behavioural suite tested a hand-maintained list of functions that predated these
+four.
 
 ## Left in the parking lot, deliberately
 

@@ -140,3 +140,71 @@ describe('the policy predicates keep their grant, so anon still reads an empty a
         expect(data).toEqual([]);
     });
 });
+
+describe('anon holds no EXECUTE on the guardian RPCs', () => {
+    /*
+     * SPRINT 9 SHIPPED THESE REACHABLE, and the hosted project proved it: all four answered an
+     * anonymous caller with 200 after the migration landed.
+     *
+     * `20260822000200_guardian_access.sql` ended with `REVOKE ALL ... FROM PUBLIC`, which is
+     * the careful-looking half of the incantation and does nothing on its own.
+     * `20260816000500_v2_grants.sql` sets ALTER DEFAULT PRIVILEGES granting every new function
+     * to `anon`, so each one arrives with its OWN acl entry independent of PUBLIC's —
+     * `20260819000000_revoke_anon_execute.sql` says exactly this in its header and revokes
+     * `FROM PUBLIC, anon`. Sprint 9 read the header and wrote half the fix.
+     *
+     * Not exploitable: every one is SECURITY DEFINER and asks who the caller is on its first
+     * executable line, and `auth.uid()` is NULL for anon. What was missing is the layer BEFORE
+     * the guard, which is the whole point — "the guard is code, and code is what was wrong the
+     * first time" (B25).
+     */
+    it('cannot call join_team_with_invite_for_child', async () => {
+        const { error } = await anon.rpc('join_team_with_invite_for_child', {
+            invite_code: team.inviteCode,
+            p_managed_profile_id: team.guardian.profileId,
+        });
+        expectRefused(error, 'join_team_with_invite_for_child');
+    });
+
+    it('cannot call offer_managed_profile_promotion', async () => {
+        const { error } = await anon.rpc('offer_managed_profile_promotion', {
+            p_managed_profile_id: team.guardian.profileId,
+        });
+        expectRefused(error, 'offer_managed_profile_promotion');
+    });
+
+    it('cannot call withdraw_managed_profile_promotion', async () => {
+        const { error } = await anon.rpc('withdraw_managed_profile_promotion', {
+            p_managed_profile_id: team.guardian.profileId,
+        });
+        expectRefused(error, 'withdraw_managed_profile_promotion');
+    });
+
+    it('cannot call claim_managed_profile', async () => {
+        // The one that takes over a roster place. An anonymous caller must not reach the code
+        // that decides whether a claim code is valid, however well that code behaves.
+        const { error } = await anon.rpc('claim_managed_profile', { p_code: 'ABCD2345' });
+        expectRefused(error, 'claim_managed_profile');
+    });
+});
+
+describe('the guardian PREDICATES keep their anon grant, deliberately', () => {
+    /*
+     * THE NEGATIVE SPACE, and revoking these would be worse than revoking nothing.
+     *
+     * `is_team_guardian` and `guardian_member_ids` are called INSIDE the `teams`, `meetings`
+     * and `meeting_attendance` SELECT policies, and a policy is evaluated as the CALLING role.
+     * Take them from anon and every anonymous SELECT on those three tables raises "permission
+     * denied for function" instead of returning `200 []` — which is what makes a signed-out
+     * visitor see an empty app rather than an error page. Sprint 3 verified that property; this
+     * is what keeps it true through Sprint 9's additions.
+     */
+    it('still answers anon with an empty set on the tables those predicates gate', async () => {
+        for (const table of ['teams', 'meetings', 'meeting_attendance'] as const) {
+            const { data, error } = await anon.from(table).select('id');
+            expect(error, `anon got an error rather than an empty set from ${table}`).toBeNull();
+            expect(data, `${table} leaked rows to anon`).toEqual([]);
+        }
+    });
+});
+

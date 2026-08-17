@@ -674,3 +674,54 @@ BEGIN
 END $$;
 
 SELECT 'schema assertions passed' AS result;
+
+-- 23. NO SECURITY DEFINER FUNCTION JOINS THE ANON-EXECUTABLE SET BY ACCIDENT.
+--
+--     `20260819000000_revoke_anon_execute.sql` claims this property in its header -- "adding a
+--     function to this schema does not silently join or leave the set" -- and nothing enforced
+--     it, so Sprint 9 added four RPCs that did exactly that. `20260816000500_v2_grants.sql`
+--     sets ALTER DEFAULT PRIVILEGES granting every new function to `anon`, so the default is
+--     to be reachable and each new RPC has to opt OUT by hand.
+--
+--     THIS IS A DRIFT CHECK, NOT THE SECURITY PROPERTY, and the distinction matters --
+--     `docs/environment-divergences.md` §5 is precisely that a catalogue assertion approved a
+--     REVOKE that was a no-op. The refusal itself is asserted behaviourally, as anon, in
+--     `anon-execute.rls.db.test.ts`. What this catches is the case that suite structurally
+--     cannot: a function nobody thought to add to it.
+--
+--     To add a function here, decide which list it belongs in and say why. A predicate called
+--     INSIDE an RLS policy must keep its anon grant -- a policy is evaluated as the calling
+--     role, and revoking it turns every anonymous SELECT into "permission denied for function"
+--     instead of the `200 []` that makes a signed-out visitor see an empty app.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(p.proname, ', ' ORDER BY p.proname) INTO offenders
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef                                  -- SECURITY DEFINER only
+      AND has_function_privilege('anon', p.oid, 'EXECUTE')
+      AND p.proname <> ALL (ARRAY[
+          -- Predicates evaluated inside RLS policies. Revoking these BREAKS anonymous reads.
+          'is_team_member', 'is_team_guardian', 'guardian_member_ids', 'is_profile_guardian',
+          'get_user_team_ids', 'current_team_role', 'current_team_member_id',
+          'can_manage_billing', 'can_manage_content', 'can_manage_meetings',
+          'can_manage_roster', 'can_manage_structure',
+          'team_can_write', 'team_seats_remaining', 'season_is_open', 'meeting_season_is_open',
+          'meeting_checkin_opens', 'meeting_checkin_closes',
+          'is_platform_operator', 'admin_nomination_ttl',
+          -- Trigger functions: EXECUTE is checked when the trigger is created, not when it
+          -- fires, so an anon grant on one is inert.
+          'handle_new_user', 'sync_user_to_team_members', 'update_updated_at_column',
+          'enforce_member_role_eligibility', 'enforce_seat_capacity',
+          'enforce_admin_nomination_authority'
+      ]);
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION
+            'SECURITY DEFINER functions an anonymous caller can EXECUTE: %. Revoke them FROM PUBLIC, anon (revoking PUBLIC alone is a no-op: ALTER DEFAULT PRIVILEGES gives each new function its own anon grant), or add them to the allowlist above with a reason.',
+            offenders;
+    END IF;
+END $$;
