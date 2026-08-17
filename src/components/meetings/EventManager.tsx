@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, MoreHorizontal, Plus, QrCode as QrIcon } from 'lucide-react';
+import { CalendarDays, Pencil, Plus, QrCode as QrIcon } from 'lucide-react';
 import {
     EVENT_TYPES,
     eventTypeMeta,
@@ -285,7 +285,10 @@ function EventRow({
                         aria-label={`Edit ${meeting.title}`}
                         className="touch-target inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
-                        <MoreHorizontal size={15} />
+                        {/* A pencil, not an ellipsis. The button does exactly one thing —
+                            open the edit modal — and an ellipsis promises a menu of choices
+                            that does not exist. */}
+                        <Pencil size={15} />
                     </button>
                 )}
             </div>

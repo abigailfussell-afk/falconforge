@@ -367,7 +367,15 @@ the final walkthrough and tags `v2.0.0-beta`.
   then checking the live lazy chunks for the feature's own strings, is the version of this
   check that means something. Same class as the capture note below: a verification step that
   can quietly stop verifying.
-- **🔴 `npm run capture` screenshots whatever the DEV SERVER is serving, which can be stale
+- **✅ FIXED.** `npm run capture` builds and serves its own bundle now (`vite preview` on
+  port 5197, torn down afterwards), so the images are evidence about a BUILD — which is the
+  only thing they were ever meant to be evidence about. `CAPTURE_BASE_URL` still points it at
+  a running server, but it warns that doing so opts out of the guarantee. Two things worth
+  keeping: the build is given the local stack explicitly rather than inheriting the ambient
+  env (`.env.local` points at PRODUCTION), and the teardown kills the process TREE — `shell:
+  true` means the child is a shell that spawns npm that spawns vite, and killing the top left
+  port 5197 answering 200, which would have failed the next run on `--strictPort`. Was:
+  **🔴 `npm run capture` screenshots whatever the DEV SERVER is serving, which can be stale
   CSS.** A dev server started before a `tailwind.config.js` change keeps serving the old
   generated stylesheet, so the capture produced a set of images in which the event manager's
   table had silently collapsed to a stack at every width — the class existed in the JSX and

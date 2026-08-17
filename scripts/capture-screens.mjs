@@ -33,17 +33,54 @@
  *
  *   npx supabase start
  *   node scripts/seed-review-states.mjs      # Sprint 6's seeder — do not write a second one
- *   npm run dev -- --port 5188               # must be pointed at the LOCAL stack
- *   npm run capture
+ *   npm run capture                          # builds and serves the app itself
+ *
+ * NO DEV SERVER. This used to say `npm run dev -- --port 5188` and capture whatever that was
+ * serving, which is how it came to produce images of a layout the build did not have — twice in
+ * one day in Sprint 8, because a dev server keeps serving the stylesheet it generated at
+ * startup. It builds and serves its own bundle now, on port 5197, and shuts it down afterwards.
  *
  * Output lands in screenshots/<width>w/<view>.png (gitignored; CI uploads it as an artifact).
  */
 import { chromium } from '@playwright/test';
 import { mkdir, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-const APP = process.env.CAPTURE_BASE_URL ?? 'http://localhost:5188';
+/*
+ * THIS SCRIPT BUILDS AND SERVES ITS OWN BUNDLE. It used to point at whatever dev server the
+ * developer had running, and that is how it lied.
+ *
+ * A dev server started before a `tailwind.config.js` change keeps serving the stylesheet it
+ * generated at startup. The class is in the JSX and missing from the CSS, so the capture comes
+ * out as a set of images in which the layout has silently collapsed -- which looks exactly like
+ * a responsive bug, and sends you to read layout code that is fine. It cost twenty minutes in
+ * Sprint 8, then did it again the same day over a `translate-x-0` that had never been emitted.
+ *
+ * The smoke pack has never had this problem because it builds. So does this now: a fresh
+ * `npm run build`, served by `vite preview` on its own port, torn down at the end. The captures
+ * are then evidence about a BUILD, which is the only thing they were ever supposed to be
+ * evidence about.
+ *
+ * `CAPTURE_BASE_URL` still overrides, for pointing at something already running -- but it opts
+ * out of the guarantee, so it says so.
+ */
+const OWN_SERVER_PORT = Number(process.env.CAPTURE_PORT ?? 5197);
+const EXTERNAL_APP = process.env.CAPTURE_BASE_URL ?? null;
+const APP = EXTERNAL_APP ?? `http://127.0.0.1:${OWN_SERVER_PORT}`;
 const OUT = process.env.CAPTURE_OUT_DIR ?? 'screenshots';
+
+/*
+ * The local stack, pinned here rather than read from an env file.
+ *
+ * `.env.local` points at the HOSTED project and `.env.development.local` is gitignored, so a
+ * build that inherits the ambient environment can silently capture production. These are
+ * Supabase's published local-development demo keys: identical on every machine, worthless
+ * anywhere else. The network guard below is the second line of defence, not the first.
+ */
+const LOCAL_SUPABASE_URL = 'http://127.0.0.1:54321';
+const LOCAL_ANON_KEY =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
 /** Iron Falcons' admin: 12 of 15 seats, and the platform operator. See the seeder. */
 const EMAIL = process.env.CAPTURE_EMAIL ?? 'reviewer@falconforge.test';
@@ -152,8 +189,92 @@ async function settle(page, view) {
     await page.waitForLoadState('networkidle').catch(() => {});
 }
 
+/** Run a command to completion, inheriting stdio, and reject on a non-zero exit. */
+function run(command, args, env) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, { stdio: 'inherit', shell: true, env: { ...process.env, ...env } });
+        child.on('error', reject);
+        child.on('exit', (code) =>
+            code === 0 ? resolve() : reject(new Error(`${command} ${args.join(' ')} exited ${code}`)),
+        );
+    });
+}
+
+/**
+ * Build the app and serve it, returning a teardown.
+ *
+ * Waits for the server to actually answer rather than sleeping: `vite preview` prints its
+ * banner before it is listening, and a fixed delay is the thing that turns a slow machine into
+ * a mysterious failure.
+ */
+async function startOwnServer() {
+    console.log('Building the app (captures are evidence about a build, not about a dev server)');
+    await run('npm', ['run', 'build'], {
+        VITE_SUPABASE_URL: LOCAL_SUPABASE_URL,
+        VITE_SUPABASE_ANON_KEY: LOCAL_ANON_KEY,
+    });
+
+    console.log(`Serving the build on ${APP}`);
+    const server = spawn(
+        'npm',
+        ['run', 'preview', '--', '--port', String(OWN_SERVER_PORT), '--strictPort'],
+        { stdio: 'ignore', shell: true, detached: process.platform !== 'win32', env: { ...process.env } },
+    );
+
+    const deadline = Date.now() + 120_000;
+    for (;;) {
+        if (Date.now() > deadline) {
+            server.kill();
+            throw new Error(`preview server did not answer on ${APP} within 120s`);
+        }
+        try {
+            const res = await fetch(APP, { method: 'HEAD' });
+            if (res.ok || res.status === 404) break;
+        } catch {
+            // Not listening yet.
+        }
+        await new Promise((r) => setTimeout(r, 500));
+    }
+
+    /*
+     * Kill the TREE, not the process we spawned.
+     *
+     * `shell: true` means the child is a shell, which spawns npm, which spawns vite. Killing
+     * the top of that leaves the actual server listening -- verified: after the first version
+     * of this teardown, port 5197 still answered 200. The next run then dies on `--strictPort`,
+     * which is the kind of papercut that makes people stop running a script.
+     */
+    return () => {
+        if (server.exitCode !== null) return;
+        if (process.platform === 'win32') {
+            spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' });
+        } else {
+            try {
+                process.kill(-server.pid, 'SIGTERM');
+            } catch {
+                server.kill('SIGTERM');
+            }
+        }
+    };
+}
+
 async function main() {
     await rm(OUT, { recursive: true, force: true });
+
+    let stopServer = () => {};
+    if (EXTERNAL_APP) {
+        console.warn(
+            [
+                `CAPTURE_BASE_URL is set (${EXTERNAL_APP}), so this run captures whatever that`,
+                '  server is serving. A dev server started before a tailwind.config change keeps',
+                '  serving the stylesheet it generated at startup, and the images then show a',
+                '  layout the build does not have. Unset it to capture a fresh build.',
+            ].join('\n'),
+        );
+    } else {
+        stopServer = await startOwnServer();
+    }
+    try {
 
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -329,7 +450,10 @@ async function main() {
     }
 
     await browser.close();
-    console.log(`\nCaptured ${(VIEWS.length + 1) * WIDTHS.length} screenshots into ${OUT}/`);
+    console.log(`\nCaptured into ${OUT}/ at ${WIDTHS.join(' / ')}`);
+    } finally {
+        stopServer();
+    }
 }
 
 main().catch((err) => {
