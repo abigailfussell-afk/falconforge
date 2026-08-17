@@ -79,6 +79,10 @@ export const createGuardianSlice: SliceCreator<GuardianSlice> = (set, get) => ({
             guardianUserId,
             fullName,
             notes: input.notes?.trim() || '',
+            // No promotion is offered for a child who has just been added. The column is
+            // server-written only (see the registry's `serverAssigned`), so this is the local
+            // mirror of "NULL", not a value being sent anywhere.
+            promotionCode: '',
         };
 
         const consents: GuardianConsent[] = consentTypes.map((consentType) => ({

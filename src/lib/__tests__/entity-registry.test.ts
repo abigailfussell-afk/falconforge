@@ -158,6 +158,9 @@ const managedProfile: ManagedProfile = {
     guardianUserId: 'user-guardian-1',
     fullName: 'Robin Fussell',
     notes: 'Peanut allergy. Collected by an aunt on Thursdays.',
+    // Server-written, client-readable: a claim code the client is refused permission to set.
+    // Declared `serverAssigned`, so the round trip strips it rather than expecting it back.
+    promotionCode: 'QRST7788',
     createdAt: undefined, // server-assigned; absent on a locally-created record
 };
 

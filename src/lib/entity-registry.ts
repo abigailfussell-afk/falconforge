@@ -478,7 +478,15 @@ const meetingAttendance: EntityDefinition<MeetingAttendance> = {
  * NO `birth_year`. It was dropped in the same sprint; see `ManagedProfile`.
  */
 const managedProfiles: EntityDefinition<ManagedProfile> = {
-    serverAssigned: ['createdAt'] as const,
+    /*
+     * `promotionCode` is server-assigned in the strong sense: the client may READ it and is
+     * refused permission to write it (column-level GRANTs in
+     * `20260822000200_guardian_access.sql`), because a claim code is a credential and a
+     * client-chosen credential is a guessable one. Declaring it here is what lets the
+     * round-trip test know the asymmetry is intended, rather than it looking like the
+     * read-but-never-written bugs the registry was built to catch (B9).
+     */
+    serverAssigned: ['createdAt', 'promotionCode'] as const,
     localKey: 'managedProfiles',
     remoteTable: 'managed_profiles',
     scope: 'guardian',
@@ -494,6 +502,8 @@ const managedProfiles: EntityDefinition<ManagedProfile> = {
         guardianUserId: r.guardian_user_id,
         fullName: r.full_name,
         notes: r.notes || '',
+        // '' means "no promotion offered", which is the normal state.
+        promotionCode: r.promotion_code || '',
         createdAt: toEpochMillis(r.created_at),
     }),
     getFromStore: (s) => s.managedProfiles,

@@ -965,9 +965,37 @@ describe('guardians reach their own child, and nothing else', () => {
         );
     });
 
-    it('is not thereby a member of the team', async () => {
+    it('sees their child’s team and no other, without becoming a member of it', async () => {
+        /*
+         * CHANGED DELIBERATELY IN SPRINT 9, and this is the assertion the plan's parking lot
+         * asked to have re-checked when guardian access widened.
+         *
+         * It used to require the guardian to see NO teams at all. Section 3 settles that a
+         * guardian sees "their children — consents given, upcoming meetings, attendance", and a
+         * screen that cannot name the team a child belongs to cannot show any of that. So
+         * `teams_select_member` now also admits `is_team_guardian`.
+         *
+         * What matters is that the widening is exactly one team wide. `is_team_member` and
+         * `get_user_team_ids` were NOT touched — a third predicate was added instead — so the
+         * guardian is still not a member: the roster, other children's profiles, invite codes
+         * and every content table stay shut, which the tests around this one assert
+         * individually and which 264 other assertions in this file cover for the roles that
+         * should reach them.
+         */
         const teams = await teamA.guardian.user.client.from('teams').select('id');
-        expect(teams.data ?? [], 'a guardian became a member of their child’s team').toEqual([]);
+
+        expect(
+            teams.data?.map((t: { id: string }) => t.id),
+            'a guardian saw a team other than their child’s',
+        ).toEqual([teamA.id]);
+
+        // Seeing the team's NAME is not membership. The roster is the thing that would make it
+        // membership, and it is still one row — their own child's.
+        const roster = await teamA.guardian.user.client
+            .from('team_members')
+            .select('id')
+            .eq('team_id', teamA.id);
+        expect(roster.data?.map((r: { id: string }) => r.id)).toEqual([teamA.guardian.memberId]);
     });
 
     it('cannot read the other people on the team', async () => {

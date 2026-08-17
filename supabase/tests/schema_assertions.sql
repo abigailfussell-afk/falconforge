@@ -186,8 +186,21 @@ BEGIN
     WHERE t.schemaname = 'public'
       AND NOT (
           has_table_privilege(r.role, format('public.%I', t.tablename), 'SELECT')
-          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'INSERT')
-          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'UPDATE')
+          -- INSERT and UPDATE are asked COLUMN-wise, because Sprint 9 narrows one of them
+          -- deliberately: `managed_profiles.promotion_code` is a claim code, readable by the
+          -- guardian and writable only by the SECURITY DEFINER function that generates it, and
+          -- Postgres has no way to subtract a column from a table-level privilege — the table
+          -- grant has to be revoked and re-granted per column.
+          --
+          -- This still answers the question the assertion exists to ask ("can the API role use
+          -- this table at all", after a rebuild produced a schema PostgREST could not read a
+          -- row of). What it deliberately does NOT try to police is WHICH columns: a catalogue
+          -- assertion is the wrong instrument for that — see `docs/environment-divergences.md`
+          -- §5, where a `pg_proc` ACL assertion would have approved a REVOKE that was a no-op.
+          -- The column list is asserted behaviourally, as a guardian, in
+          -- `guardian-access.rls.db.test.ts`.
+          AND has_any_column_privilege(r.role, format('public.%I', t.tablename), 'INSERT')
+          AND has_any_column_privilege(r.role, format('public.%I', t.tablename), 'UPDATE')
           AND has_table_privilege(r.role, format('public.%I', t.tablename), 'DELETE')
       );
 

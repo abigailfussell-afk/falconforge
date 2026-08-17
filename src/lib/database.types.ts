@@ -96,6 +96,7 @@ export type Database = {
           guardian_user_id: string
           id: string
           managed_profile_id: string
+          updated_at: string
           version: string
         }
         Insert: {
@@ -104,6 +105,7 @@ export type Database = {
           guardian_user_id: string
           id?: string
           managed_profile_id: string
+          updated_at?: string
           version: string
         }
         Update: {
@@ -112,6 +114,7 @@ export type Database = {
           guardian_user_id?: string
           id?: string
           managed_profile_id?: string
+          updated_at?: string
           version?: string
         }
         Relationships: [
@@ -260,6 +263,7 @@ export type Database = {
           guardian_user_id: string
           id: string
           notes: string | null
+          promotion_code: string | null
           updated_at: string
         }
         Insert: {
@@ -268,6 +272,7 @@ export type Database = {
           guardian_user_id: string
           id?: string
           notes?: string | null
+          promotion_code?: string | null
           updated_at?: string
         }
         Update: {
@@ -276,6 +281,7 @@ export type Database = {
           guardian_user_id?: string
           id?: string
           notes?: string | null
+          promotion_code?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1093,6 +1099,7 @@ export type Database = {
         Args: { p_code: string; p_method?: string; p_team_id: string }
         Returns: Json
       }
+      claim_managed_profile: { Args: { p_code: string }; Returns: Json }
       close_meeting_checkin: {
         Args: { p_meeting_id: string; p_team_id: string }
         Returns: Json
@@ -1113,10 +1120,16 @@ export type Database = {
         }
         Returns: Json
       }
+      guardian_member_ids: { Args: { p_team_id: string }; Returns: string[] }
       is_platform_operator: { Args: never; Returns: boolean }
       is_profile_guardian: { Args: { p_profile_id: string }; Returns: boolean }
+      is_team_guardian: { Args: { p_team_id: string }; Returns: boolean }
       is_team_member: { Args: { p_team_id: string }; Returns: boolean }
       join_team_with_invite: { Args: { invite_code: string }; Returns: Json }
+      join_team_with_invite_for_child: {
+        Args: { invite_code: string; p_managed_profile_id: string }
+        Returns: Json
+      }
       meeting_checkin_closes: {
         Args: { p_meeting: Database["public"]["Tables"]["meetings"]["Row"] }
         Returns: string
@@ -1131,6 +1144,10 @@ export type Database = {
       }
       nominate_team_admin: {
         Args: { p_new_member_id: string; p_team_id: string }
+        Returns: Json
+      }
+      offer_managed_profile_promotion: {
+        Args: { p_managed_profile_id: string }
         Returns: Json
       }
       operator_transfer_team_admin: {
@@ -1149,6 +1166,10 @@ export type Database = {
       }
       update_user_age_classification: {
         Args: { classification: string }
+        Returns: Json
+      }
+      withdraw_managed_profile_promotion: {
+        Args: { p_managed_profile_id: string }
         Returns: Json
       }
     }
