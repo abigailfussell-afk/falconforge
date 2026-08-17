@@ -53,7 +53,17 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # PINNED, and it must match the `supabase` devDependency.
+          #
+          # Sprint 2's parking lot says "the Supabase CLI is pinned to the version CI
+          # installs (2.114)" and gives the reason: developing against an older local stack
+          # than CI runs is what hid the missing API-role grants until they reached `main`.
+          # That note was aspirational -- both jobs said `latest`, so the local stack was
+          # pinned and CI floated, which is the same gap facing the other way.
+          #
+          # `latest` also resolves through the GitHub API, which is rate-limited on shared
+          # runners: it took CI red on a DOCS-ONLY commit, before a single test ran.
+          version: 2.114.0
 
       # The point of this job: prove supabase/migrations/ alone can reconstruct the
       # database. Until 2026-08-09 it could not -- migrations began at 009 and the
@@ -100,7 +110,17 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # PINNED, and it must match the `supabase` devDependency.
+          #
+          # Sprint 2's parking lot says "the Supabase CLI is pinned to the version CI
+          # installs (2.114)" and gives the reason: developing against an older local stack
+          # than CI runs is what hid the missing API-role grants until they reached `main`.
+          # That note was aspirational -- both jobs said `latest`, so the local stack was
+          # pinned and CI floated, which is the same gap facing the other way.
+          #
+          # `latest` also resolves through the GitHub API, which is rate-limited on shared
+          # runners: it took CI red on a DOCS-ONLY commit, before a single test ran.
+          version: 2.114.0
 
       # The smoke pack talks to real PostgREST and real RLS through a real browser, so it
       # needs the same stack the database job builds.

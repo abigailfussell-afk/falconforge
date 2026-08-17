@@ -644,7 +644,12 @@ the final walkthrough and tags `v2.0.0-beta`.
   Note the coupling: granting DML to `anon` is safe *only* because RLS is enabled
   everywhere and default-deny (assertion 1, plus the anon block of the RLS suite). Do not
   keep one and drop the other.
-- **The Supabase CLI is pinned to the version CI installs** (2.114). Developing against an
+- **✅ ACTUALLY PINNED AS OF SPRINT 8.** This note said the CLI "is pinned to the version CI
+  installs", and it was not: both `ci.yml` jobs said `version: latest`, so the local stack was
+  pinned to `^2.114.0` and CI floated — the same gap this note describes, facing the other way.
+  It also resolves through the GitHub API, which is rate-limited on shared runners and took CI
+  red on a DOCS-ONLY commit before a single test ran. Both jobs name `2.114.0` now. Was:
+  **The Supabase CLI is pinned to the version CI installs** (2.114). Developing against an
   older local stack than CI runs is what hid the grants gap until it reached `main`. If you
   bump `supabase/setup-cli` in `ci.yml`, bump the devDependency with it.
 - **✅ FIXED** — was: `Onboarding.test.tsx` flaky under load. Testing Library's 1s default
