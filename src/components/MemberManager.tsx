@@ -118,7 +118,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     };
 
     useEffect(() => {
-        fetchPendingMembers();
+        void fetchPendingMembers();
     }, [teamId]);
 
     /*
@@ -487,7 +487,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                     message="Are you sure you want to remove this member from the team?"
                     confirmLabel="Remove"
                     onConfirm={() => {
-                        removeMember(removeConfirmId);
+                        void removeMember(removeConfirmId);
                         setRemoveConfirmId(null);
                     }}
                     onCancel={() => setRemoveConfirmId(null)}

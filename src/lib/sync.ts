@@ -189,7 +189,7 @@ export function useSync(): UseSyncResult {
             }
         };
 
-        updatePendingCount();
+        void updatePendingCount();
 
         // Poll for changes every 5 seconds
         const interval = setInterval(updatePendingCount, 5000);
@@ -202,7 +202,7 @@ export function useSync(): UseSyncResult {
     // cannot be (B19).
     useEffect(() => {
         if (authReady && isOnline && pendingChanges > 0 && syncStatus === 'idle' && !syncingRef.current) {
-            sync();
+            void sync();
         }
     }, [authReady, isOnline, pendingChanges, syncStatus]);
 

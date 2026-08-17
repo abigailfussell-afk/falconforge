@@ -31,7 +31,7 @@ export default function Onboarding() {
     const [profileCompleteSuccess, setProfileCompleteSuccess] = useState(false);
 
     useEffect(() => {
-        loadTeams();
+        void loadTeams();
     }, [user]);
 
     const loadTeams = async () => {

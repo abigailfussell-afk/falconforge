@@ -53,7 +53,7 @@ export const createScoutingSlice: SliceCreator<ScoutingSlice> = (set, get) => ({
         queueForSync('scouting_reports', report.id, 'create', {
             ...report,
             teamId: state.currentTeamId,
-        });
+        }).catch(console.error);
     },
 
     updateScoutingReport: (id, updates) => {
@@ -70,7 +70,7 @@ export const createScoutingSlice: SliceCreator<ScoutingSlice> = (set, get) => ({
                 ...report,
                 ...updates,
                 teamId: get().currentTeamId,
-            });
+            }).catch(console.error);
         }
     },
 
@@ -80,7 +80,7 @@ export const createScoutingSlice: SliceCreator<ScoutingSlice> = (set, get) => ({
         if (existing && !canWriteToSeason(state.seasons, existing.seasonId, 'deleteScoutingReport')) return;
 
         set((s) => ({ scoutingReports: s.scoutingReports.filter((r) => r.id !== id) }));
-        queueForSync('scouting_reports', id, 'delete', null);
+        queueForSync('scouting_reports', id, 'delete', null).catch(console.error);
     },
 
     setScoutingReports: (scoutingReports) => set({ scoutingReports }),

@@ -22,7 +22,11 @@ const mockChannel = {
 vi.mock('@/lib/supabase', () => ({
     supabase: {
         channel: vi.fn(() => mockChannel),
-        removeChannel: vi.fn(),
+        // Resolves, because the real `removeChannel` returns a Promise. The stub used to
+        // return undefined, so teardown could not have its rejection handled without the
+        // suite throwing TypeError — mock drift of exactly the kind mock-drift.test.ts
+        // exists to catch, in a shape it cannot see (a return value, not a missing export).
+        removeChannel: vi.fn().mockResolvedValue('ok'),
     },
     supabaseSync: null,
     isSupabaseConfigured: () => true,

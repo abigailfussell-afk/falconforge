@@ -71,11 +71,11 @@ export default function OperatorConsole() {
     }, [isOffline]);
 
     useEffect(() => {
-        checkOperator();
+        void checkOperator();
     }, [checkOperator]);
 
     useEffect(() => {
-        if (isOperator) loadTeams();
+        if (isOperator) void loadTeams();
     }, [isOperator, loadTeams]);
 
     const grant = async () => {

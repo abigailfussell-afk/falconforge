@@ -86,7 +86,7 @@ export default function AdminTransferPanel({ teamId, teamMembers }: AdminTransfe
     }, [teamId, isOffline]);
 
     useEffect(() => {
-        fetchNomination();
+        void fetchNomination();
     }, [fetchNomination]);
 
     const nominate = async (memberId: string) => {
@@ -254,7 +254,7 @@ export default function AdminTransferPanel({ teamId, teamMembers }: AdminTransfe
                     message={`${getMemberDisplayName(confirmTarget)} will be asked to accept the admin terms. When they do, they become the team admin and you become a coach. Nothing is deleted and you keep access to the team.`}
                     confirmLabel="Nominate"
                     onConfirm={() => {
-                        nominate(confirmTarget.id);
+                        void nominate(confirmTarget.id);
                         setConfirmTarget(null);
                     }}
                     onCancel={() => setConfirmTarget(null)}

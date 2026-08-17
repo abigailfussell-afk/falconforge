@@ -106,7 +106,10 @@ function setupStore(overrides: Record<string, any> = {}) {
         currentSeasonId: 'season-1',
         theme: 'dark',
         isLoading: false,
-        initializeStore: vi.fn(),
+        // Resolves, because the store declares `initializeStore: () => Promise<void>`. A bare
+        // vi.fn() returns undefined, so App.tsx could not handle its rejection without this
+        // file throwing TypeError — the stub had drifted from the type it stands in for.
+        initializeStore: vi.fn().mockResolvedValue(undefined),
         setTheme: vi.fn(),
         setCurrentSeason: vi.fn(),
         addTask: vi.fn(),
@@ -256,7 +259,7 @@ describe('Dashboard Navigation', () => {
         // state this replaced there was nothing in the history to go back TO — pressing back
         // on the sprint board left the app entirely.
         await act(async () => {
-            router.navigate(-1);
+            await router.navigate(-1);
         });
         expect(router.state.location.pathname).toBe('/app/scouting');
     });

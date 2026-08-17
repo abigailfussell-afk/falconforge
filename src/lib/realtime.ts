@@ -205,7 +205,7 @@ export function setupRealtimeSubscription(teamId: string): void {
 
 export function teardownRealtimeSubscription(): void {
     if (channel && supabase) {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(channel).catch(console.error);
     }
     channel = null;
     currentTeamId = null;

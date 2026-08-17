@@ -61,7 +61,7 @@ export default function AcceptAdminNomination({
     }, [teamId, myMember, isOffline]);
 
     useEffect(() => {
-        checkNomination();
+        void checkNomination();
     }, [checkNomination]);
 
     const accept = async () => {

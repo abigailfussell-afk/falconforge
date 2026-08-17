@@ -40,7 +40,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, subTeams }) 
      * seats" must not lie the moment after you approve somebody.
      */
     const refreshTeam = () => {
-        if (currentTeamId) fetchTeamData(currentTeamId);
+        if (currentTeamId) fetchTeamData(currentTeamId).catch(console.error);
     };
 
     return (
