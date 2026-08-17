@@ -41,13 +41,30 @@ vi.mock('../../lib/supabase', () => ({
     },
 }));
 
-// Mock store
+/*
+ * The store, mocked as what it actually is: a SELECTOR-CALLABLE hook that also carries
+ * `getState`.
+ *
+ * It used to be mocked as a bare object with `getState` only, which was enough while this page
+ * read the store solely through `performSignOut`. Sprint 9 has it read `managedProfiles`
+ * through the hook, and a mock that cannot represent the property under test is
+ * `docs/failure-modes.md` §2 — so it is fixed here rather than worked around in the component.
+ */
+const mockStoreState = {
+    resetToDefaults: vi.fn(),
+    managedProfiles: [] as { id: string; fullName: string }[],
+};
 vi.mock('../../lib/store', () => ({
-    useAppStore: {
-        getState: vi.fn(() => ({
-            resetToDefaults: vi.fn(),
-        })),
-    },
+    useAppStore: Object.assign(
+        (selector?: (s: typeof mockStoreState) => unknown) =>
+            selector ? selector(mockStoreState) : mockStoreState,
+        { getState: () => mockStoreState },
+    ),
+}));
+
+// The page loads the guardian's children on mount; it has no team context of its own.
+vi.mock('../../lib/server-pull', () => ({
+    fetchGuardianData: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock offline DB clear functions

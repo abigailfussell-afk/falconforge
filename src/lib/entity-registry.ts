@@ -41,6 +41,9 @@ import type {
     MeetingEventType,
     AttendanceStatus,
     AttendanceMethod,
+    ManagedProfile,
+    GuardianConsent,
+    GuardianConsentType,
 } from '../types';
 import type { AppState } from './store';
 import type { Database } from './database.types';
@@ -77,11 +80,32 @@ export function toISO(value: number | undefined | null): string | null {
  */
 export type WithSyncContext<T> = T & { teamId?: string; seasonId?: string };
 
+/**
+ * What a row belongs to, and therefore which column a pull filters on.
+ *
+ * `'team'` — `team_id = <the open team>`. Everything the app had until Sprint 9.
+ *
+ * `'guardian'` — `guardian_user_id = <the signed-in user>`. `managed_profiles` and
+ * `guardian_consents` have no `team_id` and never will: a child's profile belongs to their
+ * guardian, not to whichever team they happen to be rostered on this season, and a consent
+ * is between the guardian and the platform.
+ *
+ * REQUIRED, not defaulted, and that is the whole point. `pullFromServer` filtered every table
+ * on `team_id` unconditionally, so a guardian entity added without this field would have been
+ * pulled with `.eq('team_id', ...)` against a table that has no such column — one warning per
+ * pull in a `console.warn` nobody reads, and an empty children list that looks exactly like a
+ * guardian who has not added a child yet. Making the field required means the question is
+ * answered when an entity is registered rather than discovered when it is used.
+ */
+export type EntityScope = 'team' | 'guardian';
+
 export interface EntityDefinition<TLocal extends { id: string }> {
     /** Key in the Zustand store, camelCase. */
     localKey: string;
     /** Supabase table, snake_case. Constrained to a real table by the generated types. */
     remoteTable: RemoteTable;
+    /** Which column scopes this entity's rows. See {@link EntityScope}. */
+    scope: EntityScope;
     /** Local -> Supabase row. */
     toRemote: (local: WithSyncContext<TLocal>) => Record<string, unknown>;
     /** Supabase row -> local. */
@@ -109,6 +133,7 @@ const tasks: EntityDefinition<Task> = {
     serverAssigned: ['createdAt'] as const,
     localKey: 'tasks',
     remoteTable: 'tasks',
+    scope: 'team',
     toRemote: (t) => ({
         id: t.id,
         team_id: t.teamId,
@@ -151,6 +176,7 @@ const seasons: EntityDefinition<Season> = {
     serverAssigned: ['createdAt'] as const,
     localKey: 'seasons',
     remoteTable: 'seasons',
+    scope: 'team',
     toRemote: (s) => ({
         id: s.id,
         name: s.name,
@@ -181,6 +207,7 @@ const subTeams: EntityDefinition<SubTeam> = {
     serverAssigned: [] as const,
     localKey: 'subTeams',
     remoteTable: 'sub_teams',
+    scope: 'team',
     toRemote: (st) => ({
         id: st.id,
         team_id: st.teamId,
@@ -205,6 +232,7 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
     serverAssigned: ['createdAt'] as const,
     localKey: 'scoutingReports',
     remoteTable: 'scouting_reports',
+    scope: 'team',
     toRemote: (r) => ({
         id: r.id,
         team_id: r.teamId,
@@ -256,6 +284,7 @@ const matchPlans: EntityDefinition<MatchPlan> = {
     serverAssigned: ['updatedAt'] as const,
     localKey: 'matchPlans',
     remoteTable: 'match_plans',
+    scope: 'team',
     toRemote: (p) => ({
         id: p.id,
         team_id: p.teamId,
@@ -301,6 +330,7 @@ const teamMembers: EntityDefinition<TeamMember> = {
     serverAssigned: ['joinedAt'] as const,
     localKey: 'teamMembers',
     remoteTable: 'team_members',
+    scope: 'team',
     toRemote: (m) => ({
         id: m.id,
         team_id: m.teamId,
@@ -346,6 +376,7 @@ const meetings: EntityDefinition<Meeting> = {
     serverAssigned: [] as const,
     localKey: 'meetings',
     remoteTable: 'meetings',
+    scope: 'team',
     toRemote: (m) => ({
         id: m.id,
         team_id: m.teamId,
@@ -404,6 +435,7 @@ const meetingAttendance: EntityDefinition<MeetingAttendance> = {
     serverAssigned: [] as const,
     localKey: 'meetingAttendance',
     remoteTable: 'meeting_attendance',
+    scope: 'team',
     toRemote: (a) => ({
         id: a.id,
         team_id: a.teamId,
@@ -428,6 +460,108 @@ const meetingAttendance: EntityDefinition<MeetingAttendance> = {
     getFromStore: (s) => s.meetingAttendance,
     setInStore: (s, items) => s.setMeetingAttendance(items),
 };
+
+/**
+ * The children a guardian holds profiles for.
+ *
+ * GUARDIAN-SCOPED, NOT TEAM-SCOPED, and that is not a detail. A child's profile belongs to
+ * their guardian; it outlives any one team and any one season, and it is retained even after
+ * the child is promoted to their own login, as the record of why they were rostered. There is
+ * no `team_id` here to filter on, which is what `scope` exists to express.
+ *
+ * Sprint 3 left both guardian tables out of the registry deliberately — "a registry entry with
+ * nothing reading it is dead code" — and parked them for whichever sprint built the UI. This is
+ * that sprint, and the same argument that enrolled `meetings` in Sprint 8 applies: registering
+ * them is what puts them through the one read path that honours `getPendingRecordIds()`, and
+ * what makes a child added on a phone with no signal survive to the next pull.
+ *
+ * NO `birth_year`. It was dropped in the same sprint; see `ManagedProfile`.
+ */
+const managedProfiles: EntityDefinition<ManagedProfile> = {
+    /*
+     * `promotionCode` is server-assigned in the strong sense: the client may READ it and is
+     * refused permission to write it (column-level GRANTs in
+     * `20260822000200_guardian_access.sql`), because a claim code is a credential and a
+     * client-chosen credential is a guessable one. Declaring it here is what lets the
+     * round-trip test know the asymmetry is intended, rather than it looking like the
+     * read-but-never-written bugs the registry was built to catch (B9).
+     */
+    serverAssigned: ['createdAt', 'promotionCode'] as const,
+    localKey: 'managedProfiles',
+    remoteTable: 'managed_profiles',
+    scope: 'guardian',
+    toRemote: (p) => ({
+        id: p.id,
+        guardian_user_id: p.guardianUserId,
+        full_name: p.fullName,
+        // NULL rather than '' — `notes` is nullable and an empty string is not a note.
+        notes: p.notes || null,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        guardianUserId: r.guardian_user_id,
+        fullName: r.full_name,
+        notes: r.notes || '',
+        // '' means "no promotion offered", which is the normal state.
+        promotionCode: r.promotion_code || '',
+        createdAt: toEpochMillis(r.created_at),
+    }),
+    getFromStore: (s) => s.managedProfiles,
+    setInStore: (s, items) => s.setManagedProfiles(items),
+};
+
+/**
+ * The consents a guardian has given, one per (child, document).
+ *
+ * `version` is carried in BOTH directions and has no default at either end. That is the whole
+ * point of the Sprint 9 migration: the client owns the number, so a consent records the version
+ * of the document the guardian was actually shown. A `?? '1.0'` anywhere in this definition
+ * would reintroduce exactly the defect the migration removed, one layer up.
+ */
+const guardianConsents: EntityDefinition<GuardianConsent> = {
+    serverAssigned: ['consentedAt'] as const,
+    localKey: 'guardianConsents',
+    remoteTable: 'guardian_consents',
+    scope: 'guardian',
+    toRemote: (c) => ({
+        id: c.id,
+        managed_profile_id: c.managedProfileId,
+        guardian_user_id: c.guardianUserId,
+        consent_type: c.consentType,
+        // No fallback, deliberately. See the type's doc comment and
+        // `20260822000000_guardian_schema_cleanup.sql`.
+        version: c.version,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        managedProfileId: r.managed_profile_id,
+        guardianUserId: r.guardian_user_id,
+        consentType: toConsentType(r.consent_type),
+        version: r.version,
+        consentedAt: toEpochMillis(r.consented_at),
+    }),
+    getFromStore: (s) => s.guardianConsents,
+    setInStore: (s, items) => s.setGuardianConsents(items),
+};
+
+const CONSENT_TYPES: readonly string[] = [
+    'coppa_data_collection', 'terms', 'privacy', 'community_guidelines',
+];
+
+/**
+ * Narrow a server string to the consent-type union.
+ *
+ * Same rule as `toMemberRole`: a value the client was not built for must land on something
+ * renderable rather than flow into code comparing against literals. `coppa_data_collection`
+ * is the safe landing place — it is the consent whose absence blocks rostering, so an
+ * unrecognised value degrades to "we hold the one that matters" rather than to a type whose
+ * absence nothing checks.
+ */
+function toConsentType(value: unknown): GuardianConsentType {
+    return CONSENT_TYPES.includes(value as string)
+        ? (value as GuardianConsentType)
+        : 'coppa_data_collection';
+}
 
 const EVENT_TYPES: readonly string[] = [
     'practice', 'team_meeting', 'build', 'competition', 'outreach', 'fundraiser', 'deadline',
@@ -506,11 +640,42 @@ export const SYNCED_ENTITIES = [
     meetingAttendance,
 ] as const;
 
+/**
+ * Pushable entities scoped to the signed-in GUARDIAN rather than to a team.
+ *
+ * Kept as a separate list rather than mixed into {@link SYNCED_ENTITIES} because three
+ * consumers derive team-scoped behaviour from that one:
+ *
+ *   - `SYNC_PULL_TABLES` — filters on `team_id`, which neither of these has;
+ *   - `realtime.ts` — subscribes on a channel filtered by the open team, which a guardian
+ *     with no membership of their own does not have;
+ *   - `TEAM_DATA_TABLES` — what loading a team means.
+ *
+ * They ARE in `SYNCABLE_TABLES` (see sync.ts), because the offline queue pushes them like
+ * anything else: a guardian who adds a child on a phone with no signal gets the same
+ * queue -> retry -> dead-letter guarantees as a coach creating a task in a gym.
+ *
+ * Profiles before consents, because `guardian_consents` carries a composite foreign key into
+ * `managed_profiles(id, guardian_user_id)` and a consent that arrives first is refused.
+ *
+ * Note precisely what this ordering does and does not buy, because it is easy to over-read:
+ * it fixes the PULL order (`GUARDIAN_PULL_TABLES` is derived from this array in order). It
+ * does NOT fix the push order — the drain reads the queue strictly by timestamp (B1), so what
+ * makes the push safe is `createGuardianSlice` queueing the profile before its consents, and
+ * `queueForSync` allocating each timestamp before entering its Dexie transaction (B1 again).
+ * Both orderings are asserted in `guardian-sync.db.test.ts`.
+ */
+export const GUARDIAN_ENTITIES = [managedProfiles, guardianConsents] as const;
+
 /** Read from the server, never pushed by the client. */
 export const PULL_ONLY_ENTITIES = [teamMembers] as const;
 
 /** Every registered entity, whichever direction it travels. */
-export const ENTITIES = [...SYNCED_ENTITIES, ...PULL_ONLY_ENTITIES] as const;
+export const ENTITIES = [
+    ...SYNCED_ENTITIES,
+    ...GUARDIAN_ENTITIES,
+    ...PULL_ONLY_ENTITIES,
+] as const;
 
 /**
  * Resolve a definition from either naming convention.

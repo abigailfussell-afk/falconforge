@@ -490,3 +490,61 @@ describe('AppStore', () => {
     });
 
 });
+
+describe('setTeams drops a current team that is no longer in the list', () => {
+    /*
+     * FOUND IN THE BROWSER, signed in as a guardian.
+     *
+     * `currentTeamId` is persisted and, until Sprint 9, nothing ever invalidated it — every
+     * account that reached the team picker either had teams or was brand new with an empty
+     * store. A guardian is the first kind of account that routinely has NO team of its own, and
+     * the stale id pointed `fetchTeamData` at a team the account is not a member of. That pull
+     * REPLACED the meetings and attendance collections with that team's results (empty, per
+     * RLS), wiping out the guardian's own pull a moment earlier. On screen: "Nothing scheduled
+     * yet" for a child with a full schedule. Both requests were visible in the network log and
+     * the wrong one landed second.
+     *
+     * The invariant lives on the setter rather than at each call site, which is the fix
+     * `resetToDefaults` already got for the same class (`docs/failure-modes.md` §12).
+     */
+    const team = (id: string) => ({
+        id,
+        name: `Team ${id}`,
+        teamNumber: null,
+        ownerId: 'owner-1',
+        createdAt: 0,
+    });
+
+    beforeEach(() => {
+        useAppStore.getState().resetToDefaults();
+    });
+
+    it('clears the current team when the new list does not contain it', () => {
+        useAppStore.getState().setTeams([team('a'), team('b')]);
+        useAppStore.getState().setCurrentTeam('a');
+
+        useAppStore.getState().setTeams([team('b')]);
+
+        expect(useAppStore.getState().currentTeamId).toBeNull();
+    });
+
+    it('clears it when the list becomes empty — the guardian case', () => {
+        useAppStore.getState().setTeams([team('a')]);
+        useAppStore.getState().setCurrentTeam('a');
+
+        useAppStore.getState().setTeams([]);
+
+        expect(useAppStore.getState().currentTeamId).toBeNull();
+    });
+
+    it('KEEPS it when the team is still there', () => {
+        // The half that matters for everyone who is not a guardian: a routine refresh of the
+        // team list must not throw a coach back to the picker mid-session.
+        useAppStore.getState().setTeams([team('a'), team('b')]);
+        useAppStore.getState().setCurrentTeam('a');
+
+        useAppStore.getState().setTeams([team('a'), team('b'), team('c')]);
+
+        expect(useAppStore.getState().currentTeamId).toBe('a');
+    });
+});

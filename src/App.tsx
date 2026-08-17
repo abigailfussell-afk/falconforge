@@ -10,6 +10,7 @@ import LoginPage from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import CreateTeam from './pages/CreateTeam';
 import JoinTeam from './pages/JoinTeam';
+import ResetPassword from './pages/ResetPassword';
 import LandingPage from './pages/Landing';
 import TermsAndConditions from './pages/legal/TermsAndConditions';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
@@ -37,6 +38,7 @@ const MatchPlanner = lazy(() => import('./components/MatchPlanner'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const EditProfile = lazy(() => import('./components/EditProfile'));
 const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
+const GuardianView = lazy(() => import('./components/guardian/GuardianView'));
 
 /*
  * Meetings is six routes rather than one, and they are split separately on purpose.
@@ -204,6 +206,23 @@ function App() {
 
                 <Route path="/auth/callback" element={<SplashScreen message="Securing your session..." />} />
 
+                {/*
+                 * Where a recovery email ends up. NOT where it points: the link lands on the
+                 * origin root so that `detectSessionInUrl` can read the fragment (a URL has one
+                 * fragment, and a HashRouter path in `redirectTo` would eat it), and
+                 * `onAuthStateChange`'s PASSWORD_RECOVERY handler navigates here once the
+                 * session exists.
+                 *
+                 * This route simply did not exist until Sprint 9, which is the second half of
+                 * why recovery was dead in production: even when the app booted, the catch-all
+                 * below matched and silently discarded the token.
+                 *
+                 * Public rather than behind the `user ?` guard — the page decides for itself,
+                 * and tells somebody with no recovery session that their link has expired
+                 * instead of bouncing them to the landing page with no explanation.
+                 */}
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
+
                 {/* Legal pages - public */}
                 <Route path="/legal/terms" element={<TermsAndConditions />} />
                 <Route path="/legal/privacy" element={<PrivacyPolicy />} />
@@ -244,6 +263,13 @@ function App() {
                     <Route path="checkin/:code" element={<CheckIn />} />
                     <Route path="planner" element={<MatchPlanner />} />
                     <Route path="profile" element={<EditProfile />} />
+                    {/*
+                     * The guardian's own view. No route guard: the page reads only rows RLS
+                     * already scopes to `guardian_user_id = auth.uid()`, so somebody who is not
+                     * a guardian sees the empty state rather than an Access Denied — which is
+                     * the honest answer, since "you have no children here" is exactly true.
+                     */}
+                    <Route path="guardian" element={<GuardianView />} />
                     <Route path="admin" element={<AdminSettingsRoute />} />
                     {/*
                      * The operator page needs no route guard of its own. `OperatorConsole` asks

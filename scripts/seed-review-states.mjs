@@ -388,7 +388,14 @@ async function seedMeetings(teamId) {
 
     await must('attendance', svc.from('meeting_attendance').insert(attendance));
 
-    return { count: meetings.length, liveCode, attendance: attendance.length };
+    // `past` is exported so the guardian seed can give a child real attendance history —
+    // otherwise their view shows the empty state and the screenshot proves nothing.
+    return {
+        count: meetings.length,
+        liveCode,
+        attendance: attendance.length,
+        past: held.map((m) => m.id),
+    };
 }
 
 async function main() {
@@ -489,6 +496,105 @@ async function main() {
     );
     const meetings = await seedMeetings(ordinary.team.id);
 
+    /*
+     * 6. A GUARDIAN WITH TWO CHILDREN ON IRON FALCONS.
+     *
+     * Two, not one, deliberately: siblings are the case the pre-Sprint-9 attendance policy got
+     * wrong (`current_team_member_id` is LIMIT 1 with no ORDER BY), and a review state with one
+     * child would look identical whether that is fixed or not.
+     *
+     * One child is approved and one is still pending, so both halves of the guardian's screen —
+     * "waiting for the team admin" and the schedule — are visible at once, and the admin console
+     * has a managed request sitting in it for the COPPA attestation checkbox.
+     */
+    /*
+     * The REVIEW account is also a parent, so `npm run capture` has a guardian view to
+     * photograph. A coach who is also a parent is an ordinary case, not a contrivance — and it
+     * is the case that proves `requiresTeam` and `requiresGuardian` are independent flags
+     * rather than two spellings of one.
+     *
+     * No team membership for this child: Iron Falcons is at capacity, and "not on a team yet"
+     * is the state a guardian sees first anyway.
+     */
+    const reviewerChildProfile = await must(
+        'reviewer child',
+        svc
+            .from('managed_profiles')
+            .insert({ guardian_user_id: ordinary.admin.id, full_name: 'Frankie Reyes' })
+            .select('id')
+            .single(),
+    );
+    for (const type of ['coppa_data_collection', 'terms', 'privacy', 'community_guidelines']) {
+        await must(
+            `reviewer consent ${type}`,
+            svc.from('guardian_consents').insert({
+                managed_profile_id: reviewerChildProfile.id,
+                guardian_user_id: ordinary.admin.id,
+                consent_type: type,
+                version: type === 'coppa_data_collection' ? '1.0' : '2.0',
+            }),
+        );
+    }
+
+    const guardian = await makeUser('guardian@falconforge.test', 'Alex Fussell');
+    const children = [
+        { name: 'Robin Fussell', status: 'approved' },
+        { name: 'Sam Fussell', status: 'pending' },
+    ];
+    for (const child of children) {
+        const profile = await must(
+            `profile ${child.name}`,
+            svc
+                .from('managed_profiles')
+                .insert({ guardian_user_id: guardian.id, full_name: child.name })
+                .select('id')
+                .single(),
+        );
+        // Every consent, at the version the client would have displayed. No DEFAULT exists any
+        // more, so an omitted version is an error rather than a silent '1.0'.
+        for (const type of ['coppa_data_collection', 'terms', 'privacy', 'community_guidelines']) {
+            await must(
+                `consent ${type}`,
+                svc.from('guardian_consents').insert({
+                    managed_profile_id: profile.id,
+                    guardian_user_id: guardian.id,
+                    consent_type: type,
+                    version: type === 'coppa_data_collection' ? '1.0' : '2.0',
+                }),
+            );
+        }
+        const member = await must(
+            `member ${child.name}`,
+            svc
+                .from('team_members')
+                .insert({
+                    team_id: ordinary.team.id,
+                    user_id: guardian.id,
+                    managed_profile_id: profile.id,
+                    role: 'student',
+                    status: child.status,
+                    seat_assigned: child.status === 'approved',
+                    full_name: child.name,
+                    email: 'guardian@falconforge.test',
+                })
+                .select('id')
+                .single(),
+        );
+
+        // Attendance for the approved child, so the guardian's view has history to show.
+        if (child.status === 'approved' && meetings.past?.length) {
+            for (const meetingId of meetings.past.slice(0, 3)) {
+                await svc.from('meeting_attendance').insert({
+                    team_id: ordinary.team.id,
+                    meeting_id: meetingId,
+                    team_member_id: member.id,
+                    status: 'present',
+                    method: 'coach',
+                });
+            }
+        }
+    }
+
     const { data: entitlements } = await svc
         .from('team_entitlement')
         .select('team_id, status, seats_total, seats_used, valid_until');
@@ -510,6 +616,7 @@ async function main() {
     console.log('  successor@falconforge.test Coach on Iron Falcons, has NOT accepted admin terms');
     console.log('  mentor@falconforge.test    MENTOR on Iron Falcons - runs meetings, not the roster');
     console.log('  iron-student0@falconforge.test  a STUDENT on Iron Falcons - read-only schedule');
+    console.log('  guardian@falconforge.test  GUARDIAN of two children on Iron Falcons (1 approved, 1 pending)');
     console.log(
         `\n  ${meetings.count} meetings on Iron Falcons, ${meetings.attendance} attendance rows.`,
     );

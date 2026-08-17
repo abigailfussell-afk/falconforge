@@ -3,6 +3,8 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, LogOut, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../lib/store';
+import { fetchGuardianData } from '../lib/server-pull';
 import { performSignOut } from '../lib/sign-out';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { AgeClassification } from '../types';
@@ -21,6 +23,27 @@ export default function JoinTeam() {
     // Form state
     const [inviteCode, setInviteCode] = useState(urlCode || '');
     const [teamName, setTeamName] = useState<string | null>(null);
+
+    /*
+     * WHO IS JOINING: this account, or one of its children.
+     *
+     * `''` means the guardian themselves, which is also the only option for the overwhelming
+     * majority of people, so it is the default and the selector does not appear at all unless
+     * this account actually holds a child profile. A coach joining a second team must not have
+     * to read a question that is not about them.
+     *
+     * The COACH'S WORKFLOW DOES NOT CHANGE (plan section 3): this is the same invite code, the
+     * same `pending` status and the same approval. Only the RPC differs, because the row it
+     * writes names a managed profile.
+     */
+    const managedProfiles = useAppStore((s) => s.managedProfiles);
+    const [joiningForProfileId, setJoiningForProfileId] = useState('');
+
+    // A guardian arriving straight at /join (from a coach's link) may not have their children
+    // loaded yet — this page lives outside AppShell, which is what normally fetches them.
+    useEffect(() => {
+        if (user?.id) fetchGuardianData(user.id).catch(console.error);
+    }, [user?.id]);
 
     // If code provided in URL, set it
     useEffect(() => {
@@ -46,10 +69,21 @@ export default function JoinTeam() {
         setError(null);
 
         try {
-            // Call the join team function - no extra params needed, age is already on user profile
-            const { data, error: rpcError } = await supabase.rpc('join_team_with_invite', {
-                invite_code: inviteCode.trim().toUpperCase(),
-            });
+            /*
+             * Two RPCs, one flow. `join_team_with_invite_for_child` verifies the caller is the
+             * profile's guardian and that a `coppa_data_collection` consent exists, then writes
+             * a `team_members` row whose `user_id` is the guardian and whose
+             * `managed_profile_id` is the child — which is what makes every existing
+             * `user_id = auth.uid()` policy do the right thing without a second access path.
+             */
+            const { data, error: rpcError } = joiningForProfileId
+                ? await supabase.rpc('join_team_with_invite_for_child', {
+                      invite_code: inviteCode.trim().toUpperCase(),
+                      p_managed_profile_id: joiningForProfileId,
+                  })
+                : await supabase.rpc('join_team_with_invite', {
+                      invite_code: inviteCode.trim().toUpperCase(),
+                  });
 
             if (rpcError) {
                 console.error('RPC error:', rpcError);
@@ -258,6 +292,38 @@ export default function JoinTeam() {
                                 Ask your coach for the team invite code
                             </p>
                         </div>
+
+                        {/*
+                         * Only rendered for an account that holds a child profile. Everyone
+                         * else sees the form exactly as it was.
+                         */}
+                        {managedProfiles.length > 0 && (
+                            <div>
+                                <label
+                                    htmlFor="joining-for"
+                                    className="block text-sm font-medium text-slate-300 mb-2"
+                                >
+                                    Who is joining?
+                                </label>
+                                <select
+                                    id="joining-for"
+                                    value={joiningForProfileId}
+                                    onChange={(e) => setJoiningForProfileId(e.target.value)}
+                                    data-testid="joining-for"
+                                    className="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-forge-500"
+                                >
+                                    <option value="">Me</option>
+                                    {managedProfiles.map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.fullName}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-slate-400 text-xs mt-2 text-center">
+                                    Your child does not need a login — you hold the account.
+                                </p>
+                            </div>
+                        )}
 
                         {/* Error */}
                         {error && (

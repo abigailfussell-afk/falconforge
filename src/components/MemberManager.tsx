@@ -4,6 +4,7 @@ import { supabaseSync, isSupabaseConfigured } from '../lib/supabase';
 import { TeamMember, MemberRole } from '../types';
 import { getMemberDisplayName } from '../lib/member-utils';
 import { useAuth } from '../lib/auth';
+import { recordAttestation } from '../lib/attestations';
 import { useEntitlement } from '../lib/entitlement';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
@@ -19,6 +20,14 @@ interface PendingMember {
     email: string;
     status: 'pending' | 'approved' | 'rejected';
     joined_at: string;
+    /**
+     * Set when this request is a guardian joining on a CHILD's behalf.
+     *
+     * The only thing that distinguishes a managed request from any other on this screen, and
+     * the reason it is selected: the admin's COPPA attestation is asked for exactly here and
+     * nowhere else.
+     */
+    managed_profile_id: string | null;
 }
 
 interface MemberManagerProps {
@@ -43,6 +52,13 @@ const ASSIGNABLE_ROLES: { value: MemberRole; label: string }[] = [
 
 export default function MemberManager({ teamId, teamMembers, onMembersChange }: MemberManagerProps) {
     const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+    /*
+     * Which managed requests the admin has ticked the COPPA box for, this sitting.
+     *
+     * Per member rather than one box for the panel: they are separate children and separate
+     * attestations, and a single box would let one tick approve three.
+     */
+    const [coppaAttested, setCoppaAttested] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
@@ -94,7 +110,8 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                     full_name,
                     email,
                     status,
-                    joined_at
+                    joined_at,
+                    managed_profile_id
                 `)
                 .eq('team_id', teamId)
                 .eq('status', 'pending')
@@ -140,10 +157,43 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
     const approveMember = async (memberId: string) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
 
+        const member = pendingMembers.find(m => m.id === memberId);
+
         setProcessingIds(prev => new Set(prev).add(memberId));
         setError(null);
 
         try {
+            /*
+             * THE COPPA ATTESTATION IS RECORDED BEFORE THE APPROVAL, NOT AFTER.
+             *
+             * Plan section 3 splits COPPA responsibility three ways, and this is the admin's
+             * layer: "the team admin attests at approval that they will not roster a child
+             * without the guardian — a single checkbox recorded as an attestation, not a
+             * workflow."
+             *
+             * RECORDED is the operative word. `coppa_responsibility` has existed in
+             * `AttestationType` and in the database's CHECK constraint since Sprint 3 with NO
+             * WRITER ANYWHERE — a value with readers and no writer, which is
+             * `docs/failure-modes.md` §7 and the exact shape that left this product's COPPA
+             * posture resting on an attestation record nothing created for four sprints. This
+             * is the writer.
+             *
+             * Ordered first on purpose: if the attestation write fails, the approval does not
+             * happen, and the admin sees why. The reverse order would leave a rostered child
+             * with no record of the attestation that permitted it — which is precisely the
+             * artefact somebody will ask for later.
+             */
+            if (member?.managed_profile_id) {
+                const { success, error: attestError } = await recordAttestation('coppa_responsibility');
+                if (!success) {
+                    throw new Error(
+                        attestError
+                            ? `Could not record your confirmation: ${attestError}`
+                            : 'Could not record your confirmation.',
+                    );
+                }
+            }
+
             const { error: updateError } = await supabaseSync
                 .from('team_members')
                 .update({ status: 'approved', seat_assigned: true })
@@ -339,7 +389,38 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                     <p className="font-medium text-slate-700 dark:text-slate-200 truncate">
                                         {getDisplayName(member)}
                                     </p>
-                                    <p className="text-xs text-slate-400 truncate">{member.email}</p>
+                                    {/*
+                                     * For a managed child the email shown is the GUARDIAN's —
+                                     * the child has no account and no address we hold — so it
+                                     * is labelled rather than left to look like the child's.
+                                     */}
+                                    <p className="text-xs text-slate-400 truncate">
+                                        {member.managed_profile_id ? 'Guardian: ' : ''}
+                                        {member.email}
+                                    </p>
+                                    {member.managed_profile_id && (
+                                        <label className="mt-1.5 flex items-start gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mt-0.5"
+                                                checked={coppaAttested.has(member.id)}
+                                                onChange={(e) =>
+                                                    setCoppaAttested((prev) => {
+                                                        const next = new Set(prev);
+                                                        if (e.target.checked) next.add(member.id);
+                                                        else next.delete(member.id);
+                                                        return next;
+                                                    })
+                                                }
+                                                data-testid={`coppa-attest-${member.id}`}
+                                            />
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                This member is a child joining through their parent
+                                                or guardian. I confirm I will not add a child to
+                                                this team without their guardian.
+                                            </span>
+                                        </label>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -353,7 +434,15 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                          * the same distinction `isOffline` draws elsewhere on
                                          * this screen.
                                          */
-                                        disabled={!viewerIsAdmin || isOffline || isAtCapacity}
+                                        disabled={
+                                            !viewerIsAdmin ||
+                                            isOffline ||
+                                            isAtCapacity ||
+                                            // A managed child cannot be approved until the
+                                            // admin has attested. Disabled with a reason rather
+                                            // than enabled with an early return (§8).
+                                            (!!member.managed_profile_id && !coppaAttested.has(member.id))
+                                        }
                                         title={
                                             !viewerIsAdmin
                                                 ? 'Only the team admin can approve members'
@@ -361,7 +450,9 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                                     ? 'Approving needs a connection'
                                                     : isAtCapacity
                                                         ? 'No licensed seats left — remove a member or add seats first'
-                                                        : 'Approve'
+                                                        : member.managed_profile_id && !coppaAttested.has(member.id)
+                                                            ? 'Confirm the guardian statement first'
+                                                            : 'Approve'
                                         }
                                         aria-label="Approve"
                                     >

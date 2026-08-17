@@ -4,7 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from './supabase';
-import type { AttestationType } from '../types';
+import type { AttestationType, GuardianConsentType } from '../types';
 
 /**
  * Current versions of the legal documents. Raising one requires re-acceptance.
@@ -35,6 +35,42 @@ export const ATTESTATION_VERSIONS: Record<AttestationType, string> = {
     privacy_and_guidelines: '2.0',
     coach_terms: '2.0',
 };
+
+/**
+ * Current versions of what a GUARDIAN consents to, on a child's behalf.
+ *
+ * Three of the four ARE the documents above, and are read from them rather than restated. That
+ * is not tidiness: `docs/failure-modes.md` section 1 is "one concept implemented N times, then
+ * drifting apart", and a second table of version numbers is that defect pre-assembled — the
+ * next legal rewrite would raise `ATTESTATION_VERSIONS.terms` and leave every guardian recorded
+ * against the old text, which is precisely what happened between Sprint 3 and Sprint 6 when the
+ * number was duplicated into a database trigger.
+ *
+ * `coppa_data_collection` is the one with no equivalent: it is the guardian's consent to
+ * FalconForge holding their child's data at all, which no account-holder gives for themselves.
+ * It carries its own number because it has its own text.
+ */
+export const GUARDIAN_CONSENT_VERSIONS: Record<GuardianConsentType, string> = {
+    coppa_data_collection: '1.0',
+    terms: ATTESTATION_VERSIONS.terms,
+    privacy: ATTESTATION_VERSIONS.privacy,
+    community_guidelines: ATTESTATION_VERSIONS.community_guidelines,
+};
+
+/**
+ * What a guardian must consent to before a child can be added.
+ *
+ * All four, collected in one sitting on the "add a child" screen. This is the whole reason the
+ * guardian creates the profile rather than the coach (plan section 3): consent and the child's
+ * data arrive together, so there is no window in which a child's name is held without a lawful
+ * basis and nothing to chase by email afterwards.
+ */
+export const GUARDIAN_REQUIRED_CONSENTS: GuardianConsentType[] = [
+    'coppa_data_collection',
+    'terms',
+    'privacy',
+    'community_guidelines',
+];
 
 /**
  * Attestations required during signup, for every account 13+.

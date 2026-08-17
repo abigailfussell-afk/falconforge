@@ -60,6 +60,7 @@ function renderInShell(context: Partial<AppShellContext>) {
         teamMembers: [member],
         subTeams: [],
         canManageTeam: false,
+        isGuardian: false,
         canManageMeetings: false,
         currentMember: member,
         isOperator: false,

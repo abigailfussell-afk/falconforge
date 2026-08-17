@@ -103,7 +103,13 @@ BEGIN
     SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO missing
     FROM unnest(ARRAY[
         'tasks', 'seasons', 'sub_teams', 'match_plans', 'checklists', 'scouting_reports',
-        'team_members', 'meetings', 'meeting_attendance'
+        'team_members', 'meetings', 'meeting_attendance',
+        -- Sprint 9 put both guardian tables in the entity registry, which is what enrols a
+        -- table in the pull. They are scoped by `guardian_user_id` rather than `team_id`
+        -- (see `EntityScope`), but the delta contract is about the cursor column and applies
+        -- to them identically. `guardian_consents` had no `updated_at` until
+        -- `20260822000100_guardian_sync.sql` added one, rather than being exempted here.
+        'managed_profiles', 'guardian_consents'
     ]) AS expected(name)
     WHERE NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -127,6 +133,14 @@ END $$;
 --    here, so season deletions never propagated (B22, fixed in the Sprint 4 migration). The
 --    list was written from the set of tables B7 happened to name rather than from what the
 --    client subscribes to, which is how one table sat outside a rule everything else obeyed.
+--
+--    THE GUARDIAN TABLES ARE DELIBERATELY ABSENT, and adding them here would be wrong rather
+--    than merely redundant. `realtime.ts` opens ONE channel, filtered by the open team, and
+--    `managed_profiles`/`guardian_consents` have no `team_id` to filter on -- a guardian
+--    typically has no membership of their own at all. They are in `GUARDIAN_ENTITIES`, not
+--    `SYNCED_ENTITIES`, so `SYNCED_TABLES` does not contain them and this list still matches
+--    it. Deletions on those tables propagate through the periodic full reconciliation, which
+--    is adequate for rows one person edits on one device at a time.
 DO $$
 DECLARE
     offenders text;
@@ -172,8 +186,21 @@ BEGIN
     WHERE t.schemaname = 'public'
       AND NOT (
           has_table_privilege(r.role, format('public.%I', t.tablename), 'SELECT')
-          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'INSERT')
-          AND has_table_privilege(r.role, format('public.%I', t.tablename), 'UPDATE')
+          -- INSERT and UPDATE are asked COLUMN-wise, because Sprint 9 narrows one of them
+          -- deliberately: `managed_profiles.promotion_code` is a claim code, readable by the
+          -- guardian and writable only by the SECURITY DEFINER function that generates it, and
+          -- Postgres has no way to subtract a column from a table-level privilege — the table
+          -- grant has to be revoked and re-granted per column.
+          --
+          -- This still answers the question the assertion exists to ask ("can the API role use
+          -- this table at all", after a rebuild produced a schema PostgREST could not read a
+          -- row of). What it deliberately does NOT try to police is WHICH columns: a catalogue
+          -- assertion is the wrong instrument for that — see `docs/environment-divergences.md`
+          -- §5, where a `pg_proc` ACL assertion would have approved a REVOKE that was a no-op.
+          -- The column list is asserted behaviourally, as a guardian, in
+          -- `guardian-access.rls.db.test.ts`.
+          AND has_any_column_privilege(r.role, format('public.%I', t.tablename), 'INSERT')
+          AND has_any_column_privilege(r.role, format('public.%I', t.tablename), 'UPDATE')
           AND has_table_privilege(r.role, format('public.%I', t.tablename), 'DELETE')
       );
 
@@ -647,3 +674,54 @@ BEGIN
 END $$;
 
 SELECT 'schema assertions passed' AS result;
+
+-- 23. NO SECURITY DEFINER FUNCTION JOINS THE ANON-EXECUTABLE SET BY ACCIDENT.
+--
+--     `20260819000000_revoke_anon_execute.sql` claims this property in its header -- "adding a
+--     function to this schema does not silently join or leave the set" -- and nothing enforced
+--     it, so Sprint 9 added four RPCs that did exactly that. `20260816000500_v2_grants.sql`
+--     sets ALTER DEFAULT PRIVILEGES granting every new function to `anon`, so the default is
+--     to be reachable and each new RPC has to opt OUT by hand.
+--
+--     THIS IS A DRIFT CHECK, NOT THE SECURITY PROPERTY, and the distinction matters --
+--     `docs/environment-divergences.md` §5 is precisely that a catalogue assertion approved a
+--     REVOKE that was a no-op. The refusal itself is asserted behaviourally, as anon, in
+--     `anon-execute.rls.db.test.ts`. What this catches is the case that suite structurally
+--     cannot: a function nobody thought to add to it.
+--
+--     To add a function here, decide which list it belongs in and say why. A predicate called
+--     INSIDE an RLS policy must keep its anon grant -- a policy is evaluated as the calling
+--     role, and revoking it turns every anonymous SELECT into "permission denied for function"
+--     instead of the `200 []` that makes a signed-out visitor see an empty app.
+DO $$
+DECLARE
+    offenders text;
+BEGIN
+    SELECT string_agg(p.proname, ', ' ORDER BY p.proname) INTO offenders
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef                                  -- SECURITY DEFINER only
+      AND has_function_privilege('anon', p.oid, 'EXECUTE')
+      AND p.proname <> ALL (ARRAY[
+          -- Predicates evaluated inside RLS policies. Revoking these BREAKS anonymous reads.
+          'is_team_member', 'is_team_guardian', 'guardian_member_ids', 'is_profile_guardian',
+          'get_user_team_ids', 'current_team_role', 'current_team_member_id',
+          'can_manage_billing', 'can_manage_content', 'can_manage_meetings',
+          'can_manage_roster', 'can_manage_structure',
+          'team_can_write', 'team_seats_remaining', 'season_is_open', 'meeting_season_is_open',
+          'meeting_checkin_opens', 'meeting_checkin_closes',
+          'is_platform_operator', 'admin_nomination_ttl',
+          -- Trigger functions: EXECUTE is checked when the trigger is created, not when it
+          -- fires, so an anon grant on one is inert.
+          'handle_new_user', 'sync_user_to_team_members', 'update_updated_at_column',
+          'enforce_member_role_eligibility', 'enforce_seat_capacity',
+          'enforce_admin_nomination_authority'
+      ]);
+
+    IF offenders IS NOT NULL THEN
+        RAISE EXCEPTION
+            'SECURITY DEFINER functions an anonymous caller can EXECUTE: %. Revoke them FROM PUBLIC, anon (revoking PUBLIC alone is a no-op: ALTER DEFAULT PRIVILEGES gives each new function its own anon grant), or add them to the allowlist above with a reason.',
+            offenders;
+    END IF;
+END $$;

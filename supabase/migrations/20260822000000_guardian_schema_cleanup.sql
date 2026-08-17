@@ -1,0 +1,47 @@
+-- Two fields removed from the guardian schema before anything starts writing them.
+--
+-- Both are forward migrations on the frozen schema, and both are free TODAY and expensive later,
+-- because nothing in `src/` reads or writes either table yet: `managed_profiles` and
+-- `guardian_consents` are empty locally and production is greenfield. Sprint 9 is the sprint
+-- that gives them their first client. Doing this first means no code is ever written against a
+-- field that is going away.
+--
+-- ==========================================================================
+-- 1. `managed_profiles.birth_year` -- do not collect it
+-- ==========================================================================
+--
+-- Locked 2026-08-17 (plan section 3, "Child's date of birth"). The column is nullable, nothing
+-- writes it, and it existed solely to compute a child's age. Collecting less about a minor is
+-- the right default, and it removes a field that would otherwise need justifying in a privacy
+-- review.
+--
+-- The consequence is accepted deliberately: THE APP NEVER KNOWS ANYONE'S AGE, only what was
+-- asserted once. Promotion to a child's own login is therefore triggered by a person -- the
+-- guardian, or a student who hits the one thing a managed profile cannot do -- and never by a
+-- date. Nothing downstream may reintroduce an age computation from a stored birthday; there is
+-- no birthday to compute it from, on `managed_profiles` or on `users`.
+--
+-- ==========================================================================
+-- 2. `guardian_consents.version` -- drop the DEFAULT, the client owns the number
+-- ==========================================================================
+--
+-- This is the Sprint 8 follow-up defect in a new table, caught before it could fire.
+--
+-- `handle_new_user` hardcoded the attestation version '1.0' in Sprint 3; Sprint 6 raised the
+-- documents to 2.0; from that moment every new account was told on its first screen that the
+-- documents had changed since it accepted them. `20260821000000_signup_attestation_version.sql`
+-- fixed it by having the CLIENT pass the version it actually displayed, in signup metadata.
+--
+-- `attestations.ts:81-84` states the rule the DEFAULT here breaks, and stated it before this
+-- table existed: the current version number is a client artefact (`ATTESTATION_VERSIONS`) and
+-- "duplicating it in a trigger would create two sources of truth that drift on the next legal
+-- rewrite". A column DEFAULT is the same duplication with the same drift, one rewrite away.
+--
+-- The column stays NOT NULL, so this does not become a hole: an INSERT that omits the version
+-- now FAILS rather than silently recording a number nobody displayed. That is the point. A
+-- caller that does not know which version it showed the guardian has no business recording a
+-- consent.
+
+ALTER TABLE managed_profiles DROP COLUMN birth_year;
+
+ALTER TABLE guardian_consents ALTER COLUMN version DROP DEFAULT;
