@@ -361,14 +361,22 @@ accepting a new version keeps the record of the old one.
 ## Testing
 
 ```bash
-npm run lint             # tsc --noEmit
+npm run gate             # the Gate: lint -> unit -> integration -> build
+npm run gate:db          # the Gate plus db:verify, test:db and test:rls (Docker)
+
+npm run lint             # tsc --noEmit && eslint src
 npm run test:run         # unit
 npm run test:integration # real IndexedDB, real store, no network
 npm run test:db          # real Postgres — needs `npm run db:start` (Docker)
 npm run test:rls         # the tenant-isolation subset of test:db
-npm run test:coverage    # all three suites, merged, with thresholds
+npm run test:coverage    # all three suites, merged, with thresholds (not yet run by CI)
 npm run test:e2e         # Playwright smoke pack — a real browser, a real build
 ```
+
+`npm run gate` is the single definition of "done" — it used to be spelled out in three places
+that had drifted apart. ESLint is deliberately small: six rules, each one naming a defect this
+project actually shipped. `docs/failure-modes.md` records those, and the fact that of 34 fix
+commits, 13 were found by running the app and roughly none by the suite.
 
 `test:db` runs the data layer against a real local Supabase stack: the sync drain and pull
 against real PostgREST, and a behavioural tenant-isolation suite that asserts, with real

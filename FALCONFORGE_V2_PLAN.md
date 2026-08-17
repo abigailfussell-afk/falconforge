@@ -111,16 +111,18 @@ battle-tested part of the codebase — protect it.
 
 1. **Branch per sprint**: `v2/sprint-<n>-<slug>` off `main`. Merge `refactor/data-layer` to
    `main` before Sprint 1 starts (it's clean and ahead).
-2. **The Gate** — all must pass before any commit is considered done; paste real output in the
+2. **The Gate** — must pass before any commit is considered done; paste real output in the
    sprint report, never claim green without running:
    ```
-   npm run lint            # tsc --noEmit
-   npm run test:run        # unit
-   npm run test:integration
-   npm run build
-   npm run db:verify       # whenever supabase/ is touched (requires Docker)
-   npm run test:rls        # once it exists (Sprint 2+), whenever schema or policies change
+   npm run gate            # lint (tsc --noEmit && eslint src) -> unit -> integration -> build
+   npm run gate:db         # the Gate plus db:verify, test:db and test:rls. Use this
+                           # whenever supabase/ is touched. Requires Docker.
    ```
+   These are the **only** definitions. They used to be written out here as a list of separate
+   scripts, and that list had drifted from `package.json`'s `test:all` and from `ci.yml`, which
+   called `npx tsc --noEmit` directly — three definitions of done, of which the one an agent
+   read was not the one CI ran. `test:rls` carried "once it exists (Sprint 2+)" until Sprint 8,
+   five sprints after it existed and was green.
 3. **Test before commit**: every behavior change ships with a test that fails without it.
    Bug fixes get a regression test named for the bug. No `describe.skip` additions. Never delete
    a failing test to get green — fix or explicitly justify in the report.
@@ -136,6 +138,13 @@ battle-tested part of the codebase — protect it.
    Co-Authored-By line. Do not push or open PRs unless Kevin asks.
 10. **Verification is adversarial**: before reporting done, re-read the sprint's exit criteria
     and actively try to falsify each one (run the app, not just the tests, for UI work).
+11. **Read `docs/failure-modes.md` before writing tests or claiming done.** Fourteen recurring
+    defect classes mined from eight sprints, each with its commits, plus the checklist that
+    closes them. Of the 34 fix commits in this repo, 13 were found by running the app and
+    approximately zero by the unit suite — so budget for the browser, not just the Gate.
+12. **Read `docs/environment-divergences.md` before testing auth, CSS, service workers, database
+    permissions, or a clock.** Ten documented ways the thing under test is not the thing that
+    ships. Every one has already produced a green result that meant nothing.
 
 ---
 
@@ -372,7 +381,43 @@ the final walkthrough and tags `v2.0.0-beta`.
 
 | 2026-08-16 | Sprint 8 follow-up - four gaps found testing with a second person | `main` | **Complete, migrated and deployed.** Kevin tested with a friend, which found things one person on one machine cannot. **The re-attestation prompt on a thirty-second-old account was a HARDCODED VERSION IN A TRIGGER**: `handle_new_user` has written the signup consent as `'1.0'` since Sprint 3, Sprint 6 raised the documents to `'2.0'`, and from that moment every new account was told on its first screen that the documents had changed since it accepted them. `attestations.ts` predicted it exactly, in a comment explaining why the database deliberately does not know the current version - "duplicating it in a trigger would create two sources of truth that drift on the next legal rewrite". One had been duplicated in Sprint 3 and it drifted in Sprint 6. **Sprint 7 fixed the same symptom from a different cause and added a smoke test that passes against a configuration production does not have**: local is `enable_confirmations = false`, so `signUp` returns a session, the client's `recordAttestation` fires and the 2.0 row it writes MASKS the trigger's 1.0; production is `mailer_autoconfirm: false`, so there is no session, no client write, and only the stale row. Confirmed by reading `/auth/v1/settings` on both. The version now travels with the consent in signup metadata, so the client stays the only place a version is written down. **A scan while signed out threw the destination away** - `/app/*` guarded with `<Navigate to="/">`, dropping a student on the marketing page - now routes to the sign-in form carrying `?next=`, with the team picker skipped when there is one team and a destination pending; `readReturnTo` refuses anything that is not a rooted relative path, `//evil.example` included. **The "Preparing your workspace" hang behind it**: `isLoading` was released only inside `ensureUserProfile(...).finally()`, and the 5s safety timeout is cleared the moment `getSession()` resolves - including when it resolves WITH a user, which is exactly when the profile fetch has not started - so the splash was held up by one un-timed-out request with no timeout of its own. Bounded at 8s. **One tap checked a student in from anywhere**: the schedule linked to `/app/checkin/<code>` with the code read out of local data, making the poster decorative and the window meaningless; every student-facing route now arrives with an EMPTY field and the dashboard gains an open-check-ins card that asks for the code rather than skipping it. **Found by a test written for something else: the create-event form was unsaveable every evening after 22:00** - the default end is `start + 2h`, which crosses midnight, while the form has one date field, so "New event" at 22:15 produced a 23:00 start, a 01:00 end, a disabled Save and nothing on screen explaining that the form had done it to itself. Clamped to 23:59. Gate green (lint / 590 unit +2 skips / 91 integration / build / 23 assertions / 427 db / 301 rls / 19 e2e); migration applied to the hosted project before the merge, with the row set identical either side. |
 
+| 2026-08-16 | **Cross-sprint retrospective — guidance, guardrails, and B26** | `v2/retrospective-guardrails` | **Complete.** Not a sprint: a mining pass over all seven sprint reports, the §8 log, and all 34 `fix` commits, asked for because the same defects kept being caught by independent review rather than by the process. Output is `docs/failure-modes.md` (fourteen recurring classes, each with its commits) and `docs/environment-divergences.md` (the ten documented ways the thing under test is not the thing that ships — the item Sprint 8's parking lot asked for). **The finding that reframed it: of the 34 fix commits, 13 were found by running the app, 3 by CI, 2 by reading a diff, 1 by production forensics, and approximately zero by the 592-test suite** — so the suite is a precondition for done, never evidence of it. The most frequent class is not on any prior rule list: **one concept implemented N times, then drifting** (8 sprints, ~18 instances), and *every* dedup pass in this project has uncovered a behavioural defect rather than mere redundancy — now CLAUDE.md principle 9. **ESLint added, deliberately tiny**: six rules, each naming the defect it would have caught, on a repo that had none — `npm run lint` had been `tsc --noEmit` for eight sprints while every rule document called it linting. Its first run found **B26, a live invalid hook call** on `JoinTeam`'s forced age-profile screen: C2's exact shape, fixed in `Onboarding.tsx` in Sprint 1 and never checked for elsewhere, swallowed by the handler's own `catch` and shown to a student as "An unexpected error occurred" with no way forward. Regression test written to the C2 precedent — a mock that is a *real hook* calling `useContext`, because `JoinTeam.test.tsx`'s plain `vi.fn()` **passed against the bug** for eight sprints. **The lint pass also found four slices swallowing queue-write failures**: `createSeason/SubTeam/Task` use `.catch(console.error)`, `createChecklist/MatchPlan/Meeting/Scouting` had drifted to nothing at all, so a rejected write to the queue — which in an offline-first app *is* the data — was silently dropped in 14 places. And enabling the rule surfaced **two mock-drift defects the existing `mock-drift.test.ts` structurally cannot see**, both stubs returning `undefined` where the real API returns a Promise. One keyboard-unreachable row fixed (`SprintArchived`), the fourth instance of a shape Sprint 5.5 fixed in four other places. **The Gate is now one script** (`npm run gate` / `gate:db`); there had been three definitions and CI's was not coupled to the `lint` script. **CI now runs the unit suite at `TZ=UTC` and `TZ=America/Chicago`**, because this project has had timezone defects in both directions and either zone alone hides one. New `src/test/__tests__/harness-invariants.test.ts` holds eight source-level ratchets, including `as any` counted **one agreed way** — three greps had been giving three answers (55/56/57) and Sprint 6 recorded a false increase when privacy-policy prose tripped the metric. Gate green at both timezones (lint / 600 unit +2 skips / 91 integration / build). Deferred with numbers rather than silently: `exhaustive-deps` (4 sites, one in the sync engine), `mockReset: true` (39 tests, 3 files), and four stale-claim fixes. |
+
 **Discovered / parking lot:**
+
+*From the 2026-08-16 cross-sprint retrospective (all verified by measurement; none fixed, and
+each is deferred because it is scoped work rather than because it is unimportant):*
+- **`react-hooks/exhaustive-deps` is written but not enabled — 4 sites.**
+  `InviteManager.tsx:109`, `MemberManager.tsx:122`, `Onboarding.tsx:35`, `sync.ts:207`. Each is a
+  plain async function redefined every render, so the fix is a `useCallback`, **not** a
+  dependency added to the array — adding the dependency without memoising produces the infinite
+  render loop that spun ~2M times and wrote a 2.7 GB log in Sprint 6. One of the four is inside
+  the sync engine, which principle 2 protects. Needs the four data-loading paths re-verified in a
+  browser; turning the rule on in `eslint.config.js` is the last step, not the first.
+- **`mockReset: true` fails 39 tests across 3 files.** It is the systemic fix for the Sprint 7
+  leak (`vi.clearAllMocks()` clears calls, not implementations, so a `mockReturnValue` leaked a
+  signed-out user into every later test and the new panel tests were asserting against the
+  landing page). The 39 set their return values at factory scope and expect them to persist, so
+  this is a real conversion. Rationale is recorded in `vitest.config.ts` where the flag would go.
+- **Two swallowed Playwright *actions* remain** — `scripts/venue-simulation.mjs:123` and
+  `e2e/helpers.ts:142`, both `await box.check().catch(() => {})`. This is the exact shape of the
+  Sprint 7 defect where the venue simulation "reported success while doing nothing"; both are
+  guarded by an `isVisible()` check, which is why they have not lied yet. Ratcheted at 2 in
+  `harness-invariants.test.ts`. Swallowing a *wait* is fine; swallowing an *action* is not.
+- **Three uses of Node's clock remain in `e2e/meetings.spec.ts`** (lines 52, 156, 350). They
+  survive only because they sit far from a day boundary, which is luck rather than design — the
+  defect they resemble was green in US Central and red at UTC. Ratcheted at 3.
+- **The coverage thresholds are enforced by nothing.** `vitest.config.coverage.ts:57-62` sets
+  72/67/69/74 under a comment calling it "a ratchet, not an aspiration / never lower to get a
+  build green", and **neither the Gate nor either workflow runs `test:coverage`**. It needs
+  Docker (it composes the db project), so the cheap version is one step in `ci.yml`'s `schema`
+  job, which already has the stack up. Either wire it or stop calling it a ratchet.
+- **There is no `docs/sprint-8-report.md`.** Sprint 8, its merge and its follow-up exist only as
+  three rows in this log. Seven sprints have standalone reports; the convention broke without
+  anyone deciding to break it.
+- **`supabase/tests/preflight_security_audit.sql` (104 lines) is orphaned** — referenced by no
+  script and no workflow, mentioned only in the Sprint 1 report. Wire it in or delete it; a
+  security audit nothing runs is the same shape as a check nothing evaluates.
 
 *From the 2026-08-16 planning session (no sprint — found while scoping the deferred auth-email
 work above; both verified by reading the code, neither fixed):*

@@ -26,8 +26,10 @@ here and the plan's own convention is to keep history readable rather than tidy 
 
 ## Aspirational — describes practices, not necessarily what exists
 
-`skills/` holds seven `SKILL.md` files (architecture, code-conventions,
-component-decomposition, data-sync, e2e-testing, error-handling, refactoring). They were written
+`skills/` holds ten `SKILL.md` files (architecture, code-conventions, component-decomposition,
+data-sync, e2e-testing, error-handling, refactoring, testing-strategy, ui-design, verification).
+This line said "seven" and listed seven until Sprint 8's retrospective; the last three were
+simply never added to the sentence. They were written
 as guidance for agents and predate most of the V2 work, so they describe intent rather than the
 current codebase. Two concrete ways they are now out of date:
 
