@@ -10,10 +10,12 @@ import { ScoutingSlice, createScoutingSlice, scoutingInitialState } from './slic
 import { ChecklistSlice, createChecklistSlice, checklistInitialState } from './slices/createChecklistSlice';
 import { MatchPlanSlice, createMatchPlanSlice, matchPlanInitialState } from './slices/createMatchPlanSlice';
 import { MeetingSlice, createMeetingSlice, meetingInitialState } from './slices/createMeetingSlice';
+import { GuardianSlice, createGuardianSlice, guardianInitialState } from './slices/createGuardianSlice';
 import type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
     Meeting, MeetingAttendance,
+    ManagedProfile, GuardianConsent,
 } from '../types';
 
 /**
@@ -42,6 +44,7 @@ export type {
     Team, TeamMember, SubTeam, Season,
     Task, ScoutingReport, ChecklistItem, ChecklistTemplate, MatchPlan,
     Meeting, MeetingAttendance,
+    ManagedProfile, GuardianConsent,
 };
 
 // Re-exported so the many existing `import { selectChecklist, TeamEntitlement } from './store'`
@@ -99,7 +102,8 @@ export interface AppState extends
     ScoutingSlice,
     ChecklistSlice,
     MatchPlanSlice,
-    MeetingSlice {
+    MeetingSlice,
+    GuardianSlice {
     // UI state
     theme: 'light' | 'dark';
     isLoading: boolean;
@@ -138,6 +142,7 @@ const INITIAL_DATA_STATE = {
     ...checklistInitialState,
     ...matchPlanInitialState,
     ...meetingInitialState,
+    ...guardianInitialState,
     isLoading: false,
 };
 
@@ -152,6 +157,7 @@ export const useAppStore = create<AppState>()(
             ...createChecklistSlice(set, get),
             ...createMatchPlanSlice(set, get),
             ...createMeetingSlice(set, get),
+            ...createGuardianSlice(set, get),
 
             theme: 'dark',
             isLoading: false,

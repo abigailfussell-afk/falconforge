@@ -12,7 +12,7 @@ import {
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
 import { useAuth } from './auth';
-import { findEntity, SYNCED_ENTITIES, type RemoteTable } from './entity-registry';
+import { findEntity, SYNCED_ENTITIES, GUARDIAN_ENTITIES, type RemoteTable } from './entity-registry';
 import {
     classifySyncFailure,
     type SyncFailureContext,
@@ -38,6 +38,11 @@ export type { SyncToken } from './timeout';
  */
 const SYNCABLE_TABLES = new Set<string>([
     ...SYNCED_ENTITIES.map((e) => e.remoteTable),
+    // Guardian-scoped but pushed through the same queue: a child added on a phone with no
+    // signal gets the same retry -> dead-letter guarantees as anything else. They are pulled
+    // separately (they have no `team_id`), which is why they are a separate list — but the
+    // QUEUE does not care what a row is scoped by, only whether the table is real.
+    ...GUARDIAN_ENTITIES.map((e) => e.remoteTable),
     'checklists',
 ]);
 

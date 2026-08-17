@@ -333,6 +333,69 @@ export interface MeetingAttendance {
 }
 
 /**
+ * What a guardian can consent to on a child's behalf.
+ *
+ * Constrained by a CHECK on `guardian_consents.consent_type`. `coppa_data_collection` is the
+ * one that makes rostering a child lawful; the other three are the same documents every
+ * account-holder accepts at signup, given here by the adult because the child never sees a
+ * signup screen.
+ */
+export type GuardianConsentType =
+  | 'coppa_data_collection'
+  | 'terms'
+  | 'privacy'
+  | 'community_guidelines';
+
+/**
+ * A child a guardian holds a profile for.
+ *
+ * The child has NO row in `auth.users` and no credentials at all: under COPPA an under-13
+ * may not hold an account, so the guardian signs in and the child's team membership is a
+ * `team_members` row whose `user_id` is the GUARDIAN and whose `managedProfileId` points
+ * here. That is what makes every existing `user_id = auth.uid()` policy do the right thing
+ * for a managed child without a second access path.
+ *
+ * NO BIRTH DATE, AND DELIBERATELY SO. `birth_year` was dropped in Sprint 9 (plan section 3):
+ * the app never knows anyone's age, only what was asserted once, so promotion to a child's
+ * own login is triggered by a person and never by a date. Nothing here may reintroduce an
+ * age computation — there is no birthday on this type or on `users` to compute it from.
+ */
+export interface ManagedProfile {
+  id: string;
+  /** The guardian's `auth.users` id. Always the signed-in user for a locally-created row. */
+  guardianUserId: string;
+  fullName: string;
+  /** Free text the guardian keeps for themselves — allergies, a pickup arrangement. */
+  notes: string;
+  createdAt?: number;
+}
+
+/**
+ * One consent, given once by a guardian for one child.
+ *
+ * Unique on `(managedProfileId, consentType)`, so re-consenting updates in place rather than
+ * accumulating rows — the opposite of `user_attestations`, whose unique key includes the
+ * version precisely so the record of each acceptance survives. The asymmetry is deliberate
+ * and predates Sprint 9; what Sprint 9 fixes is that `version` no longer has a database
+ * DEFAULT, so the number recorded here is always one the client actually displayed.
+ */
+export interface GuardianConsent {
+  id: string;
+  managedProfileId: string;
+  guardianUserId: string;
+  consentType: GuardianConsentType;
+  /**
+   * The version of the document the guardian was shown, from `ATTESTATION_VERSIONS`.
+   *
+   * NEVER defaulted, here or in the database. A caller that does not know which version it
+   * displayed has no business recording a consent, and since Sprint 9 the column is NOT NULL
+   * with no default, so omitting it fails loudly instead of inventing '1.0'.
+   */
+  version: string;
+  consentedAt?: number;
+}
+
+/**
  * A saved checklist a team can start a new season from.
  *
  * Stored in `checklists` with `is_template = true`, which exempts the row from

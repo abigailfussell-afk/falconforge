@@ -103,7 +103,13 @@ BEGIN
     SELECT string_agg(expected.name, ', ' ORDER BY expected.name) INTO missing
     FROM unnest(ARRAY[
         'tasks', 'seasons', 'sub_teams', 'match_plans', 'checklists', 'scouting_reports',
-        'team_members', 'meetings', 'meeting_attendance'
+        'team_members', 'meetings', 'meeting_attendance',
+        -- Sprint 9 put both guardian tables in the entity registry, which is what enrols a
+        -- table in the pull. They are scoped by `guardian_user_id` rather than `team_id`
+        -- (see `EntityScope`), but the delta contract is about the cursor column and applies
+        -- to them identically. `guardian_consents` had no `updated_at` until
+        -- `20260822000100_guardian_sync.sql` added one, rather than being exempted here.
+        'managed_profiles', 'guardian_consents'
     ]) AS expected(name)
     WHERE NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -127,6 +133,14 @@ END $$;
 --    here, so season deletions never propagated (B22, fixed in the Sprint 4 migration). The
 --    list was written from the set of tables B7 happened to name rather than from what the
 --    client subscribes to, which is how one table sat outside a rule everything else obeyed.
+--
+--    THE GUARDIAN TABLES ARE DELIBERATELY ABSENT, and adding them here would be wrong rather
+--    than merely redundant. `realtime.ts` opens ONE channel, filtered by the open team, and
+--    `managed_profiles`/`guardian_consents` have no `team_id` to filter on -- a guardian
+--    typically has no membership of their own at all. They are in `GUARDIAN_ENTITIES`, not
+--    `SYNCED_ENTITIES`, so `SYNCED_TABLES` does not contain them and this list still matches
+--    it. Deletions on those tables propagate through the periodic full reconciliation, which
+--    is adequate for rows one person edits on one device at a time.
 DO $$
 DECLARE
     offenders text;

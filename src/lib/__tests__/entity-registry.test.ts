@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 import {
     ENTITIES,
     SYNCED_ENTITIES,
+    GUARDIAN_ENTITIES,
     PULL_ONLY_ENTITIES,
     findEntity,
     toEpochMillis,
@@ -32,6 +33,8 @@ import type {
     TeamMember,
     Meeting,
     MeetingAttendance,
+    ManagedProfile,
+    GuardianConsent,
 } from '@/types';
 
 /** Contextual fields the server needs but the local types do not carry. */
@@ -150,7 +153,28 @@ const meetingAttendance: MeetingAttendance = {
     attestedAt: 1_760_000_400_000,
 };
 
+const managedProfile: ManagedProfile = {
+    id: 'profile-1',
+    guardianUserId: 'user-guardian-1',
+    fullName: 'Robin Fussell',
+    notes: 'Peanut allergy. Collected by an aunt on Thursdays.',
+    createdAt: undefined, // server-assigned; absent on a locally-created record
+};
+
+const guardianConsent: GuardianConsent = {
+    id: 'consent-1',
+    managedProfileId: 'profile-1',
+    guardianUserId: 'user-guardian-1',
+    consentType: 'coppa_data_collection',
+    // A number that is nobody's default, so a `?? '1.0'` creeping into either direction shows
+    // up here as a changed value rather than as a coincidence.
+    version: '3.1',
+    consentedAt: undefined, // server-assigned
+};
+
 const SAMPLES: Record<string, any> = {
+    managed_profiles: managedProfile,
+    guardian_consents: guardianConsent,
     tasks: task,
     meetings: meeting,
     meeting_attendance: meetingAttendance,
@@ -301,15 +325,97 @@ describe('pull-only entities are never pushable', () => {
         }
     });
 
-    it('ENTITIES is exactly the two lists together', () => {
+    it('ENTITIES is exactly the three lists together', () => {
         expect(ENTITIES.map((e) => e.remoteTable)).toEqual([
             ...SYNCED_ENTITIES.map((e) => e.remoteTable),
+            ...GUARDIAN_ENTITIES.map((e) => e.remoteTable),
             ...PULL_ONLY_ENTITIES.map((e) => e.remoteTable),
         ]);
     });
 
     it('team_members is pull-only', () => {
         expect(PULL_ONLY_ENTITIES.map((e) => e.remoteTable)).toContain('team_members');
+    });
+});
+
+describe('scope decides which column a pull filters on', () => {
+    /*
+     * `pullFromServer` was an unconditional `.eq('team_id', teamId)` until Sprint 9. A guardian
+     * table reaching that code path would be filtered on a column it does not have — and the
+     * pull swallows a failed query into a `console.warn`, so the visible result is an empty
+     * children list, which is indistinguishable from a guardian who has not added a child yet.
+     * That is `docs/failure-modes.md` section 4, the class that deleted every new team's seeded
+     * checklist (B20).
+     */
+    it('keeps the guardian tables OUT of the team-scoped pull', () => {
+        for (const entity of SYNCED_ENTITIES) {
+            expect(entity.scope, `${entity.remoteTable} is pulled by team`).toBe('team');
+        }
+    });
+
+    it('scopes both guardian tables by the guardian, not by a team', () => {
+        expect(GUARDIAN_ENTITIES.map((e) => e.remoteTable)).toEqual([
+            // Profiles before consents: `guardian_consents` has a composite FK into
+            // `managed_profiles(id, guardian_user_id)`, and this array IS the push order.
+            'managed_profiles',
+            'guardian_consents',
+        ]);
+        for (const entity of GUARDIAN_ENTITIES) {
+            expect(entity.scope).toBe('guardian');
+        }
+    });
+
+    it('gives every registered entity a scope', () => {
+        // The field is required by the type, so this cannot fail while the build is green —
+        // it exists to fail LOUDLY if someone widens the type to make an entity easier to add.
+        for (const entity of ENTITIES) {
+            expect(['team', 'guardian'], `${entity.remoteTable}`).toContain(entity.scope);
+        }
+    });
+});
+
+describe('a consent records the version it was actually shown', () => {
+    const consents = findEntity('guardian_consents')!;
+
+    it('carries the version in both directions without substituting one', () => {
+        const row = consents.toRemote({ ...guardianConsent, ...CTX });
+        expect(row.version).toBe('3.1');
+        expect(consents.fromRemote(row).version).toBe('3.1');
+    });
+
+    it('does not invent a version for a row that has none', () => {
+        /*
+         * The regression this guards. The database DEFAULT of '1.0' was dropped in Sprint 9 so
+         * that an unversioned consent FAILS rather than silently claiming the guardian agreed
+         * to text they were never shown. A `?? '1.0'` here would restore the defect above the
+         * database, where no constraint can see it.
+         */
+        expect(consents.fromRemote({ id: 'c', version: null }).version).toBeNull();
+        expect(consents.fromRemote({ id: 'c' }).version).toBeUndefined();
+    });
+
+    it('falls back to the consent that matters for an unrecognised type', () => {
+        // Same rule as `toMemberRole`: never let a value the client was not built for flow
+        // into code comparing against literals.
+        expect(consents.fromRemote({ id: 'c', consent_type: 'terms' }).consentType).toBe('terms');
+        expect(consents.fromRemote({ id: 'c', consent_type: 'nonsense' }).consentType)
+            .toBe('coppa_data_collection');
+    });
+});
+
+describe('a managed profile carries no age, by construction', () => {
+    it('has no birth year in either direction', () => {
+        /*
+         * `birth_year` was dropped in Sprint 9 and the app never knows anyone's age. This is
+         * the client half of that decision: even a server row that somehow carried the column
+         * must not reintroduce it, because a field read but never written is how the registry's
+         * three original asymmetries (B9/B10/B17) each began.
+         */
+        const profiles = findEntity('managed_profiles')!;
+        const row = profiles.toRemote({ ...managedProfile, ...CTX });
+
+        expect(row).not.toHaveProperty('birth_year');
+        expect(profiles.fromRemote({ ...row, birth_year: 2016 })).not.toHaveProperty('birthYear');
     });
 });
 

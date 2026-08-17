@@ -41,7 +41,7 @@ import {
 } from './offline-db';
 import { supabaseSync } from './supabase';
 import { useAppStore } from './store';
-import { findEntity, SYNCED_ENTITIES, type RemoteTable } from './entity-registry';
+import { findEntity, SYNCED_ENTITIES, GUARDIAN_ENTITIES, type RemoteTable } from './entity-registry';
 import { withTimeout, PER_QUERY_TIMEOUT_MS, type SyncToken } from './timeout';
 
 /**
@@ -68,8 +68,28 @@ export const SYNC_PULL_TABLES: readonly string[] = [
  */
 export const TEAM_DATA_TABLES: readonly string[] = ['team_members', ...SYNC_PULL_TABLES];
 
+/**
+ * The guardian's own records: their children and the consents they have given.
+ *
+ * Not part of {@link SYNC_PULL_TABLES} because these rows have no `team_id`. They are pulled
+ * by {@link fetchGuardianData} against the signed-in user, and a guardian who is not a member
+ * of any team still gets them — which is the normal case, since a guardian holds a roster row
+ * on their child's behalf without being a member themselves.
+ */
+export const GUARDIAN_PULL_TABLES: readonly string[] = GUARDIAN_ENTITIES.map((e) => e.remoteTable);
+
 export interface PullOptions {
+    /** The open team. Required for team-scoped tables; ignored by guardian-scoped ones. */
     teamId: string;
+    /**
+     * The signed-in user, for guardian-scoped tables (`scope: 'guardian'`).
+     *
+     * Required if `tables` contains any of them, and asserted rather than assumed: pulling a
+     * guardian table without it would filter on `guardian_user_id = undefined`, which
+     * PostgREST answers with zero rows — indistinguishable from a guardian who has not added
+     * a child yet. That is `docs/failure-modes.md` section 4 exactly, so it fails loudly instead.
+     */
+    guardianUserId?: string;
     /** Which tables to pull. Defaults to {@link SYNC_PULL_TABLES}. */
     tables?: readonly string[];
     /**
@@ -95,10 +115,21 @@ export type PullResult = Record<string, number>;
  * in the returned {@link PullResult}.
  */
 export async function pullFromServer(options: PullOptions): Promise<PullResult> {
-    const { teamId, tables = SYNC_PULL_TABLES, mode = 'auto', token = { cancelled: false } } = options;
+    const {
+        teamId,
+        guardianUserId,
+        tables = SYNC_PULL_TABLES,
+        mode = 'auto',
+        token = { cancelled: false },
+    } = options;
 
     const received: PullResult = {};
-    if (!supabaseSync || !teamId) return received;
+    if (!supabaseSync) return received;
+
+    // A team-scoped pull with no team is a no-op, as it always was. A guardian-scoped pull
+    // does not need one — a guardian with no membership of their own still has children.
+    const wantsTeamScope = tables.some((t) => findEntity(t)?.scope !== 'guardian');
+    if (wantsTeamScope && !teamId) return received;
 
     // The counter decides when 'auto' does a full reconciliation. It is per-team, so
     // switching teams no longer shifts which entity lands on the reconciliation cycle
@@ -106,7 +137,7 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
     // background loop's schedule.
     let isFullPull = mode === 'full';
     if (mode === 'auto') {
-        const counter = await bumpSyncCounter(teamId);
+        const counter = await bumpSyncCounter(teamId || guardianUserId || '');
         isFullPull = counter % FULL_SYNC_INTERVAL === 0;
     }
 
@@ -117,7 +148,33 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
         if (token.cancelled) return received;
 
         try {
-            const entityKey = `${teamId}:${table}`;
+            /*
+             * WHICH COLUMN SCOPES THIS TABLE.
+             *
+             * Everything before Sprint 9 was team-scoped and this was an unconditional
+             * `.eq('team_id', teamId)`. Guardian tables have no such column, so the registry
+             * now states the scope per entity and the pull reads it here rather than the two
+             * of them being expected to agree from a distance.
+             */
+            const entity = findEntity(table);
+            const isGuardianScoped = entity?.scope === 'guardian';
+            const scopeColumn = isGuardianScoped ? 'guardian_user_id' : 'team_id';
+            const scopeValue = isGuardianScoped ? guardianUserId : teamId;
+
+            if (!scopeValue) {
+                // Loudly, not silently. Filtering on `undefined` returns zero rows, and zero
+                // rows here is indistinguishable from "this guardian has no children" — the
+                // absence-read-as-a-value class (failure-modes §4) that cost this project a
+                // whole team's seeded checklist (B20).
+                console.warn(
+                    `Pull for ${table} skipped: no ${scopeColumn} to scope it by.`,
+                );
+                continue;
+            }
+
+            // Cursors are per scope-value, not per team: a guardian's children do not belong
+            // to a team, and keying them by one would reset the cursor on every team switch.
+            const entityKey = `${scopeValue}:${table}`;
 
             // Checklists are blob-synced (the entire array lives in one row per team). If
             // there are pending local changes still queued, skip the pull entirely rather
@@ -132,7 +189,10 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
                 if (pendingChecklistItems > 0) continue;
             }
 
-            let query = supabaseSync.from(table as RemoteTable).select('*').eq('team_id', teamId);
+            let query = supabaseSync
+                .from(table as RemoteTable)
+                .select('*')
+                .eq(scopeColumn, scopeValue);
 
             // Checklists are one row per SEASON now (C6), and every one of them is pulled:
             // the store keys them by season, so switching seasons does not have to wait for
@@ -234,6 +294,35 @@ export async function fetchTeamData(teamId: string): Promise<void> {
     } finally {
         useAppStore.getState().setIsLoading(false);
     }
+}
+
+/**
+ * Load the signed-in user's guardian records: their children, and the consents they gave.
+ *
+ * Runs when the guardian view mounts, and after a drain that pushed either table — the same
+ * shape as {@link fetchTeamData}, and through the same `pullFromServer`, so the rule that
+ * makes a pull safe (a record with an unpushed local change keeps its LOCAL version) applies
+ * here without being restated. That matters more than it looks: a guardian who adds a child in
+ * a car park with no signal and then reaches a window would otherwise watch the child vanish,
+ * which is B3 with a more upsetting subject.
+ *
+ * A FULL pull, always. There are one or two children, deletions must show up, and the guardian
+ * is looking at the screen. Delta is what the background loop does for a team's hundreds of
+ * tasks; there is nothing here to be incremental about.
+ *
+ * Returns nothing and never throws, like every other read in this module.
+ */
+export async function fetchGuardianData(guardianUserId: string): Promise<void> {
+    if (!guardianUserId || !supabaseSync) return;
+
+    await pullFromServer({
+        // No team is involved, and that is not a degenerate case: a guardian holds a roster
+        // row on their child's behalf without being a member of the team themselves.
+        teamId: '',
+        guardianUserId,
+        tables: GUARDIAN_PULL_TABLES,
+        mode: 'full',
+    });
 }
 
 /**
