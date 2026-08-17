@@ -104,7 +104,7 @@ export type Database = {
           guardian_user_id: string
           id?: string
           managed_profile_id: string
-          version?: string
+          version: string
         }
         Update: {
           consent_type?: string
@@ -255,7 +255,6 @@ export type Database = {
       }
       managed_profiles: {
         Row: {
-          birth_year: number | null
           created_at: string
           full_name: string
           guardian_user_id: string
@@ -264,7 +263,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          birth_year?: number | null
           created_at?: string
           full_name: string
           guardian_user_id: string
@@ -273,7 +271,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          birth_year?: number | null
           created_at?: string
           full_name?: string
           guardian_user_id?: string

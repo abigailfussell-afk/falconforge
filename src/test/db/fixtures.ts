@@ -298,12 +298,16 @@ export class Fixtures {
         const profile = await this.insert('managed_profiles', {
             guardian_user_id: account.id,
             full_name: `${label} child`,
-            birth_year: 2016,
         });
         const consent = await this.insert('guardian_consents', {
             managed_profile_id: profile.id,
             guardian_user_id: account.id,
             consent_type: 'coppa_data_collection',
+            // Stated explicitly because the column's DEFAULT was dropped in
+            // `20260822000000_guardian_schema_cleanup.sql`. The client owns the version, so a
+            // fixture is a client like any other -- and an omitted version is now an error
+            // rather than a silent '1.0'.
+            version: '1.0',
         });
         const member = await this.insert('team_members', {
             team_id: teamId,
