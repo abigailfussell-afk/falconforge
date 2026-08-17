@@ -54,7 +54,7 @@ battle-tested part of the codebase — protect it.
 | Schema freedom | **Greenfield.** No production data to preserve. Squash/rewrite migrations freely until the schema freeze (end of Sprint 3). After beta teams onboard, all changes are forward migrations. |
 | Beta deadline | **FTC kickoff, early September.** Stability, sync reliability, seasons, roles, and UI polish ship first; attendance UI, guardian UI, and Stripe land during the season. |
 | AI features | **Removed** to eliminate the per-use cost component. Full record of what they did + rebuild guidance: `docs/ai-features-reference.md`. |
-| Hosting | gh-pages + custom domain (falcon-forge.com), Supabase free tier, HashRouter. Upgrade only if beta succeeds. The only backend is Supabase (Postgres/Auth/Realtime/Edge Functions). |
+| Hosting | gh-pages + custom domain (falcon-forge.com), Supabase free tier, HashRouter. The only backend is Supabase (Postgres/Auth/Realtime/Edge Functions). **Reaffirmed 2026-08-16 — stay put through beta.** Leaving gh-pages means HashRouter → BrowserRouter, which touches every route, the e2e pack, the capture script and the QR poster URLs already going onto paper: a framework-shaped change three weeks from kickoff, deferred for the same reason as Tailwind v4. Revisit post-season. The triggers are CSP/security headers over minors' data, wanting the repo private (Pages on a private repo needs a paid GitHub plan), and per-branch preview deploys — **never traffic**, which will not come close to any limit. Supabase free → Pro is a billing toggle with no migration and no downtime; its trigger is the first paying customer (PITR, log retention beyond 1 day, no 7-day inactivity pause), i.e. Sprint 10. |
 | Brand | Keep the logo and orange "forge" palette. The problem is scale/density, not identity. |
 
 ## 4. Current-state assessment (audited 2026-08-15)
@@ -305,6 +305,20 @@ the final walkthrough and tags `v2.0.0-beta`.
   the grant source.
 - **Sprint 11 — Team data export**: admin bulk export (JSON + CSVs, client-generated from a full
   pull) for offboarding.
+- **UNSCHEDULED — Auth email branding & the confirmation round trip.** Drafted 2026-08-16 as
+  "Sprint 8.5" and deliberately **not** given a sprint slot; Kevin's call at the end of that
+  session. **Do not pick this up as the next sprint, and do not renumber it into one** — it
+  sits here until it is scheduled explicitly. The live defect it would have fixed is broken out
+  separately in the parking lot below and can be fixed on its own, without any of the branding
+  work. Substance, so nobody re-derives it: custom SMTP via Resend's free tier (3,000/month,
+  100/day, one custom domain, no injected branding — **not** Brevo, whose free tier stamps its
+  own branding on the mail, which is the whole problem in a different hat); templates as repo
+  files under `supabase/templates/` wired through the `[auth.email.template.*]` blocks already
+  commented out in `config.toml`, never pasted into the dashboard; and links built from
+  `{{ .TokenHash }}` to our own hash route rather than `{{ .ConfirmationURL }}`, because the
+  default bounces through Supabase's `/auth/v1/verify` and returns tokens in the URL *fragment*,
+  which is exactly where HashRouter keeps its route. That last point is load-bearing only while
+  we stay on gh-pages — see the Hosting row in §3.
 - **Later**: onboarding/orientation curriculum, training & skills evaluation per role
   (build/programming/media/outreach), AI features return per `docs/ai-features-reference.md`
   (server-side, metered, priced in).
@@ -356,9 +370,64 @@ the final walkthrough and tags `v2.0.0-beta`.
 
 | 2026-08-16 | **Sprint 8 merged, migrated and deployed** | `main` | **Complete.** Order per `deploy.yml`: branch pushed -> CI -> migration to the hosted project -> merge -> deploy. **CI went red on the branch and was right to** - the meetings smoke test set an event's START and left its END at the form's default, which is derived from "the next round hour" and rolls to TOMORROW after 22:00, so with today's date and a 23:00 start it built an event ending twenty-one hours before it began; the form correctly disabled Save and the test waited on a button that was right to refuse. Green in US Central at 18:32, red on a UTC runner at 23:32 - a five-hour window the suite would have walked into on any timezone. Reproduced exactly with `TZ=UTC` while it happened to be 23:35 UTC. The fix reads the times from the BROWSER's clock rather than Node's, because the form composes local wall-clock parts into an instant and the two processes only share a timezone by coincidence; the half-fixed version failed next for exactly that reason. **Migration applied BEFORE the merge**, with schema and data dumps either side: `meetings` and `meeting_attendance` were empty on production (no INSERT block for either in the pre-dump), which is what made the narrowed `status` CHECK safe to apply rather than merely likely to be. Verified on the real database: both tables answer anon `200 []`, anon gets **42501 permission denied** on `check_in_with_code` and `close_meeting_checkin`, the six new functions exist, 13 references to `can_manage_meetings`, the partial unique index on `(team_id, public_code)` is present, and the data dump's row set is identical before and after (operator row, TestTeam, licence and season intact). Full Gate re-run on the merged `main` (lint / 574 unit +2 skips / 91 integration / build / 23 assertions / 422 db / 301 rls / 16 e2e), then pushed; Deploy and CI both green on `244f49c`, and `check:prod` passes read-only against the live site. **The live bundle is NOT byte-identical to the local `dist/`, and that is correct** - the last local build was Playwright's, which pins the LOCAL stack, so the 73-byte delta is the Supabase URL and key. Normalising chunk hashes shows the two are otherwise identical, and the live lazy chunks carry the feature: `MeetingsPage` has "Meetings & Events" and "My schedule", `CheckIn` has `check_in_with_code`, "You're checked in" and the `not_synced` copy added after CI's first red. |
 
+| 2026-08-16 | Sprint 8 follow-up - four gaps found testing with a second person | `main` | **Complete, migrated and deployed.** Kevin tested with a friend, which found things one person on one machine cannot. **The re-attestation prompt on a thirty-second-old account was a HARDCODED VERSION IN A TRIGGER**: `handle_new_user` has written the signup consent as `'1.0'` since Sprint 3, Sprint 6 raised the documents to `'2.0'`, and from that moment every new account was told on its first screen that the documents had changed since it accepted them. `attestations.ts` predicted it exactly, in a comment explaining why the database deliberately does not know the current version - "duplicating it in a trigger would create two sources of truth that drift on the next legal rewrite". One had been duplicated in Sprint 3 and it drifted in Sprint 6. **Sprint 7 fixed the same symptom from a different cause and added a smoke test that passes against a configuration production does not have**: local is `enable_confirmations = false`, so `signUp` returns a session, the client's `recordAttestation` fires and the 2.0 row it writes MASKS the trigger's 1.0; production is `mailer_autoconfirm: false`, so there is no session, no client write, and only the stale row. Confirmed by reading `/auth/v1/settings` on both. The version now travels with the consent in signup metadata, so the client stays the only place a version is written down. **A scan while signed out threw the destination away** - `/app/*` guarded with `<Navigate to="/">`, dropping a student on the marketing page - now routes to the sign-in form carrying `?next=`, with the team picker skipped when there is one team and a destination pending; `readReturnTo` refuses anything that is not a rooted relative path, `//evil.example` included. **The "Preparing your workspace" hang behind it**: `isLoading` was released only inside `ensureUserProfile(...).finally()`, and the 5s safety timeout is cleared the moment `getSession()` resolves - including when it resolves WITH a user, which is exactly when the profile fetch has not started - so the splash was held up by one un-timed-out request with no timeout of its own. Bounded at 8s. **One tap checked a student in from anywhere**: the schedule linked to `/app/checkin/<code>` with the code read out of local data, making the poster decorative and the window meaningless; every student-facing route now arrives with an EMPTY field and the dashboard gains an open-check-ins card that asks for the code rather than skipping it. **Found by a test written for something else: the create-event form was unsaveable every evening after 22:00** - the default end is `start + 2h`, which crosses midnight, while the form has one date field, so "New event" at 22:15 produced a 23:00 start, a 01:00 end, a disabled Save and nothing on screen explaining that the form had done it to itself. Clamped to 23:59. Gate green (lint / 590 unit +2 skips / 91 integration / build / 23 assertions / 427 db / 301 rls / 19 e2e); migration applied to the hosted project before the merge, with the row set identical either side. |
+
 **Discovered / parking lot:**
 
+*From the 2026-08-16 planning session (no sprint — found while scoping the deferred auth-email
+work above; both verified by reading the code, neither fixed):*
+- **🔴 Password recovery is dead end to end in production, and it is broken twice over.**
+  `resetPassword` sends `redirectTo: ${window.location.origin}/auth/reset-password`
+  (`src/lib/auth.tsx:433`) — a **non-hash** path, on a HashRouter app, hosted on gh-pages. There
+  is no `404.html` anywhere in the repo, so GitHub Pages answers that URL with its own 404 page
+  and the app never boots; React Router's catch-all at `App.tsx:273` never runs, because nothing
+  ever loaded. Adding a `404.html` alone would **not** fix it: there is no
+  `/auth/reset-password` route in `App.tsx` either, so the fallback would match the catch-all,
+  redirect to `/`, and silently discard the recovery token. Nobody has hit it because production
+  has been greenfield since Sprint 3's reset and Kevin is the only account — but he is also the
+  person who has to rotate the password leaked into public git history (see Sprint 7 below), and
+  that rotation goes through this exact flow. **This is fixable on its own** and does not need
+  the branding work, the SMTP move, or any of the deferred sprint: correct route, correct
+  redirect, regression test. The OAuth `redirectTo` at `src/lib/auth.tsx:395` and `:407` has the
+  identical non-hash shape and is latent only because no provider is configured — fix all three
+  together or the next one to be enabled inherits the bug.
+- **The local stack has never once run the flow every real user takes.** `enable_confirmations
+  = false` in `supabase/config.toml:209`, while the hosted project has confirmations **on** —
+  so 574 unit tests, 91 integration tests, 16 e2e flows and the venue simulation have all been
+  green over a signup path that does not resemble production's. Turning it on locally is one
+  line, but it breaks all 16 e2e specs at once, because every one of them goes through
+  `signUp` (`e2e/helpers.ts:60`). The shape that was drafted: create pre-confirmed users through
+  the admin API for the fifteen specs where email is incidental, and let `registration.spec.ts`
+  alone walk the real UI signup and pull the link out of Mailpit's API (already running locally,
+  port 54324) — one flow proves the thing and the pack stays fast, which matters because Sprint 7
+  found it contention-sensitive enough to need a worker cap. Same class as "CI never ran on
+  sprint branches" and "the capture script screenshots the dev server": a gap that stays
+  invisible precisely because everything downstream of it is green.
+
 *From Sprint 8:*
+- **🔴 THE LOCAL STACK'S AUTH CONFIG DIFFERS FROM PRODUCTION, and it has already made one
+  test pass for the wrong reason.** `supabase/config.toml` sets `enable_confirmations = false`;
+  the hosted project reports `mailer_autoconfirm: false`. So on a developer machine `signUp`
+  returns a session and every client-side "do this right after signing up" path fires, while in
+  production there is no session until the user follows an email link. Sprint 7's registration
+  smoke test asserts that a brand-new account is not asked to re-accept its documents, passes,
+  and proves nothing about the case Kevin actually hit. Anything that must survive the gap has
+  to run SERVER-side at account creation (a trigger reading signup metadata) or after the first
+  real sign-in. Worth auditing what else assumes a session exists at signup, and worth writing
+  the divergence down somewhere a test author will see it.
+- **A student's device still HOLDS every check-in code.** The UI no longer hands it over --
+  no student-facing route carries a code, and nothing renders one -- so the casual "check in
+  from the sofa" path is closed. But `public_code` is a column on `meetings`, the pull fetches
+  whole rows, and RLS is row-level: a student who opens devtools can read the code out of
+  IndexedDB and check in from anywhere. Closing it properly means the code not reaching the
+  device at all, which means moving it to its own table (`meeting_codes`, selectable only by
+  `can_manage_meetings`) with `check_in_with_code` reading it as SECURITY DEFINER. That is a
+  schema change plus a registry change plus a UI change, and it is the right shape if
+  attendance ever has to survive an adversarial student rather than a lazy one.
+- **The event form cannot express an event that crosses midnight.** One date field, two time
+  fields. The default no longer produces one (it clamps to 23:59), and a user who sets one gets
+  a clear refusal, but a genuine overnight competition lock-in cannot be entered as a single
+  event. A second date field is the fix if anybody asks.
 - **"The live bundle is byte-identical to the local build" is only a real check if the local
   build was made with production env.** Three sprint reports lean on it. After any `test:e2e`
   run the local `dist/` is Playwright's build, which pins the LOCAL stack — so the comparison
