@@ -38,6 +38,7 @@ const MatchPlanner = lazy(() => import('./components/MatchPlanner'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const EditProfile = lazy(() => import('./components/EditProfile'));
 const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
+const GuardianView = lazy(() => import('./components/guardian/GuardianView'));
 
 /*
  * Meetings is six routes rather than one, and they are split separately on purpose.
@@ -262,6 +263,13 @@ function App() {
                     <Route path="checkin/:code" element={<CheckIn />} />
                     <Route path="planner" element={<MatchPlanner />} />
                     <Route path="profile" element={<EditProfile />} />
+                    {/*
+                     * The guardian's own view. No route guard: the page reads only rows RLS
+                     * already scopes to `guardian_user_id = auth.uid()`, so somebody who is not
+                     * a guardian sees the empty state rather than an Access Denied — which is
+                     * the honest answer, since "you have no children here" is exactly true.
+                     */}
+                    <Route path="guardian" element={<GuardianView />} />
                     <Route path="admin" element={<AdminSettingsRoute />} />
                     {/*
                      * The operator page needs no route guard of its own. `OperatorConsole` asks

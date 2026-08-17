@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
-import { fetchTeamData } from '../lib/server-pull';
+import { fetchTeamData, fetchGuardianData } from '../lib/server-pull';
 import { supabaseSync } from '../lib/supabase';
 import { performSignOut } from '../lib/sign-out';
 import Sidebar from './Sidebar';
@@ -30,6 +30,8 @@ export interface AppShellContext {
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
     canManageTeam: boolean;
+    /** Holds at least one managed child profile. Drives the "My children" nav entry. */
+    isGuardian: boolean;
     /**
      * Mirrors the server's `can_manage_meetings` capability: the admin, a coach OR A MENTOR.
      *
@@ -97,8 +99,23 @@ export default function AppShell() {
     // V1 `isCoach` boolean, which branched on one of the schema's four roles and left mentors
     // indistinguishable from students. This is UX only: the database refuses the writes
     // regardless of what the sidebar renders.
+    /*
+     * `!m.managedProfileId` IS LOAD-BEARING, and was added in Sprint 9.
+     *
+     * A guardian's `team_members` row carries THEIR user id and the CHILD's profile — that is
+     * the whole COPPA model — so without this clause a guardian resolves to their child's
+     * membership and the app renders the team as the child. That is precisely the act-as mode
+     * plan section 3 refuses, arrived at by accident rather than by design: every
+     * `currentMember`-driven control (the schedule's check-in button, attendance) would act on
+     * the child while the guardian is signed in.
+     *
+     * It also matches the server, which is the point. `is_team_member` and `get_user_team_ids`
+     * both carry `managed_profile_id IS NULL`, so a guardian resolving to a member here would
+     * be a client that believes it is on a team the database says it is not on — empty screens
+     * that look like a bug rather than a boundary.
+     */
     const currentMember = useMemo(
-        () => teamMembers.find((m) => m.userId === user?.id) ?? null,
+        () => teamMembers.find((m) => m.userId === user?.id && !m.managedProfileId) ?? null,
         [teamMembers, user?.id],
     );
     const currentUserRole = currentMember?.role;
@@ -131,6 +148,19 @@ export default function AppShell() {
             cancelled = true;
         };
     }, [user]);
+
+    /*
+     * The guardian's own records, which are not team-scoped and so are not part of
+     * `fetchTeamData`. Loaded once per signed-in user; a guardian typically has no team at all,
+     * so hanging this off the team fetch would mean it never ran for the people who need it.
+     */
+    const managedProfiles = useAppStore((s) => s.managedProfiles);
+    const isGuardian = managedProfiles.length > 0;
+
+    useEffect(() => {
+        if (!user?.id) return;
+        fetchGuardianData(user.id).catch(console.error);
+    }, [user?.id]);
 
     // Fetch team data when the team changes.
     useEffect(() => {
@@ -169,6 +199,7 @@ export default function AppShell() {
         teamMembers,
         subTeams,
         canManageTeam,
+        isGuardian,
         canManageMeetings,
         currentMember,
         isOperator,
@@ -177,6 +208,7 @@ export default function AppShell() {
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans overflow-hidden">
             <Sidebar
+                isGuardian={isGuardian}
                 canManageTeam={canManageTeam}
                 isOperator={isOperator === true}
                 onSignOut={() => performSignOut(signOut)}

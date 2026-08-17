@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle } from 'lucide-react';
+import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle, Baby } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { performSignOut } from '../lib/sign-out';
 import { readReturnTo } from '../lib/navigation';
+import ClaimCodeForm from '../components/guardian/ClaimCodeForm';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
 
@@ -54,6 +55,7 @@ export default function Onboarding() {
                 .select(`
                     team_id,
                     status,
+                    managed_profile_id,
                     teams:team_id (
                         id,
                         name,
@@ -61,7 +63,26 @@ export default function Onboarding() {
                         owner_id
                     )
                 `)
-                .eq('user_id', user.id) as { data: any[] | null; error: any };
+                .eq('user_id', user.id)
+                /*
+                 * MANAGED ROWS ARE NOT THIS ACCOUNT'S MEMBERSHIPS.
+                 *
+                 * A guardian's `team_members` row carries THEIR user id and the CHILD's
+                 * profile — that is the COPPA model. Without this filter a guardian was
+                 * offered their child's team in the picker and, with exactly one such row,
+                 * auto-entered into it: the app would render the team AS the child, which is
+                 * the act-as mode plan section 3 refuses, arrived at by accident.
+                 *
+                 * It would also have looked broken rather than forbidden. `is_team_member`
+                 * and `get_user_team_ids` both exclude managed rows server-side, so RLS
+                 * returns no seasons, no tasks and no roster — an empty app with no
+                 * explanation. Matching the server here is what keeps the client's idea of
+                 * "my teams" the same as the database's.
+                 *
+                 * A guardian's own view is `/app/guardian`, and `GuardianOnly` below routes
+                 * them there.
+                 */
+                .is('managed_profile_id', null) as { data: any[] | null; error: any };
 
             if (error) {
                 console.error('Error loading teams:', error);
@@ -405,6 +426,41 @@ export default function Onboarding() {
                                 <p className="text-sm text-slate-400">Get a code from your coach</p>
                             </div>
                         </button>
+
+                        {/*
+                         * THE GUARDIAN'S WAY IN, and the reason it is here rather than only in
+                         * the sidebar: a guardian holds no membership of their own, so with the
+                         * managed rows correctly excluded from the picker above they land on
+                         * this screen with nothing on it. Without this button the app would be
+                         * telling a parent who has just signed up to create a team or find an
+                         * invite code — neither of which is what they came to do.
+                         *
+                         * Always visible, not conditional on already having a child: this is
+                         * where a guardian with none starts.
+                         */}
+                        <button
+                            onClick={() => navigate('/app/guardian')}
+                            data-testid="guardian-entry"
+                            className="w-full flex items-center gap-4 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 px-5 rounded-xl transition-all"
+                        >
+                            <div className="w-10 h-10 bg-slate-600 rounded-lg flex items-center justify-center">
+                                <Baby size={22} />
+                            </div>
+                            <div className="text-left">
+                                <p className="font-semibold">I'm a parent or guardian</p>
+                                <p className="text-sm text-slate-400">
+                                    Add a child who is too young for their own login
+                                </p>
+                            </div>
+                        </button>
+
+                        {/*
+                         * The other half of promotion. The child has just signed up in their own
+                         * name and has a code from their guardian; without an entry point here
+                         * they would have a code and nowhere to type it — a gate with no door,
+                         * on the one screen they are guaranteed to be looking at.
+                         */}
+                        <ClaimCodeForm />
                     </div>
                 </div>
             </div>

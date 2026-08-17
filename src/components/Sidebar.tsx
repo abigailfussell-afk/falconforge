@@ -39,11 +39,26 @@ interface SidebarProps {
     canManageTeam: boolean;
     /** Platform operator — reveals the operator view. UX only; the route self-gates. */
     isOperator?: boolean;
+    /**
+     * Holds a managed child profile — reveals "My children".
+     *
+     * Defaults to false so that adding this view did not change what any existing caller
+     * renders, for the same reason `isOperator` does: `Dashboard.test.tsx` asserts every nav
+     * entry appears EXACTLY ONCE, which is the only thing standing between this app and the
+     * duplicated-sidebar problem Sprint 5 deleted.
+     */
+    isGuardian?: boolean;
     onSignOut: () => void;
     onSwitchTeam: () => void;
 }
 
-export default function Sidebar({ canManageTeam, isOperator = false, onSignOut, onSwitchTeam }: SidebarProps) {
+export default function Sidebar({
+    canManageTeam,
+    isOperator = false,
+    isGuardian = false,
+    onSignOut,
+    onSwitchTeam,
+}: SidebarProps) {
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
     const { user, isConfigured } = useAuth();
@@ -62,7 +77,7 @@ export default function Sidebar({ canManageTeam, isOperator = false, onSignOut, 
     // Sprint 4 for good reason.
     const tasks = useSeasonScoped(allTasks);
     const currentTeam = teams.find((t) => t.id === currentTeamId);
-    const views = navViewsFor(canManageTeam, isOperator);
+    const views = navViewsFor(canManageTeam, isOperator, isGuardian);
 
     const doneCount = tasks.filter((t) => t.status === 'Done').length;
     const donePercent = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0;

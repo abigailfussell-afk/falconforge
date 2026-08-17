@@ -8,6 +8,7 @@ import {
     Settings,
     User,
     Gift,
+    Baby,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -66,6 +67,18 @@ export interface AppView {
      * cannot be granted from a browser however the nav is rendered.
      */
     requiresOperator?: boolean;
+    /**
+     * Only for an account that holds a managed child profile.
+     *
+     * Same status as {@link requiresManage}: UX, not security. The route renders its own
+     * explanation for anybody else, and every guardian row the page reads is behind
+     * `guardian_user_id = auth.uid()` in RLS.
+     *
+     * A guardian is NOT a team member — `is_team_member` and `get_user_team_ids` both exclude
+     * managed rows deliberately — so this is the one nav entry that can be the ONLY one a
+     * signed-in account sees.
+     */
+    requiresGuardian?: boolean;
     /** Draw a separator above this item. Groups the board/competition tools apart. */
     startsGroup?: boolean;
 }
@@ -89,6 +102,7 @@ export const APP_VIEWS: AppView[] = [
      * in the app that separates a mentor from a student.
      */
     { id: 'meetings', path: 'meetings', label: 'Meetings', icon: CalendarDays, inNav: true },
+    { id: 'guardian', path: 'guardian', label: 'My children', icon: Baby, inNav: true, requiresGuardian: true, startsGroup: true },
     { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresManage: true, startsGroup: true },
     { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresOperator: true },
     { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
@@ -109,12 +123,17 @@ export const DEFAULT_VIEW_PATH = 'dashboard';
  * the duplicated-sidebar problem Sprint 5 deleted. A view that appears for nobody by default
  * cannot break that property while it is being wired up.
  */
-export function navViewsFor(canManageTeam: boolean, isOperator = false): AppView[] {
+export function navViewsFor(
+    canManageTeam: boolean,
+    isOperator = false,
+    isGuardian = false,
+): AppView[] {
     return APP_VIEWS.filter(
         (v) =>
             v.inNav &&
             (!v.requiresManage || canManageTeam) &&
-            (!v.requiresOperator || isOperator),
+            (!v.requiresOperator || isOperator) &&
+            (!v.requiresGuardian || isGuardian),
     );
 }
 
