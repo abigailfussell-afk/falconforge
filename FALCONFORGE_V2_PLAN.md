@@ -398,30 +398,47 @@ the final walkthrough and tags `v2.0.0-beta`.
 **Discovered / parking lot:**
 
 *From Sprint 9 (2026-08-17), found while building the guardian UI:*
-- **`current_team_member_id` is `LIMIT 1` with no `ORDER BY`.** Sprint 9 stopped the guardian
-  path depending on it (`meeting_attendance_select_member` now names all of a guardian's
-  children through `guardian_member_ids`), but the function itself is unchanged and is still
-  used for the ordinary-member branch. That branch is safe today only because a non-guardian
-  holds one row per team — there is no constraint saying so. Either add `ORDER BY joined_at`
-  or exclude managed rows in the function; both are one line, neither was smuggled into a UI
-  sprint.
-- **No `404.html`, so every non-hash deep link 404s on GitHub Pages.** Password recovery no
-  longer depends on one — the redirect lands on `/`, which Pages serves — so this is no longer
+- **RESOLVED IN SPRINT 9** (`20260822000300_current_member_ordering.sql`), and it was worse
+  than the ordering. Kevin's call at review: fix it rather than leave a defect class
+  half-closed. `current_team_member_id` also failed to exclude managed rows, and
+  `check_in_with_code` resolves the caller with it — so **a guardian who scanned a QR poster
+  checked their CHILD in**, from wherever they were standing. That is the act-as mode §3
+  refuses, reached by accident, and it makes attendance self-attested by the one person
+  `attested_by` exists to distinguish from. The function now excludes managed rows and orders
+  deterministically; a guardian who scans gets their own refusal naming the coach who *can*
+  mark the child present (§8). **The first attempt at this migration rewrote
+  `check_in_with_code` from memory and got it badly wrong** — different `reason` codes the
+  client branches on, the deadline guard dropped, and the race-safe `ON CONFLICT DO NOTHING`
+  replaced by a check-then-insert that reintroduced the double-tap race its own comment warns
+  about. Caught by diffing against the original before applying; the shipped version is the
+  original text with one branch inserted.
+- **No `404.html`, so every non-hash deep link 404s on GitHub Pages**, and **the now-dead
+  `/auth/callback` route** (nothing navigates to it since all three redirects moved to the
+  origin root). **Both reviewed 2026-08-17 and deliberately left in here**: Sprint 9 was already
+  carrying four migrations and a live-defect fix, and neither is reachable by any flow a user
+  takes. Password recovery no longer depends on a `404.html` — the redirect lands on `/`, which Pages serves — so this is no longer
   a live defect. It remains true that `falcon-forge.com/app/board` typed by hand gets Pages'
   404 page rather than the app. A Pages SPA fallback is the fix if anybody hits it; it was
   deliberately NOT bundled into the recovery fix for sounding related.
-- **`teams` is still the one collection outside the entity registry**, and Sprint 9 added a
+- **🔴 `teams` is still the one collection outside the entity registry**, and Sprint 9 added a
   second hand-written loader for it (`pullGuardianTeams`, which merges by id so a coach who is
   also a parent does not lose their own team list). That makes two loaders for one collection —
-  the shape CLAUDE.md principle 9 is about, and the fourth feature to depend on it. Enrolling
-  `teams` properly is now overdue.
+  the shape CLAUDE.md principle 9 is about, and the fourth feature to depend on it.
+  **Decided 2026-08-17: this is the next scoped change, on its own branch.** It touches the one
+  read path — the thing C3 was about — so it wants its own diff, its own round-trip test and its
+  own browser pass, rather than riding along at the tail of a UI sprint three weeks from
+  kickoff. Deleting `pullGuardianTeams` is part of it.
 - **The guardian's sidebar still renders the season picker** with no team and no seasons. It is
   inert rather than wrong, and it is the last piece of team chrome on a screen that has no
-  team. Cosmetic; noted so the next person does not have to rediscover whether it is deliberate.
+  team. Cosmetic. **Reviewed 2026-08-17 and deliberately left**, along with the item below —
+  both are live-with-able and worth revisiting once beta teams have actually used the flow,
+  rather than being guessed at now.
 - **`ReAttestationPrompt` fires for a guardian**, asking them to re-accept documents they
   accepted for their children minutes earlier. The prompt is about the SIGNER's own
   attestations and is behaving correctly; whether a guardian-only account should be asked at
-  all is a product question, not a bug, and it is Kevin's to answer.
+  all is a product question, not a bug. **Left open 2026-08-17**: suppressing it needs a rule
+  for what a guardian-only account is legally expected to accept, which is a question for the
+  pending legal review rather than for an engineering sprint.
 
 *From scoping Sprint 9 (2026-08-17), all verified against the live schema:*
 - **🔴 `age_classification` is a stored fact with no writer and no clock, and it gates admin

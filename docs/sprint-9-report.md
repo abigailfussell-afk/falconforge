@@ -133,6 +133,7 @@ Per `docs/failure-modes.md` §2 — a test not seen red is a test of unknown val
 | Made a guardian an `is_team_member` | the roster/invites/tasks isolation test |
 | Create-and-remove promotion | the attendance-history assertion |
 | Reverted `setTeams` / `requiresTeam` | 3 of the browser-defect regression tests |
+| Put managed rows back into `current_team_member_id` | the guardian check-in refusal test |
 
 ---
 
@@ -146,9 +147,31 @@ Per `docs/failure-modes.md` §2 — a test not seen red is a test of unknown val
   exist. An email lookup would make the RPC an account-enumeration oracle and would have the
   guardian asserting the child's identity rather than the child.
 
-## Left in the parking lot
+## Decided at review, after the first pass
 
-`current_team_member_id`'s ordering; no `404.html` for non-hash deep links (no longer load-bearing
-for recovery); `teams` still outside the entity registry and now with a *second* hand-written
-loader; the guardian's inert season picker; and whether `ReAttestationPrompt` should fire for a
-guardian-only account at all — a product question, not a bug.
+**`current_team_member_id` fixed rather than parked — and it was worse than the ordering.**
+`check_in_with_code` resolves the caller with it, so **a guardian who scanned a QR poster checked
+their child in**, from wherever they were standing. That is §3's act-as mode reached by accident,
+and it makes attendance self-attested by the one person `attested_by` exists to distinguish from.
+The function now excludes managed rows and orders deterministically, and a guardian who scans
+gets their own refusal naming the coach who *can* mark the child present.
+
+**That fix nearly introduced a worse defect than it removed.** The first attempt rewrote
+`check_in_with_code` from memory: different `reason` codes (the client branches on them), the
+deadline guard dropped, and the race-safe `INSERT ... ON CONFLICT DO NOTHING` replaced with a
+check-then-insert that reintroduced exactly the double-tap race the original comment explains.
+Caught by diffing against the original before applying. The shipped migration is the original
+text with one branch inserted, and the diff is that branch and nothing else. This is the
+meta-class in `docs/failure-modes.md` — the fix introduces the next defect — and the only reason
+it did not ship is that the diff was read.
+
+**`teams` into the entity registry is the next scoped change**, on its own branch: it touches the
+one read path, so it wants its own diff and its own browser pass rather than riding along.
+Deleting `pullGuardianTeams` is part of it.
+
+## Left in the parking lot, deliberately
+
+No `404.html` for non-hash deep links and the now-dead `/auth/callback` route — neither reachable
+by any flow a user takes. The guardian's inert season picker, and whether `ReAttestationPrompt`
+should fire for a guardian-only account at all: both left until beta teams have used the flow,
+and the second needs a rule from the pending legal review rather than an engineering guess.

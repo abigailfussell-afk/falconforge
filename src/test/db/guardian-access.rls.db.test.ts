@@ -299,3 +299,88 @@ describe('the promotion code is a credential the client cannot choose', () => {
         });
     });
 });
+
+describe('a guardian cannot check their child in', () => {
+    /*
+     * THE ACT-AS HOLE THIS CLOSES. `check_in_with_code` resolves the caller with
+     * `current_team_member_id`, which until `20260822000300_current_member_ordering.sql`
+     * returned managed rows — so a guardian who scanned a QR poster checked THEIR CHILD in,
+     * from wherever they happened to be standing.
+     *
+     * Plan §3 refuses that shape directly ("never renders the team as the child"), and it also
+     * breaks what attendance is for: `attested_by` exists so "who says so" has an answer, and a
+     * record attested by the parent asking the question is not evidence of anything.
+     *
+     * WHAT WOULD MAKE THIS FAIL: dropping `managed_profile_id IS NULL` from
+     * `current_team_member_id`. The check-in then succeeds and the first assertion goes red.
+     */
+    it('refuses the scan, and says who CAN mark them present', async () => {
+        const { data: meeting } = await svc
+            .from('meetings')
+            .insert({
+                team_id: teamA.id,
+                season_id: teamA.seasonId,
+                title: 'Check-in target',
+                event_type: 'build',
+                starts_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+                ends_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+                public_code: '4242',
+            } as never)
+            .select('id')
+            .single();
+
+        const { data } = await teamA.guardian.user.client.rpc('check_in_with_code', {
+            p_team_id: teamA.id,
+            p_code: '4242',
+            p_method: 'qr',
+        });
+
+        expect(data).toMatchObject({ success: false, reason: 'managed_profile' });
+        // The refusal reaches somebody who can act on it (failure-modes §8) — it names the
+        // coach rather than merely denying the guardian.
+        expect((data as { error: string }).error).toMatch(/coach/i);
+
+        // And nothing was written. Asserting the DATA, not just the return value: a policy that
+        // allowed the insert while the RPC reported failure would pass on the message alone.
+        const { data: rows } = await svc
+            .from('meeting_attendance')
+            .select('id')
+            .eq('meeting_id', (meeting as { id: string }).id);
+        expect(rows ?? []).toEqual([]);
+    });
+
+    it('still lets an ordinary student check themselves in', async () => {
+        // The half that proves the narrowing did not break the feature it sits inside.
+        const { data: meeting } = await svc
+            .from('meetings')
+            .insert({
+                team_id: teamA.id,
+                season_id: teamA.seasonId,
+                title: 'Student check-in',
+                event_type: 'build',
+                starts_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+                ends_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+                public_code: '4243',
+            } as never)
+            .select('id')
+            .single();
+
+        const { data } = await teamA.users.student.client.rpc('check_in_with_code', {
+            p_team_id: teamA.id,
+            p_code: '4243',
+            p_method: 'qr',
+        });
+
+        expect(data).toMatchObject({ success: true });
+
+        const { data: rows } = await svc
+            .from('meeting_attendance')
+            .select('team_member_id, method')
+            .eq('meeting_id', (meeting as { id: string }).id);
+        expect(rows).toHaveLength(1);
+        expect(rows?.[0]).toMatchObject({
+            team_member_id: teamA.users.student.memberId,
+            method: 'qr',
+        });
+    });
+});
