@@ -491,7 +491,8 @@ each is deferred because it is scoped work rather than because it is unimportant
   config). Deferred deliberately: it adds ~10s to every commit Kevin makes, which is his call.
 - **There is no `docs/sprint-8-report.md`.** Sprint 8, its merge and its follow-up exist only as
   three rows in this log. Seven sprints have standalone reports; the convention broke without
-  anyone deciding to break it.
+  anyone deciding to break it. **Sprint 9 wrote `docs/sprint-9-report.md`, so the convention is
+  running again from here — Sprint 8 remains the gap.**
 - **`supabase/tests/preflight_security_audit.sql` (104 lines) is orphaned** — referenced by no
   script and no workflow, mentioned only in the Sprint 1 report. Wire it in or delete it; a
   security audit nothing runs is the same shape as a check nothing evaluates.
