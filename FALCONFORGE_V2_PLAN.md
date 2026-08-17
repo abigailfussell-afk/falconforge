@@ -404,6 +404,13 @@ the final walkthrough and tags `v2.0.0-beta`.
 - **`teams` is still not in the entity registry** (carried from Sprint 7). The poster reads
   the team name and number from `state.teams`, which the team picker populates, so it is
   correct - but it is the third feature to depend on a collection with one loader.
+- **`MeetingWidget` drags the whole event manager into the ENTRY chunk.** It imports
+  `AttendanceBar` from `EventManager.tsx`, and `MeetingWidget` is reached from
+  `DashboardHome`, which is deliberately not lazy — so `EventManager` and everything it
+  imports ride along in the entry bundle rather than in the meetings chunk. Noticed while
+  verifying the deploy: the pencil icon turned up in `index-*.js` rather than in
+  `MeetingsPage-*.js`. Harmless today, but Sprint 5 took the entry from 402 kB to 288 kB on
+  purpose, so the fix if it matters is to move `AttendanceBar` into its own file.
 - **The event manager calls `useRoster` once per row.** Fine at a season's worth of events;
   if a team ever schedules hundreds, the per-row tally wants hoisting into one pass.
 - **`attendance_required` has no effect beyond a label.** It renders "Attendance required" or
