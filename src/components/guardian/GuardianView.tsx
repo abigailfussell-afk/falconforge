@@ -42,6 +42,31 @@ export default function GuardianView() {
         [teamMembers, user?.id],
     );
 
+    /*
+     * A STABLE ORDER, because the store does not have one.
+     *
+     * `pullFromServer` issues `.select('*')` with no `ORDER BY`, so Postgres returns the rows
+     * in whatever order it likes — and it does not keep to one. Observed in the browser:
+     * issuing a promotion code re-runs the pull, and the two children swapped places on screen
+     * underneath the click. `docs/failure-modes.md` §13 names this exactly ("no implicit
+     * ordering, ever"), and B12 was the same accident deciding which checklist was active.
+     *
+     * Sorted here rather than in the pull because the ordering that matters is this screen's,
+     * not the wire's: oldest first, so a new child is added at the bottom and nobody's list
+     * rearranges itself when they add one. `createdAt` is server-assigned and may be absent on
+     * a child added offline and not yet pushed, which sorts last — where it was just typed.
+     */
+    const orderedChildren = useMemo(
+        () =>
+            [...managedProfiles].sort(
+                (a, b) =>
+                    (a.createdAt ?? Number.MAX_SAFE_INTEGER) -
+                        (b.createdAt ?? Number.MAX_SAFE_INTEGER) ||
+                    a.fullName.localeCompare(b.fullName),
+            ),
+        [managedProfiles],
+    );
+
     if (managedProfiles.length === 0) {
         return (
             <div className="space-y-4">
@@ -69,7 +94,7 @@ export default function GuardianView() {
             <Header onAdd={() => setIsAdding(true)} />
 
             <ul className="space-y-4" data-testid="guardian-children">
-                {managedProfiles.map((profile) => (
+                {orderedChildren.map((profile) => (
                     <ChildCard
                         key={profile.id}
                         profile={profile}

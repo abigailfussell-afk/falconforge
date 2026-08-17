@@ -90,6 +90,18 @@ export interface PullOptions {
      * a child yet. That is `docs/failure-modes.md` section 4 exactly, so it fails loudly instead.
      */
     guardianUserId?: string;
+    /**
+     * SEVERAL teams at once, for a caller that is not "in" any one of them.
+     *
+     * A guardian can hold children on more than one team and has no current team at all, so
+     * `teamId` cannot express what they need to read. Calling `pullFromServer` once per team
+     * would be worse than wrong: a full pull REPLACES each collection, so the second team's
+     * pull would delete the first team's rows from the store.
+     *
+     * When set, team-scoped tables filter with `.in('team_id', …)` instead of `.eq`, which is
+     * one query and one replace covering all of them.
+     */
+    teamIds?: readonly string[];
     /** Which tables to pull. Defaults to {@link SYNC_PULL_TABLES}. */
     tables?: readonly string[];
     /**
@@ -117,6 +129,7 @@ export type PullResult = Record<string, number>;
 export async function pullFromServer(options: PullOptions): Promise<PullResult> {
     const {
         teamId,
+        teamIds,
         guardianUserId,
         tables = SYNC_PULL_TABLES,
         mode = 'auto',
@@ -129,7 +142,7 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
     // A team-scoped pull with no team is a no-op, as it always was. A guardian-scoped pull
     // does not need one — a guardian with no membership of their own still has children.
     const wantsTeamScope = tables.some((t) => findEntity(t)?.scope !== 'guardian');
-    if (wantsTeamScope && !teamId) return received;
+    if (wantsTeamScope && !teamId && !teamIds?.length) return received;
 
     // The counter decides when 'auto' does a full reconciliation. It is per-team, so
     // switching teams no longer shifts which entity lands on the reconciliation cycle
@@ -137,7 +150,7 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
     // background loop's schedule.
     let isFullPull = mode === 'full';
     if (mode === 'auto') {
-        const counter = await bumpSyncCounter(teamId || guardianUserId || '');
+        const counter = await bumpSyncCounter(teamId || teamIds?.join(',') || guardianUserId || '');
         isFullPull = counter % FULL_SYNC_INTERVAL === 0;
     }
 
@@ -159,9 +172,11 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
             const entity = findEntity(table);
             const isGuardianScoped = entity?.scope === 'guardian';
             const scopeColumn = isGuardianScoped ? 'guardian_user_id' : 'team_id';
+            // `teamIds` wins over `teamId` for team-scoped tables; see PullOptions.
+            const scopeValues = !isGuardianScoped && teamIds?.length ? teamIds : null;
             const scopeValue = isGuardianScoped ? guardianUserId : teamId;
 
-            if (!scopeValue) {
+            if (!scopeValue && !scopeValues) {
                 // Loudly, not silently. Filtering on `undefined` returns zero rows, and zero
                 // rows here is indistinguishable from "this guardian has no children" — the
                 // absence-read-as-a-value class (failure-modes §4) that cost this project a
@@ -174,7 +189,7 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
 
             // Cursors are per scope-value, not per team: a guardian's children do not belong
             // to a team, and keying them by one would reset the cursor on every team switch.
-            const entityKey = `${scopeValue}:${table}`;
+            const entityKey = `${scopeValues ? scopeValues.join(',') : scopeValue}:${table}`;
 
             // Checklists are blob-synced (the entire array lives in one row per team). If
             // there are pending local changes still queued, skip the pull entirely rather
@@ -189,10 +204,9 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
                 if (pendingChecklistItems > 0) continue;
             }
 
-            let query = supabaseSync
-                .from(table as RemoteTable)
-                .select('*')
-                .eq(scopeColumn, scopeValue);
+            let query = scopeValues
+                ? supabaseSync.from(table as RemoteTable).select('*').in(scopeColumn, scopeValues as string[])
+                : supabaseSync.from(table as RemoteTable).select('*').eq(scopeColumn, scopeValue!);
 
             // Checklists are one row per SEASON now (C6), and every one of them is pulled:
             // the store keys them by season, so switching seasons does not have to wait for
@@ -323,6 +337,90 @@ export async function fetchGuardianData(guardianUserId: string): Promise<void> {
         tables: GUARDIAN_PULL_TABLES,
         mode: 'full',
     });
+
+    /*
+     * THE CHILD'S PLACE ON THE TEAM, WHICH IS NOT GUARDIAN-SCOPED DATA.
+     *
+     * Found in the browser: with only the two lines above, the guardian view rendered both
+     * children as "Not on a team yet" while they were plainly on Iron Falcons. Profiles and
+     * consents are keyed by `guardian_user_id`; the MEMBERSHIP is a `team_members` row keyed by
+     * team, and a guardian has no current team for `fetchTeamData` to have been called with. So
+     * the view was reading a collection nothing had ever filled.
+     *
+     * EVERY STATUS, deliberately. The team pull filters `status = 'approved'` because a roster
+     * is approved members — but "waiting for the team admin to approve Sam" is one of the two
+     * states this screen exists to show, and that filter would hide precisely it.
+     *
+     * Merged rather than replaced: a coach who is ALSO a parent has a real roster in this
+     * collection, and replacing it with their own two children would empty their team's roster
+     * screen. `mergeIntoStore` upserts by id and honours `getPendingRecordIds`, so this stays
+     * inside the read path's rules rather than beside them.
+     */
+    const { data: rows, error } = await supabaseSync
+        .from('team_members')
+        .select('*')
+        .eq('user_id', guardianUserId)
+        .not('managed_profile_id', 'is', null);
+
+    if (error) {
+        console.warn('Pull for guardian memberships failed:', error.message);
+        return;
+    }
+    if (!rows?.length) return;
+
+    mergeIntoStore('team_members', rows, await getPendingRecordIds('team_members'));
+
+    /*
+     * ...and the teams those children are on, with their schedules.
+     *
+     * ONE call with `teamIds`, not one per team: a full pull replaces each collection, so a
+     * loop would leave only the last team's meetings in the store — a guardian with children
+     * on two teams would see one child's schedule vanish. See `PullOptions.teamIds`.
+     */
+    const teamIds = [...new Set(rows.map((r: { team_id: string }) => r.team_id))];
+    await pullFromServer({
+        teamId: '',
+        teamIds,
+        tables: ['meetings', 'meeting_attendance'],
+        mode: 'full',
+    });
+
+    await pullGuardianTeams(teamIds);
+}
+
+/**
+ * The names of the teams a guardian's children are on.
+ *
+ * `teams` is not a registry entity — it is the last collection with a hand-written loader, and
+ * the parking lot has said so since Sprint 7. So this is its own small read rather than part of
+ * the pull, and it MERGES by id: a coach who is also a parent must not have their own team list
+ * replaced by their children's.
+ */
+async function pullGuardianTeams(teamIds: string[]): Promise<void> {
+    if (!supabaseSync || teamIds.length === 0) return;
+
+    const { data, error } = await supabaseSync
+        .from('teams')
+        .select('id, name, team_number, owner_id')
+        .in('id', teamIds);
+
+    if (error || !data) {
+        if (error) console.warn('Pull for guardian teams failed:', error.message);
+        return;
+    }
+
+    const store = useAppStore.getState();
+    const byId = new Map(store.teams.map((t) => [t.id, t]));
+    for (const row of data) {
+        byId.set(row.id, {
+            id: row.id,
+            name: row.name,
+            teamNumber: row.team_number,
+            ownerId: row.owner_id,
+            createdAt: byId.get(row.id)?.createdAt ?? Date.now(),
+        });
+    }
+    store.setTeams(Array.from(byId.values()));
 }
 
 /**

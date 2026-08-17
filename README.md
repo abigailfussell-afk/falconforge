@@ -14,6 +14,16 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
   photographed at last week's session will not work at this one. Coaches, mentors and admins
   take the roster (table, or a rapid-tap grid for walking the room) and read a per-member
   season summary; students get a read-only schedule as a list or a calendar
+- **Guardian accounts** - Under-13s cannot hold an account under COPPA, so a parent signs up
+  and adds a *managed profile* for their child, giving consent in the same sitting. They join
+  the team with the coach's ordinary invite code, and the admin approves them exactly as for
+  any other member — with one checkbox confirming they will not roster a child without their
+  guardian. The guardian manages from their own view (children, consents given, upcoming
+  meetings, attendance) and **never renders the team as the child**: there is no act-as mode.
+  When the child is old enough, the guardian issues a claim code, the child signs up in their
+  own name and redeems it — and **keeps their place on the team and their whole attendance
+  history**, because the roster row is repointed rather than replaced. The app never stores a
+  date of birth, so this is triggered by a person and never by a date
 - **Seasons** - Each year starts fresh: a new-season wizard clones your sub-team structure
   (never its member assignments), empties the board, scouting log and match plans, and makes
   the previous season read-only while keeping every row of it browsable
@@ -167,12 +177,20 @@ There is exactly one, and this is the rule it exists to enforce:
 ```
                     ┌── background sync loop  (mode: 'auto' — delta, cursor-driven)
 pullFromServer() ←──┼── team switch / mount   (mode: 'full')
-                    └── per-page refresh hooks (mode: 'full', one table)
+                    ├── per-page refresh hooks (mode: 'full', one table)
+                    └── guardian view          (mode: 'full', guardian-scoped)
                              │
                              ├─→ getPendingRecordIds()   ← the rule, applied once
                              ├─→ entity.fromRemote()
                              └─→ store setters
 ```
+
+Every entity declares what SCOPES it. Almost everything is `scope: 'team'` and filters on
+`team_id`; `managed_profiles` and `guardian_consents` are `scope: 'guardian'` and filter on
+`guardian_user_id`, because a child's profile belongs to their guardian rather than to whichever
+team they are on this season — and a guardian usually holds no team membership at all. The field
+is required rather than defaulted: a guardian table pulled with a `team_id` filter returns zero
+rows and a warning nobody reads, which looks exactly like a guardian who has not added a child.
 
 Delta pulls filter on a cursor taken from the server's own `updated_at`, never from the
 local clock. Every fifth pull is a full reconciliation, which is how deletions made on
@@ -457,8 +475,8 @@ falconforge/
 
 Tracked in [`FALCONFORGE_V2_PLAN.md`](FALCONFORGE_V2_PLAN.md) §6. The season lifecycle, the
 UI/density/routing pass, the licensing and admin console with the legal pages, and the beta
-hardening sprint have all landed, and so has the meetings and attendance UI. Next: guardian
-accounts, Stripe billing, and team data export — the schema for the first two is already live.
+hardening sprint have all landed, and so have the meetings and attendance UI and guardian
+accounts. Next: Stripe billing and team data export — the schema for the first is already live.
 
 Running the beta is documented separately in [`docs/beta-ops.md`](docs/beta-ops.md): backups and
 when to take them, the error-review cadence, and the rule that governs deploys — **schema changes

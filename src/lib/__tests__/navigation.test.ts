@@ -82,3 +82,42 @@ describe('the definition stays one definition', () => {
         expect(pathFor('profile')).toBe(`${APP_ROOT}/profile`);
     });
 });
+
+describe('a guardian has no team, and the nav must survive that', () => {
+    /*
+     * FOUND IN THE BROWSER, as `guardian@falconforge.test`. A guardian holds a roster row on a
+     * child's behalf and no membership of their own, so `currentTeamId` is null permanently —
+     * and every view except their own is team- and season-scoped. The rail offered Dashboard,
+     * Sprint Planning, Checklist, Scouting, Match Planner and Meetings to a parent who would
+     * have got an empty screen from each, because RLS returns them nothing.
+     *
+     * Plan section 3 forbids that shape directly: a guardian "never renders the team as the
+     * child".
+     */
+    it('shows a guardian only their own view when they have no team', () => {
+        const views = navViewsFor(false, false, true, false);
+
+        expect(views.map((v) => v.id)).toEqual(['guardian']);
+    });
+
+    it('still shows the team views to a member who has one', () => {
+        const views = navViewsFor(false, false, false, true);
+
+        expect(views.map((v) => v.id)).toContain('dashboard');
+        expect(views.map((v) => v.id)).not.toContain('guardian');
+    });
+
+    it('shows both to a coach who is also a parent', () => {
+        // The case that makes `requiresTeam` and `requiresGuardian` independent rather than
+        // two spellings of one flag.
+        const views = navViewsFor(true, false, true, true).map((v) => v.id);
+
+        expect(views).toContain('dashboard');
+        expect(views).toContain('admin');
+        expect(views).toContain('guardian');
+    });
+
+    it('defaults to having a team, so existing callers are unchanged', () => {
+        expect(navViewsFor(false).map((v) => v.id)).toContain('dashboard');
+    });
+});

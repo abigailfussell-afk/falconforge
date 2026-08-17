@@ -5,6 +5,7 @@ import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
 import { fetchTeamData, fetchGuardianData } from '../lib/server-pull';
+import { APP_ROOT } from '../lib/navigation';
 import { supabaseSync } from '../lib/supabase';
 import { performSignOut } from '../lib/sign-out';
 import Sidebar from './Sidebar';
@@ -168,13 +169,27 @@ export default function AppShell() {
             fetchTeamData(currentTeamId).catch(console.error);
             return;
         }
+        /*
+         * "NO TEAM" IS NOT AN ERROR FOR A GUARDIAN — it is their normal state.
+         *
+         * A guardian holds a roster row on a child's behalf and no membership of their own, so
+         * `currentTeamId` is null for them permanently. Bouncing to the team picker would make
+         * `/app/guardian` unreachable: navigate to it, and one second later you are back on
+         * onboarding being asked to pick a team you are not on. Found in the browser, doing
+         * exactly that.
+         *
+         * The redirect exists for a DIFFERENT case — a member who has not chosen a team yet —
+         * so it is scoped to routes that need one rather than removed.
+         */
+        if (location.pathname.startsWith(`${APP_ROOT}/guardian`)) return;
+
         // With no team, wait out a possible hydration delay before redirecting — persisted
         // state comes back from IndexedDB asynchronously and arriving here first is normal.
         const timeout = setTimeout(() => {
             if (!useAppStore.getState().currentTeamId) navigate('/onboarding');
         }, 1000);
         return () => clearTimeout(timeout);
-    }, [currentTeamId, navigate]);
+    }, [currentTeamId, navigate, location.pathname]);
 
     // Realtime subscription lifecycle — subscribe when a team is selected & online.
     useEffect(() => {

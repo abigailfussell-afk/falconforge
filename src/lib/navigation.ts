@@ -79,6 +79,17 @@ export interface AppView {
      * signed-in account sees.
      */
     requiresGuardian?: boolean;
+    /**
+     * Needs an open team to mean anything. True for every view except the guardian's.
+     *
+     * A guardian holds a roster row on a child's behalf and no membership of their own, so
+     * `currentTeamId` is null for them permanently — and every view below is season- and
+     * team-scoped, so each one would render an empty screen. Worse than empty: RLS returns
+     * nothing to a guardian for tasks, seasons or the roster, so the app would be showing a
+     * parent a plausible-looking but blank version of a team they are not on. Plan section 3
+     * forbids exactly that shape ("never renders the team as the child").
+     */
+    requiresTeam?: boolean;
     /** Draw a separator above this item. Groups the board/competition tools apart. */
     startsGroup?: boolean;
 }
@@ -87,11 +98,11 @@ export interface AppView {
 export const APP_ROOT = '/app';
 
 export const APP_VIEWS: AppView[] = [
-    { id: 'dashboard', path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, inNav: true },
-    { id: 'kanban', path: 'board', label: 'Sprint Planning', icon: Activity, inNav: true, startsGroup: true },
-    { id: 'checklist', path: 'checklist', label: 'Pre-Match Checklist', icon: CheckSquare, inNav: true },
-    { id: 'scouting', path: 'scouting', label: 'Scouting Reports', icon: ClipboardCheck, inNav: true },
-    { id: 'planner', path: 'planner', label: 'Match Planner', icon: Gamepad2, inNav: true },
+    { id: 'dashboard', path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, inNav: true, requiresTeam: true },
+    { id: 'kanban', path: 'board', label: 'Sprint Planning', icon: Activity, inNav: true, requiresTeam: true, startsGroup: true },
+    { id: 'checklist', path: 'checklist', label: 'Pre-Match Checklist', icon: CheckSquare, inNav: true, requiresTeam: true },
+    { id: 'scouting', path: 'scouting', label: 'Scouting Reports', icon: ClipboardCheck, inNav: true, requiresTeam: true },
+    { id: 'planner', path: 'planner', label: 'Match Planner', icon: Gamepad2, inNav: true, requiresTeam: true },
     /*
      * Meetings is visible to EVERYBODY, unlike Admin Settings.
      *
@@ -101,11 +112,11 @@ export const APP_VIEWS: AppView[] = [
      * the read-only schedule depending on `can_manage_meetings`, which is the first capability
      * in the app that separates a mentor from a student.
      */
-    { id: 'meetings', path: 'meetings', label: 'Meetings', icon: CalendarDays, inNav: true },
+    { id: 'meetings', path: 'meetings', label: 'Meetings', icon: CalendarDays, inNav: true, requiresTeam: true },
     { id: 'guardian', path: 'guardian', label: 'My children', icon: Baby, inNav: true, requiresGuardian: true, startsGroup: true },
-    { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresManage: true, startsGroup: true },
-    { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresOperator: true },
-    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
+    { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresTeam: true, requiresManage: true, startsGroup: true },
+    { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresTeam: true, requiresOperator: true },
+    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false, requiresTeam: true },
 ];
 
 /** The view the app opens on, and what `/app` and `/dashboard` redirect to. */
@@ -127,13 +138,15 @@ export function navViewsFor(
     canManageTeam: boolean,
     isOperator = false,
     isGuardian = false,
+    hasTeam = true,
 ): AppView[] {
     return APP_VIEWS.filter(
         (v) =>
             v.inNav &&
             (!v.requiresManage || canManageTeam) &&
             (!v.requiresOperator || isOperator) &&
-            (!v.requiresGuardian || isGuardian),
+            (!v.requiresGuardian || isGuardian) &&
+            (!v.requiresTeam || hasTeam),
     );
 }
 

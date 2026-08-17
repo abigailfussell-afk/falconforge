@@ -77,7 +77,8 @@ export default function Sidebar({
     // Sprint 4 for good reason.
     const tasks = useSeasonScoped(allTasks);
     const currentTeam = teams.find((t) => t.id === currentTeamId);
-    const views = navViewsFor(canManageTeam, isOperator, isGuardian);
+    // `!!currentTeamId` — a guardian has none, and every team view would be an empty screen.
+    const views = navViewsFor(canManageTeam, isOperator, isGuardian, !!currentTeamId);
 
     const doneCount = tasks.filter((t) => t.status === 'Done').length;
     const donePercent = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0;

@@ -91,34 +91,45 @@ export default function Onboarding() {
                 return;
             }
 
-            if (memberships && memberships.length > 0) {
-                // Get approved teams
-                const approved = memberships.filter(m => m.status === 'approved');
-                if (approved.length > 0) {
-                    // Build teams array for the store
-                    const approvedTeams: Team[] = approved.map(m => ({
-                        id: m.teams?.id || m.team_id,
-                        name: m.teams?.name || 'Unknown Team',
-                        teamNumber: m.teams?.team_number || null,
-                        ownerId: m.teams?.owner_id || '',
-                        createdAt: Date.now(),
-                    }));
+            /*
+             * WRITTEN UNCONDITIONALLY. Both of these used to be inside `if (length > 0)`
+             * guards, so ZERO memberships wrote nothing at all and whatever the persisted
+             * store already held stayed on screen under "Your Teams".
+             *
+             * Found in the browser, as a guardian: `guardian@falconforge.test` holds only
+             * managed rows, the query above correctly returned `[]`, and the picker still
+             * offered Iron Falcons — a team this account is not a member of, one click from
+             * an app that RLS would have returned nothing for.
+             *
+             * This is `docs/failure-modes.md` §4 (zero rows read as "no answer" rather than as
+             * "none") crossed with §1 (the previous session's data surviving into the next one
+             * on a shared laptop — the same shape as the sign-out that missed its realtime
+             * teardown). It was unreachable before Sprint 9 only because every account that got
+             * this far either had a team or was brand new with an empty store; a guardian is
+             * the first kind of account that routinely has NO team of its own.
+             *
+             * B20 is the same defect with the opposite sign — zero checklist rows read as
+             * "cleared elsewhere" — and the lesson is the one taken there: decide what zero
+             * MEANS, and write it either way.
+             */
+            const approved = (memberships ?? []).filter(m => m.status === 'approved');
+            const approvedTeams: Team[] = approved.map(m => ({
+                id: m.teams?.id || m.team_id,
+                name: m.teams?.name || 'Unknown Team',
+                teamNumber: m.teams?.team_number || null,
+                ownerId: m.teams?.owner_id || '',
+                createdAt: Date.now(),
+            }));
+            setTeams(approvedTeams);
 
-                    // Populate the store
-                    setTeams(approvedTeams);
-                }
-
-                // Get pending teams
-                const pending: PendingTeam[] = memberships
-                    .filter(m => m.status === 'pending')
-                    .map(m => ({
-                        teamId: m.team_id,
-                        teamName: m.teams?.name || 'Unknown Team',
-                        status: m.status as 'pending' | 'approved' | 'removed',
-                    }));
-
-                setPendingTeams(pending);
-            }
+            const pending: PendingTeam[] = (memberships ?? [])
+                .filter(m => m.status === 'pending')
+                .map(m => ({
+                    teamId: m.team_id,
+                    teamName: m.teams?.name || 'Unknown Team',
+                    status: m.status as 'pending' | 'approved' | 'removed',
+                }));
+            setPendingTeams(pending);
         } catch (err) {
             console.error('Exception loading teams:', err);
         } finally {

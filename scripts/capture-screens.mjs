@@ -125,6 +125,13 @@ const VIEWS = [
     },
     { file: 'check-in-code', hash: '#/app/checkin', nav: null, marker: '[data-testid="code-display"]' },
     { file: 'admin-console', hash: '#/app/admin', nav: 'admin' },
+    /*
+     * Sprint 9. The capture account is a coach who is ALSO a parent — the seeder gives
+     * `guardian@falconforge.test` the children, and Iron Falcons' admin sees the managed
+     * request in the console above. `optional` because the rail entry only appears for an
+     * account holding a child profile, and the demo team's coach does not.
+     */
+    { file: 'guardian-children', hash: '#/app/guardian', nav: 'guardian', optional: true },
     // Optional: the operator view is only in the nav for a platform operator, and the capture
     // account is not always one (the demo team's coach is not). Skipped rather than failed.
     { file: 'operator-console', hash: '#/app/operator', nav: 'operator', optional: true },

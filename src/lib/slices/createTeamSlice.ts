@@ -64,7 +64,30 @@ export const createTeamSlice: SliceCreator<TeamSlice> = (set) => ({
 
     setCurrentTeam: (currentTeamId) => set({ currentTeamId }),
     setCurrentUserId: (currentUserId) => set({ currentUserId }),
-    setTeams: (teams) => set({ teams }),
+    /*
+     * Setting the team list also DROPS a current team that is no longer in it.
+     *
+     * `currentTeamId` is persisted, and until Sprint 9 nothing ever invalidated it: every
+     * account that reached the picker either had teams or was brand new. A guardian is the
+     * first kind of account that routinely has NO team of its own, and a stale id pointed
+     * `fetchTeamData` at a team the account is not a member of — which then REPLACED the
+     * meetings and attendance collections with that team's (empty, per RLS) results, wiping
+     * out the guardian's own pull. On screen: "Nothing scheduled yet" for a child with a full
+     * schedule. Found in the browser; both pulls were visible in the network log, and the
+     * wrong one landed second.
+     *
+     * Derived from the list rather than cleared by each caller, which is the fix
+     * `resetToDefaults` already got for the same class (`docs/failure-modes.md` §12): a caller
+     * that forgets is the whole problem, so the invariant lives where the data does.
+     */
+    setTeams: (teams) =>
+        set((state) => ({
+            teams,
+            currentTeamId:
+                state.currentTeamId && teams.some((t) => t.id === state.currentTeamId)
+                    ? state.currentTeamId
+                    : null,
+        })),
     setTeamMembers: (teamMembers) => set({ teamMembers }),
     setEntitlement: (entitlement) => set({ entitlement }),
 });
