@@ -265,6 +265,10 @@ export const useAppStore = create<AppState>()(
                 // Persisted so a team that goes offline still knows its licence lapsed,
                 // rather than reading the absence of an answer as permission.
                 entitlement: state.entitlement,
+                // Persisted because the whole point is to outlive the join: the student closes
+                // the app and comes back the next evening to see whether they were approved.
+                // Held in memory only, this would be "Unknown Team" again on the second visit.
+                pendingTeamNames: state.pendingTeamNames,
                 theme: state.theme,
             }),
             onRehydrateStorage: () => (state) => {

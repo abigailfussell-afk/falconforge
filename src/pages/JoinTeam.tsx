@@ -37,6 +37,7 @@ export default function JoinTeam() {
      * writes names a managed profile.
      */
     const managedProfiles = useAppStore((s) => s.managedProfiles);
+    const rememberPendingTeamName = useAppStore((s) => s.rememberPendingTeamName);
     const [joiningForProfileId, setJoiningForProfileId] = useState('');
 
     // A guardian arriving straight at /join (from a coach's link) may not have their children
@@ -92,7 +93,13 @@ export default function JoinTeam() {
                 return;
             }
 
-            const result = data as { success: boolean; team_name?: string; status?: string; error?: string };
+            const result = data as {
+                success: boolean;
+                team_id?: string;
+                team_name?: string;
+                status?: string;
+                error?: string;
+            };
 
             if (!result.success) {
                 setError(result.error || 'Failed to join team');
@@ -101,6 +108,20 @@ export default function JoinTeam() {
             }
 
             setTeamName(result.team_name || 'Team');
+
+            /*
+             * KEEP THE NAME. Both join RPCs have always returned `team_id` alongside
+             * `team_name` and the client threw both away after rendering one of them once.
+             *
+             * A join leaves the member `pending`, and a pending member cannot read their own
+             * team: `is_team_member` requires `status = 'approved'`, so the "waiting for the
+             * team admin" screen was naming the team "Unknown Team" to somebody who had typed
+             * that team's invite code seconds earlier. This is the only moment the name is
+             * legitimately in the client's hands, so it is the moment to keep it.
+             */
+            if (result.team_id && result.team_name) {
+                rememberPendingTeamName(result.team_id, result.team_name);
+            }
             setSuccess(true);
         } catch (err: any) {
             console.error('Exception joining team:', err);

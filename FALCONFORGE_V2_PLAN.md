@@ -410,7 +410,10 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 *From the teams-into-the-registry change (2026-08-18), found while reasoning about which rows
 `teams` RLS returns, then confirmed against the local stack as a real pending member:*
-- **🔴 A member waiting for approval is shown "Unknown Team".** `Onboarding` builds its
+- **✅ RESOLVED 2026-08-18** (`v2/pending-team-name`, option (b) — Kevin's call). The client keeps
+  the name the join RPC already returned, in `pendingTeamNames`, and the RLS read still wins
+  when it is available. No policy change and no new exposure; the one limitation is that it is
+  per-device. Was: **A member waiting for approval is shown "Unknown Team".** `Onboarding` builds its
   "waiting for the team admin" list from a nested `team_members -> teams:team_id (...)` select
   and falls back to `'Unknown Team'` when the join is empty — and the join IS empty for exactly
   these rows, because `teams_select_member` is `is_team_member(id) OR is_team_guardian(id)` and

@@ -27,6 +27,8 @@ export default function Onboarding() {
     const returnTo = readReturnTo(location.search);
     const { user, signOut, ageClassification, updateAgeClassification } = useAuth();
     const { teams, setTeams, setCurrentTeam, currentTeamId } = useAppStore();
+    const pendingTeamNames = useAppStore((s) => s.pendingTeamNames);
+    const forgetPendingTeamNames = useAppStore((s) => s.forgetPendingTeamNames);
     const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
@@ -132,14 +134,31 @@ export default function Onboarding() {
             );
             setTeams(approvedTeams);
 
+            /*
+             * `m.teams` IS NULL FOR EVERY ROW IN THIS LIST, and that is not a bug in the query.
+             *
+             * `teams_select_member` is `is_team_member(id) OR is_team_guardian(id)` and
+             * `is_team_member` requires `status = 'approved'` — so the team a pending member is
+             * waiting on is exactly the row RLS refuses them, and the nested select comes back
+             * empty. Confirmed against the local stack as a real pending user: the membership
+             * row arrives with `teams: null` while an approved member gets the name.
+             *
+             * So the name comes from where it was last legitimately known — the join itself,
+             * which returns it and which the client used to discard. The RLS fallback is kept
+             * first anyway, because a row that CAN be read should be read rather than trusted
+             * to a remembered copy that a rename would have made stale.
+             */
             const pending: PendingTeam[] = (memberships ?? [])
                 .filter(m => m.status === 'pending')
                 .map(m => ({
                     teamId: m.team_id,
-                    teamName: m.teams?.name || 'Unknown Team',
+                    teamName: m.teams?.name || pendingTeamNames[m.team_id] || 'Unknown Team',
                     status: m.status as 'pending' | 'approved' | 'removed',
                 }));
             setPendingTeams(pending);
+
+            // An approved team is readable in its own right, so its remembered name is dead.
+            forgetPendingTeamNames(approved.map(m => m.team_id));
         } catch (err) {
             console.error('Exception loading teams:', err);
         } finally {
