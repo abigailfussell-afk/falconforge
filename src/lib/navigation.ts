@@ -8,6 +8,7 @@ import {
     Settings,
     User,
     Gift,
+    LifeBuoy,
     Baby,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -116,6 +117,16 @@ export const APP_VIEWS: AppView[] = [
     { id: 'guardian', path: 'guardian', label: 'My children', icon: Baby, inNav: true, requiresGuardian: true, startsGroup: true },
     { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresTeam: true, requiresManage: true, startsGroup: true },
     { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresTeam: true, requiresOperator: true },
+    /*
+     * Help carries NO `requiresTeam`, unlike every other view here.
+     *
+     * The two people most likely to need instructions are a coach who has not created a team
+     * yet and a guardian who never will have one -- `requiresTeam` would hide the page from
+     * exactly them. It renders no team- or season-scoped data, so there is nothing for RLS to
+     * return empty and nothing of the "plausible-looking blank team" shape the guardian rules
+     * above exist to prevent.
+     */
+    { id: 'help', path: 'help', label: 'Getting started', icon: LifeBuoy, inNav: true, startsGroup: true },
     { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false, requiresTeam: true },
 ];
 

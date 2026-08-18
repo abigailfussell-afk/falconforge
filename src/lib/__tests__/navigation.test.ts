@@ -97,7 +97,25 @@ describe('a guardian has no team, and the nav must survive that', () => {
     it('shows a guardian only their own view when they have no team', () => {
         const views = navViewsFor(false, false, true, false);
 
-        expect(views.map((v) => v.id)).toEqual(['guardian']);
+        // `help` joined this list deliberately: it is the one view with no `requiresTeam`,
+        // because a guardian who will never have a team still needs to read how any of this
+        // works. Kept as an exact list rather than loosened to `not.toContain('dashboard')` —
+        // the literal is what makes a sixth team view added without `requiresTeam` fail here.
+        expect(views.map((v) => v.id)).toEqual(['guardian', 'help']);
+    });
+
+    /*
+     * The property the list above is standing in for, stated directly.
+     *
+     * The exact list catches a regression but does not say WHY those two are allowed, so a
+     * future edit could satisfy it by renaming rather than by reasoning. This asserts the rule:
+     * nothing team-scoped reaches an account with no team, whatever it is called.
+     */
+    it('offers a teamless guardian nothing that needs a team', () => {
+        const shown = navViewsFor(false, false, true, false);
+
+        expect(shown.length).toBeGreaterThan(0);
+        expect(shown.filter((v) => v.requiresTeam)).toEqual([]);
     });
 
     it('still shows the team views to a member who has one', () => {

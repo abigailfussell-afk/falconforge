@@ -39,6 +39,7 @@ const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const EditProfile = lazy(() => import('./components/EditProfile'));
 const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
 const GuardianView = lazy(() => import('./components/guardian/GuardianView'));
+const GettingStarted = lazy(() => import('./pages/GettingStarted'));
 
 /*
  * Meetings is six routes rather than one, and they are split separately on purpose.
@@ -270,6 +271,7 @@ function App() {
                      * the honest answer, since "you have no children here" is exactly true.
                      */}
                     <Route path="guardian" element={<GuardianView />} />
+                    <Route path="help" element={<GettingStarted />} />
                     <Route path="admin" element={<AdminSettingsRoute />} />
                     {/*
                      * The operator page needs no route guard of its own. `OperatorConsole` asks
