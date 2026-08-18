@@ -410,6 +410,33 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From writing the data-erasure runbook (2026-08-18), found by running the SQL rather than by
+reading the schema:*
+- **🔴 `DELETE FROM team_members` is impossible for almost any real member, and four
+  `ON DELETE SET NULL` actions can never fire.** `team_members` is referenced by five COMPOSITE
+  foreign keys — `tasks(assigned_to, team_id)`, `meetings(created_by, team_id)`,
+  `scouting_reports(created_by, team_id)`, `meeting_attendance(attested_by, team_id)` and
+  `teams(pending_admin_member_id, id)` — every one of them `ON DELETE SET NULL`. `SET NULL`
+  nulls **every column in the key**, so each tries to null a `team_id` that is `NOT NULL`, and
+  the last one tries to null `teams.id`, the primary key. Deleting a member who has been
+  assigned a task therefore fails with `null value in column "team_id" of relation "tasks"
+  violates not-null constraint`. **Masked completely today** because the app never deletes a
+  member — `MemberManager` sets `status = 'removed'` — so this has never been reached by any
+  flow or any test. It was found the first time anything tried an actual DELETE. The runbook in
+  `docs/beta-ops.md` works around it by releasing each reference with a single-column UPDATE
+  first (a composite FK with any NULL column is not enforced), which is correct but is a
+  workaround for a constraint that does not mean what it says. **The real fix is per-column
+  `ON DELETE SET NULL (column)`**, which Postgres 15+ supports and which would make these
+  actions do what every reader of the schema already assumes they do. Deferred: it is a
+  migration touching five constraints on a frozen schema, for a code path nothing takes, and
+  the beta workaround is written down and measured.
+- **Data erasure is deliberately a runbook and not a tool** (Kevin, 2026-08-18). The Privacy
+  Policy's §6 promise stands; for a beta of a few known teams a request handled by hand is a
+  real answer, and the operator RPC — which would need `operator_actions.team_id` to become
+  nullable and its `action` CHECK widened — is post-beta work. `public.users` cannot be
+  hard-deleted at all: `teams.owner_id` and `invites.created_by` are `NO ACTION`, so the shape
+  is anonymise-plus-remove-memberships, which is what the policy already describes.
+
 *From the teams-into-the-registry change (2026-08-18), found while reasoning about which rows
 `teams` RLS returns, then confirmed against the local stack as a real pending member:*
 - **✅ RESOLVED 2026-08-18** (`v2/pending-team-name`, option (b) — Kevin's call). The client keeps

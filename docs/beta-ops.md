@@ -89,6 +89,121 @@ to notice, because the symptom is an absence of email rather than an error.
 
 ---
 
+## Erasing a person's data
+
+The Privacy Policy promises this and there is deliberately **no tool for it**: for a beta of a
+few known teams, a request handled by hand is a real answer and building an audited operator
+RPC is not worth doing yet (Kevin's call, 2026-08-18). This section is what makes "by hand"
+safe — the SQL below was **run against a real database and its effects measured**, not written
+from memory.
+
+What the policy says, and therefore what this does: *"we remove your personal information and
+your memberships. Work you contributed to a team stays with the team."*
+
+### Read this first: the deletes do not work in the obvious order
+
+`team_members` has five composite foreign keys pointing at it with `ON DELETE SET NULL`, and
+**four of them cannot fire**:
+
+```
+tasks              (assigned_to, team_id)            -> team_members(id, team_id)
+meetings           (created_by,  team_id)            -> team_members(id, team_id)
+scouting_reports   (created_by,  team_id)            -> team_members(id, team_id)
+meeting_attendance (attested_by, team_id)            -> team_members(id, team_id)
+teams              (pending_admin_member_id, id)     -> team_members(id, team_id)
+```
+
+`SET NULL` nulls **every column in the key**, so each of these tries to null a `team_id` that
+is `NOT NULL` — and the last one tries to null `teams.id`, the primary key. So a plain
+`DELETE FROM team_members` is REFUSED for anybody who has been assigned a task, created a
+meeting, filed a scouting report, taken a roster, or been nominated as admin:
+
+```
+ERROR: null value in column "team_id" of relation "tasks" violates not-null constraint
+```
+
+This has never bitten anyone because the app never deletes a member — it sets
+`status = 'removed'`. See the plan's parking lot; it is a real schema defect and it is logged.
+
+The consequence for this runbook: **release every reference explicitly first.** A single-column
+`UPDATE ... SET assigned_to = NULL` is fine, because a composite FK with any NULL column is not
+enforced.
+
+### The sequence
+
+Run it as ONE transaction against the linked database, having taken a dump first (see Backups).
+
+```sql
+\set uid 'THE-USER-UUID'
+BEGIN;
+
+-- Refuse to continue if they solely administer a team: removing their membership would strand
+-- it, and the fix is to transfer the admin role in the operator console FIRST.
+SELECT count(*) AS must_be_zero
+  FROM team_members WHERE user_id = :'uid' AND role = 'admin' AND status <> 'removed';
+
+-- 1. Release the composite references. None of these can be left to a cascade.
+UPDATE teams SET pending_admin_member_id = NULL, pending_admin_nominated_at = NULL,
+                 pending_admin_nominated_by = NULL
+ WHERE pending_admin_member_id IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE tasks              SET assigned_to = NULL
+ WHERE assigned_to IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE meetings           SET created_by  = NULL
+ WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE scouting_reports   SET created_by  = NULL
+ WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE meeting_attendance SET attested_by = NULL
+ WHERE attested_by IN (SELECT id FROM team_members WHERE user_id = :'uid');
+
+-- 2. Their children, if they are a guardian. Cascades guardian_consents.
+DELETE FROM managed_profiles WHERE guardian_user_id = :'uid';
+
+-- 3. Their memberships. Cascades THEIR OWN attendance and nothing else's.
+DELETE FROM team_members WHERE user_id = :'uid';
+
+-- 4. The person. ANONYMISED, NOT DELETED -- `teams.owner_id` and `invites.created_by` are
+--    NO ACTION, so a DELETE is refused for anyone who ever owned a team or issued an invite,
+--    which is every admin. `email` is NOT NULL, hence a tombstone rather than NULL.
+UPDATE users
+   SET email      = 'erased-' || left(replace(:'uid','-',''),8) || '@erased.invalid',
+       full_name  = 'Erased user',
+       avatar_url = NULL
+ WHERE id = :'uid';
+
+COMMIT;
+```
+
+Then **delete the login** in the Supabase dashboard (Authentication → Users). Nothing above
+touches `auth.users`, so until you do that the account still exists and can still sign in — to
+an anonymised profile.
+
+### What this actually did, measured
+
+Run against a seeded student with 1 assigned task, 1 authored scouting report and 9 attendance
+rows, on a team holding 125 attendance rows in total:
+
+| | before | after |
+|---|---|---|
+| their memberships | 1 | **0** |
+| their attendance rows | 9 | **0** |
+| their name / email | `Student 1` / `iron-student0@…` | **`Erased user` / `erased-25dfe65c@erased.invalid`** |
+| their assigned task | exists, assigned to them | **exists, `assigned_to` NULL** |
+| their scouting report | exists, authored by them | **exists, `created_by` NULL** |
+| the team's other attendance | 125 | **116** |
+
+Which is the policy's sentence, exactly: the person is gone, their contributions stay with the
+team, and no other member lost anything.
+
+### Under-13s
+
+A guardian's request removes the child through step 2 — `managed_profiles` cascades
+`guardian_consents`, and the child's `team_members` row goes with the guardian's in step 3
+because a managed member's row carries the GUARDIAN's `user_id`. To remove one child while the
+guardian keeps their own account, delete that `managed_profiles` row alone and let the cascade
+do the rest.
+
+---
+
 ## Error review
 
 There is no Sentry. `src/lib/error-reporting.ts` writes one structured line per caught error,
