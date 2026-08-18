@@ -46,6 +46,49 @@ Two things that have bitten this project before, both recorded in the plan's log
 
 ---
 
+## Transactional email
+
+**This is the one piece of beta infrastructure that fails silently, and it is not code.**
+
+Supabase's built-in email service is rate-limited to a couple of messages an hour on the free
+plan and is documented as being for testing rather than production — no deliverability
+guarantee, no custom domain, and Supabase's own sending reputation rather than ours. The hosted
+project has confirmations **on** (`mailer_autoconfirm: false`), so that service currently
+carries both halves of a beta user's first hour: the signup confirmation and the password reset.
+
+A coach onboarding fifteen students in one evening will exhaust the hourly allowance and the
+rest of the team simply never receives anything. Nothing errors, nothing appears in a log the
+app can reach, and the coach reports "it didn't work".
+
+### The fix, which is configuration rather than a sprint
+
+The deferred "Auth email branding & the confirmation round trip" item in the plan bundles this
+with templates and link rewriting. **The SMTP half is separable and should be done alone.**
+
+1. Create a [Resend](https://resend.com) account. The free tier is 3,000/month and 100/day,
+   which is far beyond a beta of a few teams. **Not Brevo** — its free tier stamps its own
+   branding on the message, which is the problem being solved wearing a different hat.
+2. Add `falcon-forge.com` as a sending domain and publish the SPF, DKIM and DMARC records it
+   gives you at the registrar. Wait for Resend to verify them — mail sent before verification
+   lands in spam, which looks exactly like mail that was never sent.
+3. Create an API key, then in the Supabase dashboard under **Project Settings → Authentication
+   → SMTP Settings** enable custom SMTP: host `smtp.resend.com`, port 465, username `resend`,
+   password = the API key, sender `support@falcon-forge.com`.
+4. **Raise the email rate limit afterwards** (Authentication → Rate Limits). It is pinned low
+   while the built-in service is in use and does not lift itself when SMTP changes.
+5. Verify by signing up a genuinely new address and completing a password reset end to end.
+   Check the message's headers show DKIM passing, and check it did not land in spam — those are
+   two different failures and only the first one is visible from the dashboard.
+
+### The address the app sends people to
+
+`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle. That alias must forward to
+a real inbox **before the bundle deploys**. An address on a domain that accepts and drops mail
+does not bounce — it fails silently, which is the worse of the two failures and the harder one
+to notice, because the symptom is an absence of email rather than an error.
+
+---
+
 ## Error review
 
 There is no Sentry. `src/lib/error-reporting.ts` writes one structured line per caught error,

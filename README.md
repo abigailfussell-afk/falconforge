@@ -24,6 +24,10 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
   own name and redeems it — and **keeps their place on the team and their whole attendance
   history**, because the roster row is repointed rather than replaced. The app never stores a
   date of birth, so this is triggered by a person and never by a date
+- **Getting started** - An in-app help page (`#/app/help`) covering the admin's first five
+  steps, what a student needs, how offline actually behaves and the guardian path for under-13s.
+  It is the one view that does not require a team, because a coach who has not created one yet
+  and a guardian who never will are the two people most likely to need it
 - **Seasons** - Each year starts fresh: a new-season wizard clones your sub-team structure
   (never its member assignments), empties the board, scouting log and match plans, and makes
   the previous season read-only while keeping every row of it browsable
