@@ -20,6 +20,7 @@ import {
     SYNCED_ENTITIES,
     GUARDIAN_ENTITIES,
     PULL_ONLY_ENTITIES,
+    RLS_SCOPED_ENTITIES,
     findEntity,
     toEpochMillis,
     toISO,
@@ -175,7 +176,19 @@ const guardianConsent: GuardianConsent = {
     consentedAt: undefined, // server-assigned
 };
 
+const team = {
+    id: 'team-1',
+    name: 'Iron Falcons',
+    teamNumber: '12345',
+    // Server-owned: `teams_insert_owner` checks `owner_id = auth.uid()`, so `toRemote` does not
+    // send it and the round trip cannot carry it. Empty is what `fromRemote` produces for a row
+    // that did not include the column.
+    ownerId: '',
+    createdAt: undefined as unknown as number, // server-assigned
+};
+
 const SAMPLES: Record<string, any> = {
+    teams: team,
     managed_profiles: managedProfile,
     guardian_consents: guardianConsent,
     tasks: task,
@@ -328,12 +341,29 @@ describe('pull-only entities are never pushable', () => {
         }
     });
 
-    it('ENTITIES is exactly the three lists together', () => {
+    it('ENTITIES is exactly the four lists together', () => {
         expect(ENTITIES.map((e) => e.remoteTable)).toEqual([
             ...SYNCED_ENTITIES.map((e) => e.remoteTable),
             ...GUARDIAN_ENTITIES.map((e) => e.remoteTable),
             ...PULL_ONLY_ENTITIES.map((e) => e.remoteTable),
+            ...RLS_SCOPED_ENTITIES.map((e) => e.remoteTable),
         ]);
+    });
+
+    /*
+     * `teams` must not reach the realtime subscription or the sync loop's pull list, both of
+     * which are derived from SYNCED_ENTITIES and both of which filter on `team_id` -- a column
+     * `teams` does not have. A filter on a non-existent column matches nothing, which is the
+     * silent-empty shape rather than an error, so this is asserted rather than trusted.
+     */
+    it('keeps RLS-scoped entities out of the team-filtered lists', () => {
+        const synced = new Set(SYNCED_ENTITIES.map((e) => e.remoteTable));
+        const guardian = new Set(GUARDIAN_ENTITIES.map((e) => e.remoteTable));
+        for (const entity of RLS_SCOPED_ENTITIES) {
+            expect(synced.has(entity.remoteTable), `${entity.remoteTable} is pushable`).toBe(false);
+            expect(guardian.has(entity.remoteTable)).toBe(false);
+            expect(entity.scope).toBe('rls');
+        }
     });
 
     it('team_members is pull-only', () => {
@@ -372,7 +402,7 @@ describe('scope decides which column a pull filters on', () => {
         // The field is required by the type, so this cannot fail while the build is green —
         // it exists to fail LOUDLY if someone widens the type to make an entity easier to add.
         for (const entity of ENTITIES) {
-            expect(['team', 'guardian'], `${entity.remoteTable}`).toContain(entity.scope);
+            expect(['team', 'guardian', 'rls'], `${entity.remoteTable}`).toContain(entity.scope);
         }
     });
 });

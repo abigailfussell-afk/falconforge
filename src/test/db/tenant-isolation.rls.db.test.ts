@@ -402,6 +402,32 @@ describe('same-team access still works (the control that stops this suite being 
         }
     });
 
+    /*
+     * THE UNFILTERED SELECT, WHICH IS NOW A READ PATH RATHER THAN A HYPOTHETICAL.
+     *
+     * `teams` became an entity registry entity with `scope: 'rls'`, which means the pull sends
+     * `.select('*')` with NO predicate at all and lets the policy decide the row set. Every
+     * other assertion about `teams` in this file filters by id first, so all of them would
+     * still pass if the policy returned every team on the platform — they only ever ask "can I
+     * read the one I already named".
+     *
+     * This asks the question the client now actually asks. It is the whole justification for
+     * deleting `pullGuardianTeams` and its merge-by-id: one unfiltered select is supposed to
+     * return a member's own teams and a guardian's children's teams and nothing else.
+     */
+    it('an unfiltered teams select returns only the caller’s own teams', async () => {
+        for (const role of ROLES) {
+            const client = teamA.users[role].client;
+
+            const teams = await client.from('teams').select('id');
+
+            expect(
+                teams.data?.map((t: { id: string }) => t.id),
+                `${role} saw a team that is not theirs`,
+            ).toEqual([teamA.id]);
+        }
+    });
+
     it('a member can write their own team’s data', async () => {
         const { data, error } = await teamA.users.student.client
             .from('tasks')

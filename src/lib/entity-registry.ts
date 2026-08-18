@@ -35,6 +35,7 @@ import type {
     MatchPlan,
     Season,
     SubTeam,
+    Team,
     TeamMember,
     Meeting,
     MeetingAttendance,
@@ -96,8 +97,21 @@ export type WithSyncContext<T> = T & { teamId?: string; seasonId?: string };
  * pull in a `console.warn` nobody reads, and an empty children list that looks exactly like a
  * guardian who has not added a child yet. Making the field required means the question is
  * answered when an entity is registered rather than discovered when it is used.
+ *
+ * `'rls'` — NO CLIENT-SIDE FILTER AT ALL. The row set is whatever the caller's policies
+ * return, and `teams` is the only entity of this shape: its policy is
+ * `is_team_member(id) OR is_team_guardian(id)`, so one unfiltered select already returns a
+ * member's own teams, a guardian's children's teams, and the union of both for a coach who
+ * is also a parent — which is precisely what the hand-written `pullGuardianTeams` was
+ * merging by hand.
+ *
+ * Read the name as a warning as much as a description: for the other two scopes a missing
+ * filter still meets RLS on the way out, but here the client sends no predicate whatsoever,
+ * so the policy is the only thing standing between this query and every team on the
+ * platform. That is exactly the property `tenant-isolation.rls.db.test.ts` exists to assert
+ * behaviourally, and `teams` is asserted there for both a member and a guardian.
  */
-export type EntityScope = 'team' | 'guardian';
+export type EntityScope = 'team' | 'guardian' | 'rls';
 
 export interface EntityDefinition<TLocal extends { id: string }> {
     /** Key in the Zustand store, camelCase. */
@@ -627,6 +641,50 @@ function toMemberStatus(value: unknown): TeamMember['status'] {
  * `sync.ts` derives the set of tables the queue may touch from this list, so a pull-only
  * entity being absent here is what makes it pull-only.
  */
+/**
+ * The tenant itself — and the last collection in the app to have a definition.
+ *
+ * It was the one thing outside the registry, which the parking lot had said in red since
+ * Sprint 7, and by Sprint 9 that had cost the usual price: THREE hand-written mappings of the
+ * same four columns, each written correctly and none aware of the others.
+ *
+ *   - `Onboarding.tsx` built Team objects out of a nested `teams:team_id (...)` select;
+ *   - `pullGuardianTeams` in server-pull.ts built them out of a direct select and merged by
+ *     id, because a coach who is also a parent must not lose their own team list;
+ *   - `CreateTeam.tsx` built one locally from the registration RPC's result.
+ *
+ * Two of the three invented `createdAt: Date.now()` for a column the server owns, so the
+ * "created" date of a team was whenever that client happened to read it. `fromRemote` reads
+ * the real column, and `createdAt` is declared `serverAssigned` so the round-trip test knows
+ * it cannot survive a trip through `toRemote` rather than tolerating whatever comes back.
+ *
+ * PULL-ONLY, like `team_members`. A team is created by `create_team_as_admin` and renamed
+ * through the admin panel's own RPC; nothing queues a `teams` row, and `toRemote` exists for
+ * the round-trip property rather than for a caller. `owner_id` is deliberately absent from
+ * `toRemote`: `teams_insert_owner` checks `owner_id = auth.uid()`, so a client-supplied value
+ * is either redundant or an attempt, and neither is worth sending.
+ */
+const teams: EntityDefinition<Team> = {
+    serverAssigned: ['createdAt'] as const,
+    localKey: 'teams',
+    remoteTable: 'teams',
+    scope: 'rls',
+    toRemote: (t) => ({
+        id: t.id,
+        name: t.name,
+        team_number: t.teamNumber || null,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        name: r.name,
+        teamNumber: r.team_number ?? null,
+        ownerId: r.owner_id ?? '',
+        createdAt: toEpochMillis(r.created_at) ?? 0,
+    }),
+    getFromStore: (s) => s.teams,
+    setInStore: (s, items) => s.setTeams(items),
+};
+
 export const SYNCED_ENTITIES = [
     seasons,
     subTeams,
@@ -670,11 +728,34 @@ export const GUARDIAN_ENTITIES = [managedProfiles, guardianConsents] as const;
 /** Read from the server, never pushed by the client. */
 export const PULL_ONLY_ENTITIES = [teamMembers] as const;
 
+/**
+ * Entities whose row set is decided entirely by RLS — see {@link EntityScope}'s `'rls'`.
+ *
+ * Its own list rather than a member of the three above, for the same reason
+ * {@link GUARDIAN_ENTITIES} is separate: `SYNC_PULL_TABLES` and `realtime.ts` are both
+ * derived from {@link SYNCED_ENTITIES}, and both would be wrong here. The realtime channel
+ * filters on `team_id=eq.<open team>` and `teams` has no `team_id` column, so subscribing
+ * would produce a filter that matches nothing — the silent-empty shape B22 and Sprint 9's
+ * `scope` field both exist to prevent.
+ */
+export const RLS_SCOPED_ENTITIES = [teams] as const;
+
+/**
+ * The `teams` mapping, by name, for the one caller whose rows do not arrive through the pull.
+ *
+ * `Onboarding` reads teams through a nested `team_members -> teams:team_id (...)` select,
+ * because it needs the MEMBERSHIP STATUS alongside them and a pending membership's team is a
+ * row RLS refuses. It still has a raw Supabase row in hand, so it uses this rather than
+ * writing the fourth copy of the same four-column mapping.
+ */
+export const TEAMS_ENTITY = teams;
+
 /** Every registered entity, whichever direction it travels. */
 export const ENTITIES = [
     ...SYNCED_ENTITIES,
     ...GUARDIAN_ENTITIES,
     ...PULL_ONLY_ENTITIES,
+    ...RLS_SCOPED_ENTITIES,
 ] as const;
 
 /**

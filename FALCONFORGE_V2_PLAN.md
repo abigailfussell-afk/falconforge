@@ -408,6 +408,25 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From the teams-into-the-registry change (2026-08-18), found while reasoning about which rows
+`teams` RLS returns, then confirmed against the local stack as a real pending member:*
+- **🔴 A member waiting for approval is shown "Unknown Team".** `Onboarding` builds its
+  "waiting for the team admin" list from a nested `team_members -> teams:team_id (...)` select
+  and falls back to `'Unknown Team'` when the join is empty — and the join IS empty for exactly
+  these rows, because `teams_select_member` is `is_team_member(id) OR is_team_guardian(id)` and
+  `is_team_member` requires `status = 'approved'`. So the one row a pending member needs to name
+  is the one RLS refuses them. Verified as `full-hopeful0@falconforge.test`: the membership row
+  comes back with `teams: null` and a direct `teams` select returns `[]`, while an approved
+  member gets the name both ways. **Live today and not introduced by this change** — the
+  registry change neither fixed nor worsened it, which is why it is logged rather than folded
+  in. A student who joins with a code and waits sees the app name a team it will not name.
+  Two fixes, and the choice between them is Kevin's because one touches the security boundary:
+  (a) a narrow additional SELECT policy admitting anyone with a `team_members` row of any
+  status — cheap, but it also exposes `owner_id` and the `pending_admin_*` columns, which name
+  a governance decision to somebody not on the team; or (b) capture the team name client-side
+  at join time from `join_team_with_invite`, which needs no policy change and no new exposure
+  but does not help a device that did not perform the join. (b) looks right for beta.
+
 *From Sprint 9 (2026-08-17), found while building the guardian UI:*
 - **Sprint 9's four RPCs shipped EXECUTE-able by `anon`, and the hosted project is what
   found it.** `20260822000200` ended with `REVOKE ALL ... FROM PUBLIC`, which is the

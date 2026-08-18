@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Users, Plus, Key, Clock, LogOut, Loader2, ChevronRight, CheckCircle, Baby } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { TEAMS_ENTITY } from '../lib/entity-registry';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { performSignOut } from '../lib/sign-out';
@@ -113,13 +114,22 @@ export default function Onboarding() {
              * MEANS, and write it either way.
              */
             const approved = (memberships ?? []).filter(m => m.status === 'approved');
-            const approvedTeams: Team[] = approved.map(m => ({
-                id: m.teams?.id || m.team_id,
-                name: m.teams?.name || 'Unknown Team',
-                teamNumber: m.teams?.team_number || null,
-                ownerId: m.teams?.owner_id || '',
-                createdAt: Date.now(),
-            }));
+            /*
+             * ONE mapping, the registry's. This used to spell out the same four columns a
+             * fourth time (`team_number` -> `teamNumber`, and so on) with `createdAt:
+             * Date.now()` invented for a column the server owns.
+             *
+             * The fallback is kept rather than filtered away, and deliberately so: an approved
+             * membership always satisfies `is_team_member`, so `m.teams` being null here should
+             * be impossible — but if it ever happened, dropping the row would remove the team
+             * from the picker entirely and strand a coach with an empty list, where a named
+             * placeholder at least gets them into their team.
+             */
+            const approvedTeams: Team[] = approved.map(m =>
+                m.teams
+                    ? TEAMS_ENTITY.fromRemote(m.teams)
+                    : { id: m.team_id, name: 'Unknown Team', teamNumber: null, ownerId: '', createdAt: 0 },
+            );
             setTeams(approvedTeams);
 
             const pending: PendingTeam[] = (memberships ?? [])

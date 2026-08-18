@@ -66,7 +66,7 @@ export const SYNC_PULL_TABLES: readonly string[] = [
  * Tables loaded when the user opens a team: everything the sync loop pulls, plus the
  * roster, which the client reads but never pushes.
  */
-export const TEAM_DATA_TABLES: readonly string[] = ['team_members', ...SYNC_PULL_TABLES];
+export const TEAM_DATA_TABLES: readonly string[] = ['teams', 'team_members', ...SYNC_PULL_TABLES];
 
 /**
  * The guardian's own records: their children and the consents they have given.
@@ -139,9 +139,18 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
     const received: PullResult = {};
     if (!supabaseSync) return received;
 
-    // A team-scoped pull with no team is a no-op, as it always was. A guardian-scoped pull
-    // does not need one — a guardian with no membership of their own still has children.
-    const wantsTeamScope = tables.some((t) => findEntity(t)?.scope !== 'guardian');
+    /*
+     * A team-scoped pull with no team is a no-op, as it always was. A guardian-scoped pull
+     * does not need one — a guardian with no membership of their own still has children.
+     *
+     * Written as "is anything here team-scoped" rather than the previous "is anything here
+     * NOT guardian-scoped". Those read the same while there were exactly two scopes and stop
+     * being the same the moment a third exists: `teams` is `'rls'`, so the old form would have
+     * made a `['teams']` pull demand a team id and return early for the guardian who most
+     * needs it. Checklists are not a registry entity at all and stay team-scoped by default,
+     * which is what `?? 'team'` preserves.
+     */
+    const wantsTeamScope = tables.some((t) => (findEntity(t)?.scope ?? 'team') === 'team');
     if (wantsTeamScope && !teamId && !teamIds?.length) return received;
 
     // The counter decides when 'auto' does a full reconciliation. It is per-team, so
@@ -170,13 +179,16 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
              * of them being expected to agree from a distance.
              */
             const entity = findEntity(table);
-            const isGuardianScoped = entity?.scope === 'guardian';
+            const scope = entity?.scope ?? 'team';
+            const isGuardianScoped = scope === 'guardian';
+            // `'rls'` sends NO predicate: the policy is the filter. See EntityScope.
+            const isRlsScoped = scope === 'rls';
             const scopeColumn = isGuardianScoped ? 'guardian_user_id' : 'team_id';
             // `teamIds` wins over `teamId` for team-scoped tables; see PullOptions.
-            const scopeValues = !isGuardianScoped && teamIds?.length ? teamIds : null;
+            const scopeValues = !isGuardianScoped && !isRlsScoped && teamIds?.length ? teamIds : null;
             const scopeValue = isGuardianScoped ? guardianUserId : teamId;
 
-            if (!scopeValue && !scopeValues) {
+            if (!isRlsScoped && !scopeValue && !scopeValues) {
                 // Loudly, not silently. Filtering on `undefined` returns zero rows, and zero
                 // rows here is indistinguishable from "this guardian has no children" — the
                 // absence-read-as-a-value class (failure-modes §4) that cost this project a
@@ -189,7 +201,11 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
 
             // Cursors are per scope-value, not per team: a guardian's children do not belong
             // to a team, and keying them by one would reset the cursor on every team switch.
-            const entityKey = `${scopeValues ? scopeValues.join(',') : scopeValue}:${table}`;
+            // An RLS-scoped table has no scope value to key by, and the row set it returns
+            // depends on the signed-in user rather than on a team — so it keys by the viewer.
+            const entityKey = isRlsScoped
+                ? `viewer:${guardianUserId ?? 'self'}:${table}`
+                : `${scopeValues ? scopeValues.join(',') : scopeValue}:${table}`;
 
             // Checklists are blob-synced (the entire array lives in one row per team). If
             // there are pending local changes still queued, skip the pull entirely rather
@@ -204,9 +220,11 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
                 if (pendingChecklistItems > 0) continue;
             }
 
-            let query = scopeValues
-                ? supabaseSync.from(table as RemoteTable).select('*').in(scopeColumn, scopeValues as string[])
-                : supabaseSync.from(table as RemoteTable).select('*').eq(scopeColumn, scopeValue!);
+            let query = isRlsScoped
+                ? supabaseSync.from(table as RemoteTable).select('*')
+                : scopeValues
+                  ? supabaseSync.from(table as RemoteTable).select('*').in(scopeColumn, scopeValues as string[])
+                  : supabaseSync.from(table as RemoteTable).select('*').eq(scopeColumn, scopeValue!);
 
             // Checklists are one row per SEASON now (C6), and every one of them is pulled:
             // the store keys them by season, so switching seasons does not have to wait for
@@ -385,42 +403,17 @@ export async function fetchGuardianData(guardianUserId: string): Promise<void> {
         mode: 'full',
     });
 
-    await pullGuardianTeams(teamIds);
-}
-
-/**
- * The names of the teams a guardian's children are on.
- *
- * `teams` is not a registry entity — it is the last collection with a hand-written loader, and
- * the parking lot has said so since Sprint 7. So this is its own small read rather than part of
- * the pull, and it MERGES by id: a coach who is also a parent must not have their own team list
- * replaced by their children's.
- */
-async function pullGuardianTeams(teamIds: string[]): Promise<void> {
-    if (!supabaseSync || teamIds.length === 0) return;
-
-    const { data, error } = await supabaseSync
-        .from('teams')
-        .select('id, name, team_number, owner_id')
-        .in('id', teamIds);
-
-    if (error || !data) {
-        if (error) console.warn('Pull for guardian teams failed:', error.message);
-        return;
-    }
-
-    const store = useAppStore.getState();
-    const byId = new Map(store.teams.map((t) => [t.id, t]));
-    for (const row of data) {
-        byId.set(row.id, {
-            id: row.id,
-            name: row.name,
-            teamNumber: row.team_number,
-            ownerId: row.owner_id,
-            createdAt: byId.get(row.id)?.createdAt ?? Date.now(),
-        });
-    }
-    store.setTeams(Array.from(byId.values()));
+    /*
+     * ...and the teams themselves, which used to be `pullGuardianTeams` — a hand-written
+     * select plus a merge-by-id, because a coach who is ALSO a parent must not have their own
+     * team list replaced by their children's.
+     *
+     * The merge is gone rather than moved. `teams` is `scope: 'rls'` and its policy is
+     * `is_team_member(id) OR is_team_guardian(id)`, so ONE unfiltered select already returns
+     * that union — the case the merge existed to handle is the case the database was already
+     * answering correctly. Deleting code was the whole point of registering this entity.
+     */
+    await pullFromServer({ teamId: '', tables: ['teams'], mode: 'full' });
 }
 
 /**

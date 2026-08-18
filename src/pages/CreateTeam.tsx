@@ -181,11 +181,15 @@ export default function CreateTeam() {
              * finished creating ten seconds earlier -- from a list with exactly one entry on it.
              * Every team runs this flow exactly once, on their first evening, with nobody to ask.
              *
-             * Both halves are needed, and the second is the non-obvious one: `setTeams` is called
-             * in exactly ONE place in the app (the picker's loader), and `teams` is not in the
-             * entity registry, so nothing else ever populates it. Setting only the current id
-             * left the sidebar resolving a name it did not have and rendering "Select Team" while
-             * sitting inside that very team.
+             * Both halves are needed, and the second is the non-obvious one: setting only the
+             * current id left the sidebar resolving a name it did not have and rendering
+             * "Select Team" while sitting inside that very team.
+             *
+             * This used to say that `setTeams` had exactly one caller and that `teams` was not a
+             * registry entity. Both stopped being true when `teams` was registered: the pull now
+             * populates the collection too. The seeding below is still needed and still not a
+             * read path — it closes the window between the RPC returning and the next pull, which
+             * is the window the coach is actually looking at.
              *
              * Seeded from the write we just performed rather than read back, which is what an
              * offline-first app does everywhere else -- not a second read path.
