@@ -135,6 +135,9 @@ const VIEWS = [
     // Optional: the operator view is only in the nav for a platform operator, and the capture
     // account is not always one (the demo team's coach is not). Skipped rather than failed.
     { file: 'operator-console', hash: '#/app/operator', nav: 'operator', optional: true },
+    // The one view with no `requiresTeam`, so it is in the rail for every account -- including
+    // the guardian, for whom it is one of only two entries.
+    { file: 'getting-started', hash: '#/app/help', nav: 'help' },
     { file: 'edit-profile', hash: '#/app/profile', nav: null },
 ];
 
