@@ -17,7 +17,19 @@
 const VERSION = '0.1.0';
 const BUILD_ID = `${VERSION}${import.meta.env.PROD ? '' : '-dev'}`;
 
-export const FEEDBACK_EMAIL = 'jkfussell@gmail.com';
+/*
+ * A ROLE ADDRESS, NOT A PERSON'S, AND IT HAS TO EXIST BEFORE THIS DEPLOYS.
+ *
+ * This string is compiled into the bundle a beta coach installs, and installed PWAs are not
+ * reloaded on a schedule -- so whatever address ships first is the one people keep writing to
+ * long after it is changed here. Moving it after beta means either running the old inbox
+ * indefinitely or losing the reports sent to it, which is why it moves now rather than later.
+ *
+ * `support@falcon-forge.com` must be a working alias forwarding to Kevin's inbox before this
+ * reaches production. If it is not, feedback does not bounce -- it is accepted by a domain
+ * that drops it, which is the silent-failure shape rather than the loud one.
+ */
+export const FEEDBACK_EMAIL = 'support@falcon-forge.com';
 
 export const FEEDBACK_MAILTO =
     `mailto:${FEEDBACK_EMAIL}` +
