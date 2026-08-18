@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { 
-    ArrowRight, ChevronRight, Check, Crown, User, Brain, 
-    KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy
+import {
+    ArrowRight, ChevronRight, Check, Crown, User, Brain,
+    KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy,
+    CalendarDays, Sparkles, QrCode
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -155,6 +156,82 @@ export default function LandingPage() {
                     animation: scoutingCardShiftDown2 12s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
                     transform-origin: top center;
                 }
+
+                /* Meetings & Attendance Animations
+                 *
+                 * One 8s cycle shared by every element in the canvas, so the scan line sweeping
+                 * the poster and the roster filling in read as the same event rather than as
+                 * four independent loops. Per-row stagger is an animation-delay, matching how
+                 * the checklist section staggers its checkmarks.
+                 */
+                @keyframes checkinScan {
+                    0%, 10% { transform: translateY(0); opacity: 0; }
+                    15% { opacity: 1; }
+                    55% { transform: translateY(100%); opacity: 1; }
+                    60%, 100% { transform: translateY(100%); opacity: 0; }
+                }
+                .animate-checkin-scan {
+                    animation: checkinScan 8s ease-in-out infinite;
+                }
+
+                /*
+                 * "Expected" and "Present" occupy the same absolutely-positioned box, so the
+                 * handoff is sequential rather than a crossfade: pending is fully gone at 24%
+                 * before present starts appearing. Overlapping them left the tail of "Expected"
+                 * legible through the pill, which reads as a rendering fault rather than as a
+                 * transition.
+                 */
+                /*
+                 * The fill mode is load-bearing, not decoration -- and NO BACKTICKS IN HERE,
+                 * because this comment lives inside a template literal and one would close it.
+                 * These three animations are staggered with animation-delay, and during a delay
+                 * an element renders its NORMAL styles rather than the 0% keyframe -- so every
+                 * row below the first showed "Expected" and "Present" stacked on top of each
+                 * other until its turn came. The checklist section above dodges this by giving
+                 * its checkmark a base opacity-0 class; saying "backwards" out loud states why
+                 * it is needed instead of hiding it in a utility.
+                 */
+                @keyframes checkinPresent {
+                    0%, 24% { opacity: 0; transform: scale(0.6); }
+                    34%, 92% { opacity: 1; transform: scale(1); }
+                    100% { opacity: 0; transform: scale(0.6); }
+                }
+                .animate-checkin-present {
+                    animation: checkinPresent 8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+                    animation-fill-mode: backwards;
+                }
+
+                @keyframes checkinPending {
+                    0%, 18% { opacity: 1; }
+                    24%, 94% { opacity: 0; }
+                    100% { opacity: 1; }
+                }
+                .animate-checkin-pending {
+                    animation: checkinPending 8s ease-in-out infinite;
+                    animation-fill-mode: backwards;
+                }
+
+                @keyframes checkinRowLift {
+                    0%, 20% { border-color: rgb(51, 65, 85); background-color: rgb(15, 23, 42); }
+                    30%, 92% { border-color: rgba(16, 185, 129, 0.4); background-color: rgba(6, 78, 59, 0.25); }
+                    100% { border-color: rgb(51, 65, 85); background-color: rgb(15, 23, 42); }
+                }
+                .animate-checkin-row {
+                    animation: checkinRowLift 8s ease-in-out infinite;
+                    animation-fill-mode: backwards;
+                }
+
+                @keyframes attendanceFill {
+                    0%, 12% { width: 0%; }
+                    30% { width: 25%; }
+                    45% { width: 50%; }
+                    60% { width: 75%; }
+                    72%, 92% { width: 100%; }
+                    100% { width: 0%; }
+                }
+                .animate-attendance-bar {
+                    animation: attendanceFill 8s ease-in-out infinite;
+                }
             `}</style>
             
             {/* Navigation Bar */}
@@ -244,7 +321,7 @@ export default function LandingPage() {
                         <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Everything your team needs to go from kickoff to world championships.</h2>
                     </div>
 
-                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Feature Cards */}
                         {[
                             {
@@ -266,6 +343,16 @@ export default function LandingPage() {
                                 icon: <ClipboardCheck className="w-6 h-6 text-blue-400" />,
                                 title: "Pre-Match Checklist",
                                 desc: "Ensure your robot is ready for every match with customizable, verifiable tasks."
+                            },
+                            {
+                                icon: <CalendarDays className="w-6 h-6 text-violet-400" />,
+                                title: "Meetings & Attendance",
+                                desc: "Schedule practices and builds, then let students check themselves in by scanning a QR poster."
+                            },
+                            {
+                                icon: <Sparkles className="w-6 h-6 text-sky-400" />,
+                                title: "Seasons",
+                                desc: "Every year starts fresh — a clean board and a clean scouting log, with last season still browsable."
                             }
                         ].map((feature, i) => (
                             <div key={i} className="p-6 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-slate-600 transition-colors">
@@ -734,6 +821,137 @@ export default function LandingPage() {
                                         </span>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Meetings & Attendance Section */}
+            <section className="py-16 lg:py-24 bg-slate-900 overflow-hidden relative border-t border-slate-800">
+                <div className="absolute top-0 right-0 w-band h-band sm:w-orb sm:h-orb bg-violet-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center flex-col-reverse lg:flex-row">
+                        <div className="order-1">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-sm text-violet-400 font-medium mb-6">
+                                <CalendarDays className="w-4 h-4" /> Meetings &amp; Attendance
+                            </div>
+                            <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
+                                Stop taking roll by hand
+                            </h2>
+                            <p className="text-xl text-slate-400 mb-8 leading-relaxed">
+                                Schedule practices, build sessions, competitions and outreach — one-off or recurring. Every session prints its own QR poster and four-digit code, so students check themselves in as they walk through the door while you get on with the meeting.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                {[
+                                    "A fresh code for every session, so last week's photo is useless",
+                                    "Tap-through roster for walking the room",
+                                    "Per-member attendance totals across the season"
+                                ].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-slate-300">
+                                        <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 flex-shrink-0">
+                                            <Check className="w-4 h-4" />
+                                        </div>
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/*
+                          * Animated Check-in Right.
+                          *
+                          * `aspect-auto` + `min-h-canvas` below `lg`, where the other four
+                          * canvases carry `aspect-square md:aspect-video`. This one stacks a
+                          * poster, a progress bar and four roster rows -- about 480px -- and
+                          * both of those boxes are shorter than that below `lg`: a 375px square
+                          * is ~343px and a 768px 16:9 is ~432px. Measured, both clipped the
+                          * fourth row and drove the poster under the window chrome, because
+                          * `overflow-hidden` hides the evidence rather than showing a scrollbar.
+                          * The ratio is only load-bearing at `lg`, where the canvas is half the
+                          * grid and a square is what makes it match its neighbours.
+                          */}
+                        <div className="order-2 relative w-full aspect-auto lg:aspect-square min-h-canvas lg:min-h-0 bg-slate-800/50 rounded-3xl border border-slate-700 p-4 sm:p-6 shadow-2xl flex flex-col justify-center overflow-hidden glass">
+                            {/* Fake UI Header */}
+                            <div className="absolute top-0 left-0 w-full h-12 border-b border-slate-700 bg-slate-800/80 flex items-center px-4 gap-2 text-slate-400 font-medium text-xs sm:text-sm z-20">
+                                <div className="w-3 h-3 rounded-full bg-red-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-amber-500/80 shrink-0"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500/80 shrink-0"></div>
+                                <span className="ml-2 sm:ml-4 flex items-center gap-2 truncate">
+                                    <CalendarDays size={14} className="text-violet-400 shrink-0" /> Thursday Build Session
+                                </span>
+                            </div>
+
+                            <div className="w-full mt-12 flex flex-col gap-3 sm:gap-4">
+                                {/* The poster: QR with a scan line, and the session's own code */}
+                                <div className="flex items-center gap-3 sm:gap-4 bg-slate-900 border border-slate-700 rounded-xl p-3 sm:p-4 shadow-lg">
+                                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1.5 sm:p-2 shrink-0 overflow-hidden">
+                                        <div className="grid grid-cols-5 grid-rows-5 gap-0.5 w-full h-full">
+                                            {[1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1].map((on, i) => (
+                                                <div key={i} className={on ? 'bg-slate-900' : 'bg-transparent'}></div>
+                                            ))}
+                                        </div>
+                                        {/* Scan line sweeping the code */}
+                                        <div className="absolute inset-x-0 top-0 h-1/2 animate-checkin-scan pointer-events-none">
+                                            <div className="absolute bottom-0 inset-x-0 h-0.5 bg-violet-500 shadow-lg shadow-violet-500/50"></div>
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 text-2xs sm:text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                                            <QrCode size={12} className="shrink-0" /> Scan or type
+                                        </div>
+                                        <div className="text-2xl sm:text-4xl font-black tracking-code text-white tabular-nums">0842</div>
+                                        <div className="text-2xs sm:text-xs text-slate-500 mt-1">Check-in closes at 8:00 PM</div>
+                                    </div>
+                                </div>
+
+                                {/* Roster filling in */}
+                                <div>
+                                    <div className="flex justify-between items-baseline text-xs sm:text-sm mb-2">
+                                        <span className="font-bold text-slate-300">Checked in</span>
+                                        <span className="text-slate-500 tabular-nums">16 on the roster</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-3 sm:mb-4">
+                                        <div className="h-full bg-violet-500 animate-attendance-bar rounded-full"></div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {[
+                                            { name: 'Ava R.', role: 'Programming', delay: '0s' },
+                                            { name: 'Marcus T.', role: 'Build', delay: '0.9s' },
+                                            { name: 'Priya S.', role: 'Media', delay: '1.8s' },
+                                            { name: 'Diego L.', role: 'Build', delay: '2.7s' }
+                                        ].map((member, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center gap-3 border border-slate-700 bg-slate-900 rounded-xl p-2 sm:p-3 animate-checkin-row"
+                                                style={{ animationDelay: member.delay }}
+                                            >
+                                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-2xs sm:text-xs font-bold text-slate-400 shrink-0">
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-xs sm:text-sm font-medium text-slate-200 truncate">{member.name}</div>
+                                                    <div className="text-2xs text-slate-500 truncate">{member.role}</div>
+                                                </div>
+                                                <div className="relative shrink-0 w-16 sm:w-20 h-6 flex items-center justify-end">
+                                                    <span
+                                                        className="absolute text-2xs sm:text-xs text-slate-600 animate-checkin-pending"
+                                                        style={{ animationDelay: member.delay }}
+                                                    >
+                                                        Expected
+                                                    </span>
+                                                    <span
+                                                        className="absolute inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-2xs sm:text-xs font-semibold animate-checkin-present"
+                                                        style={{ animationDelay: member.delay }}
+                                                    >
+                                                        <Check size={11} className="shrink-0" /> Present
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

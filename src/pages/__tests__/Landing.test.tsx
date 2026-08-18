@@ -55,6 +55,30 @@ describe('LandingPage', () => {
         expect(screen.getAllByText(/Pre-Match Checklist/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/Scouting Reports/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/Match Planner/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Meetings & Attendance/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/^Seasons$/i).length).toBeGreaterThan(0);
+    });
+
+    /*
+     * Meetings shipped in Sprint 8 and the landing page never mentioned it — the newest and
+     * most differentiating feature was the one a visiting coach could not see. Asserted on the
+     * section's own copy rather than on the label, because the label appears in the feature
+     * grid too and `getAllByText(...).length > 0` above would pass on the card alone.
+     */
+    it('gives meetings its own feature section, not just a grid card', () => {
+        render(
+            <MemoryRouter>
+                <LandingPage />
+            </MemoryRouter>
+        );
+
+        // Exact, not a regex. The first draft of this was /Stop taking roll by hand/i, which
+        // still matched after the heading was edited to "...by hand XX" — so the falsification
+        // run passed and the assertion was looser than it looked.
+        expect(screen.getByText('Stop taking roll by hand')).toBeInTheDocument();
+        // The session's own check-in code, the thing the section is actually about.
+        expect(screen.getByText('0842')).toBeInTheDocument();
+        expect(screen.getAllByText(/Present/i).length).toBeGreaterThan(0);
     });
 
     it('navigates to login on default Log In click', () => {
