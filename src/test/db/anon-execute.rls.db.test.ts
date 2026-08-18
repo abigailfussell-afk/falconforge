@@ -188,6 +188,39 @@ describe('anon holds no EXECUTE on the guardian RPCs', () => {
     });
 });
 
+describe('anon holds no EXECUTE on the operator console RPCs', () => {
+    /*
+     * The console's three cross-tenant reads. `operator_team_directory` is the one that would
+     * matter most if this were ever wrong: it is a SETOF function whose whole job is to return
+     * every team on the platform with its admin's name and email, and its in-function guard is
+     * `is_platform_operator()` -- which answers `false` for an anonymous caller, so the guard
+     * alone would already refuse.
+     *
+     * That is exactly why the grant is tested too, and it is the B25 lesson rather than
+     * belt-and-braces: "the guard is code, and code is what was wrong the first time". Sprint 9
+     * shipped four RPCs anon could EXECUTE and they were safe only because each one asked who
+     * the caller was on its first line. The privilege layer is the one that does not depend on
+     * anybody having remembered.
+     */
+    it('cannot call operator_team_directory — the platform-wide team list', async () => {
+        const { error } = await anon.rpc('operator_team_directory', {});
+        expectRefused(error, 'operator_team_directory');
+    });
+
+    it('cannot call operator_team_detail', async () => {
+        const { error } = await anon.rpc('operator_team_detail', { p_team_id: team.id });
+        expectRefused(error, 'operator_team_detail');
+    });
+
+    it('cannot call operator_revoke_license', async () => {
+        const { error } = await anon.rpc('operator_revoke_license', {
+            p_team_id: team.id,
+            p_all: true,
+        });
+        expectRefused(error, 'operator_revoke_license');
+    });
+});
+
 describe('the guardian PREDICATES keep their anon grant, deliberately', () => {
     /*
      * THE NEGATIVE SPACE, and revoking these would be worse than revoking nothing.

@@ -1150,6 +1150,35 @@ export type Database = {
         Args: { p_managed_profile_id: string }
         Returns: Json
       }
+      operator_revoke_license: {
+        Args: {
+          p_all?: boolean
+          p_grant_id?: string
+          p_notes?: string
+          p_team_id: string
+        }
+        Returns: Json
+      }
+      operator_team_detail: { Args: { p_team_id: string }; Returns: Json }
+      operator_team_directory: {
+        Args: { p_search?: string }
+        Returns: {
+          admin_email: string
+          admin_member_id: string
+          admin_name: string
+          created_at: string
+          entitlement_status: string
+          members_approved: number
+          members_pending: number
+          seats_total: number
+          seats_unlimited: boolean
+          seats_used: number
+          team_id: string
+          team_name: string
+          team_number: string
+          valid_until: string
+        }[]
+      }
       operator_transfer_team_admin: {
         Args: { p_new_member_id: string; p_notes?: string; p_team_id: string }
         Returns: Json

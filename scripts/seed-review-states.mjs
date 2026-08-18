@@ -71,7 +71,14 @@ async function attest(userId, type) {
  * A team with an admin, a season, and however many extra members are asked for.
  * `grant` describes the licence: { seats, validFrom, validUntil } or null for no licence at all.
  */
-async function makeTeam({ slug, name, adminEmail, grant, approved = 0, pending = 0, expireTo = null }) {
+/*
+ * `teamNumber` is per-team rather than a hardcoded '9000'.
+ *
+ * Every seeded team used to carry the same number, which is fine until something SEARCHES by
+ * it: the operator console's directory looks teams up by name, number or admin email, and a
+ * review state where every number is identical cannot show whether that works.
+ */
+async function makeTeam({ slug, name, adminEmail, grant, approved = 0, pending = 0, expireTo = null, teamNumber = '9000' }) {
     const { data: old } = await svc.from('teams').select('id').eq('name', name);
     for (const t of old ?? []) await svc.from('teams').delete().eq('id', t.id);
 
@@ -81,7 +88,7 @@ async function makeTeam({ slug, name, adminEmail, grant, approved = 0, pending =
 
     const team = await must(
         'team',
-        svc.from('teams').insert({ name, team_number: '9000', owner_id: admin.id }).select().single(),
+        svc.from('teams').insert({ name, team_number: teamNumber, owner_id: admin.id }).select().single(),
     );
 
     if (grant) {
@@ -402,6 +409,7 @@ async function main() {
     // 1. The ordinary case the brief's sentence describes: "12 of 15 seats".
     const ordinary = await makeTeam({
         slug: 'iron',
+        teamNumber: '12345',
         name: 'Iron Falcons',
         adminEmail: 'reviewer@falconforge.test',
         grant: { seats: 15 },
@@ -427,6 +435,7 @@ async function main() {
     // 2. Every seat taken, with people waiting who cannot be approved.
     await makeTeam({
         slug: 'full',
+        teamNumber: '4321',
         name: 'Full House Robotics',
         adminEmail: 'full@falconforge.test',
         grant: { seats: 3 },
@@ -437,6 +446,7 @@ async function main() {
     // 3. The grant that expired YESTERDAY.
     await makeTeam({
         slug: 'lapsed',
+        teamNumber: '7777',
         name: 'Lapsed Legends',
         adminEmail: 'lapsed@falconforge.test',
         grant: { seats: 10 },
@@ -447,6 +457,7 @@ async function main() {
     // 4. Expiring inside the warning window.
     await makeTeam({
         slug: 'expiring',
+        teamNumber: '2468',
         name: 'Nearly Out Engineering',
         adminEmail: 'expiring@falconforge.test',
         grant: { seats: 10, validUntil: iso(Date.now() + 9 * day) },
@@ -456,6 +467,7 @@ async function main() {
     // 5. The stranded team: admin row deleted, so no warm path can produce an admin.
     const stranded = await makeTeam({
         slug: 'stranded',
+        teamNumber: '9099',
         name: 'Stranded Robotics',
         adminEmail: 'stranded@falconforge.test',
         grant: { seats: 10 },
