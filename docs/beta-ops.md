@@ -82,10 +82,23 @@ with templates and link rewriting. **The SMTP half is separable and should be do
 
 ### The address the app sends people to
 
-`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle. That alias must forward to
-a real inbox **before the bundle deploys**. An address on a domain that accepts and drops mail
-does not bounce — it fails silently, which is the worse of the two failures and the harder one
-to notice, because the symptom is an absence of email rather than an error.
+`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle.
+
+**KNOWN BROKEN AS OF 2026-08-18, deliberately shipped that way (Kevin's call).**
+`falcon-forge.com` has **no MX record** — confirmed against two resolvers — and its apex
+resolves to GitHub Pages, which does not run SMTP. So the in-app feedback link currently goes
+to an address that cannot receive mail, and a beta coach who uses it gets a bounce rather than
+reaching anybody. The previous bundle carried a working Gmail, so this is a regression that was
+accepted in order to ship the rest.
+
+**The fix is DNS, not code**: add email forwarding for the domain (GoDaddy hosts the zone;
+GoDaddy forwarding or Cloudflare Email Routing both work) and point `support@` at Kevin's
+inbox. Verify with `nslookup -type=MX falcon-forge.com` returning at least one exchanger, then
+send one real message to it. No deploy is needed — the address in the bundle is already
+correct, it is the mailbox behind it that does not exist yet.
+
+Until then, the only working inbound channel is Kevin's personal address, which is no longer
+written down anywhere a beta user can see.
 
 ---
 
