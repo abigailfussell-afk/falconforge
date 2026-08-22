@@ -18,16 +18,21 @@ const VERSION = '0.1.0';
 const BUILD_ID = `${VERSION}${import.meta.env.PROD ? '' : '-dev'}`;
 
 /*
- * A ROLE ADDRESS, NOT A PERSON'S, AND IT HAS TO EXIST BEFORE THIS DEPLOYS.
+ * A ROLE ADDRESS, NOT A PERSON'S.
  *
  * This string is compiled into the bundle a beta coach installs, and installed PWAs are not
  * reloaded on a schedule -- so whatever address ships first is the one people keep writing to
- * long after it is changed here. Moving it after beta means either running the old inbox
- * indefinitely or losing the reports sent to it, which is why it moves now rather than later.
+ * long after it is changed here. That is why it moved before beta rather than after.
  *
- * `support@falcon-forge.com` must be a working alias forwarding to Kevin's inbox before this
- * reaches production. If it is not, feedback does not bounce -- it is accepted by a domain
- * that drops it, which is the silent-failure shape rather than the loud one.
+ * LIVE AND TESTED END TO END, 2026-08-22. Mail to this address is received by Resend (root MX)
+ * and relayed to a real inbox by `supabase/functions/forward-support-email`, which is the
+ * project's only Edge Function. It shipped for four days pointing at a domain with no MX
+ * record at all, which was a deliberate call and the wrong-looking half of it: an address that
+ * cannot receive does not bounce visibly to the person writing, it just never arrives.
+ *
+ * If this address ever stops working the symptom is silence, not an error, so the check worth
+ * repeating is the one in `docs/beta-ops.md`: send a real message from outside and confirm it
+ * lands. A 200 in the function logs proves the webhook was accepted, never that mail arrived.
  */
 export const FEEDBACK_EMAIL = 'support@falcon-forge.com';
 
