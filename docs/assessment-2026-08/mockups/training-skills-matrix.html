@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mockup — training & skills matrix</title><link rel="stylesheet" href="_base.css">
+<style>.m td.c{text-align:center;font-size:12px}.s0{color:#475569}.s1{color:var(--amber)}.s2{color:var(--green);font-weight:700}.track{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--panel2)}</style></head>
+<body><div class="app">
+<div class="side"><div class="brand">FALCON<b>FORGE</b></div>
+<div class="nav"><a>Dashboard</a><a>Sprint Planning</a><a>Scouting</a><a>Match Planner</a><a>Checklist</a><a>Meetings</a><a class="on">Training</a><a>Admin</a></div>
+<div style="margin-top:24px;font-size:12px;color:var(--muted)">Season<br><span class="pill amber">Off-season · no open season</span><div style="margin-top:6px">Training still works — skills belong to people, not seasons.</div></div>
+</div>
+<div class="main" style="position:relative">
+<h1>Training</h1><div class="sub">Coach view · Summer 2026 · 11 rookies, 6 veterans</div>
+<div class="grid2">
+  <div>
+    <h2 style="margin-top:0">Tracks (FTC core curriculum v1)</h2>
+    <div class="track"><b style="width:22px">A</b><div style="flex:1">Onboarding to FTC &amp; the team<div class="bar" style="margin-top:4px"><i style="width:80%"></i></div></div><span class="pill green">7 modules</span></div>
+    <div class="track"><b style="width:22px">B</b><div style="flex:1">Safety <span class="pill forge">gates build modules</span><div class="bar" style="margin-top:4px"><i style="width:64%"></i></div></div><span class="pill">4</span></div>
+    <div class="track"><b style="width:22px">C</b><div style="flex:1">Mechanical — drivetrains, mechanisms, CAD<div class="bar" style="margin-top:4px"><i style="width:35%"></i></div></div><span class="pill">10</span></div>
+    <div class="track"><b style="width:22px">D</b><div style="flex:1">Electrical &amp; control system<div class="bar" style="margin-top:4px"><i style="width:28%"></i></div></div><span class="pill">8</span></div>
+    <div class="track"><b style="width:22px">E</b><div style="flex:1">Programming — Java, FTC SDK, auto, PID, vision<div class="bar" style="margin-top:4px"><i style="width:41%"></i></div></div><span class="pill">16</span></div>
+    <div class="track"><b style="width:22px">F</b><div style="flex:1">Strategy &amp; scouting <span class="pill">game-specific</span><div class="bar" style="margin-top:4px"><i style="width:10%"></i></div></div><span class="pill">5</span></div>
+    <div class="track"><b style="width:22px">G</b><div style="flex:1">Outreach, media, portfolio, judging<div class="bar" style="margin-top:4px"><i style="width:22%"></i></div></div><span class="pill">6</span></div>
+    <div class="track"><b style="width:22px">H</b><div style="flex:1">Team operations &amp; agile<div class="bar" style="margin-top:4px"><i style="width:50%"></i></div></div><span class="pill">5</span></div>
+    <div class="card" style="margin-top:10px"><b>E5 · Hardware map and motors</b> <span class="pill">60 min</span><div style="color:var(--muted);font-size:12px;margin:4px 0">Drive one motor from a gamepad stick; reverse one side. Prereq: E4, D3.</div>
+      <div class="row"><span class="pill">Links: FTC Docs (BSD-3)</span><span class="pill">SDK sample BasicOpMode</span></div>
+      <div class="row" style="margin-top:8px"><button class="btn ghost">Mark done</button><button class="btn">Request mentor sign-off</button><span class="pill amber">3 waiting for sign-off</span></div></div>
+  </div>
+  <div class="card" style="position:relative">
+    <h2 style="margin-top:0">Skills matrix <span class="pill">filter: Programming sub-team</span></h2>
+    <table class="m">
+      <tr><th>Member</th><th>Safety</th><th>Wiring</th><th>OpMode</th><th>TeleOp</th><th>Auto</th><th>PID</th><th>Vision</th></tr>
+      <tr><td>Ava R. <span class="pill">vet</span></td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s1">◐</td></tr>
+      <tr><td>Diego L.</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s1">◐</td><td class="c s0">·</td><td class="c s0">·</td></tr>
+      <tr><td>Priya S. <span class="pill">rookie</span></td><td class="c s2">✔</td><td class="c s1">◐</td><td class="c s2">✔</td><td class="c s1">◐</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td></tr>
+      <tr><td>Marcus T. <span class="pill">rookie</span></td><td class="c s2">✔</td><td class="c s0">·</td><td class="c s1">◐</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td></tr>
+      <tr><td>Jia W. <span class="pill">managed</span></td><td class="c s2">✔</td><td class="c s2">✔</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td><td class="c s0">·</td></tr>
+    </table>
+    <div class="note">✔ signed off by a mentor (who/when on hover) · ◐ self-marked, awaiting sign-off · rows survive season rollover (keyed on <code>team_members.id</code>). Sort by a column to staff sub-teams at kickoff.</div>
+    <div class="callout" style="top:-8px;right:12px">The sellable part: matrix + sign-off, not lessons</div>
+  </div>
+</div>
+</div></div></body></html>

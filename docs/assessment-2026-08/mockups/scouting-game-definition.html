@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Mockup — schema-driven scouting</title><link rel="stylesheet" href="_base.css"></head>
+<body><div class="app">
+<div class="side"><div class="brand">FALCON<b>FORGE</b></div>
+<div class="nav"><a>Dashboard</a><a>Sprint Planning</a><a class="on">Scouting</a><a>Match Planner</a><a>Checklist</a><a>Meetings</a><a>Training</a><a>Admin</a></div>
+<div style="margin-top:24px;font-size:12px;color:var(--muted)">Season<br><span class="pill forge">2026–27 · BIOBUZZ</span><div style="margin-top:6px">Game definition <span class="pill">ftc-2026-biobuzz v2</span></div></div>
+</div>
+<div class="main" style="position:relative">
+<h1>Scouting</h1><div class="sub">Rendered from the season's game definition — no code release needed to change a field.</div>
+<div class="row" style="margin-bottom:12px">
+  <span class="pill forge">Event: Iowa Qualifier #2 · 14 Nov</span>
+  <span class="pill">Match scouting</span><span class="pill">Pit scouting</span>
+  <span style="flex:1"></span><button class="btn ghost">Export CSV</button><button class="btn">+ New report</button>
+</div>
+<div class="grid2">
+  <div class="card" style="position:relative">
+    <h2 style="margin-top:0">Team summary <span class="pill">12 teams · 41 reports</span></h2>
+    <table>
+      <tr><th>Team</th><th>Rpts</th><th>Auto avg ▼</th><th>TeleOp avg</th><th>Endgame</th><th>Consistency</th><th>Pick</th></tr>
+      <tr class="hi"><td>12345 Iron Falcons</td><td>5</td><td>18.4</td><td>42.0</td><td>Climb 4/5</td><td>σ 3.1</td><td>—</td></tr>
+      <tr><td>9876 Voltage</td><td>4</td><td>16.0</td><td>51.3</td><td>Climb 4/4</td><td>σ 2.2</td><td>★ 1</td></tr>
+      <tr><td>22110 Gearheads</td><td>3</td><td>14.7</td><td>38.6</td><td>Park 3/3</td><td>σ 6.8</td><td>★ 2</td></tr>
+      <tr><td>4512 Circuit Br.</td><td>4</td><td>9.0</td><td>44.1</td><td>Climb 2/4</td><td>σ 9.4</td><td>3</td></tr>
+      <tr><td>30021 Nova</td><td>3</td><td>6.3</td><td>21.0</td><td>None</td><td>σ 4.0</td><td>avoid</td></tr>
+    </table>
+    <div class="note">Columns come from <code>scoring.metrics</code> in the definition; “Pick” is the team's drag-ordered pick list. Tap a row for every report on that team.</div>
+    <div class="callout" style="top:-8px;right:12px">NEW: aggregation + pick list (FEAT-15)</div>
+  </div>
+  <div class="card" style="position:relative">
+    <h2 style="margin-top:0">New match report</h2>
+    <div class="row"><div class="field" style="flex:1"><label>Match #</label>Q12</div><div class="field" style="flex:1"><label>Team</label>9876</div><div class="field" style="flex:1"><label>Alliance</label><span class="pill" style="color:var(--red);border-color:var(--red)">Red 2</span></div></div>
+    <div class="field"><label>AUTONOMOUS · 30 s</label>
+      <div class="row"><span>Left start zone</span><span class="pill green">yes</span><span style="margin-left:14px">Pollen scored</span><span class="stepper"><button>−</button><span>3</span><button>+</button></span></div></div>
+    <div class="field"><label>TELEOP · 2:00</label>
+      <div class="row"><span>Pollen scored</span><span class="stepper"><button>−</button><span>14</span><button>+</button></span><span style="margin-left:14px">Cycles / min</span><span class="stepper"><button>−</button><span>4</button></span></div></div>
+    <div class="field"><label>ENDGAME · 30 s</label>
+      <div class="row"><span>Result</span><span class="pill forge">Climb L2</span><span class="pill">Park</span><span class="pill">None</span></div></div>
+    <div class="field"><label>Driver rating</label>★★★★☆</div>
+    <div class="field"><label>Notes</label>Fast cycles, weak defence.</div>
+    <div class="row"><button class="btn">Save (queued offline)</button><span class="pill amber">2 pending sync</span></div>
+    <div class="callout" style="top:-8px;right:12px">Form = FormSchema from game definition (FEAT-11)</div>
+  </div>
+</div>
+<div class="card" style="margin-top:14px"><h2 style="margin-top:0">Where this comes from</h2>
+<pre style="margin:0;font-size:12px;color:var(--muted);white-space:pre-wrap">src/games/ftc-2026-biobuzz.json  →  { program:"FTC", allianceSize:2, phases:[auto 30s, teleop 120s, endgame 30s],
+  field:{ image, width, height }, scouting:{ match: FormSchema, pit: FormSchema }, scoring:{ metrics:[...] }, planner:{ partnerCapabilities:[...] } }
+seasons.game_snapshot jsonb  ←  frozen copy at rollover, so 2025–26 (DECODE) keeps rendering its own form and field forever.</pre></div>
+</div></div></body></html>
