@@ -325,18 +325,29 @@ the final walkthrough and tags `v2.0.0-beta`.
   pull) for offboarding.
 - **UNSCHEDULED — Auth email branding & the confirmation round trip.** Drafted 2026-08-16 as
   "Sprint 8.5" and deliberately **not** given a sprint slot; Kevin's call at the end of that
-  session. **Do not pick this up as the next sprint, and do not renumber it into one** — it
-  sits here until it is scheduled explicitly. The live defect it would have fixed is broken out
-  separately in the parking lot below and can be fixed on its own, without any of the branding
-  work. Substance, so nobody re-derives it: custom SMTP via Resend's free tier (3,000/month,
-  100/day, one custom domain, no injected branding — **not** Brevo, whose free tier stamps its
-  own branding on the mail, which is the whole problem in a different hat); templates as repo
-  files under `supabase/templates/` wired through the `[auth.email.template.*]` blocks already
-  commented out in `config.toml`, never pasted into the dashboard; and links built from
-  `{{ .TokenHash }}` to our own hash route rather than `{{ .ConfirmationURL }}`, because the
-  default bounces through Supabase's `/auth/v1/verify` and returns tokens in the URL *fragment*,
-  which is exactly where HashRouter keeps its route. That last point is load-bearing only while
-  we stay on gh-pages — see the Hosting row in §3.
+  session. **Two of its three parts have since shipped outside a sprint, and the third lost its
+  original reason** — what is left is smaller and different, so read this before scheduling it.
+  - **✅ SMTP — done 2026-08-22.** Custom SMTP via Resend's free tier (3,000/month, 100/day, one
+    custom domain, no injected branding — **not** Brevo, whose free tier stamps its own branding
+    on the mail, which is the whole problem in a different hat). Verified against a real Gmail
+    with SPF, DKIM and DMARC passing; runbook in `docs/beta-ops.md`.
+  - **✅ Templates — done 2026-08-22.** Six branded HTML templates in `supabase/templates/`,
+    pasted into the dashboard by Kevin, documented in `docs/auth-email-templates.md`. This is
+    the **one place the plan was overruled deliberately**: the draft said "repo files wired
+    through the `[auth.email.template.*]` blocks, never pasted into the dashboard", and those
+    blocks configure the *local* stack only — the hosted project reads its templates from the
+    dashboard, so the dashboard is the live copy and the repo files are the reference it was
+    pasted from. That is a drift risk and it is written down as one rather than pretended away.
+  - **⬜ The `{{ .TokenHash }}` round trip — still open, but NOT for the reason drafted.** The
+    original argument was that `{{ .ConfirmationURL }}` bounces through Supabase's
+    `/auth/v1/verify` and returns tokens in the URL *fragment*, which is where HashRouter keeps
+    its route. **Sprint 9 removed that argument**: `authRedirectUrl()` returns the origin root,
+    the fragment survives, and the templates use `{{ .ConfirmationURL }}` today with zero app
+    code. The reason that remains is a different one — **link scanners.** Corporate mail filters
+    prefetch every URL in an incoming message and spend the one-time token before the human
+    clicks it, and the user is told the link expired. Fixing it needs a route that reads
+    `token_hash` and `type` from the query string and calls `verifyOtp`; `/auth/callback`
+    renders a splash screen and nothing else. Schedule it if a beta team reports phantom expiry.
 - **Later**: onboarding/orientation curriculum, training & skills evaluation per role
   (build/programming/media/outreach), AI features return per `docs/ai-features-reference.md`
   (server-side, metered, priced in).
@@ -408,7 +419,37 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 | 2026-08-18 | **Operator console — the directory, the detail view, and revoke** | `v2/operator-console` | **Complete except the deletion tooling, unmerged.** `gate:db` green (lint / 637 unit +2 skips / 91 integration / build / schema assertions / 478 db / 323 rls). The console shipped in Sprint 6 able to gift and to rescue a stranded team, and **neither was usable**: `team_entitlement` is `security_invoker` and no policy anywhere mentions `is_platform_operator()`, so the operator's team list showed the operator's OWN teams, and both controls wanted a uuid typed by hand — including a `team_members.id` there was no way to obtain. Three RPCs and **no table changes**: `license_grants.revoked_at` and `operator_actions.action`'s `'license_revoke'` have been in the schema since Sprint 3/6 with nothing that could write them, which is failure-modes §7, and this is the writer. **RPCs rather than widening the policy, and that is a trap that only appeared last week**: `teams` became a registry entity with `scope: 'rls'` in the previous change, so the pull issues `select('*')` with no predicate — widening `teams_select_member` with `OR is_platform_operator()` would silently widen a BACKGROUND SYNC and cache every team on the platform into an operator's IndexedDB. **The line not crossed is team content**, asserted: the detail payload carries no tasks, scouting or match plans, so moving that line later is a visible change rather than a widened SELECT. **Revoking is by grant with an explicit `p_all`**, because grants accumulate (trial + gift) and the ambiguous version of a destructive action is the one that quietly does half the job and leaves the team writing; `p_all` is asserted to leave `team_can_write` false. **Three defects found by running it and none by the suite**: a lapsed team read **"4 of 0 seats"** — Sprint 6's exact defect, whose fix is *documented in a comment in `EntitlementPanel`*, reintroduced the moment the same fact got a second renderer (principle 9 again, caught by looking at Lapsed Legends); `revokeNotes` was read by the revoke call and written by nothing, so every revocation would have recorded a blank reason; and the seeder gave every team `team_number: '9000'`, so a directory that searches by number could not be reviewed by eye. **The refusal was watched failing** against a copy of the function with the operator gate removed — a team's own admin read the whole platform directory. Driven end to end in a browser: search by number finds the team, the successor dropdown is populated from the roster and offers no managed profile, no pending member and not the sitting admin, and revoking flips the row to Read-only with the audit row written. **Outstanding: the account/data deletion tooling**, which needs a decision — `operator_actions.team_id` is NOT NULL and its `action` CHECK has no erasure value, so recording one needs a loosening migration; and `public.users` cannot be hard-deleted at all (`teams.owner_id` and `invites.created_by` are NO ACTION), so the shape is anonymise-plus-remove-memberships, which is exactly what the Privacy Policy already describes. |
 
+| 2026-08-22 | **Auth email templates — the six transactional emails, branded** | `main` | **Complete.** Not a sprint: the templates half of §6's unscheduled "Auth email branding" item, done on its own now that SMTP is live. Six HTML files in `supabase/templates/` (confirm signup, reset password, change email, invite, magic link, reauthentication), pasted into the Supabase dashboard by Kevin; runbook in `docs/auth-email-templates.md`. Gate green (lint / 659 unit +2 skips / 91 integration / build); no application code changed. **The plan's stated approach was overruled on evidence, twice.** Its `{{ .TokenHash }}` rationale — "the default returns tokens in the URL *fragment*, which is exactly where HashRouter keeps its route" — was written 2026-08-16 and **Sprint 9 voided it**: `authRedirectUrl()` returns the origin root, the fragment survives, so `{{ .ConfirmationURL }}` works today with zero app code. The reason to want `TokenHash` that survives is link scanners prefetching one-time tokens, which needs a `verifyOtp` route that does not exist. And "repo files wired through `[auth.email.template.*]`, never pasted into the dashboard" cannot work for the hosted project: those blocks configure the local stack only, so the dashboard is the live copy and the drift is documented rather than denied. **Three of the six are not sent by the app** — invite (dashboard button; the real path is `/join/:code`), magic link (`signInWithOtp` is never called) and reauthentication (`secure_password_change` is off) — written anyway, because the alternative to a branded unused template is Supabase's unbranded default going out the first time someone uses the feature. Verified by rendering all six at 375 px and measuring rather than eyeballing: no horizontal overflow, button 173×46 (clears the 44 px tap target), long fallback URLs wrap. **That verification was nearly worthless twice**: the file:// preview renders as a static snapshot with no compositing, and once served over http the built service worker's navigation fallback answered every request with `index.html` — the measured DOM was the app, not the template, and `location.href` reported the right URL throughout. Caught by checking `document.title` before trusting a measurement; same class as the retrospective's stale-worker incident, now on a third surface. What the Gate cannot cover and Kevin still has to do: the send round trip (`docs/beta-ops.md` step 8) and the OTP-expiry copy check. |
+
 **Discovered / parking lot:**
+
+*From the auth email templates (2026-08-22), found while checking what the links actually need
+rather than by reading the templates:*
+- **🔴 The precache is 60% one image, copied four times.** `logo.png`, `falcon_logo.png`,
+  `icon-192.png` and `icon-512.png` are **byte-identical** (md5 `f74e417a…`): the same
+  1024×1024, 784 KB PNG, four times, for **3.06 MB of a 5.01 MB precache**. All four are
+  precached — `globPatterns` in `vite.config.ts` takes `**/*.png` — so every cold install pays
+  for all of them, on an offline-first app whose premise is a cold start on venue WiFi. The
+  manifest also **declares `icon-192.png` as `sizes: '192x192'`**, which it has never been; the
+  browser downscales 1024px for a 192px slot and the manifest states something untrue about its
+  own asset. Principle 9 with a measurable cost attached. The fix is real image work (resize per
+  slot, delete the aliases, check `DecodeField.png` and the 582 KB `hero_bg.png` while in there),
+  not a config edit, which is why it is here rather than folded into the template change.
+- **`signUpWithEmail` passes no `emailRedirectTo`.** So the signup confirmation link is built
+  from Site URL and *only* Site URL, which means a confirmation started from `localhost` or the
+  `github.io` origin sends the user to production. Correct-by-accident for beta — Site URL is
+  `https://falcon-forge.com` and that is where a real user should land — but it is the one auth
+  flow that ignores `authRedirectUrl()`, the helper written precisely so no flow grows its own
+  answer. Worth one line and a test when the `token_hash` route above is built.
+- **⬜ The dashboard's Redirect URL allow-list is stale and nobody would notice.** It holds
+  `https://abigailfussell-afk.github.io/falconforge/auth/callback` (that origin 301s to the apex
+  now, and `base` is `/`, so it can never match) and `http://localhost:3000/auth/callback` (dev
+  targets the **local** stack per `.env.development.local`, so the hosted project never sees it).
+  Both carry the `/auth/callback` path, which is the Sprint 9 defect preserved as configuration.
+  It should be one entry, `https://falcon-forge.com/`. **Nothing is visibly broken**, and that is
+  the point worth recording: an unmatched `redirect_to` silently falls back to Site URL, so a
+  wrong allow-list is indistinguishable from a right one until Site URL is also wrong. Kevin's
+  to change in the dashboard; not verified as changed at the time of writing.
 
 *From writing the data-erasure runbook (2026-08-18), found by running the SQL rather than by
 reading the schema:*

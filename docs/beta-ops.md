@@ -87,8 +87,13 @@ app can reach, and the coach reports "it didn't work".
 ### Sending: point Supabase at Resend
 
 The deferred "Auth email branding & the confirmation round trip" item in the plan bundles this
-with templates and link rewriting. **The SMTP half is separable and should be done alone** —
-templates can stay on Supabase's defaults and nothing below touches them.
+with templates and link rewriting. **The SMTP half is separable and was done alone** — nothing
+below touches the templates.
+
+**The templates have since been done too** (2026-08-22): six branded HTML files in
+`supabase/templates/`, live in the dashboard, documented in `docs/auth-email-templates.md`. That
+doc owns the template and redirect-URL settings; this one owns SMTP and the mailbox. The link
+rewriting (`token_hash`) is still open and still needs app code.
 
 **SENDING AND RECEIVING ARE INDEPENDENT.** This section makes FalconForge able to SEND. It does
 nothing for `support@falcon-forge.com`, which is about RECEIVING and is the next section. You
