@@ -143,63 +143,201 @@ run a password reset on it:
 The first is visible from the Resend dashboard. The second and third are not, and a message
 that silently lands in a coach's spam folder is indistinguishable from one that was never sent.
 
-### Receiving: make support@falcon-forge.com a real mailbox
+### Receiving: support@falcon-forge.com
 
-`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle, and it is the only inbound
-channel a beta user can see.
+`src/lib/feedback.ts` puts `support@falcon-forge.com` into the bundle, and it is the only
+inbound channel a beta user can see.
 
-**KNOWN BROKEN, deliberately shipped that way on 2026-08-18 (Kevin's call).**
-`falcon-forge.com` has **no MX record** — confirmed against two resolvers — and its apex
-resolves to GitHub Pages, which does not run SMTP. A coach who clicks the feedback link gets a
-bounce. The previous bundle carried a working Gmail, so this is an accepted regression rather
-than an oversight.
+Resend receives mail for the domain (root MX -> `inbound-smtp.us-east-1.amazonaws.com`) but
+**does not deliver it to a mailbox** -- its inbound is webhook-driven. So the address accepts
+mail and drops it unless something is listening, which is worse than bouncing: a bounce tells
+the sender, silent acceptance tells nobody.
 
-**No deploy is needed to fix it.** The address compiled into the app is already the right one;
-only the mailbox behind it is missing. This is DNS plus a forwarding service.
+`supabase/functions/forward-support-email` is that listener. It verifies the Svix signature,
+then calls `resend.emails.receiving.forward()` to relay the message to a real inbox.
 
-#### Which forwarder, and the one that is riskier than it looks
+**This is the project's only Edge Function.** Nothing else deploys one, so the step below is
+not part of any existing workflow and has to be run by hand.
 
-| Option | What it costs you |
+#### Deploy
+
+```bash
+supabase functions deploy forward-support-email --no-verify-jwt
+```
+
+`--no-verify-jwt` is **required**, and `supabase/config.toml` sets `verify_jwt = false` to
+match. Supabase checks a Supabase JWT by default; a webhook from Resend carries none, so with
+the default the endpoint answers 401 and no mail is ever forwarded. The consequence is that
+this function is **public**, and its signature check is the entirety of its access control.
+
+#### Secrets
+
+```bash
+supabase secrets set RESEND_API_KEY=re_xxxxxxxx
+supabase secrets set RESEND_WEBHOOK_SECRET=whsec_xxxxxxxx
+supabase secrets set SUPPORT_FORWARD_TO=your-real-inbox@example.com
+```
+
+| Secret | Where it comes from |
 |---|---|
-| **A forwarding service (ImprovMX, Forward Email, …)** — **recommended** | Two MX records and one TXT at GoDaddy. DNS stays where it is. Free tier forwards one address to one inbox, which is exactly the requirement. |
-| **Cloudflare Email Routing** | Free and good, but it requires moving the domain's **nameservers** to Cloudflare — which means recreating the GitHub Pages A/AAAA records, the `www` CNAME and the Resend records above. A DNS migration to gain a mail alias, days before beta, with the site's availability riding on getting every record right. Not worth it now. |
-| **GoDaddy / Microsoft 365 mailbox** | Paid, and gives you a whole mailbox to administer for an address that will receive a handful of messages. |
+| `RESEND_API_KEY` | Resend -> API Keys. The same key the SMTP settings use is fine. |
+| `RESEND_WEBHOOK_SECRET` | Resend -> Webhooks -> the endpoint's page, after creating it below. |
+| `SUPPORT_FORWARD_TO` | The inbox mail should land in. |
+| `SUPPORT_FORWARD_FROM` | Optional; defaults to `support@falcon-forge.com`. Must be on the verified sending domain. |
 
-Take the first. The second is the trap: it is the option that sounds tidiest and is the only one
-that can take falcon-forge.com off the air.
+**`SUPPORT_FORWARD_TO` has no default and the function refuses to run without it.** This
+repository is public, and a personal inbox committed to it is an address handed to every
+scraper that walks GitHub. A missing `RESEND_WEBHOOK_SECRET` is likewise a hard failure rather
+than a skipped signature check -- both asserted in
+`src/test/__tests__/support-forwarding.test.ts`.
 
-#### Steps
+#### Wire up the webhook
 
-1. Sign up at the forwarder and add `falcon-forge.com`.
-2. Create the alias: `support@falcon-forge.com` → your personal inbox.
-3. Add the records it gives you at **GoDaddy → Domains → falcon-forge.com → DNS**. Typically
-   two MX rows on the root (host `@`) at different priorities, plus one SPF TXT row. Copy the
-   exact values from the forwarder.
-4. Wait for it to report verified, then confirm from a terminal — this is the check that
-   distinguishes "configured" from "working":
+1. **Resend -> Webhooks -> Add Webhook.**
+2. Endpoint URL: `https://<project-ref>.supabase.co/functions/v1/forward-support-email`
+3. Subscribe to **`email.received`**. Other events are harmless -- the function answers them
+   200 and does nothing -- but there is no reason to send them.
+4. Copy the signing secret into `RESEND_WEBHOOK_SECRET`, and redeploy if you set it after
+   deploying.
 
-   ```bash
-   nslookup -type=MX falcon-forge.com
-   ```
+#### Verify
 
-   Zero exchangers means it is not live yet, whatever the dashboard says.
-5. **Send a real message to `support@falcon-forge.com` from an outside address** and confirm it
-   lands. A resolving MX record proves mail will be *accepted*; it does not prove the alias
-   routes to you.
-6. While you are there, click the feedback link in the app itself. It is a `mailto:` carrying
-   the build id in the subject, and it is worth seeing the thing a coach sees.
+Send a real message to `support@falcon-forge.com` from an outside address, then:
 
-#### Does this conflict with Resend?
+```bash
+supabase functions logs forward-support-email
+```
 
-No. Resend's records live on the `send.` subdomain; these live on the root. Different
-hostnames, and they can be done in either order.
+Expect one `forwarded inb_... -> ...` line, **and** the message in the destination inbox. A 200
+in the logs proves the webhook was accepted, not that the mail arrived.
 
-The one interaction to watch: if the forwarder asks you to add a **root SPF** record and you
-later add a second one, **do not create two SPF TXT records** — a domain may have only one, and
-two is a hard fail rather than a merge. Combine the `include:` clauses into a single record.
+Worth proving the refusal too, once -- it is the check that this is not an open endpoint:
 
-Until this is done, the only working inbound channel is Kevin's personal address, which is no
-longer written down anywhere a beta user can see.
+```bash
+curl -si -X POST https://<project-ref>.supabase.co/functions/v1/forward-support-email -d '{}' | head -1
+```
+
+Expect `401`.
+
+#### What it deliberately does not do
+
+It does not log message content. A support email is somebody's words -- often a parent's -- and
+an Edge Function log is not where they belong. Only ids and event types are logged.
+
+---
+
+## Erasing a person's data
+
+The Privacy Policy promises this and there is deliberately **no tool for it**: for a beta of a
+few known teams, a request handled by hand is a real answer and building an audited operator
+RPC is not worth doing yet (Kevin's call, 2026-08-18). This section is what makes "by hand"
+safe — the SQL below was **run against a real database and its effects measured**, not written
+from memory.
+
+What the policy says, and therefore what this does: *"we remove your personal information and
+your memberships. Work you contributed to a team stays with the team."*
+
+### Read this first: the deletes do not work in the obvious order
+
+`team_members` has five composite foreign keys pointing at it with `ON DELETE SET NULL`, and
+**four of them cannot fire**:
+
+```
+tasks              (assigned_to, team_id)            -> team_members(id, team_id)
+meetings           (created_by,  team_id)            -> team_members(id, team_id)
+scouting_reports   (created_by,  team_id)            -> team_members(id, team_id)
+meeting_attendance (attested_by, team_id)            -> team_members(id, team_id)
+teams              (pending_admin_member_id, id)     -> team_members(id, team_id)
+```
+
+`SET NULL` nulls **every column in the key**, so each of these tries to null a `team_id` that
+is `NOT NULL` — and the last one tries to null `teams.id`, the primary key. So a plain
+`DELETE FROM team_members` is REFUSED for anybody who has been assigned a task, created a
+meeting, filed a scouting report, taken a roster, or been nominated as admin:
+
+```
+ERROR: null value in column "team_id" of relation "tasks" violates not-null constraint
+```
+
+This has never bitten anyone because the app never deletes a member — it sets
+`status = 'removed'`. See the plan's parking lot; it is a real schema defect and it is logged.
+
+The consequence for this runbook: **release every reference explicitly first.** A single-column
+`UPDATE ... SET assigned_to = NULL` is fine, because a composite FK with any NULL column is not
+enforced.
+
+### The sequence
+
+Run it as ONE transaction against the linked database, having taken a dump first (see Backups).
+
+```sql
+\set uid 'THE-USER-UUID'
+BEGIN;
+
+-- Refuse to continue if they solely administer a team: removing their membership would strand
+-- it, and the fix is to transfer the admin role in the operator console FIRST.
+SELECT count(*) AS must_be_zero
+  FROM team_members WHERE user_id = :'uid' AND role = 'admin' AND status <> 'removed';
+
+-- 1. Release the composite references. None of these can be left to a cascade.
+UPDATE teams SET pending_admin_member_id = NULL, pending_admin_nominated_at = NULL,
+                 pending_admin_nominated_by = NULL
+ WHERE pending_admin_member_id IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE tasks              SET assigned_to = NULL
+ WHERE assigned_to IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE meetings           SET created_by  = NULL
+ WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE scouting_reports   SET created_by  = NULL
+ WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
+UPDATE meeting_attendance SET attested_by = NULL
+ WHERE attested_by IN (SELECT id FROM team_members WHERE user_id = :'uid');
+
+-- 2. Their children, if they are a guardian. Cascades guardian_consents.
+DELETE FROM managed_profiles WHERE guardian_user_id = :'uid';
+
+-- 3. Their memberships. Cascades THEIR OWN attendance and nothing else's.
+DELETE FROM team_members WHERE user_id = :'uid';
+
+-- 4. The person. ANONYMISED, NOT DELETED -- `teams.owner_id` and `invites.created_by` are
+--    NO ACTION, so a DELETE is refused for anyone who ever owned a team or issued an invite,
+--    which is every admin. `email` is NOT NULL, hence a tombstone rather than NULL.
+UPDATE users
+   SET email      = 'erased-' || left(replace(:'uid','-',''),8) || '@erased.invalid',
+       full_name  = 'Erased user',
+       avatar_url = NULL
+ WHERE id = :'uid';
+
+COMMIT;
+```
+
+Then **delete the login** in the Supabase dashboard (Authentication → Users). Nothing above
+touches `auth.users`, so until you do that the account still exists and can still sign in — to
+an anonymised profile.
+
+### What this actually did, measured
+
+Run against a seeded student with 1 assigned task, 1 authored scouting report and 9 attendance
+rows, on a team holding 125 attendance rows in total:
+
+| | before | after |
+|---|---|---|
+| their memberships | 1 | **0** |
+| their attendance rows | 9 | **0** |
+| their name / email | `Student 1` / `iron-student0@…` | **`Erased user` / `erased-25dfe65c@erased.invalid`** |
+| their assigned task | exists, assigned to them | **exists, `assigned_to` NULL** |
+| their scouting report | exists, authored by them | **exists, `created_by` NULL** |
+| the team's other attendance | 125 | **116** |
+
+Which is the policy's sentence, exactly: the person is gone, their contributions stay with the
+team, and no other member lost anything.
+
+### Under-13s
+
+A guardian's request removes the child through step 2 — `managed_profiles` cascades
+`guardian_consents`, and the child's `team_members` row goes with the guardian's in step 3
+because a managed member's row carries the GUARDIAN's `user_id`. To remove one child while the
+guardian keeps their own account, delete that `managed_profiles` row alone and let the cascade
+do the rest.
 
 ---
 

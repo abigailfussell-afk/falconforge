@@ -386,3 +386,20 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# ==========================================================================
+# EDGE FUNCTIONS
+# ==========================================================================
+
+# support@falcon-forge.com -> a real inbox.
+#
+# `verify_jwt = false` is REQUIRED and is not a relaxation of anything: Supabase checks a
+# Supabase JWT by default, and a webhook from Resend carries none, so with the default the
+# endpoint answers 401 and no mail is ever forwarded.
+#
+# The consequence is that this function is PUBLIC, and its Svix signature check is the entirety
+# of its access control -- which is why `decision.ts` refuses a request with any Svix header
+# missing and treats an absent signing secret as an error rather than as a reason to skip
+# verification. Both are asserted in `src/test/__tests__/support-forwarding.test.ts`.
+[functions.forward-support-email]
+verify_jwt = false
