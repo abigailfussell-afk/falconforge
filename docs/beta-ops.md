@@ -48,6 +48,30 @@ Two things that have bitten this project before, both recorded in the plan's log
 
 ## Transactional email
 
+**LIVE AS OF 2026-08-22.** Custom SMTP through Resend is configured and verified end to end
+against a real Gmail: a production signup confirmation arrived from
+`Falcon-Forge <noreply@falcon-forge.com>` with **SPF, DKIM and DMARC all passing**, sent from
+`54.240.14.44` (`a14-44.smtp-out.amazonses.com`). The section below is the runbook that got it
+there, kept for the next time and for the rate-limit step, which is the one that stays
+dangerous.
+
+**Two things still outstanding here**, neither blocking:
+
+1. **The email rate limit** (Authentication -> Rate Limits). It is pinned low and does NOT lift
+   itself when SMTP changes, so onboarding a team of fifteen still fails on the fourth student
+   even with Resend wired up correctly. Check it before beta.
+2. **Two SPF records on `send.falcon-forge.com`** -- GoDaddy's SPF manager regenerates its own
+   `_spfm` version alongside the correct one, and refuses to let the extra be deleted
+   ("Your attempt to delete DNS records has failed"). Not currently harmful: SPF is evaluated
+   against the ENVELOPE sender, which is not `send.falcon-forge.com` today, which is why the
+   message above passed. It becomes harmful the moment Resend uses a custom bounce domain,
+   because that is exactly what these records are for. Retry the delete after cancelling the
+   "Add New Record" form, or clear it up when DNS moves.
+
+---
+
+**Originally, and the reason all of this exists:**
+
 **This is the one piece of beta infrastructure that fails silently, and it is not code.**
 
 Supabase's built-in email service is rate-limited to a couple of messages an hour on the free
