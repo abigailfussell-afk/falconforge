@@ -329,8 +329,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const ageFromMetadata = user.user_metadata?.age_classification || null;
         const privacyAccepted = user.user_metadata?.privacy_accepted === true;
 
-        // Use upsert to handle both new users and existing users
-        // This avoids issues with RLS errors causing false "user not found" results
+        /*
+         * Upsert to handle both new users and existing ones — an RLS hiccup then reads as a
+         * failed write rather than as "user not found".
+         *
+         * `age_classification` IS DELIBERATELY NOT IN THIS PAYLOAD, and the comment that used to
+         * sit here claimed the opposite: "only set it if it comes from metadata (won't overwrite
+         * existing)". It did overwrite. `ignoreDuplicates: false` means every conflicting column
+         * in the payload is UPDATEd, so this ran on every boot and wrote signup metadata back
+         * over the row — and signup metadata is frozen at the moment the account was created.
+         * Found by running the app: correcting an account to `18_plus` through the profile
+         * screen wrote the column, and the next reload put it back to `13_to_17` with no error
+         * anywhere. Any correction path has the same fate, including the one planned for the
+         * admin-nomination handshake, so the value could never have been changed at all.
+         *
+         * The row is created server-side by `handle_new_user`, which reads the same metadata, so
+         * nothing is lost by leaving the column out. The backfill below covers the one case that
+         * is not the trigger's: this upsert racing ahead of it on a brand-new account.
+         */
         const { error: upsertError } = await supabase
             .from('users')
             .upsert({
@@ -338,8 +354,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 email: user.email!,
                 full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
                 avatar_url: user.user_metadata?.avatar_url || null,
-                // Only set age_classification if it comes from metadata (won't overwrite existing)
-                ...(ageFromMetadata ? { age_classification: ageFromMetadata } : {}),
             } as any, {
                 onConflict: 'id',
                 ignoreDuplicates: false, // Update on conflict
@@ -403,12 +417,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         writeCachedProfile(profile);
 
+        /*
+         * The row wins; metadata is only ever a fallback, and a backfill when the row has none.
+         *
+         * A row with no classification is the `handle_new_user` race (the upsert above can land
+         * first), and NULL gates the whole under-13 flow — so it is written once, here, rather
+         * than left for the next boot to guess at again. `update_user_age_classification` scopes
+         * itself to `auth.uid()`, which is why the backfill goes through it rather than through
+         * another upsert that would reintroduce exactly the clobber described above.
+         */
         const resolvedAge = userData?.age_classification || ageFromMetadata;
         setState(prev => ({
             ...prev,
             profile,
             ...(resolvedAge ? { ageClassification: resolvedAge as AgeClassification } : {}),
         }));
+
+        /*
+         * Backfill LAST, and in a way that cannot cost anybody their session.
+         *
+         * A row with no classification is the `handle_new_user` race — the upsert above can land
+         * first — and NULL gates the whole under-13 flow, so it is written once here rather than
+         * left for the next boot to guess at again. It goes through
+         * `update_user_age_classification`, which scopes itself to `auth.uid()`, rather than
+         * through another upsert that would reintroduce the clobber described above.
+         *
+         * The first draft ran this BEFORE `setState` and an existing test caught it: a throw
+         * here abandoned the whole profile sync, leaving `ageClassification` null and the user
+         * on the forced age-profile screen with a perfectly good session. A best-effort write
+         * must never be able to do that, so the state lands first and this cannot rethrow.
+         */
+        if (!userData?.age_classification && ageFromMetadata) {
+            try {
+                const { error: backfillError } = (await supabase.rpc('update_user_age_classification', {
+                    classification: ageFromMetadata,
+                })) ?? {};
+                if (backfillError) console.error('[Auth] Could not backfill age classification:', backfillError);
+            } catch (err) {
+                console.error('[Auth] Could not backfill age classification:', err);
+            }
+        }
     };
 
     const signInWithEmail = useCallback(async (email: string, password: string) => {
