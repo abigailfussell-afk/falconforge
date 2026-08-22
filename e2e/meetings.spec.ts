@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PASSWORD, guardLocalBackend, signUp, createTeam, unique, uniqueEmail, goToView, waitForSync } from './helpers';
+import { PASSWORD, guardLocalBackend, registerAccount, createTeam, unique, uniqueEmail, goToView, waitForSync } from './helpers';
 
 /**
  * Sprint 8 — the meetings flow, driven the way a coach and a student drive it.
@@ -20,7 +20,7 @@ test.beforeEach(async ({ context }) => {
 
 test('a coach creates an event, gets a code, and a student checks in with it', async ({ page }) => {
     const email = uniqueEmail('meet-coach');
-    await signUp(page, { fullName: 'Meet Coach', email });
+    await registerAccount(page, { fullName: 'Meet Coach', email });
     await createTeam(page, { teamName: unique('Meetings') });
 
     await goToView(page, 'meetings', 'meetings');
@@ -126,7 +126,7 @@ test('a recurring series gives every occurrence its own code', async ({ page }) 
     // The property the whole design turns on, asserted end to end rather than only in the
     // store: a student who photographs one poster must not be able to use it next week.
     const email = uniqueEmail('meet-series');
-    await signUp(page, { fullName: 'Series Coach', email });
+    await registerAccount(page, { fullName: 'Series Coach', email });
     await createTeam(page, { teamName: unique('Series') });
 
     await goToView(page, 'meetings', 'meetings');
@@ -146,7 +146,7 @@ test('a recurring series gives every occurrence its own code', async ({ page }) 
 
 test('a typed code is refused outside its window', async ({ page }) => {
     const email = uniqueEmail('meet-window');
-    await signUp(page, { fullName: 'Window Coach', email });
+    await registerAccount(page, { fullName: 'Window Coach', email });
     await createTeam(page, { teamName: unique('Window') });
 
     await goToView(page, 'meetings', 'meetings');
@@ -217,7 +217,7 @@ test.describe('layout properties', () => {
          * it is parked.
          */
         const email = uniqueEmail('meet-toggle');
-        await signUp(page, { fullName: 'Toggle Coach', email });
+        await registerAccount(page, { fullName: 'Toggle Coach', email });
         await createTeam(page, { teamName: unique('Toggle') });
         await goToView(page, 'meetings', 'meetings');
 
@@ -269,7 +269,7 @@ test.describe('layout properties', () => {
 
     test('the sidebar footer keeps its gutter above the viewport edge', async ({ page }) => {
         const email = uniqueEmail('meet-layout');
-        await signUp(page, { fullName: 'Layout Coach', email });
+        await registerAccount(page, { fullName: 'Layout Coach', email });
         await createTeam(page, { teamName: unique('Layout') });
 
         await page.setViewportSize({ width: 1280, height: 800 });
@@ -300,7 +300,7 @@ test('a code the server has not seen yet is not blamed on the student', async ({
      * Deliberately NOT waiting for sync, which is the opposite of every other test here.
      */
     const email = uniqueEmail('meet-unsynced');
-    await signUp(page, { fullName: 'Unsynced Coach', email });
+    await registerAccount(page, { fullName: 'Unsynced Coach', email });
     await createTeam(page, { teamName: unique('Unsynced') });
 
     await goToView(page, 'meetings', 'meetings');
@@ -339,7 +339,7 @@ test('a scan while signed out routes through login and lands on the check-in', a
      * The whole point of a QR poster is that it is one action.
      */
     const email = uniqueEmail('meet-scan');
-    await signUp(page, { fullName: 'Scan Coach', email });
+    await registerAccount(page, { fullName: 'Scan Coach', email });
     await createTeam(page, { teamName: unique('Scan') });
 
     await goToView(page, 'meetings', 'meetings');
@@ -406,7 +406,7 @@ test('a student is never handed the code by the app', async ({ page }) => {
      * check-in affordance carries a code here, none does anywhere.
      */
     const email = uniqueEmail('meet-nocode');
-    await signUp(page, { fullName: 'No Code Coach', email });
+    await registerAccount(page, { fullName: 'No Code Coach', email });
     await createTeam(page, { teamName: unique('NoCode') });
 
     await goToView(page, 'meetings', 'meetings');

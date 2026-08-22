@@ -1,4 +1,7 @@
 import { expect, type Page, type BrowserContext } from '@playwright/test';
+// The version number has exactly one home (`attestation-versions.ts`); a copy here would be the
+// second source of truth that the signup-attestation migration exists because of.
+import { ATTESTATION_VERSIONS } from '../src/lib/attestation-versions';
 
 /**
  * Shared moves for the smoke pack.
@@ -56,8 +59,110 @@ export async function dismissReAttestation(page: Page): Promise<void> {
     if (await later.isVisible().catch(() => false)) await later.click();
 }
 
-/** Register a brand-new account through the real two-step sign-up form. */
-export async function signUp(
+/**
+ * The local stack's admin API, and the mailbox in front of it.
+ *
+ * The service-role key is Supabase's published local-development demo key — identical on every
+ * machine and worthless anywhere else — pinned here for the same reason the anon key is pinned
+ * in `playwright.config.ts`: an env file this pack does not control is how a smoke run ends up
+ * against production. `assertLocalStack` below is the guard that makes the pinning safe rather
+ * than merely convenient.
+ */
+const SUPABASE_URL = 'http://127.0.0.1:54321';
+const SERVICE_ROLE_KEY =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+const MAILPIT_URL = 'http://127.0.0.1:54324';
+
+/** A service-role key is destructive by definition; it never leaves 127.0.0.1. */
+function assertLocalStack(url: string): void {
+    const host = new URL(url).hostname;
+    if (host !== '127.0.0.1' && host !== 'localhost') {
+        throw new Error(`Refusing to use the admin API against "${host}".`);
+    }
+}
+
+/**
+ * Create an account that is already confirmed, and sign it in.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS NOT `signUp`. `enable_confirmations` is now `true` locally
+ * because production has always had it on (see the note in `supabase/config.toml`), so walking
+ * the sign-up form no longer produces a session — it produces an email. Fifteen of this pack's
+ * flows do not care how the account came to exist; they care about invites, meetings, sync and
+ * seasons. Making each of them collect a message would cost every spec a mailbox round trip to
+ * prove the same thing once, on a pack Sprint 7 already had to cap at four workers.
+ *
+ * `email_confirm: true` is what a confirmed account looks like to GoTrue, and the metadata is
+ * exactly what the real form sends — `handle_new_user` reads it to build the `users` row, so an
+ * account created here reaches the app with the same `full_name`, the same `age_classification`
+ * and the same signup attestation as one created through the UI.
+ *
+ * `registration.spec.ts` is the one place that still walks the form and the mailbox, because
+ * that is the flow every beta team runs exactly once with nobody to help them.
+ */
+export async function createConfirmedAccount(
+    { fullName, email, age = '18_plus' }: { fullName: string; email: string; age?: '18_plus' | '13_to_17' },
+): Promise<void> {
+    assertLocalStack(SUPABASE_URL);
+
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+            apikey: SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email,
+            password: PASSWORD,
+            email_confirm: true,
+            /*
+             * EXACTLY what the real form sends, `privacy_version` included.
+             *
+             * `handle_new_user` records the signup consent at the version the metadata names
+             * (migration 20260821000000), falling back to '1.0' for a client that did not say —
+             * and '1.0' is out of date, so an account created without it meets "We've updated our
+             * legal documents" on its first screen. The first draft of this helper omitted the
+             * field and eleven specs timed out behind that modal, which is the same symptom the
+             * migration was written for, arriving from a third direction.
+             */
+            user_metadata: {
+                full_name: fullName,
+                age_classification: age,
+                privacy_accepted: true,
+                privacy_version: ATTESTATION_VERSIONS.privacy_and_guidelines,
+            },
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Could not create ${email}: ${response.status} ${await response.text()}`);
+    }
+}
+
+/**
+ * Register through the real two-step form and come back with a session.
+ *
+ * With confirmations on there is no session at the end of the form, so this is now the whole
+ * production round trip: submit, land on "check your email", read the message Mailpit actually
+ * received, and follow the link in it. Used by `registration.spec.ts`; everything else uses
+ * {@link createConfirmedAccount} and {@link signIn}.
+ */
+export async function signUpThroughEmail(
+    page: Page,
+    account: { fullName: string; email: string; age?: '18_plus' | '13_to_17' },
+): Promise<void> {
+    await submitSignUpForm(page, account);
+    await page.goto(await confirmationLinkFor(account.email));
+    await page.waitForURL(/#\/(onboarding|app|create-team)/, { timeout: 45_000 });
+}
+
+/**
+ * The form half of the round trip, on its own.
+ *
+ * Separate from the link half so a test can assert what sits BETWEEN them — which is the whole
+ * production behaviour this pack was blind to until 2026-08-22.
+ */
+export async function submitSignUpForm(
     page: Page,
     { fullName, email, age = '18_plus' }: { fullName: string; email: string; age?: '18_plus' | '13_to_17' },
 ): Promise<void> {
@@ -73,7 +178,77 @@ export async function signUp(
     await page.locator(`input[value="${age}"]`).check();
     await page.locator('input[type="checkbox"]').first().check();
     await page.getByRole('button', { name: 'Create Account' }).click();
+}
 
+/**
+ * The confirmation link the stack actually sent, out of the mailbox it actually sent it to.
+ *
+ * Polled rather than slept on: GoTrue sends after the insert commits, so the message appears a
+ * beat after the form does. Read as raw source and matched on the href, because the templated
+ * HTML is a repo file that can change without this needing to.
+ */
+export async function confirmationLinkFor(email: string, timeoutMs = 30_000): Promise<string> {
+    assertLocalStack(MAILPIT_URL);
+
+    /*
+     * `expect.poll` rather than a deadline this function measures for itself.
+     *
+     * The first version measured its own timeout and the harness ratchet refused it: e2e specs
+     * have had two timezone defects from Node's clock, so the count only goes down. Polling is
+     * Playwright's own job anyway, and it reports the last value it saw when it gives up.
+     */
+    let messageId: string | undefined;
+    await expect
+        .poll(
+            async () => {
+                const search = await fetch(
+                    `${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+                );
+                const { messages = [] } = (await search.json()) as { messages?: { ID: string }[] };
+                messageId = messages[0]?.ID;
+                return messages.length;
+            },
+            { timeout: timeoutMs, message: `No confirmation email for ${email}` },
+        )
+        .toBeGreaterThan(0);
+
+    const source = (await (await fetch(`${MAILPIT_URL}/api/v1/message/${messageId}`)).json()) as {
+        HTML?: string;
+        Text?: string;
+    };
+    const body = `${source.HTML ?? ''}
+${source.Text ?? ''}`;
+
+    /*
+     * Both shapes, because the link's form is a live decision rather than a constant: today it is
+     * GoTrue's own `/auth/v1/verify?...`, and the deferred auth-email work would replace it with a
+     * `{{ .TokenHash }}` link to our own route. A matcher that knew only one would fail as "no
+     * confirmation email" on a change that sent a perfectly good one.
+     */
+    const match = body.match(/https?:\/\/[^\s"'<>]*(?:auth\/v1\/verify|token_hash=)[^\s"'<>]*/);
+    if (!match) throw new Error(`Message for ${email} carried no confirmation link:
+${body.slice(0, 500)}`);
+
+    return match[0].replace(/&amp;/g, '&');
+}
+
+/**
+ * A confirmed account, signed in, sitting wherever a fresh account lands.
+ *
+ * The workhorse for every spec whose subject is not registration. It stops short of
+ * {@link enterApp} on purpose: a brand-new account has no team, so the picker has nothing to
+ * pick and these specs go on to `createTeam` or to a join code.
+ */
+export async function registerAccount(
+    page: Page,
+    { fullName, email, age = '18_plus' }: { fullName: string; email: string; age?: '18_plus' | '13_to_17' },
+): Promise<void> {
+    await createConfirmedAccount({ fullName, email, age });
+
+    await page.goto('/#/login');
+    await page.getByTestId('email-input').fill(email);
+    await page.getByTestId('password-input').fill(PASSWORD);
+    await page.getByTestId('sign-in-button').click();
     await page.waitForURL(/#\/(onboarding|app|create-team)/, { timeout: 45_000 });
 }
 

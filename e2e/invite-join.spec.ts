@@ -4,7 +4,7 @@ import {
     dismissReAttestation,
     goToView,
     guardLocalBackend,
-    signUp,
+    registerAccount,
     unique,
     uniqueEmail,
     PASSWORD,
@@ -33,7 +33,7 @@ test.describe('invite and join', () => {
 
     test('a student can join by link, waits for approval, and the admin can approve them', async ({ page, browser }) => {
         const teamName = unique('Invite Falcons');
-        await signUp(page, { fullName: 'Invite Coach', email: uniqueEmail('admincoach') });
+        await registerAccount(page, { fullName: 'Invite Coach', email: uniqueEmail('admincoach') });
         await createTeam(page, { teamName });
 
         // 1. The admin generates an invite link.
@@ -46,7 +46,7 @@ test.describe('invite and join', () => {
         // 2. A student registers on their own device and follows the link.
         const { context: studentContext, page: student } = await secondPerson(browser);
         const studentEmail = uniqueEmail('student');
-        await signUp(student, { fullName: 'Smoke Student', email: studentEmail, age: '13_to_17' });
+        await registerAccount(student, { fullName: 'Smoke Student', email: studentEmail, age: '13_to_17' });
 
         await student.goto(`/#/join/${code.trim()}`);
         await student.getByRole('button', { name: /Join/i }).first().click();
@@ -85,7 +85,7 @@ test.describe('invite and join', () => {
          * that generating a link on a licensed team is offered and works; the at-capacity
          * refusal is covered against the seeded full-house team by the licensing suite.
          */
-        await signUp(page, { fullName: 'Invite Coach', email: uniqueEmail('admincoach') });
+        await registerAccount(page, { fullName: 'Invite Coach', email: uniqueEmail('admincoach') });
         await createTeam(page, { teamName: unique('Seat Falcons') });
 
         await goToView(page, 'admin', 'admin');

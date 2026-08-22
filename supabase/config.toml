@@ -206,7 +206,20 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# TRUE, TO MATCH PRODUCTION. The hosted project reports `mailer_autoconfirm: false` and always
+# has; this file said `false` from the Sprint 3 baseline until 2026-08-22, so on a developer
+# machine `signUp` returned a live session and every "do this right after signing up" path fired
+# immediately, while in production there is no session until the user follows an email link.
+# 670 unit tests, 91 integration tests, 16 e2e flows and the venue simulation were all green over
+# a signup path that did not resemble the one every real user takes exactly once.
+#
+# The e2e pack absorbs the difference the way production does: `registration.spec.ts` walks the
+# real form and collects the link out of Mailpit (127.0.0.1:54324), and every other spec, where
+# email is incidental, creates a pre-confirmed account through the admin API — see
+# `createConfirmedAccount` in `e2e/helpers.ts`. One flow proves the thing; the pack stays fast,
+# which matters because Sprint 7 found it contention-sensitive enough to need a worker cap.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.

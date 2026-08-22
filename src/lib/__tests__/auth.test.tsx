@@ -342,6 +342,51 @@ describe('auth lifecycle', () => {
       expect(result.current.ageClassification).toBe('13_to_17');
     });
 
+    it('B27: a boot does not write frozen signup metadata over the row\'s age', async () => {
+      /*
+       * The profile upsert used to carry `age_classification` from `user_metadata` with
+       * `ignoreDuplicates: false`, so every boot UPDATEd the column back to whatever was
+       * asserted at signup. Signup metadata never changes, so any correction — the profile
+       * screen's "I've turned 18", or the planned nomination handshake — survived exactly
+       * until the next reload and then silently reverted. Found by running the app: the
+       * write landed in Postgres, and a reload put `13_to_17` back with no error anywhere.
+       *
+       * Asserted on the WRITE rather than on the resulting state, deliberately: the read-back
+       * returns the stubbed row either way, so a state assertion passes against the bug.
+       */
+      const users = tableStub({ data: { age_classification: '18_plus' }, error: null });
+      fromMock.mockImplementation(() => users);
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session({ user_metadata: { age_classification: '13_to_17' } }));
+      });
+
+      const [payload] = (users.upsert as Mock).mock.calls[0];
+      expect(payload).not.toHaveProperty('age_classification');
+      expect(rpcMock).not.toHaveBeenCalledWith('update_user_age_classification', expect.anything());
+      expect(result.current.ageClassification).toBe('18_plus');
+    });
+
+    it('B27: backfills the age when the row has none, so the trigger race is not permanent', async () => {
+      // `handle_new_user` normally creates the row with the metadata age, but the client
+      // upsert can land first — and a NULL classification gates the whole under-13 flow.
+      // Written through the RPC, which scopes itself to `auth.uid()`, rather than through an
+      // upsert that would reintroduce the clobber above.
+      fromMock.mockImplementation(() => tableStub({ data: { age_classification: null }, error: null }));
+      rpcMock.mockResolvedValue({ data: { success: true }, error: null });
+
+      const { result, handler } = await captureHandler();
+      await act(async () => {
+        await handler()('SIGNED_IN', session({ user_metadata: { age_classification: '13_to_17' } }));
+      });
+
+      expect(rpcMock).toHaveBeenCalledWith('update_user_age_classification', {
+        classification: '13_to_17',
+      });
+      expect(result.current.ageClassification).toBe('13_to_17');
+    });
+
     it('records the privacy attestation once, and not again if it already exists', async () => {
       const existing = tableStub({ data: { id: 'attestation-1' }, error: null });
       fromMock.mockImplementation((table: string) =>
