@@ -60,160 +60,146 @@ A coach onboarding fifteen students in one evening will exhaust the hourly allow
 rest of the team simply never receives anything. Nothing errors, nothing appears in a log the
 app can reach, and the coach reports "it didn't work".
 
-### The fix, which is configuration rather than a sprint
+### Sending: point Supabase at Resend
 
 The deferred "Auth email branding & the confirmation round trip" item in the plan bundles this
-with templates and link rewriting. **The SMTP half is separable and should be done alone.**
+with templates and link rewriting. **The SMTP half is separable and should be done alone** —
+templates can stay on Supabase's defaults and nothing below touches them.
 
-1. Create a [Resend](https://resend.com) account. The free tier is 3,000/month and 100/day,
-   which is far beyond a beta of a few teams. **Not Brevo** — its free tier stamps its own
-   branding on the message, which is the problem being solved wearing a different hat.
-2. Add `falcon-forge.com` as a sending domain and publish the SPF, DKIM and DMARC records it
-   gives you at the registrar. Wait for Resend to verify them — mail sent before verification
-   lands in spam, which looks exactly like mail that was never sent.
-3. Create an API key, then in the Supabase dashboard under **Project Settings → Authentication
-   → SMTP Settings** enable custom SMTP: host `smtp.resend.com`, port 465, username `resend`,
-   password = the API key, sender `support@falcon-forge.com`.
-4. **Raise the email rate limit afterwards** (Authentication → Rate Limits). It is pinned low
-   while the built-in service is in use and does not lift itself when SMTP changes.
-5. Verify by signing up a genuinely new address and completing a password reset end to end.
-   Check the message's headers show DKIM passing, and check it did not land in spam — those are
-   two different failures and only the first one is visible from the dashboard.
+**SENDING AND RECEIVING ARE INDEPENDENT.** This section makes FalconForge able to SEND. It does
+nothing for `support@falcon-forge.com`, which is about RECEIVING and is the next section. You
+need both, and doing one does not partially do the other.
 
-### The address the app sends people to
+**1 — Resend account and domain.** Sign up at [resend.com](https://resend.com); the free tier
+is 3,000/month and 100/day, far beyond a beta of a few teams. **Not Brevo** — its free tier
+stamps its own branding on the message, which is the problem being solved wearing a different
+hat. Then **Domains → Add Domain → `falcon-forge.com`**.
 
-`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle.
+**2 — Publish the DNS records at GoDaddy.** Resend generates the exact values per account, so
+copy them from its screen rather than from here; the shape is three records, and by default
+Resend scopes the sending ones to a `send.` subdomain:
 
-**KNOWN BROKEN AS OF 2026-08-18, deliberately shipped that way (Kevin's call).**
-`falcon-forge.com` has **no MX record** — confirmed against two resolvers — and its apex
-resolves to GitHub Pages, which does not run SMTP. So the in-app feedback link currently goes
-to an address that cannot receive mail, and a beta coach who uses it gets a bounce rather than
-reaching anybody. The previous bundle carried a working Gmail, so this is a regression that was
-accepted in order to ship the rest.
-
-**The fix is DNS, not code**: add email forwarding for the domain (GoDaddy hosts the zone;
-GoDaddy forwarding or Cloudflare Email Routing both work) and point `support@` at Kevin's
-inbox. Verify with `nslookup -type=MX falcon-forge.com` returning at least one exchanger, then
-send one real message to it. No deploy is needed — the address in the bundle is already
-correct, it is the mailbox behind it that does not exist yet.
-
-Until then, the only working inbound channel is Kevin's personal address, which is no longer
-written down anywhere a beta user can see.
-
----
-
-## Erasing a person's data
-
-The Privacy Policy promises this and there is deliberately **no tool for it**: for a beta of a
-few known teams, a request handled by hand is a real answer and building an audited operator
-RPC is not worth doing yet (Kevin's call, 2026-08-18). This section is what makes "by hand"
-safe — the SQL below was **run against a real database and its effects measured**, not written
-from memory.
-
-What the policy says, and therefore what this does: *"we remove your personal information and
-your memberships. Work you contributed to a team stays with the team."*
-
-### Read this first: the deletes do not work in the obvious order
-
-`team_members` has five composite foreign keys pointing at it with `ON DELETE SET NULL`, and
-**four of them cannot fire**:
-
-```
-tasks              (assigned_to, team_id)            -> team_members(id, team_id)
-meetings           (created_by,  team_id)            -> team_members(id, team_id)
-scouting_reports   (created_by,  team_id)            -> team_members(id, team_id)
-meeting_attendance (attested_by, team_id)            -> team_members(id, team_id)
-teams              (pending_admin_member_id, id)     -> team_members(id, team_id)
-```
-
-`SET NULL` nulls **every column in the key**, so each of these tries to null a `team_id` that
-is `NOT NULL` — and the last one tries to null `teams.id`, the primary key. So a plain
-`DELETE FROM team_members` is REFUSED for anybody who has been assigned a task, created a
-meeting, filed a scouting report, taken a roster, or been nominated as admin:
-
-```
-ERROR: null value in column "team_id" of relation "tasks" violates not-null constraint
-```
-
-This has never bitten anyone because the app never deletes a member — it sets
-`status = 'removed'`. See the plan's parking lot; it is a real schema defect and it is logged.
-
-The consequence for this runbook: **release every reference explicitly first.** A single-column
-`UPDATE ... SET assigned_to = NULL` is fine, because a composite FK with any NULL column is not
-enforced.
-
-### The sequence
-
-Run it as ONE transaction against the linked database, having taken a dump first (see Backups).
-
-```sql
-\set uid 'THE-USER-UUID'
-BEGIN;
-
--- Refuse to continue if they solely administer a team: removing their membership would strand
--- it, and the fix is to transfer the admin role in the operator console FIRST.
-SELECT count(*) AS must_be_zero
-  FROM team_members WHERE user_id = :'uid' AND role = 'admin' AND status <> 'removed';
-
--- 1. Release the composite references. None of these can be left to a cascade.
-UPDATE teams SET pending_admin_member_id = NULL, pending_admin_nominated_at = NULL,
-                 pending_admin_nominated_by = NULL
- WHERE pending_admin_member_id IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE tasks              SET assigned_to = NULL
- WHERE assigned_to IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE meetings           SET created_by  = NULL
- WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE scouting_reports   SET created_by  = NULL
- WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE meeting_attendance SET attested_by = NULL
- WHERE attested_by IN (SELECT id FROM team_members WHERE user_id = :'uid');
-
--- 2. Their children, if they are a guardian. Cascades guardian_consents.
-DELETE FROM managed_profiles WHERE guardian_user_id = :'uid';
-
--- 3. Their memberships. Cascades THEIR OWN attendance and nothing else's.
-DELETE FROM team_members WHERE user_id = :'uid';
-
--- 4. The person. ANONYMISED, NOT DELETED -- `teams.owner_id` and `invites.created_by` are
---    NO ACTION, so a DELETE is refused for anyone who ever owned a team or issued an invite,
---    which is every admin. `email` is NOT NULL, hence a tombstone rather than NULL.
-UPDATE users
-   SET email      = 'erased-' || left(replace(:'uid','-',''),8) || '@erased.invalid',
-       full_name  = 'Erased user',
-       avatar_url = NULL
- WHERE id = :'uid';
-
-COMMIT;
-```
-
-Then **delete the login** in the Supabase dashboard (Authentication → Users). Nothing above
-touches `auth.users`, so until you do that the account still exists and can still sign in — to
-an anonymised profile.
-
-### What this actually did, measured
-
-Run against a seeded student with 1 assigned task, 1 authored scouting report and 9 attendance
-rows, on a team holding 125 attendance rows in total:
-
-| | before | after |
+| Type | Host (typical) | Purpose |
 |---|---|---|
-| their memberships | 1 | **0** |
-| their attendance rows | 9 | **0** |
-| their name / email | `Student 1` / `iron-student0@…` | **`Erased user` / `erased-25dfe65c@erased.invalid`** |
-| their assigned task | exists, assigned to them | **exists, `assigned_to` NULL** |
-| their scouting report | exists, authored by them | **exists, `created_by` NULL** |
-| the team's other attendance | 125 | **116** |
+| MX | `send` | return path for bounces |
+| TXT | `send` | SPF (`v=spf1 include:amazonses.com ~all`) |
+| TXT | `resend._domainkey` | DKIM |
 
-Which is the policy's sentence, exactly: the person is gone, their contributions stay with the
-team, and no other member lost anything.
+GoDaddy hosts this zone (nameservers are `*.domaincontrol.com`), so: **godaddy.com → My
+Products → Domains → falcon-forge.com → DNS → Add New Record.** Enter the host exactly as
+Resend shows it — GoDaddy appends the domain itself, so the host is `send`, **not**
+`send.falcon-forge.com`.
 
-### Under-13s
+Two things worth knowing before you type:
 
-A guardian's request removes the child through step 2 — `managed_profiles` cascades
-`guardian_consents`, and the child's `team_members` row goes with the guardian's in step 3
-because a managed member's row carries the GUARDIAN's `user_id`. To remove one child while the
-guardian keeps their own account, delete that `managed_profiles` row alone and let the cascade
-do the rest.
+- **These do not touch the site.** The A/AAAA records pointing at GitHub Pages and the `www`
+  CNAME are separate rows. Do not edit them.
+- **The `send.` scoping is why this does not collide** with the root MX record the next section
+  adds for receiving. Different hostnames, no conflict, and they can be done in either order.
+
+**3 — Wait for Resend to verify.** Click Verify in Resend until every record reads verified.
+GoDaddy's TTL here is 600s, so this is usually minutes. **Do not skip ahead** — mail sent from
+an unverified domain is accepted and then filed as spam, which looks exactly like mail that was
+never sent, and is much harder to diagnose after the fact than before.
+
+**4 — API key.** Resend → **API Keys → Create API Key**, permission **Sending access**. It is
+shown once. It is a credential: it goes in the Supabase dashboard field below and nowhere in
+this repository, no `.env` file, and no commit.
+
+**5 — Supabase SMTP.** Dashboard → your project → **Project Settings → Authentication → SMTP
+Settings** → enable Custom SMTP:
+
+```
+Host:            smtp.resend.com
+Port:            465
+Username:        resend
+Password:        <the re_... API key>
+Sender email:    noreply@falcon-forge.com
+Sender name:     FalconForge
+```
+
+`noreply@` rather than `support@` on purpose: this is the **From:** address, and the From:
+address of an automated confirmation is not where you want a human's reply to land. It does not
+need to be a real mailbox — a From: address on a verified domain sends fine whether or not
+anything can receive there.
+
+**6 — Raise the rate limit.** **Authentication → Rate Limits → emails sent per hour.** It is
+pinned low (a couple per hour) while the built-in service is in use and **does not lift itself
+when SMTP changes** — this is the step that is easy to miss, because everything appears to work
+until the fourth student of the evening signs up. 100/hour is ample.
+
+**7 — Check the redirect configuration while you are in there.** **Authentication → URL
+Configuration.** Site URL must be `https://falcon-forge.com`. This is what recovery and
+confirmation links are built from, and Sprint 9's fix depends on the link landing on `/` with
+the token in the fragment rather than on a path GitHub Pages answers with its own 404.
+
+**8 — Verify, and verify the two failures separately.** Sign up a genuinely new address, then
+run a password reset on it:
+
+- Did it **arrive**? (sending works)
+- Did it arrive **in the inbox rather than spam**? (reputation and DNS work)
+- Open the raw message and check the headers say `dkim=pass` and `spf=pass`.
+
+The first is visible from the Resend dashboard. The second and third are not, and a message
+that silently lands in a coach's spam folder is indistinguishable from one that was never sent.
+
+### Receiving: make support@falcon-forge.com a real mailbox
+
+`src/lib/feedback.ts` puts `support@falcon-forge.com` in the bundle, and it is the only inbound
+channel a beta user can see.
+
+**KNOWN BROKEN, deliberately shipped that way on 2026-08-18 (Kevin's call).**
+`falcon-forge.com` has **no MX record** — confirmed against two resolvers — and its apex
+resolves to GitHub Pages, which does not run SMTP. A coach who clicks the feedback link gets a
+bounce. The previous bundle carried a working Gmail, so this is an accepted regression rather
+than an oversight.
+
+**No deploy is needed to fix it.** The address compiled into the app is already the right one;
+only the mailbox behind it is missing. This is DNS plus a forwarding service.
+
+#### Which forwarder, and the one that is riskier than it looks
+
+| Option | What it costs you |
+|---|---|
+| **A forwarding service (ImprovMX, Forward Email, …)** — **recommended** | Two MX records and one TXT at GoDaddy. DNS stays where it is. Free tier forwards one address to one inbox, which is exactly the requirement. |
+| **Cloudflare Email Routing** | Free and good, but it requires moving the domain's **nameservers** to Cloudflare — which means recreating the GitHub Pages A/AAAA records, the `www` CNAME and the Resend records above. A DNS migration to gain a mail alias, days before beta, with the site's availability riding on getting every record right. Not worth it now. |
+| **GoDaddy / Microsoft 365 mailbox** | Paid, and gives you a whole mailbox to administer for an address that will receive a handful of messages. |
+
+Take the first. The second is the trap: it is the option that sounds tidiest and is the only one
+that can take falcon-forge.com off the air.
+
+#### Steps
+
+1. Sign up at the forwarder and add `falcon-forge.com`.
+2. Create the alias: `support@falcon-forge.com` → your personal inbox.
+3. Add the records it gives you at **GoDaddy → Domains → falcon-forge.com → DNS**. Typically
+   two MX rows on the root (host `@`) at different priorities, plus one SPF TXT row. Copy the
+   exact values from the forwarder.
+4. Wait for it to report verified, then confirm from a terminal — this is the check that
+   distinguishes "configured" from "working":
+
+   ```bash
+   nslookup -type=MX falcon-forge.com
+   ```
+
+   Zero exchangers means it is not live yet, whatever the dashboard says.
+5. **Send a real message to `support@falcon-forge.com` from an outside address** and confirm it
+   lands. A resolving MX record proves mail will be *accepted*; it does not prove the alias
+   routes to you.
+6. While you are there, click the feedback link in the app itself. It is a `mailto:` carrying
+   the build id in the subject, and it is worth seeing the thing a coach sees.
+
+#### Does this conflict with Resend?
+
+No. Resend's records live on the `send.` subdomain; these live on the root. Different
+hostnames, and they can be done in either order.
+
+The one interaction to watch: if the forwarder asks you to add a **root SPF** record and you
+later add a second one, **do not create two SPF TXT records** — a domain may have only one, and
+two is a hard fail rather than a merge. Combine the `include:` clauses into a single record.
+
+Until this is done, the only working inbound channel is Kevin's personal address, which is no
+longer written down anywhere a beta user can see.
 
 ---
 

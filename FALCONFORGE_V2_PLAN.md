@@ -497,7 +497,12 @@ reading the schema:*
   a live defect. It remains true that `falcon-forge.com/app/board` typed by hand gets Pages'
   404 page rather than the app. A Pages SPA fallback is the fix if anybody hits it; it was
   deliberately NOT bundled into the recovery fix for sounding related.
-- **🔴 `teams` is still the one collection outside the entity registry**, and Sprint 9 added a
+- **✅ RESOLVED 2026-08-18** (`v2/teams-entity-registry`). `teams` is a registry entity with a
+  third scope, `'rls'` — its policy is `is_team_member(id) OR is_team_guardian(id)`, so one
+  unfiltered select returns the union a member and a guardian should each see, and
+  `pullGuardianTeams` was deleted rather than relocated: its merge-by-id was a client-side
+  reimplementation of a policy. Three hand-written mappings collapsed to one. Was:
+  **🔴 `teams` is still the one collection outside the entity registry**, and Sprint 9 added a
   second hand-written loader for it (`pullGuardianTeams`, which merges by id so a coach who is
   also a parent does not lose their own team list). That makes two loaders for one collection —
   the shape CLAUDE.md principle 9 is about, and the fourth feature to depend on it.
@@ -527,7 +532,10 @@ reading the schema:*
   readers and no writer) crossed with §10 (time). **Decided 2026-08-17: do not add a birthday**
   — bolt the confirmation onto Sprint 6's existing nomination handshake instead. Logged here
   because it is live today and independent of Sprint 9's scope.
-- **🔴 `guardian_consents.version` has a DEFAULT of `'1.0'` in the database.** This is exactly
+- **✅ RESOLVED IN SPRINT 9** — `20260822000000_guardian_schema_cleanup.sql:47` drops it
+  (`ALTER TABLE guardian_consents ALTER COLUMN version DROP DEFAULT`), before the first consent
+  row existed, so the client owns the number as `attestations.ts` says it should. Was:
+  **🔴 `guardian_consents.version` has a DEFAULT of `'1.0'` in the database.** This is exactly
   the shape of the Sprint 8 follow-up defect: `handle_new_user` hardcoded the attestation
   version `'1.0'` in Sprint 3, Sprint 6 raised the documents to `2.0`, and from that moment
   every new account was told its documents were out of date. `attestations.ts:81-84` states the
@@ -593,7 +601,12 @@ each is deferred because it is scoped work rather than because it is unimportant
 
 *From the 2026-08-16 planning session (no sprint — found while scoping the deferred auth-email
 work above; both verified by reading the code, neither fixed):*
-- **🔴 Password recovery is dead end to end in production, and it is broken twice over.**
+- **✅ RESOLVED IN SPRINT 9.** One `authRedirectUrl()` helper serves recovery, OAuth and email
+  confirmation alike, the link lands on `/` with the token intact rather than on a non-hash
+  path Pages answers with its own 404, and `/auth/reset-password` is a real route. Proved
+  against a real GoTrue and a real message out of Mailpit, and covered by
+  `password-recovery.test.ts`. Was:
+  **🔴 Password recovery is dead end to end in production, and it is broken twice over.**
   `resetPassword` sends `redirectTo: ${window.location.origin}/auth/reset-password`
   (`src/lib/auth.tsx:433`) — a **non-hash** path, on a HashRouter app, hosted on gh-pages. There
   is no `404.html` anywhere in the repo, so GitHub Pages answers that URL with its own 404 page
@@ -661,6 +674,8 @@ work above; both verified by reading the code, neither fixed):*
   env (`.env.local` points at PRODUCTION), and the teardown kills the process TREE — `shell:
   true` means the child is a shell that spawns npm that spawns vite, and killing the top left
   port 5197 answering 200, which would have failed the next run on `--strictPort`. Was:
+  **✅ RESOLVED.** `capture-screens.mjs` builds its own bundle and serves it on its own port,
+  and says why in its header. Was:
   **🔴 `npm run capture` screenshots whatever the DEV SERVER is serving, which can be stale
   CSS.** A dev server started before a `tailwind.config.js` change keeps serving the old
   generated stylesheet, so the capture produced a set of images in which the event manager's
@@ -742,7 +757,10 @@ work above; both verified by reading the code, neither fixed):*
 
 
 *From Sprint 6:*
-- **🔴 CI does not run on sprint branches.** `ci.yml` triggers on `push: branches: [main,
+- **✅ RESOLVED IN SPRINT 7.** `ci.yml` now triggers on `branches: [main, 'refactor/**',
+  'v2/**']` plus `pull_request`, with a comment saying that any new sprint-branch namespace
+  belongs on that list on the day it is coined. Was:
+  **🔴 CI does not run on sprint branches.** `ci.yml` triggers on `push: branches: [main,
   'refactor/**']` and on `pull_request`. Every `v2/sprint-*` branch since Sprint 1 has been pushed
   with **no CI run at all** — confirmed by the Actions API after pushing
   `v2/sprint-6-licensing`: zero workflows fired. So the only CI signal a sprint has ever had is
