@@ -52,7 +52,7 @@ battle-tested part of the codebase — protect it.
 | Billing scope for beta | **Entitlements now, Stripe later.** Build the license/seat/gifting model + admin UI; beta teams get gifted licenses. Stripe (Checkout, webhooks via Supabase Edge Functions, Customer Portal) is a post-beta sprint. |
 | COPPA model | **Guardian owns the login.** Guardian account holds "managed student profiles"; the child never has credentials. Schema lands pre-beta, full UI post-beta. |
 | Who creates a managed profile | **The guardian, never the coach** (Kevin, 2026-08-17). The coach shares an ordinary invite code; the guardian signs up, adds their own child, and joins with it; the admin approves the join exactly as for any member. Consent and the child's data therefore arrive in the same sitting, so there is nothing to chase — a coach-created profile would require an email round trip to the parent, a blocked roster entry while it is outstanding, and a whole consent-chasing subsystem built for no benefit. The coach's workflow does not change at all. |
-| Who carries COPPA responsibility | **Three layers, one checkbox of new work** (Kevin, 2026-08-17). The guardian consents directly to FalconForge (`guardian_consents`, versioned, once). The team admin attests at approval that they will not roster a child without the guardian — a single checkbox recorded as an attestation, not a workflow. The ToS states the split. Note the surface is already small by construction: an under-13 has no credentials, so they cannot sign in and cannot self-check-in (`check_in_with_code` needs an authenticated caller and `anon` holds no EXECUTE), which means **FalconForge never collects information from a child** — every field is entered by an adult. Whether an admin attestation suffices where verifiable parental consent is required is a question for the pending legal review; the flow above collects guardian consent directly regardless, which is why it is cheap to be strict here. |
+| Who carries COPPA responsibility | **Three layers, one checkbox of new work** (Kevin, 2026-08-17). The guardian consents directly to FalconForge (`guardian_consents`, versioned, once). The team admin attests at approval that they will not roster a child without the guardian — a single checkbox recorded as an attestation, not a workflow. The ToS states the split. Note the surface is already small by construction: an under-13 has no credentials, so they cannot sign in and cannot self-check-in (`check_in_with_code` needs an authenticated caller and `anon` holds no EXECUTE), which means **FalconForge never collects information from a child** — every field is entered by an adult. Whether an admin attestation suffices where verifiable parental consent is required went to legal review and **came back cleared to proceed as designed (Kevin, 2026-08-22)**; the flow collects guardian consent directly regardless, which is why it was cheap to be strict here. |
 | Child's date of birth | **Not collected** (Kevin, 2026-08-17). `managed_profiles.birth_year` is dropped — it is nullable, nothing writes it, and it existed solely to compute a child's age. Collecting less about a minor is the right default and removes a field that would otherwise need justifying in a privacy review. **Consequence, accepted deliberately: the app never knows anyone's age**, only what was asserted once. Promotion is therefore triggered by a person, never a date. |
 | Promotion (managed child → own login) | **Guardian-initiated at any time, plus a nudge at the one moment the limit is felt** (Kevin, 2026-08-17). The guardian gets a "give this child their own login" action in their own view; separately, when a student tries to do the one thing a managed profile cannot — scan the QR to check themselves in — the app tells them to ask their guardian. Never automatic. **It graduates in place:** the `team_members` row keeps its `id` and only changes which identity it points at (`user_id` guardian → the new user, `managed_profile_id` → NULL), so attendance and task history survive untouched — `meeting_attendance` is unique on `(meeting_id, team_member_id)` — with no re-approval and no seat churn. The `managed_profiles` row and its consents are retained as the record of why the child was rostered. A season-rollover prompt is a reasonable later addition if this proves too quiet. |
 | Guardian's view of the app | **Manage from their own view; no act-as mode** (Kevin, 2026-08-17). A guardian sees their children — consents given, upcoming meetings, attendance — and never renders the team as the child. Switching *into* the child would let a guardian account act as a team member, which is a far larger surface to get right in RLS and the shape that quietly becomes "a guardian could do X as their child". |
@@ -421,7 +421,35 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 | 2026-08-22 | **Auth email templates — the six transactional emails, branded** | `main` | **Complete.** Not a sprint: the templates half of §6's unscheduled "Auth email branding" item, done on its own now that SMTP is live. Six HTML files in `supabase/templates/` (confirm signup, reset password, change email, invite, magic link, reauthentication), pasted into the Supabase dashboard by Kevin; runbook in `docs/auth-email-templates.md`. Gate green (lint / 659 unit +2 skips / 91 integration / build); no application code changed. **The plan's stated approach was overruled on evidence, twice.** Its `{{ .TokenHash }}` rationale — "the default returns tokens in the URL *fragment*, which is exactly where HashRouter keeps its route" — was written 2026-08-16 and **Sprint 9 voided it**: `authRedirectUrl()` returns the origin root, the fragment survives, so `{{ .ConfirmationURL }}` works today with zero app code. The reason to want `TokenHash` that survives is link scanners prefetching one-time tokens, which needs a `verifyOtp` route that does not exist. And "repo files wired through `[auth.email.template.*]`, never pasted into the dashboard" cannot work for the hosted project: those blocks configure the local stack only, so the dashboard is the live copy and the drift is documented rather than denied. **Three of the six are not sent by the app** — invite (dashboard button; the real path is `/join/:code`), magic link (`signInWithOtp` is never called) and reauthentication (`secure_password_change` is off) — written anyway, because the alternative to a branded unused template is Supabase's unbranded default going out the first time someone uses the feature. Verified by rendering all six at 375 px and measuring rather than eyeballing: no horizontal overflow, button 173×46 (clears the 44 px tap target), long fallback URLs wrap. **That verification was nearly worthless twice**: the file:// preview renders as a static snapshot with no compositing, and once served over http the built service worker's navigation fallback answered every request with `index.html` — the measured DOM was the app, not the template, and `location.href` reported the right URL throughout. Caught by checking `document.title` before trusting a measurement; same class as the retrospective's stale-worker incident, now on a third surface. What the Gate cannot cover and Kevin still has to do: the send round trip (`docs/beta-ops.md` step 8) and the OTP-expiry copy check. |
 
+| 2026-08-22 | **The age a person can correct, and the signup path nothing had ever run** | `v2/age-classification-writer` | **Complete, unmerged.** Two items off the pre-beta list, chosen with Kevin. `gate:db` green (lint / 670 unit +2 skips / 91 integration / build / schema assertions / 478 db / 323 rls) and the smoke pack 20/20 on two consecutive runs. **`users.age_classification` finally has a writer** — "I've turned 18" on the profile screen, recording the `age_18_plus` attestation (in `AttestationType` and the database CHECK since Sprint 3 with nothing that could write it, the second §7 fact closed after `coppa_responsibility`) BEFORE the column moves, so a raised column with no record of who claimed it is refused. It raises only, and only from `13_to_17`; both refusals were watched failing with the gate removed, because they pass vacuously otherwise. **Building it found B27, and B27 is why the column could never have been changed at all**: `ensureUserProfile` upserted `age_classification` from `user_metadata` with `ignoreDuplicates: false`, so every boot UPDATEd it back to whatever was asserted at signup — under a comment claiming the opposite ("won't overwrite existing") that had been there since Sprint 1. Found by running the app: the write landed in Postgres, the reload put `13_to_17` back, no error anywhere. The regression test asserts on the WRITE rather than the state, because the read-back returns the same stubbed row either way and a state assertion passes against the bug. The first fix ran the NULL backfill before `setState` and an existing test caught what that costs — a throw there abandoned the profile sync and left a signed-in user on the forced age screen. **`enable_confirmations` is now `true` locally**, matching a hosted project that has always had it on: 670 unit, 91 integration, 16 e2e flows and the venue simulation had all been green over a signup path that does not exist in production, and it is the one flow every beta team runs exactly once. `registration.spec.ts` now walks the whole round trip — form, message out of Mailpit, link — and the other fifteen flows take a pre-confirmed account through the admin API; the pack still runs in 37s. The new test asserts the gap itself (submitting the form leaves NO session) and **its first version passed against auto-confirm for the wrong reason** — a signed-in account with no team also lands on `#/`, which the URL pattern accepted; it reads the stored session now, and was watched failing with the flag flipped back. Two things found by running it: the admin-API helper first omitted `privacy_version` and eleven specs timed out behind the "We've updated our legal documents" modal — migration `20260821000000`'s exact symptom from a third direction — and `ATTESTATION_VERSIONS` moved to its own module rather than being copied into the e2e pack, because a second copy of that number is the defect the migration exists because of. **Also written, executed nothing: `docs/cloudflare-migration-plan.md` + `HANDOFF_CLOUDFLARE.md`**, at Kevin's request, before any of it starts. Its finding: the move is hosting-only (HashRouter stays, so printed posters stay valid), but Pages cannot serve an apex domain from third-party DNS and GoDaddy has no apex CNAME — so it forces a nameserver move, which means re-creating the Resend MX, SPF, DKIM and DMARC that only started working today and that fail silently. DNS and hosting therefore change on different days. |
+
 **Discovered / parking lot:**
+
+*From the age-classification work and the e2e confirmation change (2026-08-22):*
+- **A team created seconds before going offline has no season selected, so the board is
+  read-only.** The New button renders disabled with "Select a season first" until the season pull
+  lands, and a brand-new team's pull is still in flight. Found because the smoke pack started
+  losing that race once account creation got faster; the spec now waits for the season before
+  going offline, which is right for that spec — its subject is "work created offline survives",
+  not "the app is switched off mid-boot". **The second scenario is real**: a coach who registers a
+  team in the car park and walks into a venue with no signal gets an app that cannot create
+  anything, with a message that does not explain why. The honest fix is for the season the team
+  was just created with to be selected from the create-team response rather than waited for, which
+  is the same shape as Sprint 7 seeding the store from the create-team write.
+- **The under-18 nomination handshake is still open, and it is now unblocked.** §3's fix — the
+  successor confirms "I am 18 or older" on the screen where they accept the terms — was
+  impossible before B27, because any correction reverted on the next boot. It is also no longer
+  the only path: the profile control fixes the same staleness for the coach and mentor roles,
+  which the nomination handshake never would have. What remains is that `nominate_team_admin`
+  refuses a `13_to_17` account outright, so a student who has genuinely turned 18 and not yet
+  corrected it still cannot be nominated — the refusal now points at a screen that exists, which
+  is the part that was missing. Whether to soften the nomination gate is Kevin's call and is not
+  urgent.
+- **`AcceptAdminNomination`'s checkbox says "I am 18 or over" and still records only the
+  attestations.** The age half of that sentence is written nowhere. Harmless while the nomination
+  gate refuses under-18s up front, and the obvious place to fix it is whenever the handshake above
+  is picked up.
+
 
 *From the auth email templates (2026-08-22), found while checking what the links actually need
 rather than by reading the templates:*
@@ -564,7 +592,13 @@ reading the schema:*
   pending legal review rather than for an engineering sprint.
 
 *From scoping Sprint 9 (2026-08-17), all verified against the live schema:*
-- **🔴 `age_classification` is a stored fact with no writer and no clock, and it gates admin
+- **✅ RESOLVED 2026-08-22** (`v2/age-classification-writer`). It has a writer: "I've turned 18"
+  on the profile screen, which records the `age_18_plus` attestation and then raises the
+  column. Fixing it required fixing B27 first — every boot wrote signup metadata back over
+  the column, so no correction of any kind could have survived a reload. The profile control
+  covers coach and mentor as well as admin, which the nomination handshake §3 proposes would
+  not have; what is left of that handshake is in the newer parking-lot entry above. Was:
+  **🔴 `age_classification` is a stored fact with no writer and no clock, and it gates admin
   eligibility.** `public.users.age_classification` is `under_13 | 13_to_17 | 18_plus`, asserted
   once at signup, and **there is no birth date anywhere on `users`** — so nothing can recompute
   it. A 17-year-old who turns 18 remains `13_to_17` for ever. Sprint 6 already hit the
@@ -662,7 +696,11 @@ work above; both verified by reading the code, neither fixed):*
   redirect, regression test. The OAuth `redirectTo` at `src/lib/auth.tsx:395` and `:407` has the
   identical non-hash shape and is latent only because no provider is configured — fix all three
   together or the next one to be enabled inherits the bug.
-- **The local stack has never once run the flow every real user takes.** `enable_confirmations
+- **✅ RESOLVED 2026-08-22** (`v2/age-classification-writer`). `enable_confirmations = true`
+  locally, `registration.spec.ts` walks form → Mailpit → link, and the other fifteen specs take a
+  pre-confirmed account through the admin API — the shape drafted below, built as drafted. A new
+  test asserts the gap itself, so the pack now fails if the config drifts back. Was:
+  **The local stack has never once run the flow every real user takes.** `enable_confirmations
   = false` in `supabase/config.toml:209`, while the hosted project has confirmations **on** —
   so 574 unit tests, 91 integration tests, 16 e2e flows and the venue simulation have all been
   green over a signup path that does not resemble production's. Turning it on locally is one
@@ -676,7 +714,11 @@ work above; both verified by reading the code, neither fixed):*
   invisible precisely because everything downstream of it is green.
 
 *From Sprint 8:*
-- **🔴 THE LOCAL STACK'S AUTH CONFIG DIFFERS FROM PRODUCTION, and it has already made one
+- **✅ RESOLVED 2026-08-22** — the config matches production and the smoke pack absorbs the
+  difference the way production does; see the entry above. The audit this asked for found its
+  first answer immediately: the signup attestation, which migration `20260821000000` had already
+  moved server-side for exactly this reason. Was:
+  **🔴 THE LOCAL STACK'S AUTH CONFIG DIFFERS FROM PRODUCTION, and it has already made one
   test pass for the wrong reason.** `supabase/config.toml` sets `enable_confirmations = false`;
   the hosted project reports `mailer_autoconfirm: false`. So on a developer machine `signUp`
   returns a session and every client-side "do this right after signing up" path fires, while in
@@ -760,7 +802,9 @@ work above; both verified by reading the code, neither fixed):*
   and 1i both draw the distinction; if nothing uses it by the end of the season, delete it.
 
 *From Sprint 7:*
-- **A real account's password was committed to a PUBLIC repository and is still in git
+- **ROTATED 2026-08-22 by Kevin.** The credential in git history is now dead; scrubbing history
+  remains optional and remains Kevin's call, and making the repo private would not have fixed it.
+  Was: **A real account's password was committed to a PUBLIC repository and is still in git
   history.** `.agent/rules/coding-rules.md` and two `.agent/skills/*/SKILL.md` files carried
   `jkfussell@gmail.com` and its plaintext password as "test credentials". The repository is
   public (an unauthenticated GitHub API call returns 200), and that account is the one holding

@@ -57,9 +57,13 @@ dangerous.
 
 **Two things still outstanding here**, neither blocking:
 
-1. **The email rate limit** (Authentication -> Rate Limits). It is pinned low and does NOT lift
-   itself when SMTP changes, so onboarding a team of fifteen still fails on the fourth student
-   even with Resend wired up correctly. Check it before beta.
+1. ~~**The email rate limit**~~ **DONE 2026-08-22 — raised to 100/hour by Kevin.** It had been
+   pinned low and does NOT lift itself when SMTP changes, so onboarding a team of fifteen would
+   have failed on the fourth student with Resend wired up perfectly. **The ceiling that now
+   binds is Resend's, not Supabase's**: the free tier is 100 messages a DAY and 3,000 a month,
+   so 100/hour is right for one team onboarding in one room and the number to remember when
+   several teams onboard on the same evening. Nothing warns about either limit; the symptom is
+   a confirmation that never arrives.
 2. **Two SPF records on `send.falcon-forge.com`** -- GoDaddy's SPF manager regenerates its own
    `_spfm` version alongside the correct one, and refuses to let the extra be deleted
    ("Your attempt to delete DNS records has failed"). Not currently harmful: SPF is evaluated

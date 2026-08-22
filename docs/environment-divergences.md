@@ -12,12 +12,16 @@ precisely because everything downstream of it is green.**
 
 ---
 
-## 1. Signup: local has no email confirmation, production does
+## 1. Signup: local had no email confirmation, production does — **CLOSED 2026-08-22**
 
 | | Local | Hosted |
 |---|---|---|
-| Setting | `enable_confirmations = false` (`supabase/config.toml:209`) | `mailer_autoconfirm: false` |
-| `signUp` returns | a **session** | **no session** |
+| Setting | `enable_confirmations = true` (was `false` until 2026-08-22) | `mailer_autoconfirm: false` |
+| `signUp` returns | **no session** | **no session** |
+
+Both now report `mailer_autoconfirm: false`, read off `/auth/v1/settings` on each. The history
+below stays because the RULE it produced is the valuable part, and because the divergence is one
+config line away from returning — which is why there is now a test that fails if it does.
 
 So on a developer machine every "do this right after signing up" path fires, and in production
 none of them do until the user follows an email link.
@@ -33,10 +37,21 @@ Found by Kevin testing with a second person; confirmed by reading `/auth/v1/sett
 **Rule.** Anything that must survive account creation runs **server-side** (a trigger reading
 signup metadata) or after the first real sign-in. Never rely on client code running at signup.
 
-**Still open.** 592 unit tests, 91 integration tests and 19 e2e flows all run against the local
-configuration. Closing this means creating pre-confirmed users through the admin API for the
-specs where email is incidental, and letting `registration.spec.ts` alone walk the real UI
-signup and pull the link out of Mailpit (already running locally, port 54324).
+**How it was closed** (`v2/age-classification-writer`, 2026-08-22), as drafted:
+`registration.spec.ts` walks the whole round trip — form, message out of Mailpit (port 54324),
+link — and the other fifteen specs create a pre-confirmed account through the admin API
+(`createConfirmedAccount` in `e2e/helpers.ts`). The pack still runs in 37s.
+
+**What holds it closed.** A test that asserts the gap itself: submitting the sign-up form leaves
+NO stored session, and the emailed link is what creates one. Its first version asserted the
+router's destination instead and **passed against auto-confirm** — a signed-in account with no
+team also lands on `#/`. It reads `localStorage` for `sb-*-auth-token` now, and was watched
+failing with `enable_confirmations` flipped back.
+
+**One more thing the closing found**, which is this document's own thesis: the admin-API helper
+first omitted `privacy_version` from the signup metadata, and eleven specs timed out behind the
+"We've updated our legal documents" modal — the exact symptom migration
+`20260821000000_signup_attestation_version.sql` was written for, reached from a third direction.
 
 ## 2. `.env.local` points at **production**
 
