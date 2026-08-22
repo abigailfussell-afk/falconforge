@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createTeam, goToView, guardLocalBackend, signUp, unique, uniqueEmail } from './helpers';
+import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail } from './helpers';
 
 /**
  * The three things a team does between competitions: scout an opponent, work the checklist,
@@ -10,7 +10,7 @@ import { createTeam, goToView, guardLocalBackend, signUp, unique, uniqueEmail } 
 test.describe('team lifecycle', () => {
     test.beforeEach(async ({ context, page }) => {
         await guardLocalBackend(context);
-        await signUp(page, { fullName: 'Lifecycle Coach', email: uniqueEmail('cycle') });
+        await registerAccount(page, { fullName: 'Lifecycle Coach', email: uniqueEmail('cycle') });
         await createTeam(page, { teamName: unique('Lifecycle Falcons') });
     });
 

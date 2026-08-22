@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createTeam, goToView, guardLocalBackend, signUp, unique, uniqueEmail } from './helpers';
+import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail } from './helpers';
 
 /**
  * The venue flow, and the reason this project exists.
@@ -18,12 +18,24 @@ test.describe('offline and sync', () => {
     });
 
     test('work created offline survives and reaches the server on reconnect', async ({ page, context }) => {
-        await signUp(page, { fullName: 'Venue Coach', email: uniqueEmail('venue') });
+        await registerAccount(page, { fullName: 'Venue Coach', email: uniqueEmail('venue') });
         await createTeam(page, { teamName: unique('Venue Falcons') });
 
         await goToView(page, 'kanban', 'board');
 
         const offlineTitle = unique('Repair the intake');
+
+        /*
+         * Be genuinely loaded before pulling the plug.
+         *
+         * The board's New button is disabled with "Select a season first" until the season pull
+         * lands, and `goToView` waits for the VIEW rather than for that. Under four workers this
+         * test began losing the race — a fresh team is seconds old and the pull is still in
+         * flight — and failed on a disabled button, which reads exactly like an offline defect
+         * and is not one. The scenario under test is "work created offline survives", not "the
+         * app is switched off mid-boot"; that second one is real, and it is in the parking lot.
+         */
+        await expect(page.getByTestId('season-selector')).not.toHaveValue('', { timeout: 30_000 });
 
         await context.setOffline(true);
 
@@ -63,7 +75,7 @@ test.describe('offline and sync', () => {
     });
 
     test('the app keeps working while offline rather than blocking on the network', async ({ page, context }) => {
-        await signUp(page, { fullName: 'Venue Coach', email: uniqueEmail('venue') });
+        await registerAccount(page, { fullName: 'Venue Coach', email: uniqueEmail('venue') });
         await createTeam(page, { teamName: unique('Venue Falcons') });
 
         await context.setOffline(true);
