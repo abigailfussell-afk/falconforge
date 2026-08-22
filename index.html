@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#ea580c" />
+  <meta name="description"
+    content="FalconForge - Sprint planning, scouting, and match planning for FIRST Tech Challenge teams" />
+  <meta property="og:image" content="/icon-512.png" />
+  <meta name="apple-mobile-web-app-title" content="FalconForge" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>FalconForge</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/falcon_logo.png" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+
+  <!--
+    No font <link> here on purpose. Inter is self-hosted and bundled (src/styles/fonts.css),
+    so it is precached with the rest of the app and renders on a cold offline start. This is
+    where a render-blocking `fonts.googleapis.com` stylesheet and two preconnects used to
+    sit — the same cross-origin-dependency defect Sprint 1 removed the Tailwind CDN for, and
+    doubly wasted because `font-sans` overrode the result so the downloaded font never
+    rendered.
+  -->
+  <script type="module" crossorigin src="/assets/index-BGja54N_.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-Beo-7sFn.js">
+  <link rel="modulepreload" crossorigin href="/assets/supabase-CRHRt2Ih.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-BPnBHXxO.css">
+<link rel="manifest" href="/manifest.webmanifest"></head>
+
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+  <div id="root"></div>
+</body>
+
+</html>
