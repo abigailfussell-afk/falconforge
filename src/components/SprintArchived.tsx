@@ -14,6 +14,17 @@ interface SprintArchivedProps {
      * prior season the database refuses to un-archive them.
      */
     canEdit?: boolean;
+    /**
+     * Why editing is refused, for the `title` of every control this component disables.
+     *
+     * REQUIRED, WITH NO DEFAULT, and that is the point. It used to be a hard-coded "This
+     * season is archived and read-only" inside each control, which was simply false for the
+     * two other ways `canEdit` goes false — a lapsed licence (WALK-B-12) and no season
+     * selected. A default here would let the next caller forget and get the same wrong
+     * sentence back; a required prop makes the compiler ask. Comes from
+     * `useAccessState().editRefusalReason`, and is undefined exactly when `canEdit` is true.
+     */
+    refusalReason: string | undefined;
 }
 
 const SprintArchived: React.FC<SprintArchivedProps> = ({
@@ -23,6 +34,7 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
     getMemberName,
     restoreTask,
     canEdit = true,
+    refusalReason,
 }) => {
     const archivedTasks = tasks
         .filter(t => t.status === TaskStatus.Archived)
@@ -74,7 +86,7 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
                                 type="button"
                                 onClick={() => restoreTask(task.id)}
                                 disabled={!canEdit}
-                                title={canEdit ? 'Restore this task' : 'This season is archived and read-only'}
+                                title={canEdit ? 'Restore this task' : refusalReason}
                                 data-testid="restore-task"
                                 className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-forge-600 dark:text-forge-400 border border-forge-300 dark:border-forge-700 rounded-lg hover:bg-forge-50 dark:hover:bg-forge-900/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >

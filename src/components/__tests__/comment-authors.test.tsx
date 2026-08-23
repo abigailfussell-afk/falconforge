@@ -119,6 +119,7 @@ describe('a comment written by one person and read by another (FEAT-01)', () => 
                 teamMembers={ROSTER}
                 onAddComment={vi.fn()}
                 onDeleteComment={vi.fn()}
+                refusalReason={undefined}
             />,
         );
 
@@ -150,6 +151,7 @@ describe('a comment written by one person and read by another (FEAT-01)', () => 
                 teamMembers={ROSTER}
                 onAddComment={vi.fn()}
                 onDeleteComment={vi.fn()}
+                refusalReason={undefined}
             />,
         );
         expect(within(container).getByText('Ada Lovelace')).toBeDefined();
@@ -171,6 +173,7 @@ describe('a comment written by one person and read by another (FEAT-01)', () => 
                 teamMembers={ROSTER}
                 onAddComment={vi.fn()}
                 onDeleteComment={vi.fn()}
+                refusalReason={undefined}
             />,
         );
 
@@ -202,6 +205,7 @@ describe('a comment written by one person and read by another (FEAT-01)', () => 
                 teamMembers={[child, guardian]}
                 onAddComment={vi.fn()}
                 onDeleteComment={vi.fn()}
+                refusalReason={undefined}
             />,
         );
 
@@ -224,6 +228,7 @@ describe('a comment written by one person and read by another (FEAT-01)', () => 
                 teamMembers={ROSTER}
                 onAddComment={vi.fn()}
                 onDeleteComment={vi.fn()}
+                refusalReason={undefined}
             />,
         );
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Layers, Plus, Trash2, Check } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
-import { useSeasonScope } from '../lib/season-scope';
+import { useAccessState } from '../lib/entitlement';
 import IconButton from './ui/IconButton';
 import SectionHeader from './ui/SectionHeader';
 import EmptyState from './ui/EmptyState';
@@ -22,7 +22,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
     const storeToggleMemberInSubTeam = useAppStore((state) => state.toggleMemberInSubTeam);
     // A prior season's sub-teams and their assignments are history. `season_is_open` gates
     // sub_teams' write policies too, so these are refused server-side either way.
-    const { canEdit } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
 
     const addSubTeam = () => {
         if (newSubTeamName.trim()) {
@@ -49,7 +49,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                      * is where someone tries to type FIRST, before they ever reach the button
                      * whose tooltip would have told them why.
                      */
-                    title={canEdit ? undefined : 'This season is archived and read-only'}
+                    title={canEdit ? undefined : editRefusalReason}
                     className="field flex-1 min-w-0 disabled:opacity-50"
                     onKeyDown={(e) => e.key === 'Enter' && addSubTeam()}
                 />
@@ -57,7 +57,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                     data-testid="add-sub-team"
                     onClick={addSubTeam}
                     disabled={!canEdit}
-                    title={canEdit ? 'Add sub-team' : 'This season is archived and read-only'}
+                    title={canEdit ? 'Add sub-team' : editRefusalReason}
                     className="touch-target shrink-0"
                     aria-label="Add sub-team"
                 >
@@ -81,7 +81,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                     <button
                                         onClick={() => setEditingSubTeamId(editingSubTeamId === subTeam.id ? null : subTeam.id)}
                                         disabled={!canEdit}
-                                        title={canEdit ? undefined : 'This season is archived and read-only'}
+                                        title={canEdit ? undefined : editRefusalReason}
                                         className={`text-2xs font-medium px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${editingSubTeamId === subTeam.id ? 'bg-forge-100 text-forge-700' : 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}
                                     >
                                         {editingSubTeamId === subTeam.id ? 'Done' : 'Manage Members'}
@@ -90,7 +90,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                         danger
                                         onClick={() => storeRemoveSubTeam(subTeam.id)}
                                         disabled={!canEdit}
-                                        title={canEdit ? 'Delete sub-team' : 'This season is archived and read-only'}
+                                        title={canEdit ? 'Delete sub-team' : editRefusalReason}
                                         className="touch-target"
                                         aria-label={`Delete ${subTeam.name}`}
                                     >
@@ -117,7 +117,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                                         type="button"
                                                         onClick={() => storeToggleMemberInSubTeam(subTeam.id, m.id)}
                                                         disabled={!canEdit}
-                                                        title={canEdit ? undefined : 'This season is archived and read-only'}
+                                                        title={canEdit ? undefined : editRefusalReason}
                                                         aria-pressed={assigned}
                                                         className={`px-2 py-1.5 rounded border flex items-center justify-between gap-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${assigned ? 'border-forge-500 bg-forge-50 dark:bg-forge-900/20 text-forge-700 dark:text-forge-300' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400'}`}
                                                     >

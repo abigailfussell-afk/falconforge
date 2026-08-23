@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarChart3, CalendarDays, KeyRound, List, Plus } from 'lucide-react';
 import { useAppShell } from '../AppShell';
-import { useSeasonScope } from '../../lib/season-scope';
+import { useAccessState } from '../../lib/entitlement';
 import type { Meeting } from '../../types';
 import EventManager from './EventManager';
 import EventFormModal from './EventFormModal';
@@ -25,7 +25,7 @@ import Button from '../ui/Button';
 export default function MeetingsPage() {
     const navigate = useNavigate();
     const { canManageMeetings } = useAppShell();
-    const { canEdit, isArchived } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
     const [view, setView] = useState<'list' | 'calendar'>('list');
     const [editing, setEditing] = useState<Meeting | null>(null);
     const [creating, setCreating] = useState(false);
@@ -72,13 +72,7 @@ export default function MeetingsPage() {
                             <Button
                                 onClick={() => setCreating(true)}
                                 disabled={!canEdit}
-                                title={
-                                    isArchived
-                                        ? 'This season is archived and read-only'
-                                        : !canEdit
-                                          ? 'Select a season first'
-                                          : undefined
-                                }
+                                title={canEdit ? undefined : editRefusalReason}
                                 data-testid="new-event"
                             >
                                 <Plus size={15} />

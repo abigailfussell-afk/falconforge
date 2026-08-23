@@ -13,6 +13,7 @@
  * final case here is the control that would catch a fix which simply hid everything.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { EDIT_REFUSAL_TEXT } from '../../lib/entitlement';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import SprintTaskDetail from '../SprintTaskDetail';
 import SprintTaskActivity from '../SprintTaskActivity';
@@ -60,10 +61,18 @@ const renderModal = (canEdit: boolean) =>
             onAddComment={vi.fn()}
             onDeleteComment={vi.fn()}
             canEdit={canEdit}
+            refusalReason={canEdit ? undefined : READ_ONLY}
         />,
     );
 
-const READ_ONLY = 'This season is archived and read-only';
+/*
+ * Sprint 16 moved this sentence out of the components and into `EDIT_REFUSAL_TEXT`, because
+ * a lapsed licence and a missing season used to get it too and it was false for both. These
+ * tests render the components directly, so they supply the reason the way the app now does —
+ * from the map — rather than restating the literal and going green while the app says
+ * something else.
+ */
+const READ_ONLY = EDIT_REFUSAL_TEXT['archived-season'];
 
 describe('the task modal on an archived season (FEAT-02)', () => {
     it('disables Save, Delete and Archive, and says why', () => {
@@ -124,6 +133,7 @@ describe('the comment box on an archived season (FEAT-02)', () => {
                 onAddComment={onAddComment}
                 onDeleteComment={vi.fn()}
                 canEdit={canEdit}
+                refusalReason={canEdit ? undefined : READ_ONLY}
             />,
         );
         return { ...result, onAddComment };
@@ -176,6 +186,7 @@ describe('Restore on an archived season (FEAT-02)', () => {
                 getMemberName={() => 'Ada Lovelace'}
                 restoreTask={restoreTask}
                 canEdit={canEdit}
+                refusalReason={canEdit ? undefined : READ_ONLY}
             />,
         );
         return restoreTask;
@@ -199,6 +210,7 @@ describe('Restore on an archived season (FEAT-02)', () => {
                 getMemberName={() => 'Ada Lovelace'}
                 restoreTask={vi.fn()}
                 canEdit={false}
+                refusalReason={READ_ONLY}
             />,
         );
 

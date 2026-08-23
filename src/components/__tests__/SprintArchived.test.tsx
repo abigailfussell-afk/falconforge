@@ -43,6 +43,7 @@ const renderArchived = (tasks: Task[]) => {
             restoreTask={restoreTask}
             getSubTeamName={() => 'Build'}
             getMemberName={() => 'Alex'}
+            refusalReason={undefined}
         />
     );
     return { openTask, restoreTask };

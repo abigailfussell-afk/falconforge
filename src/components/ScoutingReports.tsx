@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore, ScoutingReport } from '../lib/store';
-import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
+import { useSeasonScoped } from '../lib/season-scope';
+import { useAccessState } from '../lib/entitlement';
 import { useScoutingQuery } from '../lib/queries';
 import { NOTES_MAX_LENGTH, TEAM_NUMBER_MAX_DIGITS, scoutingReportErrors } from '../lib/scouting-validation';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
@@ -21,7 +22,7 @@ const ScoutingReports: React.FC = () => {
     // this list disagreed for the same reason. Missed because the filter was duplicated per
     // component, which is precisely what `useSeasonScoped` now prevents.
     const scoutingReports = useSeasonScoped(allScoutingReports);
-    const { canEdit } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
 
     // Background refresh — fetches latest scouting data when this page is visited
     useScoutingQuery(currentTeamId);
@@ -182,7 +183,7 @@ const ScoutingReports: React.FC = () => {
                     data-testid="scout-match"
                     onClick={() => setIsScoutModalOpen(true)}
                     disabled={!canEdit}
-                    title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
+                    title={canEdit ? 'Scout a match' : editRefusalReason}
                     className="px-2 md:px-4"
                 >
                     <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
@@ -270,7 +271,7 @@ const ScoutingReports: React.FC = () => {
                                 onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(report.id); }}
                                 disabled={!canEdit}
                                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                title={canEdit ? 'Delete report' : 'This season is archived and read-only'}
+                                title={canEdit ? 'Delete report' : editRefusalReason}
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -293,7 +294,7 @@ const ScoutingReports: React.FC = () => {
                                     size="sm"
                                     onClick={() => setIsScoutModalOpen(true)}
                                     disabled={!canEdit}
-                                    title={canEdit ? 'Scout a match' : 'This season is archived and read-only'}
+                                    title={canEdit ? 'Scout a match' : editRefusalReason}
                                 >
                                     <Plus size={16} /> Scout Match
                                 </Button>
@@ -523,7 +524,7 @@ const ScoutingReports: React.FC = () => {
                             disabled={!canEdit || !canSave}
                             title={
                                 !canEdit
-                                    ? 'This season is archived and read-only'
+                                    ? editRefusalReason
                                     : !hasTeamNumber
                                         ? 'Enter a team number first'
                                         // The field's own message, repeated on the button: on a

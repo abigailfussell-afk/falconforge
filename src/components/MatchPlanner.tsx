@@ -3,7 +3,8 @@ import * as d3 from 'd3';
 import { FIELD_IMAGE_URL } from '../constants';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
-import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
+import { useSeasonScoped } from '../lib/season-scope';
+import { useAccessState } from '../lib/entitlement';
 import { useMatchPlansQuery } from '../lib/queries';
 import { ensureSeasonFieldImage } from '../lib/server-pull';
 import Button from './ui/Button';
@@ -35,7 +36,7 @@ const MatchPlanner: React.FC = () => {
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
   // Simple history stack for undo/redo
   const { matchPlans: allMatchPlans, addMatchPlan, updateMatchPlan, deleteMatchPlan, getCurrentSeason, currentTeamId } = useAppStore();
-  const { canEdit } = useSeasonScope();
+  const { canEdit, editRefusalReason } = useAccessState();
 
   // Background refresh — fetches latest match plans when this page is visited
   useMatchPlansQuery(currentTeamId);
@@ -334,7 +335,7 @@ const MatchPlanner: React.FC = () => {
               disabled={!canEdit}
               className="touch-target gap-1.5 px-2.5"
               /* The one explanation a disabled control gives. Do not strip it. */
-              title={canEdit ? 'Save Plan' : 'This season is archived and read-only'}
+              title={canEdit ? 'Save Plan' : editRefusalReason}
             >
               <Save size={16} />
               <span className="hidden sm:inline">Save</span>
@@ -546,7 +547,7 @@ const MatchPlanner: React.FC = () => {
                     danger
                     onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(plan.id); }}
                     disabled={!canEdit}
-                    title={canEdit ? 'Delete plan' : 'This season is archived and read-only'}
+                    title={canEdit ? 'Delete plan' : editRefusalReason}
                     data-testid="delete-matchplan-button"
                   >
                     <Trash2 size={16} />

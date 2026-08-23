@@ -169,21 +169,73 @@ export function useEntitlement(): EntitlementState {
  */
 export type AccessRefusal = 'archived-season' | 'lapsed-licence' | null;
 
+/**
+ * Why a content control is disabled — the three answers, and their words.
+ *
+ * ONE MAP, BECAUSE THERE WERE TWENTY-ONE COPIES. The literal string "This season is archived
+ * and read-only" was written out by hand in six components and every one of them used it for
+ * all three refusals, because until Sprint 16 the archived season was the only one a control
+ * could see. So a lapsed team read "This season is archived" on a season that was not
+ * archived, and a user with no season selected at all read it too. Wrong words are worse than
+ * no words: they send someone to the season picker to fix a licence.
+ *
+ * This is also the shape `docs/failure-modes.md` §8 asks for — a control that cannot act is
+ * `disabled` with a `title` saying why — and the reason that rule kept half-working is that
+ * the "why" was hard-coded next to a boolean that did not know it.
+ */
+export type EditRefusal = 'no-season' | 'archived-season' | 'lapsed-licence';
+
+export const EDIT_REFUSAL_TEXT: Record<EditRefusal, string> = {
+    'no-season': 'No season is selected yet',
+    'archived-season': 'This season is archived and read-only',
+    'lapsed-licence': 'Your team’s licence has lapsed — read only',
+};
+
 export interface AccessState extends EntitlementState {
     /** The season is archived (from `useSeasonScope`, unmerged and unchanged). */
     isArchivedSeason: boolean;
     /**
-     * Which single refusal to show. Null when writes are permitted as far as this device
+     * Which single BANNER to show. Null when writes are permitted as far as this device
      * knows — which, failing open, includes "we have not been able to ask".
+     *
+     * Distinct from {@link editRefusal} and deliberately so: "no season selected" gets no
+     * banner (the shell already shows a season picker, and a banner saying "pick a season"
+     * above a season picker is noise), but it certainly disables New/Edit/Save.
      */
     refusal: AccessRefusal;
     /** Both refusals apply at once. The console says so even though one banner shows. */
     isBothRefusals: boolean;
+    /**
+     * Safe to create, edit or delete team content right now.
+     *
+     * THE ONLY `canEdit` IN THE APP. `useSeasonScope` used to carry one that knew about the
+     * season and not the licence, which is how WALK-B-12 happened: a lapsed team was offered
+     * every New/Edit/Save control on every content screen, and each write queued, was refused
+     * by `team_can_write` with a 42501, and landed in the dead-letter store. The server side
+     * of that was already right — `sync-failure-classification.ts` has classified it as
+     * terminal with a renew-and-retry reason since Sprint 6 — so the whole defect was the
+     * client offering the write in the first place.
+     *
+     * FAILS OPEN, inherited from `isReadOnly`: a device that has never read the entitlement
+     * view can still edit. The database is the refusal; this is the explanation.
+     */
+    canEdit: boolean;
+    /** Which refusal is blocking edits, or null when they are permitted. */
+    editRefusal: EditRefusal | null;
+    /**
+     * `EDIT_REFUSAL_TEXT[editRefusal]`, or undefined when editing is permitted — ready to
+     * drop straight into a disabled control's `title`.
+     *
+     * `undefined` and not `null` because `title` is `string | undefined` on every DOM element
+     * and every wrapper in `ui/`, and a value that needs `?? undefined` at each of its
+     * twenty-one call sites is a value that will be spelled differently at some of them.
+     */
+    editRefusalReason: string | undefined;
 }
 
 export function useAccessState(): AccessState {
     const entitlementState = useEntitlement();
-    const { isArchived } = useSeasonScope();
+    const { isArchived, currentSeasonId } = useSeasonScope();
 
     return useMemo(() => {
         const isBothRefusals = isArchived && entitlementState.isReadOnly;
@@ -193,6 +245,27 @@ export function useAccessState(): AccessState {
                 ? 'lapsed-licence'
                 : null;
 
-        return { ...entitlementState, isArchivedSeason: isArchived, refusal, isBothRefusals };
-    }, [entitlementState, isArchived]);
+        /*
+         * SAME PRECEDENCE AS THE BANNER, for the same reason, plus "no season" first because
+         * it is the one the user can fix without leaving the screen. The ordering rule stated
+         * on `AccessRefusal` above holds here: show the refusal the user can act on alone.
+         */
+        const editRefusal: EditRefusal | null = !currentSeasonId
+            ? 'no-season'
+            : isArchived
+                ? 'archived-season'
+                : entitlementState.isReadOnly
+                    ? 'lapsed-licence'
+                    : null;
+
+        return {
+            ...entitlementState,
+            isArchivedSeason: isArchived,
+            refusal,
+            isBothRefusals,
+            canEdit: editRefusal === null,
+            editRefusal,
+            editRefusalReason: editRefusal ? EDIT_REFUSAL_TEXT[editRefusal] : undefined,
+        };
+    }, [entitlementState, isArchived, currentSeasonId]);
 }

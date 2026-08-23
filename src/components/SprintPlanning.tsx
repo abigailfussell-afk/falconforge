@@ -4,6 +4,7 @@ import { Plus, Calendar as CalendarIcon, List, Layout, Archive } from 'lucide-re
 import { useAppStore } from '../lib/store';
 import { useAuth } from '../lib/auth';
 import { useSeasonScope } from '../lib/season-scope';
+import { useAccessState } from '../lib/entitlement';
 import { useTasksQuery } from '../lib/queries';
 import { getMemberDisplayName, getMemberInitials } from '../lib/member-utils';
 import SprintBoard from './SprintBoard';
@@ -51,7 +52,8 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
     // The draft task below is a real `Task` before it is saved, and `Task.seasonId` is
     // required now that `tasks.season_id` is NOT NULL. `canEdit` additionally covers an
     // ARCHIVED season, whose writes the database refuses outright (Sprint 4).
-    const { currentSeasonId, canEdit } = useSeasonScope();
+    const { currentSeasonId } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
 
     // Background refresh — fetches latest tasks when this page is visited
     useTasksQuery(currentTeamId);
@@ -233,13 +235,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                 <Button
                     onClick={createNewTask}
                     disabled={!canEdit}
-                    title={
-                        canEdit
-                            ? 'New item'
-                            : currentSeasonId
-                                ? 'This season is archived and read-only'
-                                : 'Select a season first'
-                    }
+                    title={canEdit ? 'New item' : editRefusalReason}
                     // `!px-2 md:!px-4`: keeps the icon-only mobile width; without the important
                     // modifier the md size recipe's px-4 would win the cascade at every width.
                     className="!px-2 md:!px-4"
@@ -282,6 +278,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                         getMemberName={getMemberName}
                         restoreTask={restoreTask}
                         canEdit={canEdit}
+                        refusalReason={editRefusalReason}
                     />
                 )}
             </div>
@@ -300,6 +297,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                     onAddComment={addComment}
                     onDeleteComment={deleteComment}
                     canEdit={canEdit}
+                    refusalReason={editRefusalReason}
                 />
             )}
 

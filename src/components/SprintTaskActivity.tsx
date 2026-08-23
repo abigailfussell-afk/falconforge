@@ -29,6 +29,17 @@ interface SprintTaskActivityProps {
      * (`docs/failure-modes.md` §8).
      */
     canEdit?: boolean;
+    /**
+     * Why editing is refused, for the `title` of every control this component disables.
+     *
+     * REQUIRED, WITH NO DEFAULT, and that is the point. It used to be a hard-coded "This
+     * season is archived and read-only" inside each control, which was simply false for the
+     * two other ways `canEdit` goes false — a lapsed licence (WALK-B-12) and no season
+     * selected. A default here would let the next caller forget and get the same wrong
+     * sentence back; a required prop makes the compiler ask. Comes from
+     * `useAccessState().editRefusalReason`, and is undefined exactly when `canEdit` is true.
+     */
+    refusalReason: string | undefined;
 }
 
 const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
@@ -37,6 +48,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
     onAddComment,
     onDeleteComment,
     canEdit = true,
+    refusalReason,
 }) => {
     const [newComment, setNewComment] = useState('');
     const { profile, displayName, initials: userInitials } = useAuth();
@@ -92,10 +104,10 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder={canEdit ? 'Add a comment...' : 'This season is archived'}
+                    placeholder={canEdit ? 'Add a comment...' : (refusalReason ?? 'Read only')}
                     className="field flex-1"
                     disabled={!canEdit}
-                    title={canEdit ? undefined : 'This season is archived and read-only'}
+                    title={canEdit ? undefined : refusalReason}
                     data-testid="comment-input"
                     onKeyDown={(e) => e.key === 'Enter' && submit()}
                 />
@@ -106,7 +118,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                     onClick={submit}
                     disabled={!canEdit || !newComment.trim()}
                     className="!px-2.5"
-                    title={canEdit ? 'Send comment' : 'This season is archived and read-only'}
+                    title={canEdit ? 'Send comment' : refusalReason}
                     data-testid="comment-send"
                 >
                     <Send size={18} />
@@ -139,7 +151,7 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                                             onClick={() => onDeleteComment(event.id)}
                                             disabled={!canEdit}
                                             className="p-1 text-xs gap-1"
-                                            title={canEdit ? 'Delete comment' : 'This season is archived and read-only'}
+                                            title={canEdit ? 'Delete comment' : refusalReason}
                                             data-testid="comment-delete"
                                         >
                                             <Trash2 size={12} /> Delete

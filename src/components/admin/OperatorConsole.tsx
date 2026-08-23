@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Gift,
     ShieldAlert,
@@ -9,8 +9,10 @@ import {
     Ban,
     Users,
     ScrollText,
+    Clock,
 } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
+import { EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
 import { useAuth } from '../../lib/auth';
 import Button from '../ui/Button';
 import SectionHeader from '../ui/SectionHeader';
@@ -77,6 +79,89 @@ const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null;
 
 /**
+ * Which teams the directory is showing (SEC-07).
+ *
+ * The console could find any team by name and could not answer the one question the operator
+ * actually has to ask every week — "who is about to go read-only?". Under D3 that question
+ * stops being weekly housekeeping and becomes the product's main loop: every new team gets
+ * **30 days**, and the operator extending it to season length is the normal path, not an
+ * exception. A directory that cannot sort by expiry makes the normal path a manual scan of
+ * every row.
+ */
+type ExpiryFilter = 'all' | 'expiring' | 'lapsed';
+
+const FILTER_LABEL: Record<ExpiryFilter, string> = {
+    all: 'All teams',
+    expiring: `Expiring in ${EXPIRY_WARNING_DAYS} days or fewer`,
+    lapsed: 'Already read-only',
+};
+
+/**
+ * Whole days from now until `iso`, rounded UP, or null for open-ended.
+ *
+ * Deliberately the same arithmetic as `deriveEntitlementState`, including the rounding
+ * direction, and for the reason recorded there: `Math.floor` reports "0 days" for a licence
+ * with eleven hours left. Sharing the arithmetic matters more than sharing the code here —
+ * this reads a directory row (`valid_until` as a raw ISO string) rather than the store's
+ * entitlement — but a comment is a weak guarantee, so `operator-console-expiry.test.ts`
+ * asserts the two agree on the same instant.
+ */
+export function daysUntil(iso: string | null, now: number): number | null {
+    if (!iso) return null;
+    const ms = new Date(iso).getTime() - now;
+    if (Number.isNaN(ms)) return null;
+    return Math.ceil(ms / 86_400_000);
+}
+
+/**
+ * Sort and filter the directory by how soon each team needs the operator.
+ *
+ * ORDER: lapsed first, then soonest expiry, then open-ended, then name.
+ *
+ * "Sorted by `valid_until`" taken literally would put a team whose cover ended last week
+ * LAST, because a lapsed team has no in-force grant and therefore a NULL `valid_until` — the
+ * `?? 0` mistake from `docs/failure-modes.md` §4 in sorting form, where absence would be read
+ * as a value. A list whose whole purpose is "who needs me" cannot bury the teams that already
+ * do. Open-ended grants sort last for the mirror-image reason: they are the ones that never
+ * need anybody.
+ *
+ * Pure, and takes `now` as an argument, so the boundary cases can be tested at a fixed
+ * instant instead of "whenever the suite happens to run".
+ */
+export function orderDirectory<
+    T extends { entitlement_status: string; valid_until: string | null; team_name: string },
+>(rows: T[], filter: ExpiryFilter, now: number): T[] {
+    const rank = (row: T) => {
+        if (row.entitlement_status !== 'active') return 0;
+        return row.valid_until ? 1 : 2;
+    };
+
+    return rows
+        .filter((row) => {
+            if (filter === 'all') return true;
+            if (filter === 'lapsed') return row.entitlement_status !== 'active';
+            const days = daysUntil(row.valid_until, now);
+            return (
+                row.entitlement_status === 'active' && days !== null && days <= EXPIRY_WARNING_DAYS
+            );
+        })
+        .slice()
+        .sort((a, b) => {
+            const byRank = rank(a) - rank(b);
+            if (byRank !== 0) return byRank;
+            if (rank(a) === 1) {
+                const diff =
+                    new Date(a.valid_until as string).getTime() -
+                    new Date(b.valid_until as string).getTime();
+                if (diff !== 0) return diff;
+            }
+            // Ties broken by name so the list never reorders under the operator's click —
+            // `docs/failure-modes.md` §13, which this project has shipped twice.
+            return a.team_name.localeCompare(b.team_name);
+        });
+}
+
+/**
  * The platform operator's console — finding a team, gifting, revoking, and rescuing.
  *
  * GATED TWICE, AND BOTH GATES ARE DELIBERATE. `is_platform_operator()` decides in the database:
@@ -104,6 +189,16 @@ export default function OperatorConsole() {
     const [search, setSearch] = useState('');
     const [rows, setRows] = useState<DirectoryRow[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>('all');
+    /*
+     * Read ONCE per directory load, not per render. "Expiring in 30 days" recomputed on every
+     * keystroke is a list that can reorder while it is being read, and a clock sampled at
+     * render time is the mount-time-default defect of `docs/failure-modes.md` §10 wearing a
+     * different hat. This is the browser's clock deliberately: the row it is compared against
+     * came from the server, so the comparison is only as good as the device's time — which is
+     * exactly why the DATABASE, not this list, decides whether a team may write.
+     */
+    const [directoryLoadedAt, setDirectoryLoadedAt] = useState(() => Date.now());
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detail, setDetail] = useState<TeamDetail | null>(null);
@@ -142,6 +237,7 @@ export default function OperatorConsole() {
                 });
                 if (rpcError) throw rpcError;
                 setRows((data as DirectoryRow[]) ?? []);
+                setDirectoryLoadedAt(Date.now());
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Could not load the team directory');
             } finally {
@@ -293,6 +389,11 @@ export default function OperatorConsole() {
         }
     };
 
+    const visibleRows = useMemo(
+        () => orderDirectory(rows, expiryFilter, directoryLoadedAt),
+        [rows, expiryFilter, directoryLoadedAt],
+    );
+
     if (!isSupabaseConfigured()) return null;
 
     if (isOperator === null) {
@@ -379,16 +480,77 @@ export default function OperatorConsole() {
                     </Button>
                 </form>
 
-                {rows.length === 0 ? (
+                {/*
+                  * WHO IS ABOUT TO GO READ-ONLY — the question this console could not answer.
+                  *
+                  * A <select> and not a row of chips, because there are three states and the
+                  * screen is already dense; and it is labelled rather than placeholder-only,
+                  * because WALK-A-09 found unnamed selects on exactly this page.
+                  */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <label
+                        htmlFor="operator-expiry-filter"
+                        className="text-2xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                    >
+                        Licence
+                    </label>
+                    <select
+                        id="operator-expiry-filter"
+                        value={expiryFilter}
+                        onChange={(e) => setExpiryFilter(e.target.value as ExpiryFilter)}
+                        className="field w-auto py-1 text-xs"
+                        data-testid="operator-expiry-filter"
+                    >
+                        {(Object.keys(FILTER_LABEL) as ExpiryFilter[]).map((key) => (
+                            <option key={key} value={key}>
+                                {FILTER_LABEL[key]}
+                            </option>
+                        ))}
+                    </select>
+                    <span
+                        className="text-2xs text-slate-500 dark:text-slate-400"
+                        data-testid="operator-directory-count"
+                    >
+                        {/*
+                          * Says what was hidden, not just what is shown. A filtered list that
+                          * reports only its own length is how "we covered everything" gets
+                          * believed about a subset.
+                          */}
+                        {visibleRows.length} of {rows.length} team
+                        {rows.length === 1 ? '' : 's'}
+                        {expiryFilter === 'all' ? '' : ' — soonest first'}
+                    </span>
+                </div>
+
+                {visibleRows.length === 0 ? (
                     <div className="mt-3">
+                        {/*
+                          * THREE EMPTY STATES, NOT ONE. `docs/failure-modes.md` §4: "no teams
+                          * exist", "your search matched nothing" and "nothing is expiring" are
+                          * three different facts, and the third is GOOD NEWS. One shared
+                          * "No teams matched" would have told an operator whose licences are
+                          * all healthy that their search was broken.
+                          */}
                         <EmptyState
-                            title={isSearching ? 'Searching…' : 'No teams matched.'}
-                            body="Search by team name, FTC number, or the primary admin's email address. An empty search lists every team."
+                            title={
+                                isSearching
+                                    ? 'Searching…'
+                                    : rows.length > 0
+                                      ? expiryFilter === 'expiring'
+                                          ? `Nothing expires in the next ${EXPIRY_WARNING_DAYS} days.`
+                                          : 'No team is read-only.'
+                                      : 'No teams matched.'
+                            }
+                            body={
+                                rows.length > 0
+                                    ? `All ${rows.length} team${rows.length === 1 ? '' : 's'} in this search are covered. Switch back to “${FILTER_LABEL.all}” to see them.`
+                                    : "Search by team name, FTC number, or the primary admin's email address. An empty search lists every team."
+                            }
                         />
                     </div>
                 ) : (
                     <ul className="mt-3 space-y-2" data-testid="operator-directory">
-                        {rows.map((row) => (
+                        {visibleRows.map((row) => (
                             <li key={row.team_id}>
                                 <button
                                     type="button"
@@ -452,6 +614,30 @@ export default function OperatorConsole() {
                                                 ? ` · until ${fmtDate(row.valid_until)}`
                                                 : ' · open-ended')}
                                     </div>
+                                    {/*
+                                      * THE COUNTDOWN, on the row, in words.
+                                      *
+                                      * "until Dec 5" is a date an operator has to subtract from
+                                      * today in their head, once per row, and D3 makes that a
+                                      * weekly job. The number is what the decision is made on,
+                                      * so the number is what is rendered.
+                                      */}
+                                    {(() => {
+                                        if (row.entitlement_status !== 'active') return null;
+                                        const days = daysUntil(row.valid_until, directoryLoadedAt);
+                                        if (days === null || days > EXPIRY_WARNING_DAYS) return null;
+                                        return (
+                                            <div
+                                                data-testid="operator-expiry-flag"
+                                                className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-2xs font-semibold text-amber-700 dark:text-amber-400"
+                                            >
+                                                <Clock size={11} />
+                                                {days <= 0
+                                                    ? 'Cover ends today'
+                                                    : `${days} day${days === 1 ? '' : 's'} left`}
+                                            </div>
+                                        );
+                                    })()}
                                 </button>
                             </li>
                         ))}

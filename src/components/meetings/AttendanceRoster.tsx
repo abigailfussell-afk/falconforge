@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, LayoutGrid, List, Plus, X } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
 import { useAppShell } from '../AppShell';
-import { useSeasonScope } from '../../lib/season-scope';
+import { useAccessState } from '../../lib/entitlement';
 import {
     ATTENDANCE_STATES,
     METHOD_LABELS,
@@ -38,7 +38,7 @@ export default function AttendanceRoster() {
     const navigate = useNavigate();
     const { status: lookup, meeting } = useMeeting(meetingId);
     const { canManageMeetings } = useAppShell();
-    const { isArchived } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
     const setAttendance = useAppStore((s) => s.setAttendance);
     const clearAttendance = useAppStore((s) => s.clearAttendance);
     const { rows, tally } = useRoster(meetingId);
@@ -106,7 +106,14 @@ export default function AttendanceRoster() {
         );
     }
 
-    const readOnly = isArchived;
+    /*
+     * WAS `isArchived` ALONE, and that made this the one attendance screen a lapsed team could
+     * still tap through (WALK-B-12's class, on a page the walkthrough never reached). Meeting
+     * and attendance writes are gated by `team_can_write` exactly like task and scouting
+     * writes, so every tap here queued, was refused 42501, and dead-lettered — on the screen a
+     * coach uses standing up, at a venue, with fifteen students in front of them.
+     */
+    const readOnly = !canEdit;
     const recorded = tally.present + tally.excused + tally.absent;
     const lastScan = rows
         .map((r) => r.record?.attestedAt ?? 0)
@@ -180,7 +187,7 @@ export default function AttendanceRoster() {
                         disabled={readOnly || tally.unrecorded === 0}
                         title={
                             readOnly
-                                ? 'This season is archived and read-only'
+                                ? editRefusalReason
                                 : tally.unrecorded === 0
                                   ? 'Everyone already has a status'
                                   : `Mark the ${tally.unrecorded} unrecorded members absent`
@@ -219,7 +226,7 @@ export default function AttendanceRoster() {
                     Excused {tally.excused}
                 </FilterPill>
                 <span className="ml-auto text-xs text-slate-400">
-                    {readOnly ? 'Archived season — read only' : 'Changes save as you make them'}
+                    {readOnly ? editRefusalReason : 'Changes save as you make them'}
                 </span>
             </div>
 

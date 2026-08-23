@@ -49,6 +49,17 @@ interface SprintTaskDetailProps {
      * with nothing on screen to say why.
      */
     canEdit?: boolean;
+    /**
+     * Why editing is refused, for the `title` of every control this component disables.
+     *
+     * REQUIRED, WITH NO DEFAULT, and that is the point. It used to be a hard-coded "This
+     * season is archived and read-only" inside each control, which was simply false for the
+     * two other ways `canEdit` goes false — a lapsed licence (WALK-B-12) and no season
+     * selected. A default here would let the next caller forget and get the same wrong
+     * sentence back; a required prop makes the compiler ask. Comes from
+     * `useAccessState().editRefusalReason`, and is undefined exactly when `canEdit` is true.
+     */
+    refusalReason: string | undefined;
 }
 
 const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
@@ -64,9 +75,10 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
     onAddComment,
     onDeleteComment,
     canEdit = true,
+    refusalReason,
 }) => {
     /** The one place the archived reason is spelled, so the controls cannot disagree. */
-    const readOnlyReason = canEdit ? undefined : 'This season is archived and read-only';
+    const readOnlyReason = canEdit ? undefined : refusalReason;
     const newChecklistRef = useRef<HTMLInputElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -243,6 +255,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         onAddComment={onAddComment}
                         onDeleteComment={onDeleteComment}
                         canEdit={canEdit}
+                        refusalReason={refusalReason}
                     />
                 </fieldset>
 

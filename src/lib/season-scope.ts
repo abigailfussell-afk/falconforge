@@ -28,10 +28,19 @@ export interface SeasonScope {
      */
     isArchived: boolean;
     /**
-     * Safe to create, edit or delete records in this season. False with no season selected,
-     * which is the condition "New Item" has been disabled on since Sprint 3.
+     * THIS SEASON accepts writes — a season selected, and not archived.
+     *
+     * NOT the question a component wants, and it is named at length so that it cannot be
+     * mistaken for it. It used to be called `canEdit`, and every content screen in the app
+     * disabled its New/Edit/Save controls on it, which meant a team whose LICENCE had lapsed
+     * was offered every one of those controls and each write dead-lettered (WALK-B-12).
+     * `useAccessState().canEdit` is the composed answer; this is one of its two inputs.
+     *
+     * There is deliberately no second boolean called `canEdit` anywhere: a component reaching
+     * for that name gets the entitlement-aware one, because two booleans with one name that
+     * disagree on a team's worst day is `docs/failure-modes.md` §1 waiting to happen.
      */
-    canEdit: boolean;
+    seasonAcceptsWrites: boolean;
 }
 
 /**
@@ -42,6 +51,13 @@ export interface SeasonScope {
  * collapsing them into one boolean produces a UI that cannot tell the user which one they
  * are looking at. The season wizard reads entitlement directly for the one action that is
  * gated on it.
+ *
+ * That separation still holds and is why this file has no import of `entitlement.ts` — which
+ * would also be a cycle, since `entitlement.ts` imports this one. What Sprint 16 changed is
+ * where the two are JOINED: `useAccessState` composes them into a single `canEdit` plus the
+ * reason for the refusal, and every content screen reads that instead. The mistake was never
+ * that these two files were separate; it was that the join had no consumers, so the season
+ * half was answering a question it could only ever half-answer.
  */
 export function useSeasonScope(): SeasonScope {
     const currentSeasonId = useAppStore((s) => s.currentSeasonId);
@@ -54,7 +70,7 @@ export function useSeasonScope(): SeasonScope {
             season,
             currentSeasonId,
             isArchived,
-            canEdit: !!currentSeasonId && !isArchived,
+            seasonAcceptsWrites: !!currentSeasonId && !isArchived,
         };
     }, [seasons, currentSeasonId]);
 }

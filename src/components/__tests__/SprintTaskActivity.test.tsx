@@ -57,6 +57,7 @@ const renderFeed = (props: Partial<React.ComponentProps<typeof SprintTaskActivit
             teamMembers={[member()]}
             onAddComment={vi.fn()}
             onDeleteComment={vi.fn()}
+            refusalReason={undefined}
             {...props}
         />,
     );

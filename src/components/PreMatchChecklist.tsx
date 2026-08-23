@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, RotateCcw, Edit, Trash2, ChevronUp, ChevronDown, BookmarkPlus } from 'lucide-react';
 import { useAppStore, selectChecklist } from '../lib/store';
-import { useSeasonScope } from '../lib/season-scope';
+import { useAccessState } from '../lib/entitlement';
 import { getMemberDisplayName } from '../lib/member-utils';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
@@ -14,7 +14,7 @@ const PreMatchChecklist: React.FC = () => {
 
     // An archived season's checklist is history: every write below is refused by
     // `season_is_open` server-side, so none of them are offered.
-    const { canEdit } = useSeasonScope();
+    const { canEdit, editRefusalReason } = useAccessState();
     const saveChecklistAsTemplate = useAppStore((state) => state.saveChecklistAsTemplate);
 
     // Get checklist and actions from the store (sync-enabled)
@@ -110,7 +110,7 @@ const PreMatchChecklist: React.FC = () => {
                             onClick={() => setIsEditingChecklist(!isEditingChecklist)}
                             disabled={!canEdit}
                             className={`p-2 rounded-full transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed ${isEditingChecklist ? 'bg-forge-100 text-forge-600' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'}`}
-                            title={canEdit ? 'Edit Checklist' : 'This season is archived and read-only'}
+                            title={canEdit ? 'Edit Checklist' : editRefusalReason}
                         >
                             <Edit size={20} />
                         </button>
@@ -119,7 +119,7 @@ const PreMatchChecklist: React.FC = () => {
                             onClick={resetChecklist}
                             disabled={!canEdit}
                             className="text-slate-500 hover:text-forge-600 p-2 rounded-full hover:bg-forge-50 dark:text-slate-400 dark:hover:bg-slate-700 transition flex items-center justify-center w-9 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={canEdit ? 'Reset Checklist' : 'This season is archived and read-only'}
+                            title={canEdit ? 'Reset Checklist' : editRefusalReason}
                         >
                             <RotateCcw size={20} />
                         </button>
