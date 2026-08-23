@@ -69,6 +69,43 @@ await check('index.html references a bundle that exists', async () => {
     return `${scripts.length} script asset(s) served`;
 });
 
+await check('the live bundle is the commit we think it is', async () => {
+    /*
+     * OPS-03. The build id used to be `0.1.0` for every deploy ever made, so "is the live
+     * bundle the commit I merged?" was a question the progress log kept answering by hand —
+     * by diffing normalised chunk hashes, which `docs/environment-divergences.md` §8 records
+     * as a check that fails for reasons unrelated to the deploy AND passes while hiding a real
+     * difference.
+     *
+     * `vite.config.ts` now compiles `GITHUB_SHA` into the bundle, so the answer is in the
+     * file. When this script runs in CI, `GITHUB_SHA` is also in the environment and the two
+     * can be compared outright. Run by hand it reports what is live rather than failing, which
+     * is the useful behaviour when somebody is asking "what is deployed right now?".
+     */
+    const html = await (await get(SITE)).text();
+    const entry = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1])[0];
+    if (!entry) throw new Error('no <script src> in index.html');
+
+    const source = await (await get(new URL(entry, SITE).toString())).text();
+    // The `define` substitution leaves the literal in the bundle; a 7-char hex SHA, or `local`.
+    const ids = [...source.matchAll(/["']([0-9a-f]{7})["']/g)].map((m) => m[1]);
+    const expected = process.env.GITHUB_SHA?.slice(0, 7);
+
+    if (source.includes('"local"') || source.includes("'local'")) {
+        // Not fatal by itself — the string is common enough to appear by coincidence — but it
+        // is the shape of "somebody deployed from a laptop", so it is worth saying out loud.
+        console.warn('    note: the bundle may carry the build id `local` (deployed by hand?)');
+    }
+    if (!expected) return `no GITHUB_SHA to compare against; bundle carries ${ids.length} 7-hex literal(s)`;
+    if (!ids.includes(expected)) {
+        throw new Error(
+            `the live bundle does not carry ${expected}. Either the deploy did not land, or ` +
+            'it was built from a different commit.',
+        );
+    }
+    return `live bundle carries ${expected}`;
+});
+
 await check('custom domain is still bound', async () => {
     // public/CNAME is copied into dist, and deploy.yml refuses to publish without it. This is
     // the other end of that check: the domain answering, rather than the file existing.
