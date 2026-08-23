@@ -106,17 +106,30 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
         setError(null);
 
         try {
-            // Generate a random 8-character code
-            const code = generateInviteCode();
-
             if (!user) throw new Error('Not authenticated');
 
             const { data, error: insertError } = await supabaseSync
                 .from('invites')
                 .insert({
                     team_id: teamId,
-                    code: code,
                     created_by: user.id,
+                    /*
+                     * NO `code`, and that is the fix for SEC-17.
+                     *
+                     * This component used to mint its own with `Math.random()` over a 32-symbol
+                     * alphabet while `create_team_as_admin` minted a DIFFERENT one with
+                     * `upper(substr(md5(random()::text), 1, 8))` -- 8 hex characters, a
+                     * different alphabet and 8 fewer bits. One concept, two generators, exactly
+                     * the shape SEC-09 had already found in this table's `expires_at`
+                     * (`docs/failure-modes.md` §12, CLAUDE.md principle 9).
+                     *
+                     * Neither RNG was cryptographic, which is the part that mattered: an invite
+                     * code is a bearer credential, and `Math.random()` in V8 is xorshift128+ --
+                     * its state is recoverable from a handful of outputs. The column DEFAULT is
+                     * now the only generator (`gen_random_bytes`), the INSERT privilege on
+                     * `code` is revoked so this cannot come back, and `.select()` below reads
+                     * back what the database chose.
+                     */
                     /*
                      * NO `expires_at`, and that is the fix for SEC-09.
                      *
@@ -143,8 +156,14 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                      * check still happens at approval where it always did.
                      */
                     max_uses: seatsRemaining,
-                    use_count: 0
-                } as any)
+                    /*
+                     * NO `use_count` either. It was sent as an explicit `0` while the column
+                     * DEFAULT already says 0 -- harmless until SEC-17 revoked the privilege, at
+                     * which point sending it is a "permission denied for column" on a value the
+                     * database was going to choose anyway. Same rule as `code` and `expires_at`:
+                     * if the DEFAULT is the definition, the client does not restate it.
+                     */
+                } as never)
                 .select()
                 .single();
 
@@ -193,15 +212,6 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
     };
 
     // Generate a random invite code
-    const generateInviteCode = (): string => {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid confusing characters
-        let code = '';
-        for (let i = 0; i < 8; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-    };
-
     // Format remaining time
     const formatTimeRemaining = (expiresAt: string | null): string => {
         // expires_at is nullable. A null means the invite has no expiry -- previously this

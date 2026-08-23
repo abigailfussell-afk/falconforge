@@ -326,7 +326,7 @@ export type Database = {
           use_count: number
         }
         Insert: {
-          code: string
+          code?: string
           created_at?: string
           created_by: string
           expires_at?: string | null
@@ -1437,6 +1437,7 @@ export type Database = {
       current_season_end: { Args: never; Returns: string }
       current_team_member_id: { Args: { p_team_id: string }; Returns: string }
       current_team_role: { Args: { p_team_id: string }; Returns: string }
+      generate_invite_code: { Args: never; Returns: string }
       get_user_team_ids: { Args: never; Returns: string[] }
       grant_team_license: {
         Args: {
