@@ -128,6 +128,49 @@ export function useSync(): UseSyncResult {
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const syncingRef = useRef(false);
+
+    /**
+     * The three queue numbers, read together, from one place.
+     *
+     * THREE CALL SITES USED TO SET THEM BY HAND and one of them set only two: the post-drain
+     * refresh inside `sync()` updated `failedChanges` and left `failureReasons` on its
+     * previous value. So at the exact moment a change was parked — which is the moment the
+     * user looks — the panel said "1 change didn't save. They're still stored on this device.
+     * **Retry when you have a connection**" to a device that was online and whose problem was
+     * a lapsed licence. The real reason arrived up to five seconds later, when the polling
+     * effect caught up.
+     *
+     * Measured, not theorised: `scripts/probe-queued-before-lapse.mjs` queues a write, revokes
+     * the licence underneath it, drains, and reads the panel. The parked record carried the
+     * right `terminalReason` in IndexedDB the whole time; the screen did not say it.
+     *
+     * `docs/failure-modes.md` §12 — a hand-maintained list that must track another list — with
+     * §12's own prescribed fix: derive it once instead of remembering to update three copies.
+     */
+    const refreshQueueCounts = useCallback(async () => {
+        /*
+         * Guarded, because this also runs on an interval. An unguarded throw here becomes an
+         * unhandled rejection every five seconds for as long as the app is open — and it is a
+         * READ of local state, so failing it changes nothing the user can act on. The right
+         * response is to leave the last known numbers on screen and try again next tick.
+         *
+         * Not hypothetical: adding `getTerminalFailureReasons` to this list broke a test suite
+         * whose offline-db mock predated it, and the symptom was not an assertion failure but
+         * a file that hung for fifteen minutes.
+         */
+        try {
+            const [pending, failed, reasons] = await Promise.all([
+                getPendingSyncCount(),
+                getSyncFailureCount(),
+                getTerminalFailureReasons(),
+            ]);
+            setPendingChanges(pending);
+            setFailedChanges(failed);
+            setFailureReasons(reasons);
+        } catch (err) {
+            console.warn('Could not read the sync queue counts:', err);
+        }
+    }, []);
     /** Consecutive drains that left work behind. Drives the retry backoff (B19). */
     const failedDrainsRef = useRef(0);
 
@@ -168,39 +211,12 @@ export function useSync(): UseSyncResult {
 
     // Update pending changes count
     useEffect(() => {
-        const updatePendingCount = async () => {
-            /*
-             * Guarded, because this runs on an interval.
-             *
-             * An unguarded throw here becomes an unhandled rejection every five seconds for as
-             * long as the app is open — and it is a READ of local state, so failing it changes
-             * nothing the user can act on. The right response is to leave the last known counts
-             * on screen and try again on the next tick.
-             *
-             * Not hypothetical: adding `getTerminalFailureReasons` to this list broke a test
-             * suite whose offline-db mock predated it, and the symptom was not an assertion
-             * failure but a file that hung for fifteen minutes.
-             */
-            try {
-                const [pending, failed, reasons] = await Promise.all([
-                    getPendingSyncCount(),
-                    getSyncFailureCount(),
-                    getTerminalFailureReasons(),
-                ]);
-                setPendingChanges(pending);
-                setFailedChanges(failed);
-                setFailureReasons(reasons);
-            } catch (err) {
-                console.warn('Could not read the sync queue counts:', err);
-            }
-        };
-
-        void updatePendingCount();
+        void refreshQueueCounts();
 
         // Poll for changes every 5 seconds
-        const interval = setInterval(updatePendingCount, 5000);
+        const interval = setInterval(() => void refreshQueueCounts(), 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [refreshQueueCounts]);
 
     // Auto-sync when coming back online, when pending changes increase, or when auth
     // becomes ready (e.g. after Ctrl+F5 token refresh completes). This is the fast path:
@@ -262,13 +278,10 @@ export function useSync(): UseSyncResult {
             setLastSyncTime(new Date());
             setSyncStatus('idle');
 
-            // Update pending + failed counts
-            const [pending, failed] = await Promise.all([
-                getPendingSyncCount(),
-                getSyncFailureCount(),
-            ]);
-            setPendingChanges(pending);
-            setFailedChanges(failed);
+            // Pending, failed AND the reasons — this is the site that used to omit the
+            // third, so a change parked for a lapsed licence appeared with the generic
+            // "retry when you have a connection" until the 5s poll corrected it.
+            await refreshQueueCounts();
         } catch (err) {
             // Stop the orphaned run before releasing the lock, so the next sync does not
             // race it over the same queue items (B6).
@@ -280,7 +293,7 @@ export function useSync(): UseSyncResult {
             syncingRef.current = false;
         }
         // FIX: No deps on isOnline - we read navigator.onLine directly
-    }, []);
+    }, [refreshQueueCounts]);
 
     // Retry queued work that failed to push, without the user having to do anything.
     //
@@ -321,11 +334,9 @@ export function useSync(): UseSyncResult {
 
     const retryFailedChanges = useCallback(async () => {
         const restored = await retrySyncFailures();
-        setFailedChanges(await getSyncFailureCount());
-        setFailureReasons(await getTerminalFailureReasons());
-        setPendingChanges(await getPendingSyncCount());
+        await refreshQueueCounts();
         return restored;
-    }, []);
+    }, [refreshQueueCounts]);
 
     return {
         isOnline,
