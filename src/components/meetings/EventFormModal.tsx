@@ -253,6 +253,7 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
             label={meeting ? 'Edit event' : 'New event'}
             width="dialog"
             className="flex flex-col overflow-hidden"
+            onClose={onClose}
         >
             <header className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700 px-5 py-3">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">
@@ -551,7 +552,7 @@ function ApplyScopePrompt({
     const [scope, setScope] = useState<ApplyScope>('occurrence');
 
     return (
-        <Modal label="Apply changes to" width="panel" stacked>
+        <Modal label="Apply changes to" width="panel" stacked onClose={onBack}>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Apply changes to…</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 This event repeats.{' '}
@@ -621,7 +622,7 @@ function DeletePrompt({
     const [scope, setScope] = useState<ApplyScope>('occurrence');
 
     return (
-        <Modal label="Delete event" width="panel" stacked>
+        <Modal label="Delete event" width="panel" stacked onClose={onBack}>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Delete this event?</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 “{meeting.title}” and any attendance recorded for it will be removed. This cannot be

@@ -93,7 +93,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
 
 
     return (
-        <Modal label="Task details" width="wide" className="flex flex-col overflow-hidden">
+        <Modal label="Task details" width="wide" className="flex flex-col overflow-hidden" onClose={onClose}>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                     <div className="flex-1 mr-4">
                         <input

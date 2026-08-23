@@ -61,7 +61,7 @@ export default function AddChildDialog({ onClose }: { onClose: () => void }) {
     };
 
     return (
-        <Modal label="Add a child" width="panel" className="p-6">
+        <Modal label="Add a child" width="panel" className="p-6" onClose={onClose}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">

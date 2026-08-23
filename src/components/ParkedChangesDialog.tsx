@@ -98,7 +98,7 @@ export default function ParkedChangesDialog({ onClose, onChanged }: Props) {
 
     return (
         <>
-            <Modal label="Changes that didn't save" width="dialog" className="p-0">
+            <Modal label="Changes that didn't save" width="dialog" className="p-0" onClose={onClose}>
                 <div className="flex flex-col gap-3 p-4" data-testid="parked-changes-dialog">
                     <div>
                         <h2 className="text-base font-bold text-slate-900 dark:text-white">

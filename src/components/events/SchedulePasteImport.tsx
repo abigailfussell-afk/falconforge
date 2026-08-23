@@ -55,7 +55,7 @@ export default function SchedulePasteImport({
         !!ourTeamNumber && match.participants.some((p) => p.teamNumber === ourTeamNumber.trim());
 
     return (
-        <Modal label="Import a schedule" width="dialog" className="flex flex-col overflow-hidden">
+        <Modal label="Import a schedule" width="dialog" className="flex flex-col overflow-hidden" onClose={onCancel}>
             <div className="border-b border-slate-200 bg-slate-50 p-4 text-lg font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                 Import a schedule
             </div>

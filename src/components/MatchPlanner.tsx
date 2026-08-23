@@ -454,7 +454,7 @@ const MatchPlanner: React.FC = () => {
 
       {/* Save Modal */}
       {isSaveModalOpen && (
-        <Modal label="Save Match Plan" width="sm">
+        <Modal label="Save Match Plan" width="sm" onClose={() => setIsSaveModalOpen(false)}>
           {saveStatus === 'success' ? (
             <div className="flex flex-col items-center py-4">
               <CheckCircle className="w-16 h-16 text-green-500 mb-3" />
@@ -525,7 +525,7 @@ const MatchPlanner: React.FC = () => {
 
       {/* Load Modal */}
       {isLoadModalOpen && (
-        <Modal label="Saved Plans" width="panel" className="p-6 flex flex-col">
+        <Modal label="Saved Plans" width="panel" className="p-6 flex flex-col" onClose={() => setIsLoadModalOpen(false)}>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Saved Plans</h3>
             <IconButton

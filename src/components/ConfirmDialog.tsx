@@ -31,7 +31,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     onCancel,
 }) => (
     // stacked: confirmations are raised FROM other modals (z-50), so this sits above them.
-    <Modal label={title} width="sm" stacked>
+    <Modal label={title} width="sm" stacked onClose={onCancel}>
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{title}</h3>
         <p className="text-slate-600 dark:text-slate-300 mb-6">{message}</p>
         <div className="flex justify-end gap-3">
