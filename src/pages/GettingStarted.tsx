@@ -175,6 +175,38 @@ export default function GettingStarted() {
                     The one thing that does need a connection is signing in for the first time on a
                     device. Sign in once at home before a competition.
                 </p>
+
+                {/*
+                  * SYNC-08's other half, and the half no code can fix.
+                  *
+                  * `navigator.storage.persist()` is requested after sign-in, which covers
+                  * Android's eviction-under-pressure. It does NOT cover Safari's rule: all
+                  * script-writable storage for a site not opened in seven days is deleted,
+                  * unless the site is installed to the home screen. Seven days is a school
+                  * holiday, and the symptom is an empty queue — indistinguishable from having
+                  * synced. So the mitigation has to be told to the person, on the page they
+                  * read before a competition.
+                  */}
+                <div className="mt-3 rounded-lg border border-forge-200 bg-forge-50 p-3 dark:border-forge-800 dark:bg-forge-900/20">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        On an iPhone or iPad: add it to your home screen
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        Safari deletes a website&rsquo;s saved data if you have not opened it for
+                        seven days &mdash; which a school holiday easily is. Adding FalconForge to
+                        your home screen stops that, and it opens full-screen like an app.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                        In Safari, tap <strong>Share</strong> (the square with an arrow), then{' '}
+                        <strong>Add to Home Screen</strong>. On Android, Chrome offers{' '}
+                        <strong>Install app</strong> in its menu.
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                        Worth doing before an event rather than at one: it is the difference
+                        between a phone that still has your scouting on Monday and one that does
+                        not.
+                    </p>
+                </div>
             </section>
 
             {/* ---------------------------------------------------------------- guardians */}

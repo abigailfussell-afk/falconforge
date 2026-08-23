@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { useAppStore } from './store';
 import { withTimeout } from './timeout';
+import { requestStoragePersistence } from './storage-persistence';
 import { getMemberDisplayName, getMemberInitials } from './member-utils';
 import { PROFILE_CACHE_KEY } from './profile-cache';
 import { ATTESTATION_VERSIONS } from './attestations';
@@ -249,6 +250,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const user = session.user;
                     setTimeout(() => {
                         useAppStore.getState().setCurrentUserId(user.id);
+
+                        /*
+                         * ASK THE BROWSER TO KEEP THE OFFLINE COPY (SYNC-08).
+                         *
+                         * Everything this product is for is in IndexedDB under best-effort
+                         * storage, which browsers evict under pressure — a student's full
+                         * phone, or seven days of a school holiday on Safari. The queue would
+                         * simply be empty afterwards, which is indistinguishable from having
+                         * synced.
+                         *
+                         * Here rather than at app start because `persist()` is a permission
+                         * request: after sign-in the person has an account and a team, which is
+                         * when there is finally something worth keeping. Fire-and-forget — it
+                         * never rejects, and a storage permission must not delay a sign-in.
+                         */
+                        void requestStoragePersistence();
                         /*
                          * BOUNDED, because `isLoading` is released nowhere else on this path.
                          *
