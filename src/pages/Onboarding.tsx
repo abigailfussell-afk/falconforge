@@ -8,6 +8,7 @@ import { useAppStore } from '../lib/store';
 import { performSignOut } from '../lib/sign-out';
 import { fetchGuardianData } from '../lib/server-pull';
 import { APP_ROOT, readReturnTo } from '../lib/navigation';
+import { readInviteCode } from '../lib/pending-invite';
 import ClaimCodeForm from '../components/guardian/ClaimCodeForm';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
@@ -34,6 +35,15 @@ export default function Onboarding() {
     const [isLoading, setIsLoading] = useState(true);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
     const [profileCompleteSuccess, setProfileCompleteSuccess] = useState(false);
+    /*
+     * The invite code this account arrived with, if any (WALK-B-04).
+     *
+     * Read once into state rather than on every render: `readInviteCode` touches
+     * `localStorage`, and a value that changes between two renders of the same screen would
+     * make the action list flicker. It is cleared by `JoinTeam` when the code is used, and
+     * this screen is remounted on the way back, so it does not go stale.
+     */
+    const [pendingInviteCode] = useState(() => readInviteCode());
 
     /**
      * True when the person asked for this screen rather than being sent here (WALK-B-02).
@@ -481,6 +491,39 @@ export default function Onboarding() {
                             {teams.length > 0 || pendingTeams.length > 0 ? 'Or...' : 'Get Started'}
                         </p>
 
+                        {/*
+                          * THE CODE THEY ARRIVED WITH, offered first (WALK-B-04).
+                          *
+                          * A student who followed `/#/join/GYSQ6VQS` and then signed up landed
+                          * here with an empty join form and no memory of the code — which was
+                          * in the URL they were sent, and on a phone that URL is gone the
+                          * moment the mail app opens the confirmation link. At a kickoff
+                          * meeting with twelve students that is twelve verbal instructions.
+                          *
+                          * FIRST in the list because it is what they came to do; everything
+                          * below it is what somebody does when they arrived with nothing. The
+                          * code itself is shown rather than hidden behind "continue", because
+                          * the one thing they may need to do is read it back to a coach who
+                          * typed it wrong.
+                          */}
+                        {pendingInviteCode && (
+                            <button
+                                onClick={() => navigate(`/join/${pendingInviteCode}`)}
+                                data-testid="stored-invite-action"
+                                className="w-full flex items-center gap-4 bg-gradient-to-r from-forge-500 to-forge-600 hover:from-forge-600 hover:to-forge-700 text-white font-semibold py-4 px-5 rounded-xl transition-all shadow-lg shadow-forge-500/20"
+                            >
+                                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <Key size={22} />
+                                </div>
+                                <div className="text-left min-w-0">
+                                    <p className="font-semibold">Join a team with your code</p>
+                                    <p className="text-sm text-forge-100/80 font-mono tracking-code truncate">
+                                        {pendingInviteCode}
+                                    </p>
+                                </div>
+                            </button>
+                        )}
+
                         {ageClassification === '18_plus' && (
                             <button
                                 onClick={() => navigate('/create-team')}
@@ -504,7 +547,9 @@ export default function Onboarding() {
                                 <Key size={22} />
                             </div>
                             <div className="text-left">
-                                <p className="font-semibold">Join with Invite Code</p>
+                                <p className="font-semibold">
+                                    {pendingInviteCode ? 'Use a different code' : 'Join with Invite Code'}
+                                </p>
                                 <p className="text-sm text-slate-400">Get a code from your coach</p>
                             </div>
                         </button>

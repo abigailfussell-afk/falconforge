@@ -32,11 +32,23 @@ vi.mock('../../lib/auth', () => ({
 }));
 
 // Mock supabase
+/*
+ * `supabaseSync` is here because `useApprovalWatch` (WALK-B-05) reads `team_members` through
+ * it. It answers with no rows, which is the "nothing has changed" case — these tests are about
+ * the join form and must not be advanced into a team by a background poll.
+ */
 vi.mock('../../lib/supabase', () => ({
     supabase: {
         rpc: vi.fn().mockResolvedValue({ 
             data: { success: true, team_name: 'Test Team', status: 'pending' }, 
             error: null 
+        }),
+    },
+    supabaseSync: {
+        from: () => ({
+            select: () => ({
+                eq: () => ({ is: async () => ({ data: [], error: null }) }),
+            }),
         }),
     },
 }));

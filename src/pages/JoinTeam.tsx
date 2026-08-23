@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { rememberInviteCode, clearInviteCode } from '../lib/pending-invite';
+import { useApprovalWatch } from '../lib/approval-watch';
+import { pathFor } from '../lib/navigation';
+import { loginWithReturnTo } from '../lib/navigation';
 import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, LogOut, UserPlus } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -38,7 +42,27 @@ export default function JoinTeam() {
      */
     const managedProfiles = useAppStore((s) => s.managedProfiles);
     const rememberPendingTeamName = useAppStore((s) => s.rememberPendingTeamName);
+    const setCurrentTeam = useAppStore((s) => s.setCurrentTeam);
     const [joiningForProfileId, setJoiningForProfileId] = useState('');
+
+    /*
+     * Only while a request is actually outstanding (WALK-B-05). Passing `success` rather than
+     * `true` is what keeps this from being a query every eight seconds on a screen that has
+     * nothing to wait for — including for every signed-in member who wanders onto /join.
+     */
+    const approvedTeam = useApprovalWatch(user?.id, success);
+
+    /*
+     * ...and when it lands, go. In an EFFECT and not in the render body: `setCurrentTeam` is a
+     * store write, and a store write during render re-enters the render it is inside. Sprint 6
+     * shipped exactly that as an infinite loop, which is the one entry in the retrospective the
+     * unit suite did catch.
+     */
+    useEffect(() => {
+        if (!approvedTeam) return;
+        setCurrentTeam(approvedTeam.teamId);
+        navigate(pathFor('dashboard'));
+    }, [approvedTeam, setCurrentTeam, navigate]);
 
     // A guardian arriving straight at /join (from a coach's link) may not have their children
     // loaded yet — this page lives outside AppShell, which is what normally fetches them.
@@ -46,10 +70,18 @@ export default function JoinTeam() {
         if (user?.id) fetchGuardianData(user.id).catch(console.error);
     }, [user?.id]);
 
-    // If code provided in URL, set it
+    /*
+     * The code from the URL, into the form AND into storage (WALK-B-04).
+     *
+     * Stored unconditionally rather than only when signed out: a student who is signed in but
+     * has not finished their profile is bounced to `CompleteProfileForm`, and a guardian may
+     * be sent round the child-consent flow — both are round trips that lose the URL just as
+     * thoroughly as the email confirmation does, and neither looked like the bug being fixed.
+     */
     useEffect(() => {
         if (urlCode && urlCode.length >= 6) {
             setInviteCode(urlCode);
+            rememberInviteCode(urlCode);
         }
     }, [urlCode]);
 
@@ -86,6 +118,14 @@ export default function JoinTeam() {
                       invite_code: inviteCode.trim().toUpperCase(),
                   });
 
+            /*
+             * SPENT EITHER WAY (WALK-B-04). Cleared once the code has been TRIED, not only
+             * once it has worked: a code the server rejected as expired must not come back as
+             * the first suggestion on every later visit to onboarding, offering the same dead
+             * end for ever. The student can still type it again from the form in front of them.
+             */
+            clearInviteCode();
+
             if (rpcError) {
                 console.error('RPC error:', rpcError);
                 setError(rpcError.message);
@@ -99,9 +139,25 @@ export default function JoinTeam() {
                 team_name?: string;
                 status?: string;
                 error?: string;
+                error_code?: string;
             };
 
             if (!result.success) {
+                /*
+                 * WALK-B-05's other half: they are already ON this team, so put them in it.
+                 *
+                 * This was a dead end — a student approved while looking at this page, who
+                 * then reloaded, read "You are already a member of this team" on a join form
+                 * and had no way from there into the team except knowing to type an `/app`
+                 * URL. `docs/failure-modes.md` §14: a screen that discards the user's intent
+                 * at the one moment they only ever pass through once.
+                 */
+                if (result.error_code === 'already_member' && result.team_id) {
+                    setCurrentTeam(result.team_id);
+                    navigate(pathFor('dashboard'));
+                    return;
+                }
+
                 setError(result.error || 'Failed to join team');
                 setIsLoading(false);
                 return;
@@ -204,8 +260,21 @@ export default function JoinTeam() {
                     <Users className="w-12 h-12 text-forge-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-white mb-2">Join a Team</h2>
                     <p className="text-slate-400 mb-6">You need to sign in or create an account to join a team.</p>
+                    {/*
+                      * `loginWithReturnTo`, not `?redirect=`.
+                      *
+                      * The old link wrote a parameter NOTHING HAS EVER READ — this app's is
+                      * `next` (`navigation.ts`), so the destination was thrown away at the
+                      * first click. A gate with no door, `docs/failure-modes.md` §7, and the
+                      * kind that survives forever because a link that goes somewhere plausible
+                      * looks like it worked.
+                      *
+                      * The stored code above is the belt to this brace: `next` carries a
+                      * straight sign-IN back here, and storage carries a sign-UP through the
+                      * email round trip that `next` cannot survive.
+                      */}
                     <Link
-                        to={`/login?redirect=/join/${inviteCode}`}
+                        to={loginWithReturnTo(`/join/${inviteCode}`)}
                         className="block w-full bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all"
                     >
                         Sign In / Create Account
