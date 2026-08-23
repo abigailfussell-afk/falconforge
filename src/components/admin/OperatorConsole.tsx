@@ -589,6 +589,19 @@ export default function OperatorConsole() {
         }
     };
 
+    /**
+     * Is this member the only administrator of the team currently on screen?
+     *
+     * Only ever used to disable a button. `operator_erase_user` makes the real decision, across
+     * every team the person belongs to, and returns `sole_admin` naming them.
+     */
+    const soleAdminHere = (m: DetailMember) =>
+        m.role === 'admin' &&
+        m.status !== 'removed' &&
+        !(detail?.members ?? []).some(
+            (o) => o.id !== m.id && o.role === 'admin' && o.status !== 'removed',
+        );
+
     const visibleRows = useMemo(
         () => orderDirectory(rows, expiryFilter, directoryLoadedAt),
         [rows, expiryFilter, directoryLoadedAt],
@@ -1002,7 +1015,23 @@ export default function OperatorConsole() {
                                             <Button
                                                 size="sm"
                                                 variant="danger"
-                                                disabled={isBusy}
+                                                /*
+                                                 * The sole administrator of THIS team is refused
+                                                 * by the server (`sole_admin`), and finding that
+                                                 * out after confirming a dialog that says "this
+                                                 * cannot be undone" is a bad thirty seconds. The
+                                                 * check is NECESSARY AND NOT SUFFICIENT — they
+                                                 * may be the only admin of some other team this
+                                                 * panel cannot see — so the server stays the
+                                                 * authority and this only removes the case the
+                                                 * console can already answer.
+                                                 */
+                                                disabled={isBusy || soleAdminHere(m)}
+                                                title={
+                                                    soleAdminHere(m)
+                                                        ? 'Transfer the admin role first — erasing them would leave this team with nobody to administer it.'
+                                                        : undefined
+                                                }
                                                 data-testid={`erase-user-${m.id}`}
                                                 onClick={() => {
                                                     setEraseTarget(m);

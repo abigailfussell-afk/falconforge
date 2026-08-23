@@ -169,6 +169,23 @@ describe('SEC-11 — erasing a person from the console', () => {
         expect(screen.queryByTestId('erase-user-m-child')).not.toBeInTheDocument();
     });
 
+    /*
+     * The sole administrator's Erase is DISABLED rather than absent, and that difference is the
+     * point: the action is legitimate, it is just blocked on something the operator can fix. The
+     * child's button is absent because there is nothing to fix — that account is their parent's.
+     */
+    it('will not let the only admin of a team be erased, and says what to do instead', async () => {
+        await selectTeam();
+
+        const adminButton = screen.getByTestId('erase-user-m-admin');
+        expect(adminButton).toBeDisabled();
+        expect(adminButton.getAttribute('title')).toMatch(/transfer the admin role first/i);
+
+        // A second admin makes it legitimate again, which is what proves the rule is the rule
+        // and not just "admins are never erasable".
+        expect(screen.getByTestId('erase-user-m-coach')).toBeEnabled();
+    });
+
     it('asks first, names the person, and says what stays', async () => {
         await selectTeam();
 
