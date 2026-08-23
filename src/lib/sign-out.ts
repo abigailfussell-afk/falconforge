@@ -8,6 +8,7 @@ import {
 } from './offline-db';
 import { PROFILE_CACHE_KEY } from './profile-cache';
 import { clearAttestationSnooze } from './attestations';
+import { resetServerReachability } from './server-reachability';
 import { drainSyncQueue } from './sync';
 import { retrySyncFailures } from './offline-db';
 
@@ -189,6 +190,9 @@ export async function performSignOut(
         // next person on a shared laptop — cleared here as well because it is one more thing
         // about the previous user sitting in their storage.
         clearAttestationSnooze();
+        // The next person's device must not inherit this session's idea of whether the
+        // server was up.
+        resetServerReachability();
         // The cached display profile, cleared here as well as by the SIGNED_OUT handler in
         // auth.tsx. Belt and braces for the same reason the token sweep above is: this path
         // ends in a hard `window.location.reload()`, so it races the auth event, and on a

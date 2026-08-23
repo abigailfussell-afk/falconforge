@@ -74,6 +74,51 @@ test.describe('offline and sync', () => {
             .toBe(true);
     });
 
+    /**
+     * SYNC-07 / SYNC-16 — the offline COLD boot, and what the indicator says during one.
+     *
+     * Neither of the two specs above reloads while offline: the first goes back online first,
+     * and the second navigates between hash routes without a reload. So `index.html`, session
+     * restore and store hydration with the network down had never been exercised — the thing
+     * this product is FOR — and neither had the status label, which is the reason this spec is
+     * SYNC-07's red test rather than a new file.
+     *
+     * The label is the assertion that fails today. Chromium reports `navigator.onLine === true`
+     * after an offline reload, so the app cold-booted with the network cut and printed "Synced"
+     * over 37 failed requests.
+     */
+    test('an offline cold boot renders from the device and does not claim to be synced', async ({ page, context }) => {
+        await registerAccount(page, { fullName: 'Coldboot Coach', email: uniqueEmail('coldboot') });
+        await createTeam(page, { teamName: unique('Coldboot Falcons') });
+        await goToView(page, 'kanban', 'board');
+        await waitForSync(page);
+
+        await context.setOffline(true);
+        await page.reload();
+
+        // The shell came out of the precache and the store out of IndexedDB.
+        await expect(page.getByTestId('app-nav').or(page.getByTestId('mobile-menu-button')).first())
+            .toBeVisible({ timeout: 30_000 });
+
+        /*
+         * The label. `navigator.onLine` is the reason this is worth asserting: read it here
+         * and record what it said, so a future failure can tell "the emulation changed" from
+         * "the fix regressed".
+         */
+        const onLine = await page.evaluate(() => navigator.onLine);
+        const status = page.getByTestId('sync-status-text');
+        await expect(status).toBeVisible({ timeout: 15_000 });
+
+        const label = (await status.textContent())?.trim() ?? '';
+        expect(
+            label,
+            `the indicator claimed to be synced after an offline cold boot (navigator.onLine=${onLine})`,
+        ).not.toBe('Synced');
+        expect(label, `unexpected status after an offline cold boot: "${label}"`).toMatch(
+            /Offline|Can't reach server|Last synced|Not synced yet/,
+        );
+    });
+
     test('the app keeps working while offline rather than blocking on the network', async ({ page, context }) => {
         await registerAccount(page, { fullName: 'Venue Coach', email: uniqueEmail('venue') });
         await createTeam(page, { teamName: unique('Venue Falcons') });

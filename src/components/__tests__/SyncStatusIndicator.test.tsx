@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SyncStatusIndicator from '../SyncStatusIndicator';
+import { recordServerContact, resetServerReachability } from '../../lib/server-reachability';
 
 // The component reads live realtime status; this suite drives it through the mock.
 vi.mock('@/lib/realtime');
@@ -23,6 +24,9 @@ describe('SyncStatusIndicator', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockSync.mockClear();
+        // What the SERVER has said, which the label now depends on (SYNC-07). Reset so one
+        // case cannot leak a reachable server into the next.
+        resetServerReachability();
     });
 
     function setupSync(overrides: Record<string, any> = {}) {
@@ -47,10 +51,66 @@ describe('SyncStatusIndicator', () => {
         expect(container).toBeDefined();
     });
 
-    it('shows "Synced" when idle with no pending changes', () => {
+    /*
+     * THIS CASE USED TO ASSERT THE DEFECT (SYNC-07).
+     *
+     * It was `expect(screen.getByText('Synced'))` with nothing said about whether the server
+     * had ever answered — the exact claim the finding is about. A bare "Synced" is a statement
+     * about right now made from evidence that may be an hour old, or from no evidence at all,
+     * and the built app printed it over 37 failed requests.
+     */
+    it('says so plainly when the server has never answered', () => {
         setupSync({ syncStatus: 'idle', pendingChanges: 0 });
         render(<SyncStatusIndicator />);
-        expect(screen.getByText('Synced')).toBeDefined();
+
+        expect(screen.getByText('Not synced yet')).toBeDefined();
+        expect(screen.queryByText('Synced'), 'claimed "Synced" with no evidence').toBeNull();
+    });
+
+    it('says when it last synced, once the server has answered', () => {
+        recordServerContact(true);
+        setupSync({ syncStatus: 'idle', pendingChanges: 0 });
+        render(<SyncStatusIndicator />);
+
+        expect(screen.getByText('Synced · just now')).toBeDefined();
+    });
+
+    it('never says a bare "Synced" — it always carries the age', () => {
+        recordServerContact(true, Date.now() - 5 * 60 * 1000);
+        setupSync({ syncStatus: 'idle', pendingChanges: 0 });
+        render(<SyncStatusIndicator />);
+
+        expect(screen.getByText('Last synced 5 min ago')).toBeDefined();
+        expect(screen.queryByText('Synced')).toBeNull();
+    });
+
+    it('says it cannot reach the server when online but nothing is getting through', () => {
+        // The captive-portal shape, and the one `navigator.onLine` cannot see: the device is
+        // online by every measure it has, and the server is not answering.
+        recordServerContact(false);
+        setupSync({ isOnline: true, syncStatus: 'idle', pendingChanges: 0 });
+        render(<SyncStatusIndicator />);
+
+        expect(screen.getByText("Can't reach server")).toBeDefined();
+        expect(screen.queryByText('Synced')).toBeNull();
+    });
+
+    it('still names the queue while it cannot reach the server', () => {
+        recordServerContact(false);
+        setupSync({ isOnline: true, syncStatus: 'idle', pendingChanges: 3 });
+        render(<SyncStatusIndicator />);
+
+        expect(screen.getByText("Can't reach server · 3 queued")).toBeDefined();
+    });
+
+    it('goes back to Live once the server answers again — the control', () => {
+        recordServerContact(false);
+        recordServerContact(true);
+        setupSync({ syncStatus: 'idle', pendingChanges: 0 });
+        render(<SyncStatusIndicator />);
+
+        // Realtime is 'disconnected' in the shared mock, so this is the non-realtime label.
+        expect(screen.getByText('Synced · just now')).toBeDefined();
     });
 
     it('shows pending count when there are pending changes', () => {

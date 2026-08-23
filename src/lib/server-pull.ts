@@ -50,6 +50,7 @@ import {
     type SeasonScope,
 } from './entity-registry';
 import { withTimeout, PER_QUERY_TIMEOUT_MS, type SyncToken } from './timeout';
+import { recordServerContact } from './server-reachability';
 
 /**
  * How often a pull does a full reconciliation instead of a delta (every Nth pull).
@@ -514,8 +515,26 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
             for (let pageNumber = 0; pageNumber < MAX_PULL_PAGES; pageNumber++) {
                 if (token.cancelled) return received;
 
-                const result: { data: any[] | null; error: { message: string } | null } =
-                    await withTimeout((async () => page(after))(), PER_QUERY_TIMEOUT_MS, `pull ${table}`);
+                let result: { data: any[] | null; error: { message: string } | null };
+                try {
+                    result = await withTimeout((async () => page(after))(), PER_QUERY_TIMEOUT_MS, `pull ${table}`);
+                } catch (err) {
+                    // Never completed: a timeout, a DNS failure, a captive portal swallowing
+                    // the request. That is the state the indicator has to be able to name
+                    // (SYNC-07), and `navigator.onLine` cannot see it.
+                    recordServerContact(false);
+                    throw err;
+                }
+
+                /*
+                 * AN ERROR HERE IS STILL CONTACT.
+                 *
+                 * PostgREST answered — with a refusal, a bad filter, whatever. The server is
+                 * reachable and that is the question this records. A 42501 lighting a
+                 * "can't reach server" warning would be a lapsed licence wearing the wrong
+                 * explanation.
+                 */
+                recordServerContact(true);
 
                 if (result.error) {
                     console.warn(`Pull for ${table} failed:`, result.error.message);

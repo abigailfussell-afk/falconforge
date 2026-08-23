@@ -3,6 +3,13 @@ import { useSync } from '../lib/sync';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 import { getRealtimeStatus, onRealtimeStatusChange, type RealtimeStatus } from '../lib/realtime';
+import {
+    describeLastContact,
+    getServerReachability,
+    isContactStale,
+    onServerReachabilityChange,
+    type ServerReachability,
+} from '../lib/server-reachability';
 import ParkedChangesDialog from './ParkedChangesDialog';
 
 interface SyncStatusIndicatorProps {
@@ -24,6 +31,42 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
         return onRealtimeStatusChange(setRealtimeStatus);
     }, []);
 
+    /*
+     * WHAT THE SERVER HAS ACTUALLY SAID (SYNC-07).
+     *
+     * Everything below used to hang off `navigator.onLine`, which answers "is there a network
+     * interface with a route", not "is anything on the other end". The built app, cold-booted
+     * with the network cut, showed a green tick and the word "Synced" while 37 requests failed
+     * — `onLine` was true throughout. That is what a captive portal and venue WiFi look like,
+     * and a coach reading "Synced" concludes the board reflects what everybody else has done.
+     */
+    const [reachability, setReachability] = useState<ServerReachability>(getServerReachability());
+    useEffect(() => onServerReachabilityChange(setReachability), []);
+
+    /*
+     * A CLOCK THE LABEL CAN READ.
+     *
+     * "Synced · 3 min ago" has to keep being true a minute later. Without a tick the label
+     * freezes at whatever it said when the last pull happened, which for a device sitting idle
+     * at a venue is the most reassuring number it will ever show and the least accurate.
+     */
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 30_000);
+        return () => clearInterval(timer);
+    }, []);
+
+    /**
+     * True when the device believes it has a network but the server is not answering.
+     *
+     * Deliberately NOT "we have never contacted it": a cold start has no evidence either way,
+     * and shouting "can't reach server" at somebody who has simply not asked anything yet is
+     * the absence-as-a-value mistake pointed the other way (`docs/failure-modes.md` §4).
+     */
+    const unreachable = isOnline && reachability.reachable === false;
+    const lastContact = describeLastContact(reachability, now);
+    const stale = isContactStale(reachability, now);
+
     // Don't show anything in demo mode - just a subtle indicator
     if (!isConfigured) {
         return null;
@@ -32,6 +75,11 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
     const getStatusIcon = () => {
         if (!isOnline) {
             return <CloudOff className="w-4 h-4 text-slate-400" />;
+        }
+        // Before the queue's own state: a device that cannot reach the server has nothing
+        // truthful to say about being synced.
+        if (unreachable) {
+            return <CloudOff className="w-4 h-4 text-amber-500" />;
         }
         switch (syncStatus) {
             case 'syncing':
@@ -64,6 +112,19 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
          * Found by running the venue simulation and looking at the sidebar.
          */
         if (!isOnline) return pendingChanges > 0 ? `Offline · ${pendingChanges} queued` : 'Offline';
+
+        /*
+         * "Can't reach server" is not the same sentence as "Offline", and the difference is
+         * the whole point: the device thinks it is online. Saying `Offline` here would be a
+         * second lie in place of the first, and would send a coach looking for a WiFi problem
+         * that the WiFi icon says they do not have.
+         */
+        if (unreachable) {
+            return pendingChanges > 0
+                ? `Can't reach server · ${pendingChanges} queued`
+                : "Can't reach server";
+        }
+
         switch (syncStatus) {
             case 'syncing':
                 return 'Syncing...';
@@ -73,7 +134,17 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                 if (pendingChanges > 0) {
                     return `${pendingChanges} pending`;
                 }
-                return realtimeStatus === 'connected' ? 'Live' : 'Synced';
+                if (realtimeStatus === 'connected') return 'Live';
+                /*
+                 * NEVER A BARE "Synced" (SYNC-07).
+                 *
+                 * Without the age, the word is a claim about right now made from evidence
+                 * that may be an hour old. With it, a coach can tell the difference between
+                 * a board that is current and one that stopped updating when the venue WiFi
+                 * did. `lastContact` is null only before anything has been asked.
+                 */
+                if (lastContact === null) return 'Not synced yet';
+                return stale ? `Last synced ${lastContact}` : `Synced · ${lastContact}`;
             default:
                 return 'Offline';
         }
@@ -81,6 +152,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
 
     const getStatusColor = () => {
         if (!isOnline) return 'bg-slate-500/10 border-slate-500/20';
+        if (unreachable) return 'bg-amber-500/10 border-amber-500/20';
         switch (syncStatus) {
             case 'syncing':
                 return 'bg-blue-500/10 border-blue-500/20';
@@ -180,7 +252,7 @@ export default function SyncStatusIndicator({ variant = 'full' }: SyncStatusIndi
                 {getStatusIcon()}
             </span>
             {variant === 'full' && (
-                <span>{getStatusText()}</span>
+                <span data-testid="sync-status-text">{getStatusText()}</span>
             )}
         </button>
     );

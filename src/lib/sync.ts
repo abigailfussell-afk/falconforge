@@ -18,6 +18,7 @@ import {
     type SyncFailureContext,
 } from './sync-failure-classification';
 import { pullFromServer } from './server-pull';
+import { recordServerContact } from './server-reachability';
 import {
     withTimeout,
     PER_QUERY_TIMEOUT_MS,
@@ -450,6 +451,36 @@ export async function drainSyncQueue(token: SyncToken = { cancelled: false }): P
 }
 
 export async function processSyncItem(item: SyncQueueItem): Promise<void> {
+    if (!supabaseSync) throw new Error('Supabase not configured');
+    /*
+     * A PUSH IS ALSO EVIDENCE ABOUT THE SERVER (SYNC-07).
+     *
+     * A device with a full queue and nothing to read learns whether the server is there from
+     * its own writes, so both halves of the sync report. A refusal counts as contact for the
+     * same reason it does on the pull: the server answered.
+     */
+    return pushSyncItem(item).then(
+        (value) => {
+            recordServerContact(true);
+            return value;
+        },
+        (err) => {
+            // A PostgREST error object means it answered; a thrown TypeError or a timeout
+            // means the request never completed.
+            recordServerContact(isServerAnswer(err));
+            throw err;
+        },
+    );
+}
+
+/** Did this failure come back FROM the server, or did the request never get there? */
+function isServerAnswer(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    // PostgREST errors carry a `code`; supabase-js wraps network failures without one.
+    return typeof (err as { code?: unknown }).code === 'string';
+}
+
+async function pushSyncItem(item: SyncQueueItem): Promise<void> {
     if (!supabaseSync) throw new Error('Supabase not configured');
 
     const { tableName, operation, data, recordId } = item;
