@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
 
 /**
@@ -516,5 +517,122 @@ describe('the guidance describes the repo that exists', () => {
         const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
         expect(pkg.scripts.lint).toContain('eslint');
         expect(pkg.scripts.lint).toContain('tsc --noEmit');
+    });
+});
+/**
+ * The precache is the app's first venue load, and it was 60% one image copied four times.
+ *
+ * OPS-08 / SYNC-12: `logo.png`, `falcon_logo.png`, `icon-192.png` and `icon-512.png` were the
+ * SAME 1024x1024 802,825-byte PNG under four names — 3.2 MB of a 5.2 MB precache, downloaded in
+ * full by every device on every cold install, which on a 2 Mbps gym connection is the difference
+ * between roughly 20 seconds and 8 before the app is offline-capable. Nothing in the build
+ * reported it, because four identical files are four perfectly valid files.
+ *
+ * These two checks are the countermeasure, and both had to be *derived* rather than asserted as
+ * a number, per `docs/failure-modes.md` §12: a byte-count ceiling would be a hand-maintained
+ * figure that goes stale, where "no two files are the same file" and "the manifest tells the
+ * truth about its icons" stay true whatever the assets become.
+ */
+describe('the precached assets (OPS-08 / SYNC-12)', () => {
+    const PUBLIC_DIR = 'public';
+
+    /** Every file directly under `public/`. It is flat today and there is no reason it would not be. */
+    const publicFiles = () =>
+        readdirSync(join(repoRoot, PUBLIC_DIR), { withFileTypes: true })
+            .filter((e) => e.isFile())
+            .map((e) => e.name);
+
+    it('has no two files in public/ with identical bytes', () => {
+        const byHash = new Map<string, string[]>();
+        for (const name of publicFiles()) {
+            const hash = createHash('md5')
+                .update(readFileSync(join(repoRoot, PUBLIC_DIR, name)))
+                .digest('hex');
+            byHash.set(hash, [...(byHash.get(hash) ?? []), name]);
+        }
+        const dupes = [...byHash.values()].filter((names) => names.length > 1);
+        expect(
+            dupes,
+            `public/ holds the same bytes under more than one name, and every copy is precached:${NL}` +
+                dupes.map((names) => `  ${names.join(' == ')}`).join(NL),
+        ).toEqual([]);
+    });
+
+    /**
+     * The PWA manifest's declared icon sizes are the icons' real sizes.
+     *
+     * `icon-192.png` was declared `192x192` and was 1024x1024 for the whole life of the project.
+     * An installer takes the declaration at its word, so nothing anywhere reported it — the
+     * install worked, the icon looked right, and the device downloaded 800 KB for a 192-pixel
+     * square. This reads the IHDR header of the actual file, which is the only thing a lie about
+     * a size cannot survive.
+     */
+    it('declares each PWA icon at the size the file actually is', () => {
+        const config = read('vite.config.ts');
+        const icons = [
+            ...config.matchAll(/src:\s*'([^']+)',\s*[\s\S]{0,40}?sizes:\s*'(\d+)x(\d+)'/g),
+        ].map((m) => ({ src: m[1], w: Number(m[2]), h: Number(m[3]) }));
+
+        expect(icons.length, 'no manifest icons found — did the PWA config move?').toBeGreaterThan(
+            0,
+        );
+
+        for (const icon of icons) {
+            const bytes = readFileSync(join(repoRoot, PUBLIC_DIR, icon.src));
+            // PNG: 8-byte signature, then the IHDR chunk — 4 length, 4 type, then width and
+            // height as big-endian uint32s at byte 16 and 20.
+            expect(bytes.subarray(12, 16).toString('ascii'), `${icon.src} is not a PNG`).toBe(
+                'IHDR',
+            );
+            const width = bytes.readUInt32BE(16);
+            const height = bytes.readUInt32BE(20);
+            expect(
+                [width, height],
+                `${icon.src} is declared ${icon.w}x${icon.h} and is ${width}x${height}`,
+            ).toEqual([icon.w, icon.h]);
+        }
+    });
+
+    /**
+     * Every asset the app asks for by name is in `public/`.
+     *
+     * The hero was `hero_bg.png` in `Landing.tsx` and the file it named is now a `.webp`; the
+     * apple-touch-icon in `index.html` pointed at `logo.png`, which this sprint deleted as the
+     * fourth copy of the logo. Both are string references no compiler checks, and a broken one
+     * is a 404 that only shows up as a missing image on a page nobody screenshots.
+     */
+    it('resolves every public asset the source names', () => {
+        const present = new Set(publicFiles());
+        const referenced = new Set<string>();
+
+        /*
+         * The two forms that actually resolve to `public/` at runtime, and only those. A plain
+         * search for anything ending in `.png` also finds every filename mentioned in a comment
+         * and every screenshot named in this repo's own documentation — nine of them — which
+         * would make this check fail on prose. Narrow beats noisy: a check that cries wolf gets
+         * deleted, and `docs/failure-modes.md` §3 is full of checks that quietly stopped
+         * verifying instead.
+         */
+        for (const file of sourceFiles('src')) {
+            const text = readFileSync(file, 'utf8');
+            // `${import.meta.env.BASE_URL}falcon_logo.png` — how src/ names a public asset.
+            for (const m of text.matchAll(/BASE_URL\}([\w-]+\.(?:png|webp|svg|ico|jpg))/g)) {
+                referenced.add(m[1]);
+            }
+        }
+        // `<link rel="apple-touch-icon" href="/icon-192.png">` — how index.html names one.
+        const html = read('index.html');
+        for (const m of html.matchAll(/(?:href|src)="\/([\w-]+\.(?:png|webp|svg|ico|jpg))"/g)) {
+            referenced.add(m[1]);
+        }
+
+        expect(
+            referenced.size,
+            'no public assets found in src/ or index.html — did the reference form change?',
+        ).toBeGreaterThan(1);
+        const missing = [...referenced].filter((name) => !present.has(name));
+        expect(missing, `named in source and absent from public/: ${missing.join(', ')}`).toEqual(
+            [],
+        );
     });
 });

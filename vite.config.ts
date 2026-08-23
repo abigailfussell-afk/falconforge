@@ -42,7 +42,31 @@ export default defineConfig(() => {
          */
         registerType: 'prompt',
         injectRegister: null,
-        includeAssets: ['favicon.ico', 'robots.txt', 'DecodeField.png'],
+        /*
+         * EMPTY, and that is the fix (OPS-08 / SYNC-12).
+         *
+         * It used to read `['favicon.ico', 'robots.txt', 'DecodeField.png']`. Two of those three
+         * files do not exist in `public/` and never have, so they contributed nothing; the third
+         * is already matched by `globPatterns` below, so it was listed in the precache manifest
+         * TWICE. Workbox de-duplicates at install, so the only cost was that the "N entries"
+         * line in every build log — the number three sprint reports quoted as the file count —
+         * was 49 for 46 unique URLs.
+         *
+         * The option is kept rather than deleted so the next person to reach for it reads this
+         * first: anything under `public/` that the glob already matches does not belong here.
+         */
+        includeAssets: [],
+        /*
+         * ...and the last two duplicates come from here.
+         *
+         * vite-plugin-pwa adds every icon named in `manifest.icons` to the precache on top of
+         * whatever `globPatterns` already matched, so `icon-192.png` and `icon-512.png` were
+         * listed twice even after `includeAssets` was emptied — 47 entries for 45 unique URLs.
+         * The glob matches every PNG under `dist`, which is where both icons land, so the
+         * injection is pure duplication. Verified by rebuilding: 47 entries with it, 45
+         * without, the same files on disk either way.
+         */
+        includeManifestIcons: false,
         manifest: {
           name: 'FalconForge',
           short_name: 'FalconForge',
@@ -92,7 +116,10 @@ export default defineConfig(() => {
           // Workbox emits its own sourcemaps (sw.js.map, workbox-*.js.map) independently
           // of Vite's `build.sourcemap`. Both are currently published on falcon-forge.com.
           sourcemap: false,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          // `webp` is in the list because the landing hero is one now — 596 KB of PNG became
+          // 46 KB of WebP, and a format missing from this glob is silently not precached,
+          // which is a hole nothing in the build reports.
+          globPatterns: ['**/*.{js,css,html,ico,png,webp,svg,woff,woff2}'],
           // No `runtimeCaching` entries. The two that used to be here cached
           // fonts.googleapis.com and fonts.gstatic.com CacheFirst — a runtime cache is only
           // ever a mitigation for a cross-origin dependency, and it does nothing on the
