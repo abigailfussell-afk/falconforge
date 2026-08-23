@@ -7,6 +7,7 @@ import { fetchGuardianData } from '../../lib/server-pull';
 import { attendanceStateMeta } from '../../lib/meetings';
 import EmptyState from '../ui/EmptyState';
 import Button from '../ui/Button';
+import ConfirmDialog from '../ConfirmDialog';
 import AddChildDialog from './AddChildDialog';
 import type { ManagedProfile, TeamMember } from '../../types';
 
@@ -148,6 +149,9 @@ function ChildCard({
     attendance: { id: string; meetingId: string; teamMemberId: string; status: string }[];
     guardianUserId: string;
 }) {
+    const removeManagedProfile = useAppStore((s) => s.removeManagedProfile);
+    const [confirmRemove, setConfirmRemove] = useState(false);
+
     const memberIds = new Set(memberships.map((m) => m.id));
     const teamNames = memberships
         .map((m) => teams.find((t) => t.id === m.teamId)?.name)
@@ -164,13 +168,65 @@ function ChildCard({
 
     const pending = memberships.filter((m) => m.status === 'pending');
 
+    const teamsSentence =
+        teamNames.length > 0
+            ? `their place on ${teamNames.join(', ')}`
+            : 'their profile';
+
     return (
         <li className="card space-y-4">
+            {confirmRemove && (
+                <ConfirmDialog
+                    title={`Remove ${profile.fullName}?`}
+                    /*
+                     * Says what goes AND what stays, because a parent asking this question is
+                     * usually asking about the first and worrying about the second. "Are you
+                     * sure?" answers neither.
+                     */
+                    message={
+                        `${profile.fullName}'s profile, ${teamsSentence}, their attendance record ` +
+                        `and the consents you gave for them will all be removed. Work they ` +
+                        `contributed to a team stays with the team, with their name taken off it. ` +
+                        `This cannot be undone.`
+                    }
+                    confirmLabel="Remove them"
+                    confirmTestId="confirm-remove-child"
+                    onConfirm={() => {
+                        setConfirmRemove(false);
+                        removeManagedProfile(profile.id);
+                    }}
+                    onCancel={() => setConfirmRemove(false)}
+                />
+            )}
             <div className="flex items-start justify-between gap-3">
-                <div>
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                        {profile.fullName}
-                    </h2>
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="min-w-0 break-words text-base font-semibold text-slate-900 dark:text-slate-100">
+                            {profile.fullName}
+                        </h2>
+                        {/*
+                          * SEC-11. The Privacy Policy says a guardian can ask us to delete
+                          * everything associated with their child, and "just ask" was the whole
+                          * mechanism — a psql session on Kevin's side. This is the same request,
+                          * answered by the person entitled to make it.
+                          *
+                          * NOT offered once the child has their own login. After a promotion the
+                          * memberships belong to the child's account, and this profile is a
+                          * historical record of the handover; removing it would take a consent
+                          * trail with it and would not touch the account it points at. That is a
+                          * different request, from a different person.
+                          */}
+                        {!profile.promotedToUserId && (
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                data-testid={`remove-child-${profile.id}`}
+                                onClick={() => setConfirmRemove(true)}
+                            >
+                                Remove
+                            </Button>
+                        )}
+                    </div>
                     {/*
                       * THREE STATES, NOT TWO (WALK-B-03, and `docs/failure-modes.md` §4).
                       *

@@ -51,6 +51,15 @@ export interface GuardianSlice {
     ) => string;
 
     updateManagedProfile: (id: string, updates: { fullName?: string; notes?: string }) => void;
+    /**
+     * Remove a child and everything that belongs to them (SEC-11).
+     *
+     * The Privacy Policy says a guardian "can do the same on behalf of your child", and until now
+     * the only way to honour that was a psql session. On the server, deleting the
+     * `managed_profiles` row cascades `guardian_consents` and the child's `team_members` row —
+     * which carries the GUARDIAN's `user_id`, so it cannot be found by looking for the child's.
+     */
+    removeManagedProfile: (id: string) => void;
 
     setManagedProfiles: (profiles: ManagedProfile[]) => void;
     setGuardianConsents: (consents: GuardianConsent[]) => void;
@@ -155,6 +164,41 @@ export const createGuardianSlice: SliceCreator<GuardianSlice> = (set, get) => ({
 
         set((s) => ({ managedProfiles: s.managedProfiles.map((p) => (p.id === id ? next : p)) }));
         queueForSync('managed_profiles', id, 'update', next).catch(console.error);
+    },
+
+    /*
+     * SEC-11 — a guardian removing one child.
+     *
+     * THE LOCAL SIDE HAS TO MIRROR THE CASCADE, and this is the part that is easy to leave out.
+     * The server deletes `guardian_consents` and the child's `team_members` row along with the
+     * profile; a client that removes only the profile leaves both behind in the store, so the
+     * child's name disappears while their team membership and attendance keep rendering from the
+     * rows that outlived them — until the next full pull, which offline may be days away. This is
+     * `docs/failure-modes.md` §9: the record is gone but its identity lives on elsewhere.
+     *
+     * ONE queue entry, not three. The delete of the profile IS the whole operation on the server,
+     * and queueing the children of a cascade would be three writes racing each other to delete
+     * rows the first one already took (`docs/failure-modes.md` §1 — the same act expressed twice).
+     */
+    removeManagedProfile: (id) => {
+        const state = get();
+        const profile = state.managedProfiles.find((p) => p.id === id);
+        if (!profile) return;
+
+        const orphanedMemberIds = new Set(
+            state.teamMembers.filter((m) => m.managedProfileId === id).map((m) => m.id),
+        );
+
+        set((s) => ({
+            managedProfiles: s.managedProfiles.filter((p) => p.id !== id),
+            guardianConsents: s.guardianConsents.filter((c) => c.managedProfileId !== id),
+            teamMembers: s.teamMembers.filter((m) => m.managedProfileId !== id),
+            meetingAttendance: s.meetingAttendance.filter(
+                (a) => !orphanedMemberIds.has(a.teamMemberId),
+            ),
+        }));
+
+        queueForSync('managed_profiles', id, 'delete', { id }).catch(console.error);
     },
 
     setManagedProfiles: (managedProfiles) => set({ managedProfiles }),

@@ -61,10 +61,33 @@ async function must(label, promise) {
 }
 
 async function makeUser(email, fullName, age = '18_plus') {
-    // Delete first so the script is re-runnable.
+    /*
+     * Delete first so the script is re-runnable — and SAY SO WHEN THAT FAILS.
+     *
+     * The error was discarded here, and the next line then failed with "A user with this email
+     * address has already been registered", which points at the wrong thing entirely: the account
+     * is not the problem, whatever is holding a reference to it is. Cost a debugging session
+     * after SEC-11, where the real answer was
+     * `operator_actions_operator_user_id_fkey` — an operator who has performed ANY audited action
+     * (erase, delete, grant, revoke, transfer) cannot have their auth row deleted, because an
+     * audit entry must be able to name who did it. That is correct for the product and merely
+     * inconvenient here; `npm run db:reset` clears it.
+     *
+     * `docs/failure-modes.md` §4: an absence read as a value. The delete not happening was
+     * indistinguishable from it happening, right up until a misleading error four lines later.
+     */
     const { data: list } = await svc.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existing = list?.users?.find((u) => u.email === email);
-    if (existing) await svc.auth.admin.deleteUser(existing.id);
+    if (existing) {
+        const { error: deleteError } = await svc.auth.admin.deleteUser(existing.id);
+        if (deleteError) {
+            throw new Error(
+                `could not remove the existing ${email} before re-seeding: ${deleteError.message}. ` +
+                    'Something still references that account — an operator_actions row, a team ' +
+                    'they own, an invite they issued. Run `npm run db:reset` and seed again.',
+            );
+        }
+    }
 
     const { data, error } = await svc.auth.admin.createUser({
         // EXACTLY what the real sign-up form sends, `privacy_version` included. See the import.

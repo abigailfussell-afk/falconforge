@@ -134,11 +134,28 @@ export default function PrivacyPolicy() {
                     <strong>A lapsed licence never deletes anything.</strong> The team becomes
                     read-only and everything stays readable.
                 </p>
+                {/*
+                  * SEC-11. This paragraph used to open "When you delete your account", which
+                  * described a button that has never existed — there is no self-serve account
+                  * deletion, and grepping for one finds nothing. A privacy policy that describes
+                  * an affordance the product does not have is the same defect as a UI control
+                  * that does nothing (`docs/failure-modes.md` §8), on the one document a
+                  * regulator or a parent would read literally.
+                  *
+                  * "When you ask us to delete your account" is what actually happens, and it is
+                  * now backed by a tool rather than a psql session: `operator_erase_user`.
+                  */}
                 <p>
-                    When you delete your account we remove your personal information and your
-                    memberships. Work you contributed to a team stays with the team, because it is
-                    the team&apos;s record rather than yours alone — the same way notes on a
-                    workshop whiteboard do not leave with the person who wrote them.
+                    When you ask us to delete your account we remove your personal information and
+                    your memberships, across every team you belong to, and your sign-in stops
+                    working. Work you contributed to a team stays with the team, because it is the
+                    team&apos;s record rather than yours alone — the same way notes on a workshop
+                    whiteboard do not leave with the person who wrote them.
+                </p>
+                <p>
+                    A guardian does not have to ask: the &ldquo;Remove&rdquo; button on a
+                    child&apos;s card removes that child&apos;s profile, their place on any team,
+                    their attendance record and the consents given for them, and nothing else.
                 </p>
             </LegalSection>
 

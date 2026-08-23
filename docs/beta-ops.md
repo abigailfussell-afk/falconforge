@@ -435,16 +435,23 @@ an Edge Function log is not where they belong. Only ids and event types are logg
 
 ## Erasing a person's data
 
-The Privacy Policy promises this and there is deliberately **no tool for it**: for a beta of a
-few known teams, a request handled by hand is a real answer and building an audited operator
-RPC is not worth doing yet (Kevin's call, 2026-08-18). This section is what makes "by hand"
-safe — the SQL below was **run against a real database and its effects measured**, not written
-from memory.
+**There is a tool now, and this section is no longer the procedure.** Sprint 21 (SEC-11) turned
+the SQL that used to live here into two audited RPCs, reachable from the operator console:
 
-What the policy says, and therefore what this does: *"we remove your personal information and
-your memberships. Work you contributed to a team stays with the team."*
+| | |
+|---|---|
+| **Erase a person** | The **Erase** button on their row in a team's roster panel. Works from any team they belong to; it removes them from *all* of them. |
+| **Delete a team** | The panel below the roster. Requires the team's name typed exactly. |
+| **Remove one child** | The guardian does it themselves — **Remove** on the child's card in *My children*. No operator involvement, which is the point. |
 
-### Read this first: the deletes do not work in the obvious order
+Both RPCs write to `operator_actions`, so "did we honour that request, and what did it touch?"
+is answerable afterwards. The erasure record deliberately does **not** keep the name or address
+it erased; an audit log that retains the personal information is not an erasure.
+
+### What the tool does, and why the order is what it is
+
+The sequence below is the runbook that used to be here, and it is still worth reading before
+editing `operator_erase_user` — its order is load-bearing and non-obvious.
 
 `team_members` has five composite foreign keys pointing at it with `ON DELETE SET NULL`, and
 **four of them cannot fire**:
@@ -457,104 +464,79 @@ meeting_attendance (attested_by, team_id)            -> team_members(id, team_id
 teams              (pending_admin_member_id, id)     -> team_members(id, team_id)
 ```
 
-`SET NULL` nulls **every column in the key**, so each of these tries to null a `team_id` that
-is `NOT NULL` — and the last one tries to null `teams.id`, the primary key. So a plain
-`DELETE FROM team_members` is REFUSED for anybody who has been assigned a task, created a
-meeting, filed a scouting report, taken a roster, or been nominated as admin:
-
-```
-ERROR: null value in column "team_id" of relation "tasks" violates not-null constraint
-```
-
-**Until Sprint 10 this section said "this has never bitten anyone because the app never deletes
-a member — it sets `status = 'removed'`". That was wrong.** `MemberManager` called `.delete()`
-for both "Remove from team" and "Reject", and nothing anywhere wrote `status = 'removed'`, so
-the refusal above was what a coach got from the Remove button for any student with a task —
-and when the delete did succeed it took the member's attendance history with it
-(`meeting_attendance … ON DELETE CASCADE`). Found by SEC-03 in the August 2026 assessment.
-
-Since Sprint 10 the app really does set `status = 'removed', seat_assigned = false`, so this
-runbook is once again the only thing that ever issues a `DELETE FROM team_members`. The
-underlying schema defect is unchanged and still logged in the plan's parking lot.
-
-The consequence for this runbook: **release every reference explicitly first.** A single-column
-`UPDATE ... SET assigned_to = NULL` is fine, because a composite FK with any NULL column is not
+`SET NULL` nulls **every column in the key**, so each of these tries to null a `team_id` that is
+`NOT NULL` — and the last tries to null `teams.id`, the primary key. So a plain
+`DELETE FROM team_members` is refused for anybody who has been assigned a task, created a meeting,
+filed a scouting report, taken a roster, or been nominated as admin. Every reference is released
+explicitly first, one column at a time, because a composite FK with any NULL column is not
 enforced.
 
-### The sequence
+Then: the guardian's children (cascading their consents and the child's membership), then the
+memberships (cascading their own attendance and nothing else's), then the identity.
 
-Run it as ONE transaction against the linked database, having taken a dump first (see Backups).
+### Three things this section used to get wrong
 
-```sql
-\set uid 'THE-USER-UUID'
-BEGIN;
+Kept, because each was believed and written down, and the third nearly survived a second time.
 
--- Refuse to continue if they solely administer a team: removing their membership would strand
--- it, and the fix is to transfer the admin role in the operator console FIRST.
-SELECT count(*) AS must_be_zero
-  FROM team_members WHERE user_id = :'uid' AND role = 'admin' AND status <> 'removed';
+**1 — "Then delete the login in the Supabase dashboard" does not work for most people.** Measured:
+`auth.admin.deleteUser` on a team owner is refused (`Database error deleting user`); on a plain
+student it succeeds. `public.users.id -> auth.users(id) ON DELETE CASCADE` means deleting the
+login deletes the profile row, and four `NO ACTION` references — `teams.owner_id`,
+`teams.pending_admin_nominated_by`, `invites.created_by`, `extra_team_grants.granted_by` — refuse
+that for anyone who has ever owned a team or issued an invite. Which is every admin. The tool
+**bans** the login instead: one outcome for everybody rather than a step that silently half-works.
 
--- 1. Release the composite references. None of these can be left to a cascade.
-UPDATE teams SET pending_admin_member_id = NULL, pending_admin_nominated_at = NULL,
-                 pending_admin_nominated_by = NULL
- WHERE pending_admin_member_id IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE tasks              SET assigned_to = NULL
- WHERE assigned_to IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE meetings           SET created_by  = NULL
- WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE scouting_reports   SET created_by  = NULL
- WHERE created_by  IN (SELECT id FROM team_members WHERE user_id = :'uid');
-UPDATE meeting_attendance SET attested_by = NULL
- WHERE attested_by IN (SELECT id FROM team_members WHERE user_id = :'uid');
+**2 — the anonymisation was not durable.** The old SQL wrote the tombstone to `public.users` and
+left `auth.users` alone. But `handle_new_user()` fires `AFTER INSERT OR UPDATE ON auth.users` and
+its upsert says `email = EXCLUDED.email` — *"GoTrue owns the address; there is no other writer."*
+So the next time GoTrue touched that row for any reason — a password reset, an email confirmation
+— the real address was copied straight back over the tombstone. Combined with (1), an erased
+administrator kept a working login that silently un-erased itself. The tool anonymises
+`auth.users` **first** and lets the trigger carry the tombstone into `public.users`, which uses
+the sync rather than fighting it.
 
--- 2. Their children, if they are a guardian. Cascades guardian_consents.
-DELETE FROM managed_profiles WHERE guardian_user_id = :'uid';
+**3 — SEC-01's admin-protection trigger refuses the whole thing, and a psql probe says otherwise.**
+Deleting a team cascades into `team_members` and takes the admin's row with it, which that trigger
+exists to prevent — so `DELETE FROM teams` was refused for every team that has an administrator,
+which is every team. What makes this worth writing down is how nearly it was missed: **running the
+same function in psql SUCCEEDED**, because psql connects as `postgres` and the trigger's first
+bypass exempts exactly that. The probe agreed with a broken function. Only calling it the way the
+app does — an operator's JWT through PostgREST — showed the refusal. A transaction-local
+`falconforge.operator_removal` flag now licenses it, deliberately *not* reusing `admin_transfer`.
 
--- 3. Their memberships. Cascades THEIR OWN attendance and nothing else's.
-DELETE FROM team_members WHERE user_id = :'uid';
+### What an erasure actually did, measured
 
--- 4. The person. ANONYMISED, NOT DELETED -- `teams.owner_id` and `invites.created_by` are
---    NO ACTION, so a DELETE is refused for anyone who ever owned a team or issued an invite,
---    which is every admin. `email` is NOT NULL, hence a tombstone rather than NULL.
-UPDATE users
-   SET email      = 'erased-' || left(replace(:'uid','-',''),8) || '@erased.invalid',
-       full_name  = 'Erased user',
-       avatar_url = NULL
- WHERE id = :'uid';
-
-COMMIT;
-```
-
-Then **delete the login** in the Supabase dashboard (Authentication → Users). Nothing above
-touches `auth.users`, so until you do that the account still exists and can still sign in — to
-an anonymised profile.
-
-### What this actually did, measured
-
-Run against a seeded student with 1 assigned task, 1 authored scouting report and 9 attendance
-rows, on a team holding 125 attendance rows in total:
+From the original hand-run, against a seeded student with 1 assigned task, 1 authored scouting
+report and 9 attendance rows, on a team holding 125 attendance rows in total:
 
 | | before | after |
 |---|---|---|
 | their memberships | 1 | **0** |
 | their attendance rows | 9 | **0** |
-| their name / email | `Student 1` / `iron-student0@…` | **`Erased user` / `erased-25dfe65c@erased.invalid`** |
+| their name / email | `Student 1` / `iron-student0@…` | **`Erased user` / `erased-…@erased.invalid`** |
 | their assigned task | exists, assigned to them | **exists, `assigned_to` NULL** |
 | their scouting report | exists, authored by them | **exists, `created_by` NULL** |
 | the team's other attendance | 125 | **116** |
 
-Which is the policy's sentence, exactly: the person is gone, their contributions stay with the
-team, and no other member lost anything.
+Which is the policy's sentence exactly: the person is gone, their contributions stay with the
+team, and no other member lost anything. `src/test/db/erasure.db.test.ts` asserts all of it,
+including the half that is easy to break — that the task and the report *survive*.
+
+### If you still need to do it by hand
+
+Take a dump first (see Backups), and read `supabase/migrations/20260829000000_sec_11_erasure.sql`
+rather than reconstructing the order from memory. The function is the runbook now, and unlike a
+code block in a document it is tested.
 
 ### Under-13s
 
-A guardian's request removes the child through step 2 — `managed_profiles` cascades
-`guardian_consents`, and the child's `team_members` row goes with the guardian's in step 3
-because a managed member's row carries the GUARDIAN's `user_id`. To remove one child while the
-guardian keeps their own account, delete that `managed_profiles` row alone and let the cascade
-do the rest.
+A guardian removes one child from their own screen; nothing reaches an operator. Removing the
+guardian's account removes every child with it, because a managed member's `team_members` row
+carries the **guardian's** `user_id` — which is also why the operator console does not offer
+*Erase* on a child's roster row: the account behind it is the parent's.
 
 ---
+
 
 ## Error review
 

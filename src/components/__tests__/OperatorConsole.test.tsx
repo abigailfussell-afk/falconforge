@@ -98,10 +98,15 @@ beforeEach(() => {
     mocks.isOperator = true;
     mocks.directory = [directoryRow];
     mocks.detail = detailFor([
-        { id: 'm-admin', full_name: 'Coach Example', email: 'coach@example.com', role: 'admin', status: 'approved', seat_assigned: true, is_managed: false },
-        { id: 'm-coach', full_name: 'Second Coach', email: 'second@example.com', role: 'coach', status: 'approved', seat_assigned: true, is_managed: false },
-        { id: 'm-child', full_name: 'Robin', email: null, role: 'student', status: 'approved', seat_assigned: true, is_managed: true },
-        { id: 'm-waiting', full_name: 'Hopeful', email: 'hopeful@example.com', role: 'student', status: 'pending', seat_assigned: false, is_managed: false },
+        { id: 'm-admin', user_id: 'u-admin', full_name: 'Coach Example', email: 'coach@example.com', role: 'admin', status: 'approved', seat_assigned: true, is_managed: false },
+        { id: 'm-coach', user_id: 'u-coach', full_name: 'Second Coach', email: 'second@example.com', role: 'coach', status: 'approved', seat_assigned: true, is_managed: false },
+        /*
+         * A CHILD'S ROW CARRIES THE GUARDIAN'S ACCOUNT ID, which is the trap SEC-11 has to avoid
+         * and the reason this fixture names it `u-guardian` rather than `u-robin`. There is no
+         * account for Robin; a managed profile is reached through the parent's login.
+         */
+        { id: 'm-child', user_id: 'u-guardian', full_name: 'Robin', email: null, role: 'student', status: 'approved', seat_assigned: true, is_managed: true },
+        { id: 'm-waiting', user_id: 'u-hopeful', full_name: 'Hopeful', email: 'hopeful@example.com', role: 'student', status: 'pending', seat_assigned: false, is_managed: false },
     ]);
 });
 
@@ -141,11 +146,129 @@ describe('finding a team', () => {
     });
 });
 
+// =================================================================================================
+describe('SEC-11 — erasing a person from the console', () => {
+    const selectTeam = async () => {
+        render(<OperatorConsole />);
+        fireEvent.click(await screen.findByText(/#12345 Iron Falcons/));
+        await screen.findByRole('heading', { name: /Iron Falcons — roster/i });
+    };
+
+    /*
+     * THE ASSERTION THIS WHOLE FEATURE HANGS ON.
+     *
+     * A managed child's `team_members.user_id` is their GUARDIAN's, because a child has no login
+     * of their own. An Erase button on Robin's row would call `operator_erase_user('u-guardian')`
+     * and take the parent — and every other child they have — with them. The button is therefore
+     * absent rather than disabled: a disabled control still says "this is the way to do it".
+     */
+    it('does not offer Erase on a child profile, whose account belongs to their parent', async () => {
+        await selectTeam();
+
+        expect(screen.getByTestId('erase-user-m-coach')).toBeInTheDocument();
+        expect(screen.queryByTestId('erase-user-m-child')).not.toBeInTheDocument();
+    });
+
+    /*
+     * The sole administrator's Erase is DISABLED rather than absent, and that difference is the
+     * point: the action is legitimate, it is just blocked on something the operator can fix. The
+     * child's button is absent because there is nothing to fix — that account is their parent's.
+     */
+    it('will not let the only admin of a team be erased, and says what to do instead', async () => {
+        await selectTeam();
+
+        const adminButton = screen.getByTestId('erase-user-m-admin');
+        expect(adminButton).toBeDisabled();
+        expect(adminButton.getAttribute('title')).toMatch(/transfer the admin role first/i);
+
+        // A second admin makes it legitimate again, which is what proves the rule is the rule
+        // and not just "admins are never erasable".
+        expect(screen.getByTestId('erase-user-m-coach')).toBeEnabled();
+    });
+
+    it('asks first, names the person, and says what stays', async () => {
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+
+        expect(await screen.findByText(/Erase Second Coach\?/i)).toBeInTheDocument();
+        // The two things an operator needs before pressing a red button on somebody's account.
+        expect(screen.getByText(/across every team you belong to|across every team/i)).toBeInTheDocument();
+        expect(screen.getByText(/stays with the team/i)).toBeInTheDocument();
+        expect(mocks.rpc).not.toHaveBeenCalledWith('operator_erase_user', expect.anything());
+    });
+
+    it('erases the account behind the membership, not the membership', async () => {
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+        fireEvent.click(await screen.findByTestId('confirm-erase-user'));
+
+        await waitFor(() =>
+            expect(mocks.rpc).toHaveBeenCalledWith(
+                'operator_erase_user',
+                // `u-coach`, NOT `m-coach`. Passing the membership id would erase nobody and
+                // return "No such user", which reads like the person is already gone.
+                expect.objectContaining({ p_user_id: 'u-coach' }),
+            ),
+        );
+    });
+});
+
+// =================================================================================================
+describe('SEC-11 — deleting a team from the console', () => {
+    const selectTeam = async () => {
+        render(<OperatorConsole />);
+        fireEvent.click(await screen.findByText(/#12345 Iron Falcons/));
+        await screen.findByRole('heading', { name: /Iron Falcons — roster/i });
+    };
+
+    it('will not send the request until the name matches exactly', async () => {
+        await selectTeam();
+
+        const button = screen.getByTestId('delete-team');
+        expect(button).toBeDisabled();
+
+        // Close, and deliberately not close enough.
+        fireEvent.change(screen.getByTestId('delete-team-confirm'), { target: { value: 'iron falcons' } });
+        expect(screen.getByTestId('delete-team')).toBeDisabled();
+
+        fireEvent.change(screen.getByTestId('delete-team-confirm'), { target: { value: 'Iron Falcons' } });
+        expect(screen.getByTestId('delete-team')).toBeEnabled();
+    });
+
+    /*
+     * The typed name goes to the SERVER. The disabled button above is a courtesy that stops a
+     * mis-click; `operator_delete_team` refuses on `name_mismatch` regardless, because a
+     * confirmation enforced only in the browser is one a stale bundle does not have.
+     */
+    it('sends the typed name for the server to check', async () => {
+        await selectTeam();
+
+        fireEvent.change(screen.getByTestId('delete-team-confirm'), { target: { value: 'Iron Falcons' } });
+        fireEvent.click(screen.getByTestId('delete-team'));
+
+        await waitFor(() =>
+            expect(mocks.rpc).toHaveBeenCalledWith(
+                'operator_delete_team',
+                expect.objectContaining({ p_team_id: TEAM_ID, p_confirm_name: 'Iron Falcons' }),
+            ),
+        );
+    });
+});
+
 describe('acting on the selected team', () => {
     const selectTeam = async () => {
         render(<OperatorConsole />);
         fireEvent.click(await screen.findByText(/#12345 Iron Falcons/));
-        await screen.findByText(/roster/i);
+        /*
+         * The HEADING, not the word. This was `findByText(/roster/i)` — a wait, never an
+         * assertion — and SEC-11's delete-team panel says "erasing a person is the button on
+         * their roster row", which made it ambiguous and failed three tests that are about
+         * something else entirely. A wait that matches a common word in body copy is one
+         * paragraph away from breaking, and matching the section heading costs nothing.
+         */
+        await screen.findByRole('heading', { name: /Iron Falcons — roster/i });
     };
 
     /*
