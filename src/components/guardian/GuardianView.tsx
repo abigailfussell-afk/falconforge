@@ -274,7 +274,7 @@ function ChildCard({
                  * shipped a refusal that reached the one person who could not act on it
                  * (failure-modes §8); the fix is to name who can.
                  */
-                <p className="text-sm rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 px-3 py-2">
+                <p className="text-sm rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 px-3 py-2 break-words">
                     Waiting for the team admin to approve {profile.fullName}. Nothing for you to
                     do — they will appear on the roster once it is done.
                 </p>
@@ -423,7 +423,7 @@ function PromotionSection({
                 <SectionLabel icon={KeyRound}>Their own login</SectionLabel>
                 <p
                     data-testid="promotion-done"
-                    className="text-sm text-slate-600 dark:text-slate-300"
+                    className="text-sm text-slate-600 dark:text-slate-300 break-words"
                 >
                     Done. {profile.fullName} signs in for themselves now
                     {profile.promotedAt
@@ -442,7 +442,7 @@ function PromotionSection({
 
             {profile.promotionCode ? (
                 <div className="space-y-2">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 break-words">
                         Give {profile.fullName} this code. They sign up with their own email,
                         then enter it. They keep their place on the team and everything recorded
                         so far.
@@ -478,7 +478,7 @@ function PromotionSection({
                 </div>
             ) : (
                 <div className="space-y-2">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 break-words">
                         When {profile.fullName} is old enough to have their own account, you can
                         hand over. Nothing is lost: they keep their place on the team and their
                         whole attendance history.
