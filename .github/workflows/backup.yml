@@ -1,0 +1,127 @@
+name: Nightly encrypted database backup
+
+# WHY THIS EXISTS (SYNC-11 / OPS-09)
+#
+# `docs/beta-ops.md` has documented a `supabase db dump` one-liner and "weekly during the
+# season" since Sprint 7. It was a human habit with nothing running it: `grep 'db dump'` over
+# `.github/workflows` found only the doc. On the free tier there is no PITR and no daily
+# backup, so the honest description of the recovery position was "lose everything since the
+# last time somebody remembered" — and the likeliest casualty is a Sunday competition's
+# scouting, reported on Monday.
+#
+# WHAT THIS IS NOT
+#
+# It is not a substitute for Supabase Pro's PITR. It is a nightly, encrypted, 30-day snapshot
+# that makes the worst case "lose up to a day" instead of "lose up to a fortnight". The plan's
+# trigger for Pro is D7's to move.
+#
+# THE DUMP CONTAINS EVERY MINOR'S NAME.
+#
+# That is the whole reason it is encrypted before it leaves the runner rather than after. A
+# GitHub artifact is readable by anyone with repo access; the passphrase is not in the repo.
+# `docs/beta-ops.md` carries the restore procedure and the secret names.
+
+on:
+  schedule:
+    # 07:10 UTC — after midnight in US Pacific, so a full day's work is included and the run
+    # does not collide with the evening a team is actually using the app.
+    - cron: '10 7 * * *'
+  # So the first run can be proved rather than waited for, and so a restore rehearsal can take
+  # a fresh dump on demand.
+  workflow_dispatch:
+
+# One backup at a time. Two overlapping `pg_dump`s against the free tier is a way to find its
+# connection limit at 07:10.
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    name: Dump, encrypt, retain 30 days
+    runs-on: ubuntu-latest
+    # A dump of a beta-sized database is seconds. This is the ceiling for "the database is
+    # unreachable and the CLI is retrying", not an expected duration.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # FAIL LOUDLY WHEN THE SECRETS ARE MISSING, rather than skipping.
+      #
+      # A backup job that quietly does nothing is precisely the failure this ID is about: a
+      # documented procedure nobody runs, discovered on the day it is needed. Until Kevin adds
+      # the two secrets this workflow will go red every night — deliberately, and recorded in
+      # `docs/beta-ops.md` so the noise is expected rather than mysterious.
+      - name: Check the secrets exist
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=""
+          [ -z "$DB_URL" ] && missing="$missing SUPABASE_DB_URL"
+          [ -z "$PASSPHRASE" ] && missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "See docs/beta-ops.md, section 'Backups', for what each one is and how to set it."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          # Pinned to the same version as ci.yml and the devDependency. A floating `latest`
+          # resolves through the rate-limited GitHub API and has taken CI red on a docs-only
+          # commit before now (docs/environment-divergences.md section 6).
+          version: 2.114.0
+
+      - name: Dump the database
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          # `--data-only` is deliberately NOT used: the schema is in supabase/migrations, but a
+          # restore that has to reconstruct it from a migration history the tooling cannot
+          # replay (`db push` does not work on this repo — see beta-ops.md) is a restore that
+          # fails when it is needed. A full dump restores on its own.
+          supabase db dump --db-url "$DB_URL" -f backup.sql
+          echo "rows_bytes=$(wc -c < backup.sql)" >> "$GITHUB_ENV"
+          # A dump that is suspiciously small is the shape of "authenticated, and read nothing".
+          # 50 KB is far below a seeded single team and far above an empty file.
+          if [ "$(wc -c < backup.sql)" -lt 51200 ]; then
+            echo "::error::The dump is under 50 KB — that is almost certainly not a real backup."
+            exit 1
+          fi
+
+      - name: Encrypt before it leaves the runner
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          # Symmetric AES-256, passphrase from the secret — no key material in the repo and
+          # nothing to rotate but the secret itself. `--batch` so it never waits for a tty.
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$PASSPHRASE" \
+              --output "backup-$(date -u +%Y-%m-%d).sql.gpg" backup.sql
+          # The plaintext must not reach the artifact upload.
+          shred -u backup.sql 2>/dev/null || rm -f backup.sql
+          test ! -f backup.sql
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup-*.sql.gpg
+          # 30 days: long enough that a problem noticed a fortnight later is still recoverable,
+          # short enough that a file containing every minor's name is not kept indefinitely.
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Say what was kept
+        run: |
+          echo "### Nightly backup" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- artifact: \`db-backup-${{ github.run_id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- retained: 30 days" >> "$GITHUB_STEP_SUMMARY"
+          echo "- encrypted: gpg symmetric, AES-256" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Restore procedure: \`docs/beta-ops.md\`, section **Backups**." >> "$GITHUB_STEP_SUMMARY"

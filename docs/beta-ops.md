@@ -20,12 +20,90 @@ supabase db dump --linked -f "backups/falconforge-$(date +%Y-%m-%d).sql"
 `backups/` is gitignored — a dump contains every team's data and every user's email address, and
 it must never reach a public repository.
 
-### When to take one
+### The nightly one, which is not a habit
+
+`.github/workflows/backup.yml` runs at **07:10 UTC every day**, dumps the hosted database,
+encrypts it on the runner, and keeps it as a 30-day GitHub artifact. It exists because the
+"weekly during the season" line below was a human habit with nothing running it — `grep 'db
+dump' .github/workflows` found only this document — and the honest description of the recovery
+position was "lose everything since somebody last remembered".
+
+**Two repository secrets, and until they exist the workflow goes red every night.** That is
+deliberate: a backup job that skips quietly is the failure this is meant to remove.
+
+| Secret | What it is | Where to get it |
+|---|---|---|
+| `SUPABASE_DB_URL` | The **direct** Postgres connection string for the hosted project, including the password. | Supabase dashboard → Project Settings → Database → Connection string → URI. Use the direct connection, not the pooler: `pg_dump` needs a session, and the pooler is transaction-mode. |
+| `BACKUP_PASSPHRASE` | Any long random string. It is the only thing that decrypts the artifacts, so **losing it loses every backup taken with it.** Put it in a password manager before pasting it into GitHub. | Generate one: `openssl rand -base64 48`. |
+
+Add both under Settings → Secrets and variables → Actions → New repository secret. Then run the
+workflow once by hand (Actions → *Nightly encrypted database backup* → Run workflow) rather than
+waiting until 07:10 to find out whether it works.
+
+**What the job refuses to do.** It fails rather than uploading if either secret is missing, or
+if the dump comes back under 50 KB — that size is the shape of "connected, authenticated, and
+read nothing", which is a failure that otherwise uploads happily and looks like a backup for
+thirty days. The plaintext is shredded before the upload step runs, so only the `.gpg` can reach
+the artifact.
+
+**The artifact contains every minor's name.** That is why it is encrypted on the runner rather
+than after the fact: a GitHub artifact is readable by anybody with repo access, and the
+passphrase is not in the repo. Thirty days is chosen for the same reason — long enough that a
+problem noticed a fortnight later is recoverable, short enough that this file is not kept for
+ever.
+
+### Restoring from a nightly artifact
+
+```bash
+# 1. Download the artifact from the workflow run (Actions -> the run -> Artifacts).
+unzip db-backup-<run-id>.zip
+
+# 2. Decrypt. It will prompt for BACKUP_PASSPHRASE.
+gpg --output restored.sql --decrypt backup-2026-09-01.sql.gpg
+
+# 3. Restore. Read the two traps below FIRST.
+psql "$DATABASE_URL" -f restored.sql
+```
+
+### Restoring ONE team, without touching the others
+
+The dump is plain SQL, so a single team can be lifted out of it — which is the realistic case
+(one team's season damaged by a bad write, everybody else fine). Restore the dump into a
+**scratch** database first, then copy the rows across in foreign-key order:
+
+```sql
+-- In the scratch database: everything for one tenant, in dependency order.
+\set team '00000000-0000-0000-0000-000000000000'
+
+COPY (SELECT * FROM teams            WHERE id      = :'team') TO '/tmp/t_teams.csv'    CSV;
+COPY (SELECT * FROM seasons          WHERE team_id = :'team') TO '/tmp/t_seasons.csv'  CSV;
+COPY (SELECT * FROM team_members     WHERE team_id = :'team') TO '/tmp/t_members.csv'  CSV;
+COPY (SELECT * FROM sub_teams        WHERE team_id = :'team') TO '/tmp/t_subteams.csv' CSV;
+COPY (SELECT * FROM tasks            WHERE team_id = :'team') TO '/tmp/t_tasks.csv'    CSV;
+COPY (SELECT * FROM scouting_reports WHERE team_id = :'team') TO '/tmp/t_scout.csv'    CSV;
+COPY (SELECT * FROM match_plans      WHERE team_id = :'team') TO '/tmp/t_plans.csv'    CSV;
+COPY (SELECT * FROM meetings         WHERE team_id = :'team') TO '/tmp/t_meetings.csv' CSV;
+COPY (SELECT * FROM meeting_attendance WHERE team_id = :'team') TO '/tmp/t_att.csv'    CSV;
+COPY (SELECT * FROM checklists       WHERE team_id = :'team') TO '/tmp/t_check.csv'    CSV;
+```
+
+Then `COPY ... FROM` each file into the live database **in that order** — parents before
+children, because `season_id` is NOT NULL with a composite foreign key and `meeting_attendance`
+carries one into `meetings(id, team_id)`. `meetings` before `meeting_attendance` is the pair
+that actually bites.
+
+Run it as the service role or as `postgres`: every one of these tables is behind RLS, and a
+restore performed as an ordinary user silently writes nothing.
+
+**Not yet rehearsed.** Writing a restore procedure and having performed one are different
+claims, and only the second is worth anything on the day. The rehearsal — restore a nightly
+artifact into a scratch project and prove one team comes back — is in the plan's parking lot.
+
+### When to take a manual one anyway
 
 | When | Why |
 |---|---|
-| **Before applying any migration to the hosted project** | Non-negotiable. Sprint 3's `db reset --linked` and Sprint 4's incident are both in the plan's log; a dump is the difference between a bad afternoon and a lost season. |
-| Weekly during the season | Cheap. A week is the most work anyone should be able to lose. |
+| **Before applying any migration to the hosted project** | Non-negotiable. Sprint 3's `db reset --linked` and Sprint 4's incident are both in the plan's log; a dump is the difference between a bad afternoon and a lost season. A nightly from up to 24 hours ago is not the same thing as one from two minutes ago. |
 | Before and after beta onboarding | The onboarding itself is the risky change. |
 
 ### Restoring

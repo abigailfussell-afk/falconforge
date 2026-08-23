@@ -53,22 +53,23 @@ jobs:
 
       - run: npm ci
 
-      # Deploying a build that does not typecheck or pass tests is how a broken site
-      # happens. The same gates as ci.yml, before anything is published.
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Unit tests
-        run: npm run test:run
-
-      # The integration suite holds every sync data-loss regression (B1-B18). Without this
-      # step those tests could be red while production deployed green -- exactly the class of
-      # bug the sync engine was hardened against (C8).
-      - name: Integration tests
-        run: npm run test:integration
-
-      - name: Build
-        run: npm run build
+      # ONE GATE, NOT A HAND-COPIED LIST OF ITS PARTS (OPS-10).
+      #
+      # These four steps used to be spelled out here: `npx tsc --noEmit`, `test:run`,
+      # `test:integration`, `build`. That is the Gate written out a fourth time, and this repo
+      # has already paid for that: three definitions of "done" had drifted apart, and the one
+      # an agent read was not the one CI ran. `npm run lint` in particular was `tsc --noEmit`
+      # for eight sprints while every rule document called it linting — and this file called
+      # `tsc` directly, so adding ESLint to the lint script did not add it to the deploy.
+      #
+      # `npm run gate` IS lint (tsc + eslint) -> unit -> integration -> build. Calling it means
+      # a change to the definition of done reaches the deploy automatically, and
+      # `harness-invariants.test.ts` asserts the script's contents so the definition cannot
+      # quietly change either.
+      #
+      # The build's env is set on this step because the Gate ends in `npm run build`.
+      - name: Gate (lint, unit, integration, build)
+        run: npm run gate
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
