@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import LoginPage from '../Login';
+import LoginPage, { SIGNUP_NEUTRAL_MESSAGE } from '../Login';
 import * as authObj from '../../lib/auth';
 
 // Mock the auth hook at the top level
@@ -216,32 +216,65 @@ describe('LoginPage', () => {
             });
             
             // Should show success and switch back to login
-            expect(await screen.findByText(/Account created! Please check your email/i)).toBeDefined();
+            expect(await screen.findByText(/Check your email/i)).toBeDefined();
             expect(screen.getByText('Sign in to your account')).toBeDefined();
         });
 
-        it('handles duplicate email during signup step 2', async () => {
+        /*
+         * SEC-13. THIS TEST CHANGED, and the behaviour it used to assert is the finding.
+         *
+         * It required the words "An account with this email already exists" — a straight answer
+         * to "does this person have an account here?", available to anyone with the signup form
+         * and a list of addresses, on a product whose users are mostly minors. The test was
+         * correct about what the code did; the code was the problem.
+         *
+         * It was also asserting a branch that cannot fire in either environment: with
+         * `mailer_autoconfirm: false` GoTrue returns an obfuscated fake user rather than an
+         * error (`docs/environment-divergences.md` §1). So the leak was dormant behind one
+         * dashboard toggle, and the test would have gone on passing whichever way the toggle
+         * went — green in the safe configuration and green in the unsafe one.
+         */
+        it('says exactly the same thing whether or not the address is already registered', async () => {
+            const signUp = async () => {
+                render(<LoginPage />, { wrapper: TestWrapper });
+                fireEvent.click(screen.getByText('Sign up'));
+                const inputs = screen.getAllByRole('textbox');
+                fireEvent.change(inputs[0], { target: { value: 'John Doe' } });
+                fireEvent.change(screen.getByTestId('email-input'), { target: { value: 'test@example.com' } });
+                fireEvent.change(screen.getByTestId('password-input'), { target: { value: 'password123' } });
+                fireEvent.click(screen.getByTestId('continue-button'));
+                await waitFor(() => expect(screen.getByText('Complete your profile')).toBeDefined());
+                const adultRadio = document.querySelector('input[value="18_plus"]') as HTMLInputElement;
+                fireEvent.click(adultRadio);
+                fireEvent.click(screen.getByRole('checkbox'));
+                fireEvent.click(screen.getByText('Create Account'));
+                const node = await screen.findByText(/Check your email/i);
+                return node.textContent ?? '';
+            };
+
+            // A new address: signup succeeds and a confirmation is genuinely on its way.
+            mockSignUpWithEmail.mockResolvedValueOnce({ user: { id: 'new-user' }, error: null });
+            const asNewAddress = await signUp();
+            cleanup();
+
+            // A known address, in the configuration where GoTrue DOES return the error.
             mockSignUpWithEmail.mockResolvedValueOnce({ error: new Error('User already registered') });
-            render(<LoginPage />, { wrapper: TestWrapper });
-            
-            // Step 1
-            fireEvent.click(screen.getByText('Sign up'));
-            const inputs = screen.getAllByRole('textbox');
-            fireEvent.change(inputs[0], { target: { value: 'John Doe' } });
-            fireEvent.change(screen.getByTestId('email-input'), { target: { value: 'test@example.com' } });
-            fireEvent.change(screen.getByTestId('password-input'), { target: { value: 'password123' } });
-            fireEvent.click(screen.getByTestId('continue-button'));
-            
-            await waitFor(() => expect(screen.getByText('Complete your profile')).toBeDefined());
-            
-            // Step 2
-            const adultRadio = document.querySelector('input[value="18_plus"]') as HTMLInputElement;
-            fireEvent.click(adultRadio);
-            fireEvent.click(screen.getByRole('checkbox'));
-            fireEvent.click(screen.getByText('Create Account'));
-            
-            const errorMsgs = await screen.findAllByText(/An account with this email already exists/i);
-            expect(errorMsgs.length).toBeGreaterThan(0);
+            const asKnownAddress = await signUp();
+
+            /*
+             * CHARACTER-IDENTICAL, not "both match /check your email/i".
+             *
+             * A pattern match is satisfied by two different strings, and the difference does not
+             * have to be large to be an oracle — a trailing full stop is enough to diff across
+             * two submissions. Comparing the rendered text is the only version of this assertion
+             * that fails when the two branches drift apart, which is the way this regresses.
+             */
+            expect(asKnownAddress).toBe(asNewAddress);
+            expect(asNewAddress).toContain(SIGNUP_NEUTRAL_MESSAGE);
+
+            // And it must not answer the question in either direction.
+            expect(asNewAddress.toLowerCase()).not.toMatch(/already (exists|registered)/);
+            expect(asNewAddress.toLowerCase()).not.toMatch(/account created/);
         });
     });
 

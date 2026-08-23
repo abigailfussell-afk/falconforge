@@ -7,6 +7,27 @@ import type { AgeClassification } from '../types';
 import { recordAttestation, SIGNUP_REQUIRED_ATTESTATIONS } from '../lib/attestations';
 import { friendlyAuthError } from '../lib/auth-error-copy';
 
+/**
+ * What a person is told after submitting the sign-up form — WHETHER OR NOT the address is
+ * already registered (SEC-13).
+ *
+ * ONE CONSTANT, USED BY BOTH BRANCHES, and that is the whole mechanism. Two strings that happen
+ * to read alike are one edit away from differing, and the difference does not have to be large
+ * to be an oracle: a trailing full stop, a different verb tense, anything an attacker can
+ * diff across two submissions tells them whether an address is in the database. Making it a
+ * single reference means the paths cannot drift, and
+ * `src/pages/__tests__/Login.test.tsx` asserts the two rendered messages are character-identical
+ * rather than merely both matching a pattern.
+ *
+ * The wording has to be true in both cases at once, which is why it does not say "account
+ * created": for a returning user nothing was created, no email is coming, and the old copy's
+ * "check your email to verify your account" left them waiting for a message that never arrives.
+ */
+export const SIGNUP_NEUTRAL_MESSAGE =
+    'Check your email. If this address is new, a confirmation link is on its way. ' +
+    'If you already have an account, nothing has changed — sign in below, or reset your ' +
+    'password if you have forgotten it.';
+
 type AuthMode = 'login' | 'signup' | 'forgot';
 type SignupStep = 1 | 2;
 
@@ -87,10 +108,29 @@ export default function LoginPage() {
             const { error: signupError, user } = await signUpWithEmail(email.trim(), password, fullName.trim(), selectedAge);
 
             if (signupError) {
-                // Handle duplicate email error specifically
+                /*
+                 * SEC-17's sibling, SEC-13: THE SAME WORDS EITHER WAY.
+                 *
+                 * This branch used to say "An account with this email already exists" — which is
+                 * a straight answer to "does this person have an account here?", asked by anyone
+                 * with a signup form and a list of addresses. On a product whose users are
+                 * mostly minors that is not an abstract concern.
+                 *
+                 * It is also a branch that CANNOT FIRE in either environment today. With
+                 * `mailer_autoconfirm: false` (`docs/environment-divergences.md` §1) GoTrue
+                 * deliberately returns an obfuscated fake user for an address it already knows,
+                 * so signup "succeeds" and no email arrives. So the enumeration leak was
+                 * dormant, waiting on one dashboard toggle nobody would connect to it —
+                 * `SEC-14` is the finding about exactly that class of config.
+                 *
+                 * Collapsing it into `SIGNUP_NEUTRAL_MESSAGE` makes the app's answer independent
+                 * of that setting instead of merely lucky. The user is not left stuck: the
+                 * message tells them what to do if the account is theirs.
+                 */
                 if (signupError.message.toLowerCase().includes('already registered') ||
                     signupError.message.toLowerCase().includes('already exists')) {
-                    setError('An account with this email already exists. Please sign in instead.');
+                    setMessage(SIGNUP_NEUTRAL_MESSAGE);
+                    setMode('login');
                 } else {
                     setError(friendlyAuthError(signupError.message));
                 }
@@ -131,8 +171,17 @@ export default function LoginPage() {
                 }
             }
 
-            // Success! Show email verification message
-            setMessage('Account created! Please check your email to verify your account, then sign in.');
+            /*
+             * The same words the duplicate branch above uses, and it has to be exactly the same
+             * string rather than a similar one — see SIGNUP_NEUTRAL_MESSAGE.
+             *
+             * The old text was "Account created! Please check your email to verify your account,
+             * then sign in." For a returning user that is three claims and all three are false:
+             * no account was created, no email is coming, and there is nothing to verify. They
+             * wait, nothing arrives, and they write to support (SEC-13's actual cost). The new
+             * wording is true in both cases without saying which one happened.
+             */
+            setMessage(SIGNUP_NEUTRAL_MESSAGE);
             setSignupStep(1);
             setMode('login');
 
