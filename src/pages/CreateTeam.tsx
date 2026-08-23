@@ -42,6 +42,13 @@ export default function CreateTeam() {
 
     // Created team info
     const [inviteCode, setInviteCode] = useState<string | null>(null);
+    /*
+     * SEC-09. The expiry comes back from `create_team_as_admin`, read off the row the RPC just
+     * inserted -- not computed here from a client constant. The code used to last 24 hours with
+     * nothing on this screen saying so, so a coach who registered at home and read the code out
+     * at the next meeting handed every student "Invalid or expired invite code".
+     */
+    const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
 
     // Check if user is 18+ - redirect if not
     useEffect(() => {
@@ -164,6 +171,7 @@ export default function CreateTeam() {
                 team_id?: string;
                 season_id?: string;
                 invite_code?: string;
+                invite_expires_at?: string;
                 error?: string;
             };
 
@@ -209,6 +217,7 @@ export default function CreateTeam() {
             }
 
             setInviteCode(result.invite_code || null);
+            setInviteExpiresAt(result.invite_expires_at || null);
             setCurrentStep('complete');
         } catch (err: any) {
             console.error('Exception creating team:', err);
@@ -312,6 +321,19 @@ export default function CreateTeam() {
                                 <p className="text-sm text-slate-400 mb-2">Your team invite code:</p>
                                 <p className="text-2xl font-mono font-bold text-forge-400">{inviteCode}</p>
                                 <p className="text-xs text-slate-500 mt-2">Share this code with team members to invite them</p>
+                                {/*
+                                  * Three states, not two (failure-modes §4): a date when the
+                                  * server gave one, "does not expire" when it explicitly gave
+                                  * null, and nothing at all when an older server did not answer
+                                  * -- silence being better than inventing a deadline.
+                                  */}
+                                {inviteExpiresAt !== null && (
+                                    <p className="text-xs text-amber-400/80 mt-1">
+                                        Works until {new Date(inviteExpiresAt).toLocaleDateString(undefined, {
+                                            weekday: 'long', month: 'short', day: 'numeric',
+                                        })}. You can make a new code any time from Admin &rarr; Invites.
+                                    </p>
+                                )}
                             </div>
                         )}
                         <button

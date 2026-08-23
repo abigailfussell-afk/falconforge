@@ -26,16 +26,6 @@ interface InviteManagerProps {
     teamId: string;
 }
 
-/**
- * How long a generated code lasts.
- *
- * 24 hours was the schema's DEFAULT and this component's hardcoded value. Raised to a week:
- * "share this with your team" is a weekend-shaped task, and a code that dies overnight produces
- * a second support conversation for every first one. Still bounded, because a code that never
- * expires is a credential.
- */
-const INVITE_LIFETIME_HOURS = 24 * 7;
-
 export default function InviteManager({ teamId }: InviteManagerProps) {
     const [invites, setInvites] = useState<Invite[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -118,8 +108,6 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
         try {
             // Generate a random 8-character code
             const code = generateInviteCode();
-            const expiresAt = new Date();
-            expiresAt.setHours(expiresAt.getHours() + INVITE_LIFETIME_HOURS);
 
             if (!user) throw new Error('Not authenticated');
 
@@ -129,7 +117,17 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
                     team_id: teamId,
                     code: code,
                     created_by: user.id,
-                    expires_at: expiresAt.toISOString(),
+                    /*
+                     * NO `expires_at`, and that is the fix for SEC-09.
+                     *
+                     * This component used to hold `INVITE_LIFETIME_HOURS = 24 * 7` while the
+                     * column DEFAULT said 24 hours, so the code an admin generated here and the
+                     * code `create_team_as_admin` printed on the registration screen expired a
+                     * week apart -- one concept written down twice, nothing comparing them
+                     * (`docs/failure-modes.md` §12). The DEFAULT is now the only statement of it
+                     * (7 days, `20260824000300_sec_09_invite_code_lifetime.sql`), and `.select()`
+                     * below reads back what it chose, so the countdown on the row is the row's.
+                     */
                     /*
                      * CAPPED AT THE SEATS ACTUALLY AVAILABLE.
                      *

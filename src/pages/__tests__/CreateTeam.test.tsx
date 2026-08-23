@@ -231,4 +231,67 @@ describe('CreateTeam', () => {
             expect(mockNavigate).toHaveBeenCalledWith('/');
         });
     });
+
+    describe('SEC-09 — the success screen says when the code stops working', () => {
+        /*
+         * The code used to last 24 hours and this screen said only "Share this code with team
+         * members to invite them". A coach who registered at home on Sunday and read it out at
+         * Tuesday's meeting handed every student "Invalid or expired invite code" — a true
+         * statement, indistinguishable from a typo, on the one flow every team runs exactly once.
+         *
+         * The date asserted here is DERIVED FROM THE RPC's ANSWER, not from a constant in the
+         * component: `create_team_as_admin` reads `expires_at` back off the row it inserted, so
+         * a server that changed the lifetime would change this screen without a client release.
+         * Asserting a hardcoded "7 days" string instead would pass whatever the server said.
+         */
+        const reachComplete = async () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), {
+                target: { value: 'Valid Team' },
+            });
+            fireEvent.change(screen.getByPlaceholderText('e.g., 2026-2027 Season'), {
+                target: { value: '2026-2027 Season' },
+            });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+            await screen.findByText('Team Created Successfully!');
+        };
+
+        it('prints the expiry the server actually chose', async () => {
+            const expires = new Date('2026-09-12T18:30:00.000Z');
+            (supabase!.rpc as any).mockResolvedValue({
+                data: {
+                    success: true,
+                    team_id: 't1',
+                    invite_code: 'CODE123',
+                    invite_expires_at: expires.toISOString(),
+                },
+                error: null,
+            });
+
+            await reachComplete();
+
+            const expected = expires.toLocaleDateString(undefined, {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+            });
+            expect(screen.getByText(new RegExp(`Works until ${expected}`))).toBeDefined();
+        });
+
+        it('says nothing rather than inventing a deadline when the server gave none', async () => {
+            // A client running against a server that predates the RPC change. "Absent" is not
+            // "expires today" and must not render as one — failure-modes §4.
+            (supabase!.rpc as any).mockResolvedValue({
+                data: { success: true, team_id: 't1', invite_code: 'CODE123' },
+                error: null,
+            });
+
+            await reachComplete();
+
+            expect(screen.getByText('CODE123')).toBeDefined();
+            expect(screen.queryByText(/Works until/)).toBeNull();
+        });
+    });
 });
