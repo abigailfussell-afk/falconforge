@@ -2,6 +2,7 @@ import React from 'react';
 import { Calendar } from 'lucide-react';
 import { Task } from '../types';
 import EmptyState from './ui/EmptyState';
+import { dateOnlyDay, dateOnlyMonthShort } from '../lib/date-only';
 
 interface SprintCalendarProps {
     tasks: Task[];
@@ -33,8 +34,8 @@ const SprintCalendar: React.FC<SprintCalendarProps> = ({ tasks, openTask, getMem
                             className="w-full text-left flex items-center gap-3 px-3 py-2 border border-slate-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
                         >
                             <div className="bg-forge-100 dark:bg-forge-900/30 text-forge-600 dark:text-forge-400 p-3 rounded-lg flex flex-col items-center min-w-16">
-                                <span className="text-2xs uppercase font-bold">{new Date(task.dueDate!).toLocaleString('default', { month: 'short' })}</span>
-                                <span className="text-xl font-bold">{new Date(task.dueDate!).getDate()}</span>
+                                <span className="text-2xs uppercase font-bold">{dateOnlyMonthShort(task.dueDate!)}</span>
+                                <span className="text-xl font-bold">{dateOnlyDay(task.dueDate!)}</span>
                             </div>
                             <div className="flex-1">
                                 <h4 className="font-bold text-slate-800 dark:text-white">{task.title}</h4>

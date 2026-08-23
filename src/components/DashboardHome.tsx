@@ -18,6 +18,7 @@ import { useAuth } from '../lib/auth';
 import { pathFor } from '../lib/navigation';
 import MeetingWidget from './meetings/MeetingWidget';
 import OpenCheckIns from './meetings/OpenCheckIns';
+import { dateOnlyDay, dateOnlyMonthShort, todayAsDateOnly } from '../lib/date-only';
 
 export default function DashboardHome() {
     const { user } = useAuth();
@@ -72,7 +73,15 @@ export default function DashboardHome() {
         .filter(t => t.dueDate && t.status !== 'Done')
         .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))
         .slice(0, 5);
-    const startOfToday = new Date().setHours(0, 0, 0, 0);
+    /*
+     * Compared against a DATE-ONLY value, so it has to be one (FEAT-12).
+     *
+     * `new Date().setHours(0,0,0,0)` is local midnight, and a due date is UTC midnight of the
+     * day chosen. At a negative offset those are five or six hours apart, which made "overdue"
+     * wrong by up to a day in both directions on the panel whose whole job is saying what is
+     * late.
+     */
+    const startOfToday = todayAsDateOnly();
 
     return (
         <div className="space-y-4">
@@ -251,9 +260,9 @@ export default function DashboardHome() {
                                         }`}
                                     >
                                         <span className="text-2xs uppercase font-bold leading-none">
-                                            {new Date(task.dueDate!).toLocaleString('default', { month: 'short' })}
+                                            {dateOnlyMonthShort(task.dueDate!)}
                                         </span>
-                                        <span className="text-base font-bold leading-tight">{new Date(task.dueDate!).getDate()}</span>
+                                        <span className="text-base font-bold leading-tight">{dateOnlyDay(task.dueDate!)}</span>
                                     </span>
                                     <span className="flex-1 min-w-0">
                                         <span className="block text-sm font-medium text-slate-900 dark:text-white truncate">{task.title}</span>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Task, TaskType } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { formatDateOnly } from '../lib/date-only';
 
 interface SprintBoardProps {
     tasks: Task[];
@@ -72,7 +73,7 @@ const SprintBoard: React.FC<SprintBoardProps> = ({
                                     <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 leading-snug">{task.title || 'Untitled'}</h4>
                                     <div className="flex items-center gap-1.5 mt-1.5 text-2xs text-slate-500 dark:text-slate-400">
                                         <span className="bg-slate-100 dark:bg-slate-600 px-1.5 py-px rounded truncate">{getSubTeamName(task.department)}</span>
-                                        {task.dueDate && <span className="flex items-center gap-0.5 text-forge-600 dark:text-forge-400 shrink-0 tabular-nums"><Clock size={10} />{new Date(task.dueDate).toLocaleDateString()}</span>}
+                                        {task.dueDate && <span className="flex items-center gap-0.5 text-forge-600 dark:text-forge-400 shrink-0 tabular-nums"><Clock size={10} />{formatDateOnly(task.dueDate)}</span>}
                                         <span className="flex-1" />
                                         {task.assignedTo && (
                                             <span className="w-5 h-5 rounded-full bg-forge-100 dark:bg-forge-900 text-forge-600 dark:text-forge-400 flex items-center justify-center font-bold text-2xs border border-forge-200 dark:border-forge-800 shrink-0">

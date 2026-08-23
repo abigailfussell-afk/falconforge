@@ -1,5 +1,6 @@
 import React from 'react';
 import { Task, TaskType } from '../types';
+import { formatDateOnly } from '../lib/date-only';
 
 interface SprintListProps {
     tasks: Task[];
@@ -42,7 +43,7 @@ const SprintList: React.FC<SprintListProps> = ({ tasks, openTask, getMemberName 
                             <td className="px-3 py-2"><span className={`text-2xs uppercase font-bold px-2 py-0.5 rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{task.type}</span></td>
                             <td className="px-3 py-2">{task.status}</td>
                             <td className="px-3 py-2">{getMemberName(task.assignedTo)}</td>
-                            <td className="px-3 py-2">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}</td>
+                            <td className="px-3 py-2">{task.dueDate ? formatDateOnly(task.dueDate) : '-'}</td>
                             <td className="px-3 py-2 text-slate-400">{new Date(task.createdAt).toLocaleDateString()}</td>
                         </tr>
                     ))}

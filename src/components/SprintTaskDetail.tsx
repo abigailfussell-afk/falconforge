@@ -7,6 +7,7 @@ import Modal from './ui/Modal';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import { getMemberDisplayName } from '../lib/member-utils';
+import { toDateInputValue } from '../lib/date-only';
 
 /**
  * The task create/edit modal, extracted from SprintPlanning.
@@ -165,7 +166,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Due Date</label>
                             <input
                                 type="date"
-                                value={task.dueDate ? new Date(task.dueDate).toISOString().substr(0, 10) : ''}
+                                value={toDateInputValue(task.dueDate)}
                                 onChange={(e) => onChange({ ...task, dueDate: e.target.valueAsNumber })}
                                 className="field"
                             />
