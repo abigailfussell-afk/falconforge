@@ -800,7 +800,7 @@ export type Database = {
           id: string
           notes: string | null
           operator_user_id: string
-          team_id: string
+          team_id: string | null
         }
         Insert: {
           action: string
@@ -809,7 +809,7 @@ export type Database = {
           id?: string
           notes?: string | null
           operator_user_id: string
-          team_id: string
+          team_id?: string | null
         }
         Update: {
           action?: string
@@ -818,7 +818,7 @@ export type Database = {
           id?: string
           notes?: string | null
           operator_user_id?: string
-          team_id?: string
+          team_id?: string | null
         }
         Relationships: [
           {
@@ -1476,6 +1476,14 @@ export type Database = {
       }
       offer_managed_profile_promotion: {
         Args: { p_managed_profile_id: string }
+        Returns: Json
+      }
+      operator_delete_team: {
+        Args: { p_confirm_name: string; p_notes?: string; p_team_id: string }
+        Returns: Json
+      }
+      operator_erase_user: {
+        Args: { p_notes?: string; p_user_id: string }
         Returns: Json
       }
       operator_extend_to_season: {
