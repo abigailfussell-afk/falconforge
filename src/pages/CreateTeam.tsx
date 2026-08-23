@@ -329,8 +329,19 @@ export default function CreateTeam() {
                                   */}
                                 {inviteExpiresAt !== null && (
                                     <p className="text-xs text-amber-400/80 mt-1">
-                                        Works until {new Date(inviteExpiresAt).toLocaleDateString(undefined, {
+                                        {/*
+                                          * The TIME is part of the sentence, not decoration.
+                                          * `expires_at` is an instant seven days after
+                                          * registration, so a code made on Sunday evening dies
+                                          * on Saturday EVENING — and "Works until Saturday"
+                                          * reads as "all of Saturday" to the coach holding it.
+                                          * Rendered in the reader's own zone, which for a
+                                          * timestamptz is the correct reading (failure-modes
+                                          * §10 is about date-only values, which this is not).
+                                          */}
+                                        Works until {new Date(inviteExpiresAt).toLocaleString(undefined, {
                                             weekday: 'long', month: 'short', day: 'numeric',
+                                            hour: 'numeric', minute: '2-digit',
                                         })}. You can make a new code any time from Admin &rarr; Invites.
                                     </p>
                                 )}

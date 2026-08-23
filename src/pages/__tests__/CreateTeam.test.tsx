@@ -281,12 +281,21 @@ describe('CreateTeam', () => {
 
             await reachComplete();
 
-            const expected = expires.toLocaleDateString(undefined, {
+            /*
+             * Formatted the same way the component does, in whichever zone the runner is in.
+             * CI runs the unit suite at UTC AND at America/Chicago because this project has had
+             * date defects in both directions; a hardcoded "Saturday, Aug 29" would be green in
+             * one of those and red in the other, which is how it would be found.
+             */
+            const expected = expires.toLocaleString(undefined, {
                 weekday: 'long',
                 month: 'short',
                 day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
             });
-            expect(screen.getByText(new RegExp(`Works until ${expected}`))).toBeDefined();
+            expect(screen.getByText(`Works until ${expected}. You can make a new code any time from Admin → Invites.`))
+                .toBeDefined();
         });
 
         it('says nothing rather than inventing a deadline when the server gave none', async () => {
