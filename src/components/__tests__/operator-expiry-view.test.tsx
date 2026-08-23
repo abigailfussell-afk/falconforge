@@ -75,15 +75,24 @@ const row = (over: Partial<Row> & { team_name: string }): Row => ({
 });
 
 /*
- * The set every test below draws from. One of each kind, and the NAMES are deliberately in an
- * order that disagrees with the expiry order — otherwise a sort that does nothing at all would
- * pass, which is the `toHaveBeenCalledTimes(1)` mistake in list form.
+ * The set every test below draws from — and the NAMES ARE THE TEST.
+ *
+ * The first version of this fixture called the lapsed team "Alpha Lapsed" and the open-ended
+ * one "Delta Open Ended", and the falsification pass caught it: with a NAIVE ascending sort on
+ * `valid_until` and no ranking at all, the alphabet put those two in the right places by
+ * accident and all seventeen tests stayed green. That is `docs/failure-modes.md` §2 exactly —
+ * a test satisfied by a state the defect also produces — found the only way it is ever found,
+ * by reverting the fix and watching what did NOT go red.
+ *
+ * So the names now fight the intended order. The lapsed team sorts LAST alphabetically and
+ * must come first; the open-ended team sorts FIRST and must come last. Nothing but the rank
+ * can produce the expected sequence.
  */
-const LAPSED = row({ team_name: 'Alpha Lapsed', entitlement_status: 'read_only' });
-const SOON = row({ team_name: 'Zulu Soon', valid_until: inDays(3) });
+const LAPSED = row({ team_name: 'Zeta Lapsed', entitlement_status: 'read_only' });
+const SOON = row({ team_name: 'Yankee Soon', valid_until: inDays(3) });
 const LATER = row({ team_name: 'Bravo Later', valid_until: inDays(29) });
 const NEXT_YEAR = row({ team_name: 'Charlie Next Year', valid_until: inDays(200) });
-const OPEN = row({ team_name: 'Delta Open Ended', valid_until: null });
+const OPEN = row({ team_name: 'Alfa Open Ended', valid_until: null });
 const ALL = [NEXT_YEAR, OPEN, LATER, LAPSED, SOON];
 
 describe('orderDirectory — the order', () => {
@@ -98,11 +107,11 @@ describe('orderDirectory — the order', () => {
         const names = orderDirectory(ALL, 'all', NOW).map((r) => r.team_name);
 
         expect(names).toEqual([
-            'Alpha Lapsed',
-            'Zulu Soon',
+            'Zeta Lapsed',
+            'Yankee Soon',
             'Bravo Later',
             'Charlie Next Year',
-            'Delta Open Ended',
+            'Alfa Open Ended',
         ]);
     });
 
@@ -133,7 +142,7 @@ describe('orderDirectory — the filter', () => {
 
         // Lapsed is NOT here: it has already expired, which is a different question and has
         // its own filter. Open-ended is not here because it never expires.
-        expect(names).toEqual(['Zulu Soon', 'Bravo Later']);
+        expect(names).toEqual(['Yankee Soon', 'Bravo Later']);
     });
 
     /*
@@ -152,7 +161,7 @@ describe('orderDirectory — the filter', () => {
 
     it('"lapsed" is exactly the read-only teams', () => {
         expect(orderDirectory(ALL, 'lapsed', NOW).map((r) => r.team_name)).toEqual([
-            'Alpha Lapsed',
+            'Zeta Lapsed',
         ]);
     });
 });
@@ -210,9 +219,9 @@ describe('the console actually uses them', () => {
         const names = [...screen.getByTestId('operator-directory').querySelectorAll('li')].map(
             (li) => li.textContent ?? '',
         );
-        expect(names[0]).toContain('Alpha Lapsed');
-        expect(names[1]).toContain('Zulu Soon');
-        expect(names[4]).toContain('Delta Open Ended');
+        expect(names[0]).toContain('Zeta Lapsed');
+        expect(names[1]).toContain('Yankee Soon');
+        expect(names[4]).toContain('Alfa Open Ended');
     });
 
     it('the filter narrows the list and says how much it hid', async () => {
