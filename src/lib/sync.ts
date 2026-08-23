@@ -17,7 +17,7 @@ import {
     classifySyncFailure,
     type SyncFailureContext,
 } from './sync-failure-classification';
-import { pullFromServer } from './server-pull';
+import { pullFromServer, pullEntitlement } from './server-pull';
 import { isServerAnswer, recordServerContact } from './server-reachability';
 import {
     withTimeout,
@@ -608,7 +608,13 @@ function clearLegacySyncKeys(): void {
  * here is the sync loop's opinion about the pull: which team, cursor-driven mode, and the
  * legacy-key cleanup that only the background loop is in a position to do.
  */
-async function pullChangesFromServer(token: SyncToken = { cancelled: false }): Promise<void> {
+/**
+ * Exported for tests, alongside `drainSyncQueue` and `processSyncItem`, which are exported for
+ * the same reason. Testing `reAskEntitlementIfCoverLooksOver` on its own would prove the rule
+ * and not the WIRING — a correct helper nothing calls is `docs/failure-modes.md` §7, and this
+ * repo has shipped that four times.
+ */
+export async function pullChangesFromServer(token: SyncToken = { cancelled: false }): Promise<void> {
     const currentTeamId = useAppStore.getState().currentTeamId;
     if (!currentTeamId) return;
 
@@ -616,4 +622,43 @@ async function pullChangesFromServer(token: SyncToken = { cancelled: false }): P
     clearLegacySyncKeys();
 
     await pullFromServer({ teamId: currentTeamId, mode: 'auto', token });
+    await reAskEntitlementIfCoverLooksOver(currentTeamId);
+}
+
+/**
+ * Re-read the licence when the cover we were told about looks like it has run out.
+ *
+ * WHAT THIS FIXES. `fetchTeamData` reads `team_entitlement` once, on arrival at a team, and
+ * `server-pull.ts` explains why: *"Neither changes on its own between pulls: a licence is
+ * granted or revoked by an operator."* That was true when the trial was 90 days. **D3 makes it
+ * false.** Under a 30-day probation the ordinary way a licence ends is that a date passes —
+ * which nobody does, so nothing prompts a re-read — and a team whose cover ends at 14:00 on a
+ * competition Saturday keeps being offered writes until somebody reloads the tab. Nobody
+ * reloads a tab at a venue. Measured with `scripts/probe-queued-before-lapse.mjs`: the probe
+ * only reached the terminal message after it reloaded the page on purpose.
+ *
+ * THE CLIENT CLOCK TRIGGERS A QUESTION, NEVER AN ANSWER, and that distinction is the whole
+ * design. The obvious version of this fix — "if `validUntil` is in the past, treat the team as
+ * read-only" — compares a server-written timestamp against the device's clock and would flip a
+ * perfectly licensed team to read-only on a school Chromebook running two days fast. That is
+ * B4's defect pointed at a coach instead of at a cursor, and it is the exact lock-out
+ * `entitlement.ts` is written to prevent. So a client clock past `validUntil` does one thing:
+ * it asks the server again. The worst case is a wasted query; the server stays the authority,
+ * and the fail-open rule is untouched.
+ *
+ * Cheap by construction: it only fires when the device already believes cover has ended, which
+ * for a licensed team is never.
+ */
+async function reAskEntitlementIfCoverLooksOver(teamId: string): Promise<void> {
+    const entitlement = useAppStore.getState().entitlement;
+    // Nothing read yet, no team, or open-ended cover: nothing to re-ask about.
+    if (!entitlement || entitlement.teamId !== teamId || !entitlement.validUntil) return;
+    // Already known to be read-only — the answer will not change until an operator acts, and
+    // an operator acting is what `fetchTeamData` on the next arrival is for.
+    if (entitlement.status === 'read_only') return;
+
+    const endsAt = new Date(entitlement.validUntil).getTime();
+    if (Number.isNaN(endsAt) || Date.now() < endsAt) return;
+
+    await pullEntitlement(teamId);
 }

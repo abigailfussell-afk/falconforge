@@ -139,7 +139,14 @@ for (let i = 0; i < 90; i++) {
     await page.waitForTimeout(2000);
     seen = (await indicator.innerText().catch(() => '')) ?? '';
     const body = await page.evaluate(() => document.body.innerText);
-    if (/didn.t save|renew/i.test(body)) {
+    /*
+     * WAITS FOR THE REASON, not for the badge. The first version broke on "didn't save",
+     * which is true the instant the change is parked and says nothing about whether the panel
+     * can explain itself — and that is exactly the state the sync.ts defect produced. The
+     * criterion is "lands in the terminal state WITH THE REASON SHOWN", so this waits for the
+     * sentence.
+     */
+    if (/renew the licence/i.test(body)) {
         terminalAt = Date.now() - startedAt;
         break;
     }
