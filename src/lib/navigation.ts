@@ -5,6 +5,7 @@ import {
     CheckSquare,
     ClipboardCheck,
     Gamepad2,
+    Trophy,
     Settings,
     User,
     Gift,
@@ -104,6 +105,14 @@ export const APP_VIEWS: AppView[] = [
     { id: 'checklist', path: 'checklist', label: 'Pre-Match Checklist', icon: CheckSquare, inNav: true, requiresTeam: true },
     { id: 'scouting', path: 'scouting', label: 'Scouting Reports', icon: ClipboardCheck, inNav: true, requiresTeam: true },
     { id: 'planner', path: 'planner', label: 'Match Planner', icon: Gamepad2, inNav: true, requiresTeam: true },
+    /*
+     * Competitions (D2). Visible to everybody, like Meetings and for the same reason: "when do
+     * we play, and against whom" is the whole of a student's interest in an event, and hiding
+     * the nav item would leave them with no way to find out. Writes are gated by
+     * `can_manage_content`, which D8 records as "any approved member" — the case that rule
+     * exists for is a student correcting a surrogate at a venue.
+     */
+    { id: 'events', path: 'events', label: 'Competitions', icon: Trophy, inNav: true, requiresTeam: true },
     /*
      * Meetings is visible to EVERYBODY, unlike Admin Settings.
      *

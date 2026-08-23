@@ -61,7 +61,18 @@ export interface SeasonSlice {
     setGameOverrides: (items: TeamGameOverride[]) => void;
 
     currentSeasonId: string | null;
-    addSeason: (name: string, fieldImageData?: string, gameTitle?: string) => string | null;
+    /**
+     * `gameDefinitionId` is the fourth argument rather than part of a shape, because the other
+     * three are positional and already spelled this way at every call site. Optional: a season
+     * created without one falls back to matching `gameTitle`, then to the newest bundle
+     * (`gameForSeason`), which is what every season created before P-01 does.
+     */
+    addSeason: (
+        name: string,
+        fieldImageData?: string,
+        gameTitle?: string,
+        game?: { id: string; version?: number },
+    ) => string | null;
     updateSeason: (id: string, updates: Partial<Season>) => void;
     deleteSeason: (id: string) => void;
     setCurrentSeason: (id: string) => void;
@@ -129,7 +140,7 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
         return row.id;
     },
 
-    addSeason: (name, fieldImageData = '', gameTitle = '') => {
+    addSeason: (name, fieldImageData = '', gameTitle = '', game) => {
         const { currentTeamId } = get();
         // `seasons.team_id` is NOT NULL and every season-scoped row references the season
         // compositely with the team. A season with no team is unpushable, and anything
@@ -143,6 +154,10 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
             id: generateId(),
             name,
             gameTitle,
+            // P-01 phase S. Which TEMPLATE, as distinct from the free-text label above: the
+            // app cannot decide which form to render from a string a coach typed.
+            gameDefinitionId: game?.id ?? null,
+            gameDefinitionVersion: game?.version ?? null,
             fieldImageData,
             teamId: currentTeamId,
             isArchived: false,
@@ -308,7 +323,14 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
         const fromSeasonId = input.fromSeasonId ?? state.currentSeasonId;
 
         // The season first — see ORDERING above.
-        const newSeasonId = state.addSeason(name, '', input.gameTitle?.trim() || '');
+        const newSeasonId = state.addSeason(
+            name,
+            '',
+            input.gameTitle?.trim() || '',
+            input.gameDefinitionId
+                ? { id: input.gameDefinitionId, version: input.gameDefinitionVersion }
+                : undefined,
+        );
         if (!newSeasonId) return null;
 
         if (input.cloneSubTeams !== false && fromSeasonId) {

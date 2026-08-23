@@ -136,16 +136,22 @@ describe('drainSyncQueue pushes to a real database', () => {
             teamNumber: '7777',
             matchNumber: 12,
             eventName: 'League Meet 3',
-            hasAutonomous: true,
-            autoScore: 18,
-            intakeType: 'Automatic',
-            autoAim: true,
-            farShooting: false,
-            shotsTaken: 9,
-            shotsMissed: 2,
-            parking: 'Full Park',
-            rating: 4,
-            endGameNotes: 'Quick cycles',
+            // The game's fields, in the bag the column has always held them in (P-01 phase S).
+            // This test's own name says "jsonb payload" — that has always been true of the
+            // COLUMN; what changed is that the local type says so too, so the registry passes
+            // the bag through instead of enumerating ten DECODE keys.
+            data: {
+                hasAutonomous: true,
+                autoScore: 18,
+                intakeType: 'Automatic',
+                autoAim: true,
+                farShooting: false,
+                shotsTaken: 9,
+                shotsMissed: 2,
+                parking: 'Full Park',
+                rating: 4,
+                endGameNotes: 'Quick cycles',
+            },
         });
 
         expect((await drainSyncQueue()).pushed).toBe(1);

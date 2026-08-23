@@ -35,6 +35,7 @@ const SprintPlanning = lazy(() => import('./components/SprintPlanning'));
 const PreMatchChecklist = lazy(() => import('./components/PreMatchChecklist'));
 const ScoutingReports = lazy(() => import('./components/ScoutingReports'));
 const MatchPlanner = lazy(() => import('./components/MatchPlanner'));
+const CompetitionEvents = lazy(() => import('./components/events/CompetitionEvents'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
 const EditProfile = lazy(() => import('./components/EditProfile'));
 const OperatorConsole = lazy(() => import('./components/admin/OperatorConsole'));
@@ -270,6 +271,7 @@ function App() {
                     <Route path="checkin" element={<CheckIn />} />
                     <Route path="checkin/:code" element={<CheckIn />} />
                     <Route path="planner" element={<MatchPlanner />} />
+                    <Route path="events" element={<CompetitionEvents />} />
                     <Route path="profile" element={<EditProfile />} />
                     {/*
                      * The guardian's own view. No route guard: the page reads only rows RLS

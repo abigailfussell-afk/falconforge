@@ -3,6 +3,7 @@ import { Calendar, Plus, Trash2, X, Upload, AlertTriangle, Archive, ArchiveResto
 import { useAppStore } from '../lib/store';
 import { ensureSeasonFieldImage } from '../lib/server-pull';
 import { suggestNextSeasonName } from '../lib/season-rules';
+import { BUNDLED_GAMES, CURRENT_GAME, gameById } from '../lib/games';
 import type { SeasonRolloverInput } from '../lib/slices/createSeasonSlice';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
@@ -86,7 +87,11 @@ const SeasonManager: React.FC = () => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [rollover, setRollover] = useState<SeasonRolloverInput>({
         name: '',
-        gameTitle: '',
+        // Defaults to the newest bundled definition, which in September is the new game and
+        // is what makes the right answer the one nobody has to choose.
+        gameDefinitionId: CURRENT_GAME.id,
+        gameDefinitionVersion: CURRENT_GAME.version,
+        gameTitle: CURRENT_GAME.title,
         cloneSubTeams: true,
         checklistSource: 'previous',
         archivePrevious: true,
@@ -95,7 +100,9 @@ const SeasonManager: React.FC = () => {
     const openWizard = () => {
         setRollover({
             name: suggestNextSeasonName(currentSeason?.name),
-            gameTitle: '',
+            gameDefinitionId: CURRENT_GAME.id,
+            gameDefinitionVersion: CURRENT_GAME.version,
+            gameTitle: CURRENT_GAME.title,
             cloneSubTeams: true,
             checklistSource: 'previous',
             archivePrevious: true,
@@ -424,17 +431,59 @@ const SeasonManager: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">
+                                <label
+                                    htmlFor="wizard-game"
+                                    className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400"
+                                >
                                     Game
                                 </label>
-                                <input
-                                    type="text"
+                                {/*
+                                  * A SELECT OVER THE BUNDLED DEFINITIONS, PLUS "OTHER" (P-01
+                                  * phase S). This was free text, which is why `game_title` is a
+                                  * label rather than an identity: two coaches typing "Decode"
+                                  * and "DECODE" produced two games, and nothing could decide
+                                  * which scouting form to render from either.
+                                  *
+                                  * "Other" stays, and is what a team playing something we do
+                                  * not ship uses — an off-season event, or September before the
+                                  * new definition has been released. It records the title and
+                                  * no definition id, which is exactly the state every season
+                                  * created before this column was in.
+                                  */}
+                                <select
+                                    id="wizard-game"
                                     data-testid="wizard-game-title"
-                                    value={rollover.gameTitle ?? ''}
-                                    onChange={(e) => setRollover({ ...rollover, gameTitle: e.target.value })}
-                                    placeholder="e.g. DECODE"
+                                    value={rollover.gameDefinitionId ?? (rollover.gameTitle ? 'other' : CURRENT_GAME.id)}
+                                    onChange={(e) => {
+                                        const picked = gameById(e.target.value);
+                                        setRollover({
+                                            ...rollover,
+                                            gameDefinitionId: picked?.id,
+                                            gameDefinitionVersion: picked?.version,
+                                            gameTitle: picked?.title ?? '',
+                                        });
+                                    }}
                                     className="field"
-                                />
+                                >
+                                    {BUNDLED_GAMES.map((game) => (
+                                        <option key={game.id} value={game.id}>
+                                            {game.title} ({game.seasonKey})
+                                        </option>
+                                    ))}
+                                    <option value="other">Other / not listed</option>
+                                </select>
+                                {!rollover.gameDefinitionId && (
+                                    <input
+                                        type="text"
+                                        data-testid="wizard-game-other"
+                                        value={rollover.gameTitle ?? ''}
+                                        onChange={(e) =>
+                                            setRollover({ ...rollover, gameTitle: e.target.value })
+                                        }
+                                        placeholder="Name of the game"
+                                        className="field mt-2"
+                                    />
+                                )}
                             </div>
 
                             <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-600">

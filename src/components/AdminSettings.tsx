@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import InviteManager from './InviteManager';
 import MemberManager from './MemberManager';
 import SubTeamManager from './SubTeamManager';
+import ScoutingFormSettings from './admin/ScoutingFormSettings';
 import SeasonManager from './SeasonManager';
 import { getMemberDisplayName } from '../lib/member-utils';
 import SectionHeader from './ui/SectionHeader';
@@ -66,6 +67,18 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ teamMembers, subTeams }) 
                     <EntitlementPanel />
                 </div>
             )}
+
+            {/*
+              * The team's own scouting form (D4(b)).
+              *
+              * Here rather than on the scouting page: this is a STRUCTURE decision — the RLS
+              * policy is `can_manage_structure`, not `can_manage_content` — and a control that
+              * changes the form every scout types into does not belong beside the form itself,
+              * where a student would meet it mid-competition.
+              */}
+            <div className="mb-6">
+                <ScoutingFormSettings />
+            </div>
 
             {/* Invite Links Section - only show for coaches when Supabase is configured */}
             {isConfigured && user && (

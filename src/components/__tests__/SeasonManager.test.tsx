@@ -111,13 +111,23 @@ describe('SeasonManager', () => {
             fireEvent.click(screen.getByTestId('start-new-season'));
 
             fireEvent.change(screen.getByTestId('wizard-season-name'), { target: { value: '2027-2028 Season' } });
-            fireEvent.change(screen.getByTestId('wizard-game-title'), { target: { value: 'DECODE' } });
+            /*
+             * A SELECT over the bundled definitions now, not free text (P-01 phase S). The
+             * value is the definition's ID, and the rollover carries BOTH — the id, which
+             * decides which scouting form the season renders, and the title, which is the
+             * label a coach reads. Free text is why `game_title` could never be an identity:
+             * "Decode" and "DECODE" were two games.
+             */
+            fireEvent.change(screen.getByTestId('wizard-game-title'), {
+                target: { value: 'ftc-2025-decode' },
+            });
             fireEvent.click(screen.getByTestId('wizard-confirm'));
 
             expect(mockRollOverSeason).toHaveBeenCalledWith(
                 expect.objectContaining({
                     name: '2027-2028 Season',
                     gameTitle: 'DECODE',
+                    gameDefinitionId: 'ftc-2025-decode',
                     cloneSubTeams: true,
                     checklistSource: 'previous',
                     archivePrevious: true,

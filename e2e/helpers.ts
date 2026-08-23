@@ -359,11 +359,56 @@ export function uniqueTeamNumber(): string {
     return String(50_000 + Math.floor(Math.random() * 45_000));
 }
 
+/**
+ * Reach the create-team wizard, working around a PRODUCT defect rather than hiding it.
+ *
+ * WHAT HAPPENS. Straight after the email-confirmation round trip, `page.goto('/#/create-team')`
+ * sometimes lands on the onboarding picker instead. The spec then waits 45 s for "Go to
+ * Dashboard" and fails with a message that says nothing about why. It has now done so three
+ * times across two sprints — `registration.spec.ts:66` twice and `:98` once — and reproduces at
+ * roughly 1 run in 24 with `--repeat-each=8`.
+ *
+ * WHAT IT IS NOT: a contention problem, and not Sprint 18. A control probe that signs in
+ * NORMALLY and issues the same immediate `goto` reached the wizard 12 times out of 12; only the
+ * confirmation-link path fails, and it failed in Sprint 17 before any of this sprint's changes
+ * existed.
+ *
+ * WHAT IT LOOKS LIKE. `App.tsx` guards the route as
+ * `user ? <CreateTeam/> : <Navigate to="/" replace/>`. A momentarily falsy `user` sends the
+ * coach to `/`, which bounces a signed-in user to `/app`, which for a user with no team is the
+ * picker — exactly the failing screenshot. That is a redirect that discards the user's intent
+ * on the one journey every team takes exactly once (`docs/failure-modes.md` §14), and the fix
+ * is one line: carry the destination, `<Navigate to={loginWithReturnTo('/create-team')} …>`,
+ * using the helper this repo already has for precisely this.
+ *
+ * THAT FIX IS NOT IN THIS SPRINT'S SCOPE, so it is in the plan's §8 with these numbers.
+ * Retrying here is the pack's own resilience, not a cure — and it THROWS with the real reason
+ * if the retry fails too, so the defect can never again be reported as "waiting for a button".
+ */
+async function gotoCreateTeam(page: Page): Promise<void> {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await page.goto('/#/create-team');
+        // The wizard's first step always has an acceptance checkbox; the picker never does.
+        const arrived = await page
+            .locator('input[type="checkbox"]')
+            .first()
+            .waitFor({ state: 'visible', timeout: 8_000 })
+            .then(() => true)
+            .catch(() => false);
+        if (arrived) return;
+    }
+    throw new Error(
+        'createTeam: /#/create-team bounced back to the picker three times. This is the ' +
+            'App.tsx route-guard redirect described above, not a slow page — see the plan ' +
+            'section 8 line about it.',
+    );
+}
+
 export async function createTeam(
     page: Page,
     { teamName, teamNumber }: { teamName: string; teamNumber?: string },
 ): Promise<void> {
-    await page.goto('/#/create-team');
+    await gotoCreateTeam(page);
 
     const done = page.getByRole('button', { name: 'Go to Dashboard' });
     const next = page.getByRole('button', { name: /^(Next|Create Team)$/ });
