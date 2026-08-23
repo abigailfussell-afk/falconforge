@@ -19,8 +19,25 @@ something, and that is worth someone's time.
 **Ratchets:** `as any` 56 (unchanged), arbitrary Tailwind values 2 (unchanged), no `describe.skip`,
 no assertion-free tests. Two ratchets added, both at zero.
 
-None of these four findings has an exit-criteria block in the plan, so the definitions of done
-below are **mine, written for this sprint**, and each is stated before the evidence for it.
+## Exit criteria
+
+**Correcting this report's own first draft**, which said these four IDs have no exit-criteria
+block. They do — `docs/assessment-2026-08/exit-criteria.md:158`, one bullet covering all four —
+and it is the definition of done. Quoted in full, clause by clause, with how each was verified:
+
+| Criterion (verbatim) | Verified |
+|---|---|
+| "axe (wcag2a/aa) on `/app/admin` and `/app/meetings` reports zero `select-name`/`button-name` violations" | **Met, and exceeded.** Zero on those two routes — and zero across **eight** routes plus the task modal, on `select-name`, `button-name` *and* `label`. Before: `select-name` ×14 on `/app/admin`, `button-name` ×1 on `/app/meetings`. `scripts/probe-accessibility.mjs`. |
+| "the 2xs/xs slate-500-on-dark tokens pass 4.5:1" | **Met.** 3.07:1 → **5.70:1** (SEASON label), 2.52:1 → **8.08:1** (Tasks Done denominator), 4.03:1 → **6.97:1** (team badge), board card dates → **6.97:1**. Measured by axe on the built app in dark mode, not computed by hand. |
+| "every interactive control on Admin/Meetings/Dashboard at 375 px is ≥ 32 px high" | **Met, and exceeded three ways.** Eight routes, not three; `min(width, height) ≥ 32` rather than height alone; and measured where `pointer: coarse` actually matches, which is the only place the number means anything (see below). **0 found.** |
+| "`Modal` moves focus in, traps Tab, closes on Escape — one implementation used by every modal" | **Met.** One implementation in `src/components/ui/Modal.tsx`, fifteen call sites. 13 unit tests plus three real-browser checks. Two modals deliberately do not close on Escape, and the reason is in the criteria's own spirit rather than against it — see WALK-A-08 below. |
+
+**What the criteria do not cover, where the definition of done is therefore mine:** the bullet's
+heading names "wrapping" but the bullet itself does not, so **WALK-A-11 is measured against my own
+definition** — an over-long title already stored renders wrapped and inside the 375px viewport,
+new ones are capped at the input, the same cap exists in the database, and the two numbers cannot
+drift apart silently. That definition is stated again in WALK-A-11's own section below, with the
+evidence for each half.
 
 ---
 
@@ -47,7 +64,8 @@ next move would have been an ungated rule that wrecks the desktop.
 
 ## WALK-A-08 — the modal keeps the promise its ARIA makes
 
-**Definition of done (mine):** in a real browser, opening a modal puts focus inside it, Tab
+**Criterion:** "`Modal` moves focus in, traps Tab, closes on Escape — one implementation used by
+every modal." **Read strictly for this sprint as:** in a real browser, opening a modal puts focus inside it, Tab
 cannot leave it, Escape closes the ones that should close and does not close the two that must
 not, focus returns to whatever opened it, and all of that lives in one place for all fifteen
 call sites.
@@ -88,7 +106,9 @@ would pass for the wrong reason. That polyfill is a stand-in for a browser, whic
 
 ## WALK-A-09 — controls with no name, and text nobody could read
 
-**Definition of done (mine):** axe-core (wcag2a + wcag2aa) reports zero `select-name`,
+**Criterion:** "axe (wcag2a/aa) on `/app/admin` and `/app/meetings` reports zero `select-name`/
+`button-name` violations; the 2xs/xs slate-500-on-dark tokens pass 4.5:1." **Widened for this
+sprint to:** axe-core (wcag2a + wcag2aa) reports zero `select-name`,
 `button-name`, `label` and `color-contrast` violations across every app route **in dark mode**,
 including the task modal open, which the walkthrough explicitly could not reach.
 
@@ -126,7 +146,8 @@ twice. Fixed with `aria-label="Event date"`.
 
 ## WALK-A-10 — a 32px floor under every control, on touch devices only
 
-**Definition of done (mine):** at 375px **with `pointer: coarse` matching**, no interactive
+**Criterion:** "every interactive control on Admin/Meetings/Dashboard at 375 px is ≥ 32 px high."
+**Widened for this sprint to:** at 375px **with `pointer: coarse` matching**, no interactive
 element renders below 32px on any app route, no horizontal overflow appears, and the desktop
 keeps its compact controls.
 
@@ -176,7 +197,8 @@ fix and be a density regression.
 
 ## WALK-A-11 — titles that wrap, and a limit that exists in both places
 
-**Definition of done (mine):** an over-long title already stored renders wrapped and inside the
+**No criterion covers this** — the exit-criteria bullet's heading says "wrapping" and its text does
+not — so the definition of done here is **mine**: an over-long title already stored renders wrapped and inside the
 375px viewport; new ones are capped at the input; the same cap exists in the database; and the two
 numbers cannot drift apart silently.
 
