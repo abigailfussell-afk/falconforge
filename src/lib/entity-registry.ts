@@ -113,6 +113,27 @@ export type WithSyncContext<T> = T & { teamId?: string; seasonId?: string };
  */
 export type EntityScope = 'team' | 'guardian' | 'rls';
 
+/**
+ * How a row reaches the season it belongs to, or `null` when it is not season-scoped.
+ *
+ * `'column'` -- the row carries `season_id`, so the pull filters on it directly.
+ *
+ * `'meeting'` -- `meeting_attendance`, the one season-scoped table with no `season_id` of its
+ * own. It reaches its season through `meetings.season_id`, which the pull expresses as a
+ * PostgREST embedded inner join (`select=*,meetings!inner()` plus
+ * `meetings.season_id=eq.<id>`). The EMPTY embed spec is load-bearing: it filters without
+ * adding a nested object to every row, so the join costs nothing on the wire.
+ *
+ * `null` -- `seasons` itself (the picker needs all of them), `teams`, `team_members`, and the
+ * guardian tables.
+ *
+ * Declared here rather than as a list in `server-pull.ts` for the reason the registry exists:
+ * the season filter has already been six hand-written copies (`docs/failure-modes.md`
+ * section 1), and a seventh in the pull would be the same mistake with a wider blast radius --
+ * a table left out is a table whose entire history is downloaded on every app open.
+ */
+export type SeasonScope = 'column' | 'meeting' | null;
+
 export interface EntityDefinition<TLocal extends { id: string }> {
     /** Key in the Zustand store, camelCase. */
     localKey: string;
@@ -120,6 +141,29 @@ export interface EntityDefinition<TLocal extends { id: string }> {
     remoteTable: RemoteTable;
     /** Which column scopes this entity's rows. See {@link EntityScope}. */
     scope: EntityScope;
+    /** How this entity reaches its season, if it has one. See {@link SeasonScope}. */
+    seasonScope: SeasonScope;
+    /**
+     * Columns the pull selects, when `select('*')` is too much.
+     *
+     * `undefined` means `*`. Only `seasons` narrows it, to keep `field_image_data` -- up to
+     * ~670 KB of base64 per season -- off the wire on every app open (SYNC-03).
+     *
+     * A hand-written column list is exactly the kind of second list that drifts from the
+     * schema (`docs/failure-modes.md` section 12), so `season-columns.db.test.ts` compares it
+     * to `information_schema.columns` and fails when a column is added to the table and not
+     * to this list.
+     */
+    pullColumns?: readonly string[];
+    /**
+     * Local fields whose remote column {@link pullColumns} leaves out.
+     *
+     * When a pulled row does not carry the column, the value already on the device wins --
+     * because an absent column is not an empty value (`docs/failure-modes.md` section 4).
+     * Realtime rows DO carry it (REPLICA IDENTITY FULL) and overwrite as usual, so a field
+     * image replaced on another device still arrives.
+     */
+    deferredFields?: readonly (keyof TLocal)[];
     /** Local -> Supabase row. */
     toRemote: (local: WithSyncContext<TLocal>) => Record<string, unknown>;
     /** Supabase row -> local. */
@@ -148,6 +192,7 @@ const tasks: EntityDefinition<Task> = {
     localKey: 'tasks',
     remoteTable: 'tasks',
     scope: 'team',
+    seasonScope: 'column',
     toRemote: (t) => ({
         id: t.id,
         team_id: t.teamId,
@@ -181,6 +226,7 @@ const tasks: EntityDefinition<Task> = {
         dueDate: toEpochMillis(r.due_date),
         archivedAt: toEpochMillis(r.archived_at),
         seasonId: r.season_id,
+        teamId: r.team_id,
     }),
     getFromStore: (s) => s.tasks,
     setInStore: (s, items) => s.setTasks(items),
@@ -191,6 +237,10 @@ const seasons: EntityDefinition<Season> = {
     localKey: 'seasons',
     remoteTable: 'seasons',
     scope: 'team',
+    seasonScope: null,
+    // Every column except `field_image_data`. See EntityDefinition.pullColumns.
+    pullColumns: ['id', 'name', 'team_id', 'game_title', 'is_archived', 'created_at', 'updated_at'],
+    deferredFields: ['fieldImageData'] as const,
     toRemote: (s) => ({
         id: s.id,
         name: s.name,
@@ -198,7 +248,17 @@ const seasons: EntityDefinition<Season> = {
         // Nullable with a not-blank CHECK, so whitespace-only has to become NULL rather
         // than reaching the constraint. Same shape as field_image_data below.
         game_title: s.gameTitle?.trim() || null,
-        field_image_data: s.fieldImageData || null,
+        /*
+         * OMITTED, not nulled, when this device has never fetched it.
+         *
+         * The pull leaves `field_image_data` out of its select (SYNC-03), so a season this
+         * device has only ever read carries `undefined` here. Letting `|| null` spread over
+         * that would blank a 670 KB image on the server the first time somebody renamed the
+         * season -- the push sends the whole row, so every field it can express is a field it
+         * can destroy. `''` still means "somebody pressed Remove Image" and still nulls the
+         * column; only "we do not know" is left alone.
+         */
+        ...(s.fieldImageData === undefined ? {} : { field_image_data: s.fieldImageData || null }),
         // Sprint 4. Written as well as read: archiving the outgoing season is the second
         // half of a rollover, and a field carried in only one direction is exactly the
         // asymmetry this registry exists to make impossible (B9/B10/B17).
@@ -209,7 +269,8 @@ const seasons: EntityDefinition<Season> = {
         name: r.name,
         teamId: r.team_id,
         gameTitle: r.game_title || '',
-        fieldImageData: r.field_image_data || '',
+        // Absent column -> undefined ("not fetched"); present-and-null -> '' ("no image").
+        fieldImageData: 'field_image_data' in r ? (r.field_image_data || '') : undefined,
         isArchived: r.is_archived ?? false,
         createdAt: toEpochMillis(r.created_at) ?? 0,
     }),
@@ -222,6 +283,7 @@ const subTeams: EntityDefinition<SubTeam> = {
     localKey: 'subTeams',
     remoteTable: 'sub_teams',
     scope: 'team',
+    seasonScope: 'column',
     toRemote: (st) => ({
         id: st.id,
         team_id: st.teamId,
@@ -237,6 +299,7 @@ const subTeams: EntityDefinition<SubTeam> = {
         name: r.name,
         memberIds: r.member_ids || [],
         seasonId: r.season_id,
+        teamId: r.team_id,
     }),
     getFromStore: (s) => s.subTeams,
     setInStore: (s, items) => s.setSubTeams(items),
@@ -247,6 +310,7 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
     localKey: 'scoutingReports',
     remoteTable: 'scouting_reports',
     scope: 'team',
+    seasonScope: 'column',
     toRemote: (r) => ({
         id: r.id,
         team_id: r.teamId,
@@ -288,6 +352,7 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         endGameNotes: r.data?.endGameNotes ?? '',
         createdBy: r.created_by || '',
         seasonId: r.season_id,
+        teamId: r.team_id,
         createdAt: toEpochMillis(r.created_at),
     }),
     getFromStore: (s) => s.scoutingReports,
@@ -299,6 +364,7 @@ const matchPlans: EntityDefinition<MatchPlan> = {
     localKey: 'matchPlans',
     remoteTable: 'match_plans',
     scope: 'team',
+    seasonScope: 'column',
     toRemote: (p) => ({
         id: p.id,
         team_id: p.teamId,
@@ -323,6 +389,7 @@ const matchPlans: EntityDefinition<MatchPlan> = {
         partnerPark: r.partner_park ?? false,
         updatedAt: toEpochMillis(r.updated_at) ?? 0,
         seasonId: r.season_id,
+        teamId: r.team_id,
     }),
     getFromStore: (s) => s.matchPlans,
     setInStore: (s, items) => s.setMatchPlans(items),
@@ -345,6 +412,7 @@ const teamMembers: EntityDefinition<TeamMember> = {
     localKey: 'teamMembers',
     remoteTable: 'team_members',
     scope: 'team',
+    seasonScope: null,
     toRemote: (m) => ({
         id: m.id,
         team_id: m.teamId,
@@ -391,6 +459,7 @@ const meetings: EntityDefinition<Meeting> = {
     localKey: 'meetings',
     remoteTable: 'meetings',
     scope: 'team',
+    seasonScope: 'column',
     toRemote: (m) => ({
         id: m.id,
         team_id: m.teamId,
@@ -429,6 +498,7 @@ const meetings: EntityDefinition<Meeting> = {
         seriesId: r.series_id || '',
         createdBy: r.created_by || '',
         seasonId: r.season_id,
+        teamId: r.team_id,
     }),
     getFromStore: (s) => s.meetings,
     setInStore: (s, items) => s.setMeetings(items),
@@ -450,6 +520,7 @@ const meetingAttendance: EntityDefinition<MeetingAttendance> = {
     localKey: 'meetingAttendance',
     remoteTable: 'meeting_attendance',
     scope: 'team',
+    seasonScope: 'meeting',
     toRemote: (a) => ({
         id: a.id,
         team_id: a.teamId,
@@ -470,6 +541,7 @@ const meetingAttendance: EntityDefinition<MeetingAttendance> = {
         notes: r.notes || '',
         attestedBy: r.attested_by || '',
         attestedAt: toEpochMillis(r.attested_at),
+        teamId: r.team_id,
     }),
     getFromStore: (s) => s.meetingAttendance,
     setInStore: (s, items) => s.setMeetingAttendance(items),
@@ -504,6 +576,7 @@ const managedProfiles: EntityDefinition<ManagedProfile> = {
     localKey: 'managedProfiles',
     remoteTable: 'managed_profiles',
     scope: 'guardian',
+    seasonScope: null,
     toRemote: (p) => ({
         id: p.id,
         guardian_user_id: p.guardianUserId,
@@ -537,6 +610,7 @@ const guardianConsents: EntityDefinition<GuardianConsent> = {
     localKey: 'guardianConsents',
     remoteTable: 'guardian_consents',
     scope: 'guardian',
+    seasonScope: null,
     toRemote: (c) => ({
         id: c.id,
         managed_profile_id: c.managedProfileId,
@@ -669,6 +743,7 @@ const teams: EntityDefinition<Team> = {
     localKey: 'teams',
     remoteTable: 'teams',
     scope: 'rls',
+    seasonScope: null,
     toRemote: (t) => ({
         id: t.id,
         name: t.name,

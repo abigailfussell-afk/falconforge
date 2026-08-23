@@ -41,7 +41,19 @@ import type {
 /** Contextual fields the server needs but the local types do not carry. */
 const CTX = { teamId: 'team-1', seasonId: 'season-1' };
 
+/**
+ * The tenant now survives the round trip, and the samples say so.
+ *
+ * `fromRemote` used to drop `team_id`, so a local record could not say which team it belonged
+ * to and a queued task stayed on the board after a team switch (SYNC-15). Adding `teamId` to
+ * each sample is what makes this suite assert the new symmetry rather than tolerate it: with
+ * the field absent from the sample the round trip would be comparing a 13-key object to a
+ * 12-key one, which is the asymmetry this whole file exists to catch.
+ */
+const TENANT = { teamId: CTX.teamId };
+
 const task: Task = {
+    ...TENANT,
     id: 'task-1',
     title: 'Rebuild the intake',
     description: 'It jams on the third cone',
@@ -70,6 +82,7 @@ const season: Season = {
 };
 
 const subTeam: SubTeam = {
+    ...TENANT,
     id: 'subteam-1',
     name: 'Build',
     memberIds: ['member-1', 'member-2'],
@@ -77,6 +90,7 @@ const subTeam: SubTeam = {
 };
 
 const scoutingReport: ScoutingReport = {
+    ...TENANT,
     id: 'report-1',
     teamNumber: '12345',
     matchNumber: 7,
@@ -97,6 +111,7 @@ const scoutingReport: ScoutingReport = {
 };
 
 const matchPlan: MatchPlan = {
+    ...TENANT,
     id: 'plan-1',
     title: 'Quals 14',
     matchNumber: 14,
@@ -124,6 +139,7 @@ const teamMember: TeamMember = {
 };
 
 const meeting: Meeting = {
+    ...TENANT,
     id: 'meeting-1',
     title: 'Build session — chassis rebuild',
     description: 'Bring the spare motors',
@@ -144,6 +160,7 @@ const meeting: Meeting = {
 };
 
 const meetingAttendance: MeetingAttendance = {
+    ...TENANT,
     id: 'attendance-1',
     meetingId: 'meeting-1',
     teamMemberId: 'member-1',

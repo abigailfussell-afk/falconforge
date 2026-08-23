@@ -35,6 +35,16 @@ export interface TestUser {
     /** team_members.id for this user in their team (absent for a user with no team). */
     memberId: string;
     role: Role;
+    /**
+     * The raw JWT behind {@link client}.
+     *
+     * Exposed because the APP's own clients read their token out of localStorage rather than
+     * being handed one, so a test that drives `pullFromServer` has to put a real token there
+     * (`signInAppClientAs`). `server-pull.db.test.ts` used to re-implement `mintAccessToken`
+     * to get one — a second copy of the JWT minting, in the file whose whole subject is that
+     * there should be one of things.
+     */
+    token: string;
     /** RLS-subject client. Assert through this, never through the service client. */
     client: SupabaseClient<Database>;
 }
@@ -199,6 +209,7 @@ export class Fixtures {
                 email: account.email,
                 memberId: member.id,
                 role,
+                token: account.token,
                 client: userClient(account.token),
             };
         }

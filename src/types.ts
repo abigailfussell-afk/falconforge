@@ -107,6 +107,7 @@ export interface SubTeam {
   name: string;
   memberIds: string[];  // TeamMember IDs assigned to this SubTeam
   seasonId: string;     // Scoped to a specific Season
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 /**
@@ -118,6 +119,21 @@ export interface SubTeam {
  * that lets a row with no season leak into EVERY season, which is the exact opposite of the
  * fresh start a new season is supposed to be. Those filters are gone; the type is what
  * stops them coming back.
+ */
+
+/**
+ * TENANT ON EVERY ROW.
+ *
+ * `teamId` is optional on the season-scoped types below, and optional for one reason only:
+ * records persisted by an older build do not have it, and "this row does not say which team
+ * it belongs to" must not be read as "it belongs to no team". Everything that consumes it
+ * treats `undefined` as *unknown*, never as a mismatch.
+ *
+ * It exists because a local record used to carry no tenant at all — `fromRemote` dropped
+ * `team_id` — so a task queued on Team A stayed in the collection the board renders after a
+ * switch to Team B, until it was pushed and the next full pull evicted it (SYNC-15). A coach
+ * on two teams saw the other team's card. Cosmetic and short-lived, but it is a tenant
+ * boundary drawn in the UI, and the answer was already in the row we had thrown away.
  */
 
 
@@ -148,6 +164,7 @@ export interface Task {
   dueDate?: number;
   seasonId: string;
   archivedAt?: number;
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 export interface ScoutingReport {
@@ -169,6 +186,7 @@ export interface ScoutingReport {
   createdBy?: string;   // TeamMember ID who created this report
   seasonId: string;     // Scoped to a specific Season
   createdAt?: number;
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 /**
@@ -201,6 +219,7 @@ export interface MatchPlan {
   partnerPark: boolean;
   updatedAt: number;
   seasonId: string;
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 export interface Season {
@@ -212,7 +231,20 @@ export interface Season {
    * the column is nullable with a not-blank CHECK, and the mapping trims to null.
    */
   gameTitle: string;
-  fieldImageData: string;  // Base64 encoded image data for offline support
+  /**
+   * Base64 field image, for offline support.
+   *
+   * THREE STATES, NOT TWO (`docs/failure-modes.md` section 4). `undefined` means "this device
+   * has not fetched the column"; `''` means "this season has no field image". The pull
+   * deliberately does not select `field_image_data` — a single image is up to ~670 KB of
+   * base64 and it used to ride along with every `seasons` read on every app open (SYNC-03) —
+   * so it is fetched once per season by `ensureSeasonFieldImage`, on the two screens that
+   * show it.
+   *
+   * `toRemote` omits the column entirely when this is `undefined`, so renaming a season on a
+   * device that has never loaded the image cannot blank it on the server.
+   */
+  fieldImageData?: string;
   teamId?: string;  // Scoped to Team
   /**
    * A prior season: fully readable, accepts no writes to anything it scopes.
@@ -306,6 +338,7 @@ export interface Meeting {
   /** TeamMember id. */
   createdBy: string;
   seasonId: string;
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 /**
@@ -330,6 +363,7 @@ export interface MeetingAttendance {
   /** TeamMember id of whoever recorded it. Themselves, for a scan. */
   attestedBy: string;
   attestedAt?: number;
+  teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
 }
 
 /**
