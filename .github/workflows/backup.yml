@@ -67,6 +67,41 @@ jobs:
             exit 1
           fi
 
+          # ------------------------------------------------------------------------------------
+          # PRESENT IS NOT THE SAME AS USABLE, and this job's first ever run proved it.
+          #
+          # Both secrets were set weeks ago and this check passed. The dump then failed thirty
+          # seconds later, after pulling a 300 MB postgres image, with:
+          #
+          #   pg_dump: error: connection to server at "db.<ref>.supabase.co" (2600:1f14:...),
+          #   port 5432 failed: Network is unreachable
+          #   Your network does not support IPv6, which is required for direct connections.
+          #
+          # GitHub's hosted runners have no IPv6. Supabase's DIRECT database host resolves to
+          # IPv6 only on the free tier, so `db.<ref>.supabase.co` can never be reached from here
+          # — not intermittently, never. The secret has to be the POOLER connection string,
+          # which is IPv4.
+          #
+          # Checked here rather than left to pg_dump because the difference between "the backup
+          # is configured" and "the backup works" was thirty days of green-looking nothing: this
+          # job would have failed at 07:10 every night, and the first anybody would have known is
+          # the morning they needed a restore.
+          #
+          # SESSION pooler (5432), not transaction (6543): pg_dump uses prepared statements and
+          # session-level settings that transaction pooling does not carry.
+          # ------------------------------------------------------------------------------------
+          case "$DB_URL" in
+            *pooler.supabase.com*) : ;;
+            *)
+              echo "::error::SUPABASE_DB_URL is not a pooler connection string."
+              echo "GitHub runners have no IPv6, and the direct host (db.<ref>.supabase.co) is"
+              echo "IPv6-only, so pg_dump can never reach it from Actions."
+              echo "Fix: Supabase Dashboard -> Connect -> Session pooler (port 5432), copy that"
+              echo "URI, and set it as the SUPABASE_DB_URL repository secret."
+              exit 1
+              ;;
+          esac
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned to the same version as ci.yml and the devDependency. A floating `latest`

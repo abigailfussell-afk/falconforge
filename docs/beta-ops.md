@@ -59,22 +59,54 @@ position was "lose everything since somebody last remembered".
 **Two repository secrets, and until they exist the workflow goes red every night.** That is
 deliberate: a backup job that skips quietly is the failure this is meant to remove.
 
-**Status, 2026-08-23 — both secrets exist and the workflow still does not.** `gh secret list -R
-abigailfussell-afk/falconforge` shows `SUPABASE_DB_URL` (11:50 UTC) and `BACKUP_PASSPHRASE`
-(11:55 UTC), added by Kevin. But `gh workflow list --all` returns only *CI*, *Deploy* and
-*pages-build-deployment*: `.github/workflows/backup.yml` landed in Sprint 14 and **`main` has
-not been pushed since `c1cec81`**, so the file exists on Kevin's machine and nowhere GitHub can
-see it. The consequence is worth stating plainly rather than leaving as an inference — **the
-nightly backup has never run, no artifact exists, and the recovery position today is still
-"lose everything".** It is not going red every night; it is not running at all, which is the
-quieter of the two failures and the one this workflow was written to make impossible.
+**Status, 2026-08-23 (evening) — `main` is pushed, the workflow is registered, and the first run
+FAILED. One thing left, and it is in this document's own table below.**
 
-The fix is one `git push` of `main`, which is Kevin's to make because `main` also deploys to
-production. Do it, then run the workflow once by hand as below and check the artifact size.
+There were two failures stacked on top of each other, and the second was hidden by the first.
+
+**First: the workflow was not on GitHub.** `backup.yml` landed in Sprint 14, and `main` had not
+been pushed since `c1cec81` — so the file existed on Kevin's machine and nowhere GitHub could see
+it. `gh workflow list --all` returned only *CI*, *Deploy* and *pages-build-deployment*, and
+`gh run list --workflow=backup.yml` answered `HTTP 404: workflow not found on the default
+branch`. It was not going red every night; it was not running at all, which is the quieter of the
+two failures and the one this workflow was written to make impossible. Fixed by pushing `main`
+(86 commits) after the 14 pending migrations were applied to the hosted project.
+
+**Second, and this one is this document's fault.** With the workflow finally registered, the run
+was triggered by hand rather than waited for — which is precisely what `workflow_dispatch` is
+there for — and it failed in 30 seconds:
+
+```
+pg_dump: error: connection to server at "db.<ref>.supabase.co"
+  (2600:1f14:131e:fd01:beb5:3d0a:ea06:9c29), port 5432 failed: Network is unreachable
+Your network does not support IPv6, which is required for direct connections to the database.
+```
+
+**GitHub's hosted runners have no IPv6, and Supabase's direct database host is IPv6-only on the
+free tier.** So `db.<ref>.supabase.co` is not slow or flaky from Actions — it is unreachable,
+every time, for ever. And the secrets table below told Kevin to use exactly that: *"Use the direct
+connection, not the pooler."* He set the secret correctly according to the documentation, and the
+documentation was wrong.
+
+The reasoning in that line was half right, which is why it survived: `pg_dump` genuinely does need
+a session, and the TRANSACTION pooler (6543) genuinely cannot give it one. What it missed is that
+Supabase also publishes a **session** pooler on **5432** — IPv4, session-mode, and exactly what
+`pg_dump` wants. "Pooler" was read as "transaction pooler" and the usable option was written out
+of existence.
+
+**What is left to do — Kevin's, because it carries the database password:** set `SUPABASE_DB_URL`
+to the **Session pooler** URI (Supabase Dashboard → Connect → Session pooler, port **5432**,
+host `aws-0-us-west-2.pooler.supabase.com`), then run the workflow by hand again. `backup.yml`
+now refuses in its first step, before pulling a 300 MB postgres image, if the URL is not a pooler
+string — so the next failure, if there is one, will name its own cause.
+
+Until that secret changes, **the recovery position is the manual dump taken on 2026-08-23**
+(`backups/falconforge-2026-08-23-1604.sql`), which was verified by restoring it and applying all
+14 migrations on top of it. See "Restoring from a nightly artifact" for the shape of that check.
 
 | Secret | What it is | Where to get it |
 |---|---|---|
-| `SUPABASE_DB_URL` | The **direct** Postgres connection string for the hosted project, including the password. | Supabase dashboard → Project Settings → Database → Connection string → URI. Use the direct connection, not the pooler: `pg_dump` needs a session, and the pooler is transaction-mode. |
+| `SUPABASE_DB_URL` | The **session pooler** connection string for the hosted project, including the password. | Supabase dashboard → **Connect → Session pooler**, port **5432**. **Not** the direct connection (`db.<ref>.supabase.co`): it is IPv6-only and GitHub runners have no IPv6, so `pg_dump` can never reach it — this is what made the first run fail. **Not** the transaction pooler (6543) either: `pg_dump` needs a session, which transaction pooling does not give it. Session pooler is the one that is both IPv4 and session-mode. |
 | `BACKUP_PASSPHRASE` | Any long random string. It is the only thing that decrypts the artifacts, so **losing it loses every backup taken with it.** Put it in a password manager before pasting it into GitHub. | Generate one: `openssl rand -base64 48`. |
 
 Add both under Settings → Secrets and variables → Actions → New repository secret. Then run the
