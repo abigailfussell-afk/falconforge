@@ -4,7 +4,8 @@
 **IDs, in the order given:** SEC-01, SEC-02, SEC-05, SEC-09, SEC-10 ‖ SEC-03, SEC-06, SEC-08.
 No more, no fewer.
 **Branch:** `v2/sprint-10-tenant-safety` off `main`.
-**Commit range:** `d80f046..67c62c5` — ten commits, 27 files, +3041 / −43.
+**Commit range:** `d80f046..HEAD` — the eight IDs in ten commits, plus a documentation
+commit and the seed-script follow-up in §8.
 **Not pushed, no PR, nothing deployed.** Production migrations are Kevin's to apply.
 
 Six forward migrations on the frozen schema, one per ID that needed one:
@@ -872,12 +873,10 @@ belongs with SEC-07 / Package F, not with the RLS fix.
 Seven entries added to `FALCONFORGE_V2_PLAN.md` §8 under
 *"From Package A of the August 2026 assessment"*, with exact numbers:
 
-1. **Every seeded review account meets the legal-documents modal on its first screen.**
-   `seed-review-states.mjs:52` omits `privacy_accepted`/`privacy_version` from the signup
-   metadata, so no `privacy_and_guidelines` attestation is written; `reviewer@` has exactly one
-   attestation (`coach_terms` 2.0) and `guardian@` has none. It is
-   `docs/environment-divergences.md` §1's own story a second time — the e2e helper was fixed, the
-   review seed was not. One line. It blocked the first click of my own browser pass.
+1. ~~**Every seeded review account meets the legal-documents modal on its first screen.**~~
+   **Fixed in this sprint at Kevin's request, after the report was first written** — see §8
+   below. `seed-review-states.mjs`'s `makeUser` omitted `privacy_accepted`/`privacy_version`, so
+   0 of 36 seeded accounts had a current `privacy_and_guidelines` acceptance; now 36 of 36 do.
 2. **After SEC-03, saving a task assigned to a removed member writes the assignment away**
    (`server-pull.ts:245-247`). Package B's file.
 3. **supabase-js never sees a trigger's message on signup** — `X-Supabase-Api-Version:
@@ -941,4 +940,64 @@ a small typed `rpcMock()` helper so the two new cases did not raise the `as any`
 
 ```
 | 2026-08-24 | Sprint 10 — Package A "tenant safety" (SEC-01, 02, 05, 09, 10, 03, 06, 08) | `v2/sprint-10-tenant-safety` | **Complete, unmerged.** `gate:db` green (lint / 678 unit +2 skips / 91 integration / build / schema assertions / 517 db / 343 rls) and the e2e pack 20/20. Six forward migrations, one per ID that needed one. **Every one of the eight was reproduced over PostgREST as the real role before the fix and proved closed the same way after**, both outputs in `docs/sprint-10-report.md`. **SEC-01 was a three-request takeover**: `can_manage_roster` is admin OR coach with no column restriction, so a coach demoted the admin (200), promoted themselves (200) and got `can_manage_billing` true — or DELETEd the admin row and stranded the team. Closed by a BEFORE trigger with a transaction-local flag the four transfer RPCs raise; all four verified end to end afterwards, and the trigger's NAME is load-bearing (BEFORE triggers fire alphabetically, so authority is answered before eligibility — assertion 24 fails if that is lost). It exempts non-API session roles, because `team_members` cascades from `users` and a JWT-only guard would have made a team's admin undeletable. **SEC-02's plan line said RESOLVED for two days while the correction still reverted on the next login** — `handle_new_user` re-applied frozen signup metadata on every `auth.users` UPDATE; the fix direction's wording for `full_name` would have deleted the rename path, so the rule is "re-apply a metadata field only when THAT FIELD changed" and the four controls that catch the shortest reading are green in the red run. **SEC-05: a 13-year-old could read another family's child's "Peanut allergy - epipen in bag" and their promotion code**; the policy is dropped rather than narrowed (column grants are per role, and the surface had no reader) so `select=id,full_name` now returns `[]` — the one exit criterion not met as written, with the roster's own naming path asserted beside it. **SEC-03: the plan and the runbook both said the app never deletes a member and both handlers called `.delete()`** — 9 attendance rows to 0 on the delete that worked, `23502` on the one that did not; verified in the built bundle (seats 15/15 → 14/15, task and 9 attendance rows kept). **SEC-06 closed three oracles and left two, with the numbers**; `200 []` measured on all 18 tables before and after rather than assumed. SEC-09's lifetime is now one number (the column DEFAULT) and the screen names the hour, found by running it. SEC-10 closed a third door the finding did not name (`PATCH /rest/v1/users`). `as any` unchanged at 56; three new schema assertions, each watched failing; seven parking-lot entries including a review seed that puts a legal modal on the first screen of every account. |
+```
+
+---
+
+## 8. Follow-up — the seed script (2026-08-24, requested after the report)
+
+Parking-lot item 1, fixed rather than carried. `scripts/seed-review-states.mjs` created every
+account with `user_metadata: { full_name, age_classification }` and nothing else, so
+`handle_new_user` recorded no signup consent and `ReAttestationPrompt` fired over the first
+screen of every seeded account. Measured before: **0 of 36** accounts held
+`privacy_and_guidelines@2.0`. After: **36 of 36**.
+
+**The numbers are not copied.** `ATTESTATION_VERSIONS`' values moved to
+`src/lib/attestation-versions.json`, which Vite, `tsc`, Playwright's loader and bare `node` all
+read; the `.ts` module keeps the whole doc comment, the `Record<AttestationType, string>`
+annotation and every existing importer. That is the same reasoning that moved the constant out
+of `attestations.ts` in the first place — its own comment says the alternative was "to write the
+number down a second time", which is what this script had done, twice: no `privacy_version` at
+signup, and a hardcoded `'2.0'` in its own `attest()`. Both now read the shared file.
+
+Deriving beat guarding here, per `docs/failure-modes.md` §12 ("derive the list from its source of
+truth; if it genuinely must be hand-written, add the test"). Raising a version now moves the seed
+with it, with nothing to remember.
+
+**Two things found by doing it, both by running something rather than by the Gate:**
+
+- `import versions from './attestation-versions.json'` **needs `with { type: 'json' }`**, and the
+  Gate cannot tell you. `tsc --noEmit`, `vite build` and all 678 unit tests passed over the
+  version without it, while every Playwright spec died on
+  `Module … needs an import attribute of "type: json"` — its loader emits real ESM and Node
+  enforces the attribute. Found by running the e2e pack after a green Gate. Recorded in the
+  module.
+- `Record<AttestationType, string>` catches a JSON file that has **lost** a key (verified:
+  removing `coach_terms` fails `tsc` with TS2741) but not one that has gained a spare. The
+  comment says so rather than claiming both, since an extra key nothing reads is inert and the
+  rename case is caught by the missing half.
+
+**Verified.** `npm run gate:db` green (lint / 678 unit +2 skips / 91 integration / build / schema
+assertions / 517 db / 343 rls) and the e2e pack 20/20. In the built bundle against a freshly
+seeded stack, service worker cleared and the loaded script compared to `dist/`
+(`index-2HzQRAoc.js`): `reviewer@` lands on the team picker with no modal and no "Later" button,
+reaches `/app/admin` with all 14 Remove buttons clickable, and `guardian@` lands straight on "My
+children" — all three screens where the modal stood before.
+
+**Red check.** The seed now asserts the property itself before reporting success, because both
+ways it comes back are silent: someone drops the metadata from `makeUser` again, or adds an
+account-creation path that does not go through it. Watched failing with the metadata reverted:
+
+```
+Error: 36 of 36 seeded accounts have no privacy_and_guidelines@2.0 row, so each meets
+"We've updated our legal documents" on its first screen: expiring-student0@falconforge.test,
+reviewer@falconforge.test, full-student0@falconforge.test, iron-student0@falconforge.test,
+iron-student1@falconforge.test, …. Signup metadata must carry privacy_accepted and
+privacy_version — see makeUser.
+```
+
+and on the fixed script:
+
+```
+  All 36 accounts accepted privacy_and_guidelines@2.0 — no legal modal.
 ```

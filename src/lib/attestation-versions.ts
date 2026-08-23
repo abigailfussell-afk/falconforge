@@ -1,4 +1,5 @@
 import type { AttestationType } from '../types';
+import versions from './attestation-versions.json' with { type: 'json' };
 
 /**
  * Current versions of the legal documents. Raising one requires re-acceptance.
@@ -25,16 +26,28 @@ import type { AttestationType } from '../types';
  * down a second time. A second copy of a version number is the defect migration
  * `20260821000000_signup_attestation_version.sql` exists because of, so the constant moved
  * instead. `attestations.ts` re-exports it, so every existing importer is unaffected.
+ *
+ * WHY THE VALUES ARE IN JSON NEXT DOOR, since Sprint 10. Moving the module was enough for the
+ * e2e pack, which is TypeScript. It was not enough for `scripts/seed-review-states.mjs`, which
+ * plain `node` runs: it could not import a `.ts` file at all, so it sent no `privacy_version` at
+ * signup and hardcoded `'2.0'` where it wrote attestations directly. The trigger's fallback is
+ * `'1.0'`, which is out of date — so every seeded review account met "We've updated our legal
+ * documents" on its first screen, which is this module's own story reaching a third consumer.
+ *
+ * `.json` is the one format Vite, `tsc`, Playwright's loader and bare Node all read without a
+ * build step or a version floor. The reasoning stays in this comment because JSON cannot hold
+ * one — so raise a number HERE, in the file with the argument in it, and the JSON follows.
+ *
+ * `with { type: 'json' }` IS REQUIRED, and the Gate does not say so. Without it `tsc --noEmit`
+ * passes, `vite build` passes and the whole unit suite passes, while every Playwright spec dies
+ * on `Module … needs an import attribute of "type: json"` — its loader emits real ESM and Node
+ * enforces the attribute. Found by running the e2e pack after a green Gate, which is
+ * `docs/failure-modes.md` §0 in one line.
+ *
+ * The annotation below is load-bearing rather than decoration: `Record<AttestationType, string>`
+ * is what makes `tsc` refuse a JSON file that has LOST a key — including one lost by being
+ * misspelt, since the intended key then goes missing. Checked by removing `coach_terms` and
+ * watching `tsc` fail with TS2741. It does not catch a purely EXTRA key: `Record` tolerates
+ * excess properties from a non-literal source, and an extra key nothing reads is inert.
  */
-export const ATTESTATION_VERSIONS: Record<AttestationType, string> = {
-    terms: '2.0',
-    privacy: '2.0',
-    community_guidelines: '2.0',
-    age_18_plus: '1.0',
-    coppa_responsibility: '1.0',
-    billing_acknowledgement: '1.0',
-    age_13_plus: '1.0',
-    // Combined types, whose text is the documents above — so they move with them.
-    privacy_and_guidelines: '2.0',
-    coach_terms: '2.0',
-};
+export const ATTESTATION_VERSIONS: Record<AttestationType, string> = versions;

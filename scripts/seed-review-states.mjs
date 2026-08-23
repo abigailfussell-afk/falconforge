@@ -19,6 +19,24 @@
  * tired evening.
  */
 import { createClient } from '@supabase/supabase-js';
+/*
+ * The SAME numbers the app checks against, not a copy of them.
+ *
+ * `handle_new_user` records the signup consent at the version the metadata names and falls back
+ * to '1.0' for a client that did not say — and '1.0' is out of date, so an account created
+ * without `privacy_version` meets "We've updated our legal documents" on its first screen. This
+ * script omitted the field entirely, so every seeded review account did: eleven of them, on the
+ * first click of every browser pass and every walkthrough agent's first screenshot. It is the
+ * same symptom `20260821000000_signup_attestation_version.sql` was written for and the same one
+ * that timed out eleven e2e specs, arriving from a third direction — see
+ * `docs/environment-divergences.md` §1.
+ *
+ * The values moved to JSON in Sprint 10 for this import: plain `node` cannot read the `.ts`
+ * module the app and the e2e pack use, and writing the numbers down again here is the defect
+ * that migration exists because of. The reasoning for each value lives in
+ * `src/lib/attestation-versions.ts`, which is where you raise one.
+ */
+import ATTESTATION_VERSIONS from '../src/lib/attestation-versions.json' with { type: 'json' };
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE_KEY =
@@ -49,19 +67,28 @@ async function makeUser(email, fullName, age = '18_plus') {
     if (existing) await svc.auth.admin.deleteUser(existing.id);
 
     const { data, error } = await svc.auth.admin.createUser({
+        // EXACTLY what the real sign-up form sends, `privacy_version` included. See the import.
+        user_metadata: {
+            full_name: fullName,
+            age_classification: age,
+            privacy_accepted: true,
+            privacy_version: ATTESTATION_VERSIONS.privacy_and_guidelines,
+        },
         email,
         password: PASSWORD,
         email_confirm: true,
-        user_metadata: { full_name: fullName, age_classification: age },
     });
     if (error) throw new Error(`createUser(${email}): ${error.message}`);
     return data.user;
 }
 
 async function attest(userId, type) {
+    // `'2.0'` was hardcoded here, which happened to be right for both callers and was nothing
+    // more than that: the next legal rewrite would have left these rows recorded at a version
+    // the app no longer accepts, and the only symptom is a modal on somebody's first screen.
     await svc
         .from('user_attestations')
-        .upsert({ user_id: userId, attestation_type: type, version: '2.0' }, {
+        .upsert({ user_id: userId, attestation_type: type, version: ATTESTATION_VERSIONS[type] }, {
             onConflict: 'user_id,attestation_type,version',
             ignoreDuplicates: true,
         });
@@ -634,6 +661,51 @@ async function main() {
     );
     console.log(`  Check-in is OPEN RIGHT NOW for code FF-${meetings.liveCode}.`);
     console.log(`  stranded team id: ${stranded.team.id} (no admin; successor member ${strandedCoach.id})`);
+
+    await assertNobodyMeetsTheLegalModal();
+}
+
+/**
+ * The seed's own check that it produced accounts somebody can actually use.
+ *
+ * `ReAttestationPrompt` renders over everything when an account has no acceptance at the
+ * CURRENT version of a `SIGNUP_REQUIRED_ATTESTATIONS` document, and the only symptom is a modal
+ * on the first screen — which is how this went unnoticed: every seeded account had it, for as
+ * long as the seed has existed, and a reviewer just clicked "Later".
+ *
+ * Written as an assertion rather than a comment because the two ways it comes back are both
+ * silent: someone edits `makeUser` and drops the metadata again, or a new account-creation path
+ * is added to this script that does not go through `makeUser` at all. Both show up here, at the
+ * moment somebody runs the tool, instead of on their first click.
+ */
+async function assertNobodyMeetsTheLegalModal() {
+    const version = ATTESTATION_VERSIONS.privacy_and_guidelines;
+
+    const users = await must('users for the attestation check', svc.from('users').select('id, email'));
+    const accepted = await must(
+        'attestations for the check',
+        svc
+            .from('user_attestations')
+            .select('user_id')
+            .eq('attestation_type', 'privacy_and_guidelines')
+            .eq('version', version),
+    );
+
+    const have = new Set(accepted.map((row) => row.user_id));
+    const missing = users.filter((u) => !have.has(u.id));
+
+    if (missing.length) {
+        throw new Error(
+            `${missing.length} of ${users.length} seeded accounts have no ` +
+                `privacy_and_guidelines@${version} row, so each meets "We've updated our legal ` +
+                `documents" on its first screen: ${missing.slice(0, 5).map((u) => u.email).join(', ')}` +
+                `${missing.length > 5 ? ', …' : ''}. Signup metadata must carry ` +
+                `privacy_accepted and privacy_version — see makeUser.`,
+        );
+    }
+
+    console.log(`
+  All ${users.length} accounts accepted privacy_and_guidelines@${version} — no legal modal.`);
 }
 
 main().catch((err) => {

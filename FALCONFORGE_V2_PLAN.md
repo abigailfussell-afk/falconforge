@@ -428,17 +428,22 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 *From Package A of the August 2026 assessment — Sprint 10, `v2/sprint-10-tenant-safety`
 (2026-08-24). Each of these was found while fixing one of the eight SEC ids and is outside them:*
-- **Every seeded review account meets the "We've updated our legal documents" modal on its first
-  screen.** `scripts/seed-review-states.mjs:52` creates users with
+- **✅ FIXED 2026-08-24, same sprint, at Kevin's request.** Every seeded review account used to
+  meet the "We've updated our legal documents" modal on its first screen:
+  `scripts/seed-review-states.mjs`'s `makeUser` created accounts with
   `user_metadata: { full_name, age_classification }` and no `privacy_accepted` /
-  `privacy_version`, so `handle_new_user` writes no `privacy_and_guidelines` row —
-  `reviewer@falconforge.test` has exactly one attestation (`coach_terms` 2.0) and
-  `guardian@falconforge.test` has none. `SIGNUP_REQUIRED_ATTESTATIONS` includes
-  `privacy_and_guidelines` at version 2.0, so `ReAttestationPrompt` fires for all eleven seeded
-  accounts. This is `docs/environment-divergences.md` §1's own story a second time: the e2e
-  helper was fixed when eleven specs timed out behind this modal, and the REVIEW seed was not.
-  One line in `makeUser`. It blocks the first click of every browser pass and every walkthrough
-  agent's first screenshot.
+  `privacy_version`, so `handle_new_user` fell back to recording `privacy_and_guidelines` at
+  `'1.0'` — or, with `privacy_accepted` absent, recording nothing at all. **36 of 36 accounts,
+  0 with a current acceptance**, for as long as the seed has existed; a reviewer just clicked
+  "Later" every time. `docs/environment-divergences.md` §1's own story reaching a third
+  consumer: the e2e helper was fixed when eleven specs timed out behind this modal, and the
+  REVIEW seed was not. Now **36 of 36 accepted `privacy_and_guidelines@2.0`**, and the seed says
+  so on the way out. The versions moved to `src/lib/attestation-versions.json` so plain `node`
+  can read the same numbers the app checks against rather than writing them down again — which
+  is what `attestation-versions.ts` moved out of `attestations.ts` for in the first place; the
+  script also had an unguarded hardcoded `'2.0'` in its own `attest()`, now gone. The seed
+  asserts the property itself before reporting success, watched failing at "36 of 36" with the
+  metadata removed.
 - **After SEC-03, a task assigned to a removed member renders "Unassigned", and saving that task
   writes the assignment away.** `server-pull.ts:245-247` filters `team_members` to
   `status = 'approved'`, so a removed member leaves the client's collection entirely — the same
