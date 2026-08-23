@@ -43,6 +43,12 @@ vi.mock('../../lib/supabase', () => ({
             if (name === 'operator_team_detail') {
                 return Promise.resolve({ data: mocks.detail, error: null });
             }
+            // D3's new-team panel loads alongside the directory. An unhandled RPC would fall
+            // through to the catch-all below and hand the panel a `{success: true}` object
+            // where it expects an array -- a harness failure dressed up as a component one.
+            if (name === 'operator_new_teams') {
+                return Promise.resolve({ data: [], error: null });
+            }
             return Promise.resolve({ data: { success: true, revoked_count: 2 }, error: null });
         },
     },

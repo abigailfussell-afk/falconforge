@@ -868,4 +868,80 @@ BEGIN
     END IF;
 END $$;
 
+
+-- ==========================================================================
+-- D3 / WALK-B-09 -- the probation label is keyed on a STRING, so assert the two agree
+-- ==========================================================================
+--
+-- `team_entitlement.is_probation` is `notes LIKE 'Automatic %-day beta probation%'`, and the
+-- notes are written by `create_team_as_admin`. Two definitions of the same fact, in two
+-- migrations, matched by prose -- exactly the shape of `docs/failure-modes.md` section 12, and
+-- the failure is SILENT: reword either one and every team quietly reads "Gifted licence" again
+-- with nothing going red.
+--
+-- The alternative was a column on `license_grants`, which is a frozen table with a CHECK on
+-- `source` and several readers. This assertion is what makes the cheaper choice defensible.
+
+DO $$
+DECLARE
+    v_rpc text;
+    v_view text;
+BEGIN
+    SELECT pg_get_functiondef(p.oid) INTO v_rpc
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'create_team_as_admin';
+
+    IF v_rpc IS NULL THEN
+        RAISE EXCEPTION 'create_team_as_admin is missing';
+    END IF;
+
+    IF v_rpc NOT LIKE '%beta probation issued at team registration%' THEN
+        RAISE EXCEPTION
+            'create_team_as_admin no longer writes "beta probation ..." into the grant notes. '
+            'team_entitlement.is_probation matches on that text, so every self-registered team '
+            'is about to be labelled "Gifted licence" again (WALK-B-09). Change both or neither.';
+    END IF;
+
+    SELECT pg_get_viewdef('public.team_entitlement'::regclass, true) INTO v_view;
+
+    IF v_view NOT LIKE '%beta probation%' THEN
+        RAISE EXCEPTION
+            'team_entitlement no longer derives is_probation from the grant notes, but '
+            'create_team_as_admin still writes them. One half of WALK-B-09 has been removed.';
+    END IF;
+
+    -- And the D3 length itself, which is the number a beta team actually lives with.
+    IF v_rpc NOT LIKE '%v_trial_days constant integer := 30%' THEN
+        RAISE EXCEPTION
+            'create_team_as_admin is not granting 30 days. D3 chose a 30-day PROBATION that the '
+            'operator extends to season length; 90 was the trial that expires mid-season, which '
+            'is SEC-07''s original complaint.';
+    END IF;
+END $$;
+
+-- ==========================================================================
+-- D3 -- one team per (program, team_number)
+-- ==========================================================================
+--
+-- Asserted as an INDEX rather than behaviourally, unusually for this file, because the
+-- behaviour has its own db test (`onboarding-gate.db.test.ts` inserts a duplicate with the
+-- service key and expects 23505). What this catches is the index being dropped by a later
+-- migration while that test still passes -- which it would, because `create_team_as_admin`'s
+-- own check would keep refusing the RPC path and only a direct INSERT would notice.
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'teams'
+          AND indexname = 'teams_program_number_unique'
+    ) THEN
+        RAISE EXCEPTION
+            'teams_program_number_unique is gone. Two teams can hold one number again, which '
+            'D3 calls certain rather than defensive: two coaches from one team both '
+            'registering, and typo''d numbers.';
+    END IF;
+END $$;
+
 SELECT 'schema assertions passed' AS result;

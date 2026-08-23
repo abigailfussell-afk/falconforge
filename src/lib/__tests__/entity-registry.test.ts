@@ -179,6 +179,10 @@ const managedProfile: ManagedProfile = {
     // Server-written, client-readable: a claim code the client is refused permission to set.
     // Declared `serverAssigned`, so the round trip strips it rather than expecting it back.
     promotionCode: 'QRST7788',
+    // Same asymmetry, and the same reason it is declared rather than left to look like a bug:
+    // written only by `claim_managed_profile`, as the child, never by this client (WALK-B-03).
+    promotedToUserId: null,
+    promotedAt: null,
     createdAt: undefined, // server-assigned; absent on a locally-created record
 };
 

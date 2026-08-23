@@ -44,7 +44,7 @@ function entitlement(overrides: Partial<TeamEntitlement> = {}): TeamEntitlement 
         seatsUnlimited: false,
         seatsUsed: 12,
         validUntil: null,
-        lapsedAt: null,
+        lapsedAt: null, isProbation: false,
         ...overrides,
     };
 }

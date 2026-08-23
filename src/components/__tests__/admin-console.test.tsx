@@ -26,11 +26,23 @@ vi.mock('@/lib/auth', () => ({
     useAuth: () => mockAuth(),
 }));
 
+/*
+ * `.in()` is here because `AdminTransferPanel` now reads `users.age_classification` for the
+ * candidates (WALK-B-11 / D9), and a mock that cannot express a query the component makes is
+ * `docs/failure-modes.md` §2's second variant — the test would fail on the harness rather than
+ * on the behaviour, which is exactly how it failed when this was added.
+ *
+ * It returns `{ data: null }`, which is the "we could not ask" case, and that is DELIBERATE
+ * for the tests below: the panel fails OPEN, so every roster candidate is offered, and these
+ * tests keep asserting what they always asserted. `walk-b11-nominate-filter.test.tsx` is where
+ * the ages are actually supplied.
+ */
 vi.mock('@/lib/supabase', () => ({
     supabaseSync: {
         from: () => ({
             select: () => ({
                 eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+                in: async () => ({ data: null, error: null }),
             }),
         }),
         rpc: async () => ({ data: { success: true }, error: null }),
@@ -46,7 +58,7 @@ function entitlement(overrides: Partial<TeamEntitlement> = {}): TeamEntitlement 
         seatsUnlimited: false,
         seatsUsed: 12,
         validUntil: null,
-        lapsedAt: null,
+        lapsedAt: null, isProbation: false,
         ...overrides,
     };
 }

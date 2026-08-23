@@ -171,7 +171,31 @@ function ChildCard({
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                         {profile.fullName}
                     </h2>
-                    {teamNames.length > 0 ? (
+                    {/*
+                      * THREE STATES, NOT TWO (WALK-B-03, and `docs/failure-modes.md` §4).
+                      *
+                      * "No memberships" used to mean one thing: not on a team yet. After a
+                      * promotion it means something else entirely — the memberships moved to
+                      * the child's own account, which is the whole point — and the parent who
+                      * had just handed it over was told their child had been dropped from the
+                      * team, on the same card that says "Nothing is lost".
+                      *
+                      * Promoted is checked FIRST, because a promoted child legitimately has no
+                      * memberships on this profile and would otherwise fall into the empty
+                      * branch every time.
+                      */}
+                    {profile.promotedToUserId ? (
+                        <p
+                            data-testid="child-promoted"
+                            className="text-sm text-emerald-700 dark:text-emerald-400"
+                        >
+                            Now has their own login
+                            {profile.promotedAt
+                                ? ` — since ${new Date(profile.promotedAt).toLocaleDateString()}`
+                                : ''}
+                            . They kept their place on the team and everything recorded so far.
+                        </p>
+                    ) : teamNames.length > 0 ? (
                         <p className="text-sm text-slate-500 dark:text-slate-400">
                             {teamNames.join(', ')}
                         </p>
@@ -326,6 +350,35 @@ function PromotionSection({
         // the store is the thing the rest of this screen renders from.
         await fetchGuardianData(guardianUserId).catch(console.error);
     };
+
+    /*
+     * ALREADY HANDED OVER — no code, no offer, no cancel (WALK-B-03).
+     *
+     * The walkthrough found the "Give them their own login" button still sitting here after a
+     * successful promotion, which let a guardian mint a SECOND claim code for a profile that
+     * no longer held a membership. What a second account redeeming it would get was never
+     * tested; `offer_managed_profile_promotion` now refuses outright, so this is the half that
+     * stops offering rather than the half that enforces. Both, always — an affordance that
+     * cannot act is `docs/failure-modes.md` §8, and a rule enforced only in the UI is §7.
+     */
+    if (profile.promotedToUserId) {
+        return (
+            <section className="border-t border-slate-100 dark:border-slate-700 pt-3">
+                <SectionLabel icon={KeyRound}>Their own login</SectionLabel>
+                <p
+                    data-testid="promotion-done"
+                    className="text-sm text-slate-600 dark:text-slate-300"
+                >
+                    Done. {profile.fullName} signs in for themselves now
+                    {profile.promotedAt
+                        ? `, since ${new Date(profile.promotedAt).toLocaleDateString()}`
+                        : ''}
+                    . This page keeps the consent you gave, because that is the record of why
+                    they were on the roster in the first place.
+                </p>
+            </section>
+        );
+    }
 
     return (
         <section className="border-t border-slate-100 dark:border-slate-700 pt-3">

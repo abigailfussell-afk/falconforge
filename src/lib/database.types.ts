@@ -322,6 +322,8 @@ export type Database = {
           guardian_user_id: string
           id: string
           notes: string | null
+          promoted_at: string | null
+          promoted_to_user_id: string | null
           promotion_code: string | null
           updated_at: string
         }
@@ -331,6 +333,8 @@ export type Database = {
           guardian_user_id: string
           id?: string
           notes?: string | null
+          promoted_at?: string | null
+          promoted_to_user_id?: string | null
           promotion_code?: string | null
           updated_at?: string
         }
@@ -340,6 +344,8 @@ export type Database = {
           guardian_user_id?: string
           id?: string
           notes?: string | null
+          promoted_at?: string | null
+          promoted_to_user_id?: string | null
           promotion_code?: string | null
           updated_at?: string
         }
@@ -347,6 +353,13 @@ export type Database = {
           {
             foreignKeyName: "managed_profiles_guardian_user_id_fkey"
             columns: ["guardian_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "managed_profiles_promoted_to_user_id_fkey"
+            columns: ["promoted_to_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1130,6 +1143,7 @@ export type Database = {
     Views: {
       team_entitlement: {
         Row: {
+          is_probation: boolean | null
           lapsed_at: string | null
           seats_total: number | null
           seats_unlimited: boolean | null

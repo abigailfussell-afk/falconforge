@@ -10,6 +10,8 @@ import {
     Users,
     ScrollText,
     Clock,
+    Sparkles,
+    CalendarCheck,
 } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
 import { EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
@@ -34,6 +36,30 @@ interface DirectoryRow {
     seats_unlimited: boolean;
     seats_used: number;
     valid_until: string | null;
+}
+
+/**
+ * A team registered recently enough to still be on its probation (D3).
+ *
+ * `has_been_used` is the field that carries the decision and the reason this list exists at
+ * all: a fake team and a real one look identical on number, name and age. It is deliberately
+ * generous — a second person on the roster, or any content row — because the question is "is
+ * this real", not "is this active".
+ */
+interface NewTeamRow {
+    team_id: string;
+    team_name: string;
+    program: string;
+    team_number: string | null;
+    created_at: string;
+    age_days: number;
+    admin_name: string | null;
+    admin_email: string | null;
+    members_total: number;
+    content_rows: number;
+    has_been_used: boolean;
+    valid_until: string | null;
+    is_probation: boolean;
 }
 
 interface DetailMember {
@@ -190,6 +216,10 @@ export default function OperatorConsole() {
     const [rows, setRows] = useState<DirectoryRow[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>('all');
+    const [newTeams, setNewTeams] = useState<NewTeamRow[]>([]);
+    /* Only teams still on the untouched automatic grant need the operator's eye. */
+    const [onlyProbation, setOnlyProbation] = useState(true);
+    const [extendingId, setExtendingId] = useState<string | null>(null);
     /*
      * Read ONCE per directory load, not per render. "Expiring in 30 days" recomputed on every
      * keystroke is a list that can reorder while it is being read, and a clock sampled at
@@ -247,6 +277,57 @@ export default function OperatorConsole() {
         [isOffline],
     );
 
+    const loadNewTeams = useCallback(async () => {
+        if (!supabaseSync || isOffline) return;
+        const { data, error: rpcError } = await supabaseSync.rpc('operator_new_teams', {
+            p_limit: 100,
+        });
+        if (rpcError) {
+            setError(rpcError.message);
+            return;
+        }
+        setNewTeams((data as NewTeamRow[]) ?? []);
+    }, [isOffline]);
+
+    /**
+     * One click: extend this team's probation to the end of the season.
+     *
+     * D3 makes this THE NORMAL PATH rather than an exception — "the operator console lists new
+     * teams; one click extends to season length once the team number has been eyeballed" — so
+     * it is a button on the row rather than a trip through the gift panel with a month count
+     * typed by hand. Today that is SQL in `docs/v2-schema.md`.
+     */
+    const extendToSeason = useCallback(
+        async (teamId: string) => {
+            if (!supabaseSync) return;
+            setExtendingId(teamId);
+            setError(null);
+            setSuccess(null);
+            try {
+                const { data, error: rpcError } = await supabaseSync.rpc(
+                    'operator_extend_to_season',
+                    { p_team_id: teamId },
+                );
+                if (rpcError) throw rpcError;
+                const result = data as { success: boolean; error?: string; valid_until?: string };
+                if (!result.success) {
+                    setError(result.error ?? 'Could not extend that team');
+                    return;
+                }
+                setSuccess(
+                    `Extended to ${fmtDate(result.valid_until ?? null) ?? 'the end of the season'}. The probation row is kept, so the audit trail still shows one happened.`,
+                );
+                await loadNewTeams();
+                await runSearch(search);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Could not extend that team');
+            } finally {
+                setExtendingId(null);
+            }
+        },
+        [loadNewTeams, runSearch, search],
+    );
+
     const loadDetail = useCallback(
         async (teamId: string) => {
             if (!supabaseSync || isOffline) return;
@@ -272,8 +353,11 @@ export default function OperatorConsole() {
     }, [checkOperator]);
 
     useEffect(() => {
-        if (isOperator) void runSearch('');
-    }, [isOperator, runSearch]);
+        if (isOperator) {
+            void runSearch('');
+            void loadNewTeams();
+        }
+    }, [isOperator, runSearch, loadNewTeams]);
 
     /** Re-read both the directory row and the detail, so a change shows in every place it appears. */
     const refresh = useCallback(async () => {
@@ -394,6 +478,11 @@ export default function OperatorConsole() {
         [rows, expiryFilter, directoryLoadedAt],
     );
 
+    const visibleNewTeams = useMemo(
+        () => (onlyProbation ? newTeams.filter((r) => r.is_probation) : newTeams),
+        [newTeams, onlyProbation],
+    );
+
     if (!isSupabaseConfigured()) return null;
 
     if (isOperator === null) {
@@ -455,6 +544,121 @@ export default function OperatorConsole() {
                     <span className="min-w-0">{success}</span>
                 </div>
             )}
+
+            {/* --------------------------------------------------------- new teams */}
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-card dark:border-slate-700 dark:bg-slate-800 md:p-4">
+                <SectionHeader icon={Sparkles} title="New teams" />
+                <p className="mb-2 text-2xs text-slate-500 dark:text-slate-400">
+                    Every team gets 30 days automatically (D3). Check the number against{' '}
+                    <code className="font-mono">ftc-events.firstinspires.org/2026/team/&lt;number&gt;</code>{' '}
+                    and extend it to the season — that is the normal path, not the exception.
+                </p>
+
+                <label className="mb-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                    <input
+                        type="checkbox"
+                        checked={onlyProbation}
+                        onChange={(e) => setOnlyProbation(e.target.checked)}
+                        data-testid="operator-only-probation"
+                        className="h-4 w-4 rounded border-slate-300 text-forge-600"
+                    />
+                    Only teams still on the automatic 30 days
+                </label>
+
+                {visibleNewTeams.length === 0 ? (
+                    <EmptyState
+                        title={
+                            newTeams.length > 0
+                                ? 'Every new team has been looked at.'
+                                : 'No teams have registered yet.'
+                        }
+                        body={
+                            newTeams.length > 0
+                                ? `All ${newTeams.length} recent ${newTeams.length === 1 ? 'team is' : 'teams are'} past their probation. Untick the box above to see them anyway.`
+                                : 'A team appears here the moment somebody registers one. Nothing to do until then.'
+                        }
+                    />
+                ) : (
+                    <ul className="space-y-2" data-testid="operator-new-teams">
+                        {visibleNewTeams.map((row) => (
+                            <li
+                                key={row.team_id}
+                                className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-700/50"
+                            >
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                    <span className="font-semibold text-slate-800 dark:text-white">
+                                        {row.team_number
+                                            ? `${row.program.toUpperCase()} ${row.team_number} `
+                                            : ''}
+                                        {row.team_name}
+                                    </span>
+                                    {/*
+                                      * THE FIELD THAT CARRIES THE DECISION, so it gets the badge.
+                                      * Number, name and age look identical on a fake team and a
+                                      * real one; whether anybody has DONE anything does not.
+                                      */}
+                                    <span
+                                        data-testid="new-team-used"
+                                        className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${
+                                            row.has_been_used
+                                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                                                : 'bg-slate-400/20 text-slate-600 dark:text-slate-300'
+                                        }`}
+                                    >
+                                        {row.has_been_used ? 'In use' : 'Nobody has used it yet'}
+                                    </span>
+                                </div>
+                                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                    {row.admin_email ? (
+                                        <>
+                                            {row.admin_name ?? 'Admin'} · {row.admin_email}
+                                        </>
+                                    ) : (
+                                        <span className="font-semibold text-red-600 dark:text-red-400">
+                                            No admin — this team is stranded
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-0.5 text-2xs text-slate-500 dark:text-slate-400">
+                                    {/* Days, not a date: "registered 3 days ago" is the shape of
+                                        the question, and a date makes the operator subtract. */}
+                                    {row.age_days === 0
+                                        ? 'Registered today'
+                                        : `Registered ${row.age_days} day${row.age_days === 1 ? '' : 's'} ago`}
+                                    {' · '}
+                                    {row.members_total} member{row.members_total === 1 ? '' : 's'}
+                                    {row.content_rows > 0 && ` · ${row.content_rows} things made`}
+                                    {row.valid_until && ` · cover until ${fmtDate(row.valid_until)}`}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    <Button
+                                        size="sm"
+                                        busy={extendingId === row.team_id}
+                                        disabled={isOffline || !row.is_probation}
+                                        onClick={() => void extendToSeason(row.team_id)}
+                                        data-testid="extend-to-season"
+                                        title={
+                                            row.is_probation
+                                                ? 'Extend this team to the end of the season'
+                                                : 'This team already has cover beyond its probation'
+                                        }
+                                    >
+                                        <CalendarCheck size={14} />
+                                        Extend to the season
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => void select(row.team_id)}
+                                    >
+                                        Open
+                                    </Button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
 
             {/* ------------------------------------------------------------ directory */}
             <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-card dark:border-slate-700 dark:bg-slate-800 md:p-4">

@@ -83,6 +83,11 @@ export const createGuardianSlice: SliceCreator<GuardianSlice> = (set, get) => ({
             // server-written only (see the registry's `serverAssigned`), so this is the local
             // mirror of "NULL", not a value being sent anywhere.
             promotionCode: '',
+            // NULL, not a placeholder: a child added just now has no login of their own, and
+            // that is a different fact from "not on a team yet" (WALK-B-03). Server-written
+            // only, like `promotionCode` above.
+            promotedToUserId: null,
+            promotedAt: null,
         };
 
         const consents: GuardianConsent[] = consentTypes.map((consentType) => ({

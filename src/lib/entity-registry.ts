@@ -572,7 +572,7 @@ const managedProfiles: EntityDefinition<ManagedProfile> = {
      * round-trip test know the asymmetry is intended, rather than it looking like the
      * read-but-never-written bugs the registry was built to catch (B9).
      */
-    serverAssigned: ['createdAt', 'promotionCode'] as const,
+    serverAssigned: ['createdAt', 'promotionCode', 'promotedToUserId', 'promotedAt'] as const,
     localKey: 'managedProfiles',
     remoteTable: 'managed_profiles',
     scope: 'guardian',
@@ -591,6 +591,17 @@ const managedProfiles: EntityDefinition<ManagedProfile> = {
         notes: r.notes || '',
         // '' means "no promotion offered", which is the normal state.
         promotionCode: r.promotion_code || '',
+        /*
+         * NULL PRESERVED AS NULL, not flattened to '' or 0 (WALK-B-03).
+         *
+         * `promotionCode` uses '' for "none" because a code is a string and the empty string
+         * is unambiguous. These two cannot borrow that trick: `promotedAt` is a timestamp, and
+         * `0` is 1 January 1970 rather than "never" -- B18's `parseInt('') -> NaN -> || 0`
+         * corrupted five of nine live production rows through exactly this reflex. Three
+         * states, not two: absent means the child still has no login of their own.
+         */
+        promotedToUserId: r.promoted_to_user_id ?? null,
+        promotedAt: toEpochMillis(r.promoted_at) ?? null,
         createdAt: toEpochMillis(r.created_at),
     }),
     getFromStore: (s) => s.managedProfiles,

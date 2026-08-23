@@ -70,7 +70,7 @@ const entitlement = (over: Partial<TeamEntitlement> = {}): TeamEntitlement => ({
     seatsUnlimited: true,
     seatsUsed: 4,
     validUntil: null,
-    lapsedAt: null,
+    lapsedAt: null, isProbation: false,
     ...over,
 });
 

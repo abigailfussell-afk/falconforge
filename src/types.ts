@@ -412,6 +412,23 @@ export interface ManagedProfile {
    * Deliberately absent from `toRemote`; see the registry's `serverAssigned` for that entry.
    */
   promotionCode: string;
+  /**
+   * The account this child now signs in with, once the guardian handed the membership over.
+   *
+   * `null` means "still a managed profile", which is the normal state and is a DIFFERENT fact
+   * from "not on a team yet" — conflating them is WALK-B-03: `GuardianView` renders a profile
+   * with no membership as "Not on a team yet", so the parent who had just handed the account
+   * over was shown their child apparently dropped from the team, with a fresh "Give them their
+   * own login" button underneath contradicting the "Nothing is lost" copy beside it.
+   *
+   * READ-ONLY ON THE CLIENT, like `promotionCode` and enforced the same way — the column-level
+   * GRANTs in `20260822000200_guardian_access.sql` list the writable columns and these are not
+   * among them. Written only by `claim_managed_profile`, as the child, in the same transaction
+   * that moves the membership.
+   */
+  promotedToUserId: string | null;
+  /** When the hand-over happened, for "Now has their own login (since …)". */
+  promotedAt: number | null;
   createdAt?: number;
 }
 

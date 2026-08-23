@@ -184,6 +184,7 @@ describe('daysUntil agrees with the licence banner', () => {
                     seatsTotal: null,
                     seatsUnlimited: true,
                     seatsUsed: 1,
+                    isProbation: false,
                     validUntil: iso,
                     lapsedAt: null,
                 },

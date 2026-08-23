@@ -23,6 +23,16 @@ export interface TeamEntitlement {
     validUntil: string | null;
     /** ISO timestamp of when cover last ran out, for a read-only team's message. */
     lapsedAt: string | null;
+    /**
+     * Every in-force grant is the automatic one, so nobody has looked at this team yet.
+     *
+     * WALK-B-09: the admin panel labelled any unlimited grant "Gifted licence", which a coach
+     * who had self-registered ninety seconds earlier read on the same screen where step 1 had
+     * said "you will be billed monthly". Nobody gifted them anything. Both kinds of grant are
+     * `source = 'gift'` in the schema, so this boolean is the only thing that can tell them
+     * apart — see `team_entitlement`'s definition and the assertion that keeps it honest.
+     */
+    isProbation: boolean;
 }
 
 /**

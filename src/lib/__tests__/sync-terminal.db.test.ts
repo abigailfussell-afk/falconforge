@@ -87,7 +87,7 @@ beforeEach(async () => {
             seatsUnlimited: true,
             seatsUsed: 4,
             validUntil: null,
-            lapsedAt: null,
+            lapsedAt: null, isProbation: false,
         },
     });
 });
@@ -140,6 +140,7 @@ describe('a lapsed licence parks the change immediately', () => {
                 seatsTotal: 10,
                 seatsUnlimited: false,
                 seatsUsed: 4,
+                isProbation: false,
                 validUntil: new Date(Date.now() - 864e5).toISOString(),
                 lapsedAt: new Date(Date.now() - 864e5).toISOString(),
             },
@@ -176,7 +177,7 @@ describe('a lapsed licence parks the change immediately', () => {
         useAppStore.setState({
             entitlement: {
                 teamId: team.id, status: 'read_only', seatsTotal: null,
-                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null,
+                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null, isProbation: false,
             },
         });
 
@@ -202,7 +203,7 @@ describe('a lapsed licence parks the change immediately', () => {
         useAppStore.setState({
             entitlement: {
                 teamId: team.id, status: 'read_only', seatsTotal: null,
-                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null,
+                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null, isProbation: false,
             },
         });
         const task = localTask({ title: 'Survives a lapse' });
@@ -215,7 +216,7 @@ describe('a lapsed licence parks the change immediately', () => {
         useAppStore.setState({
             entitlement: {
                 teamId: team.id, status: 'active', seatsTotal: null,
-                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null,
+                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null, isProbation: false,
             },
         });
 
@@ -414,7 +415,7 @@ describe('nothing else about the drain changed', () => {
         useAppStore.setState({
             entitlement: {
                 teamId: team.id, status: 'active', seatsTotal: null,
-                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null,
+                seatsUnlimited: true, seatsUsed: 4, validUntil: null, lapsedAt: null, isProbation: false,
             },
             seasons: [
                 {

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Loader2, Users, Shield, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, Users, Shield, CheckCircle, AlertTriangle, KeyRound } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { recordAttestation, COACH_REQUIRED_ATTESTATIONS } from '../lib/attestations';
 import { useAppStore } from '../lib/store';
+import { pathFor } from '../lib/navigation';
 
 type Step = 'attestation' | 'details' | 'complete';
 
@@ -49,6 +50,14 @@ export default function CreateTeam() {
      * at the next meeting handed every student "Invalid or expired invite code".
      */
     const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
+    /*
+     * The team already holding the number this coach typed (D3).
+     *
+     * Its own state rather than an `error` string, because this is not an error the coach can
+     * fix by retyping — it is a different destination. `docs/failure-modes.md` §14: a screen
+     * that discards the user's intent at the one moment they only ever pass through once.
+     */
+    const [takenBy, setTakenBy] = useState<{ name: string; number: string } | null>(null);
 
     // Check if user is 18+ - redirect if not
     useEffect(() => {
@@ -169,13 +178,54 @@ export default function CreateTeam() {
             const result = data as {
                 success: boolean;
                 team_id?: string;
+                team_name?: string;
+                team_number?: string;
                 season_id?: string;
                 invite_code?: string;
                 invite_expires_at?: string;
                 error?: string;
+                /*
+                 * D3. The client has to BRANCH on "that number is taken" rather than only
+                 * display it, and branching on prose is how a reworded error message becomes
+                 * a broken funnel. Three codes, each with a different next screen.
+                 */
+                error_code?: string;
             };
 
             if (!result.success) {
+                /*
+                 * SOMEBODY ELSE HAS THIS NUMBER — the case D3 says is CERTAIN rather than
+                 * defensive, because two coaches from one team both registering, and typo'd
+                 * numbers, both land here.
+                 *
+                 * Routed to the JOIN screen, not to a new "request to join" path. D3 says to
+                 * reuse the existing pending status and join RPC and not to write a second
+                 * join path, and there is a security reason as well as an instruction: a
+                 * request-to-join that needed only a team NUMBER would let anyone attach a
+                 * pending row to any team by guessing five digits. An invite code gets you
+                 * into the queue; that rule does not get an exception because the coach
+                 * arrived from a different screen.
+                 */
+                if (result.error_code === 'team_number_taken') {
+                    setTakenBy({
+                        name: result.team_name ?? 'that team',
+                        number: result.team_number ?? teamNumber.trim(),
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+
+                /*
+                 * THEIR OWN TEAM. Sending a team's own admin into a request-to-join queue for
+                 * their own team would be absurd, so this is the one branch that gets the
+                 * team id back and can act on it directly.
+                 */
+                if (result.error_code === 'already_on_team' && result.team_id) {
+                    setCurrentTeam(result.team_id);
+                    navigate(pathFor('dashboard'));
+                    return;
+                }
+
                 setError(result.error || 'Failed to create team');
                 setIsLoading(false);
                 return;
@@ -226,6 +276,66 @@ export default function CreateTeam() {
             setIsLoading(false);
         }
     };
+
+    /*
+     * SOMEBODY ALREADY HAS THIS NUMBER.
+     *
+     * A whole screen rather than an inline error under the field, because the coach's next
+     * action is not "retype the number" — it is either "join that team" or "I mistyped". An
+     * inline red sentence offers neither and leaves them on a form whose Create button will
+     * refuse them again.
+     *
+     * The team's name is the load-bearing detail. "#12345 is taken" reads like a bug in
+     * FalconForge; "#12345 Iron Falcons is already registered" is a coach recognising their
+     * own team, which per D3 is the commonest reason anybody sees this at all.
+     */
+    if (takenBy) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+                <div className="w-full max-w-md">
+                    <div
+                        data-testid="team-number-taken"
+                        className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-6 shadow-xl text-center"
+                    >
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-forge-500/20 rounded-full mb-4">
+                            <Users className="w-8 h-8 text-forge-400" />
+                        </div>
+                        <h2 className="text-xl font-bold text-white mb-2">
+                            #{takenBy.number} {takenBy.name} is already here
+                        </h2>
+                        <p className="text-slate-400 mb-6 text-sm">
+                            Somebody from your team registered it already — often the other coach.
+                            Ask them for an invite code and you will land on the same roster,
+                            rather than starting a second copy of the team.
+                        </p>
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => navigate('/join')}
+                                data-testid="taken-go-join"
+                                className="w-full flex items-center justify-center gap-2 bg-forge-600 hover:bg-forge-500 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                            >
+                                <KeyRound size={18} />
+                                Join with an invite code
+                            </button>
+                            {/*
+                              * The way back, because the other real cause is a typo — and a
+                              * screen with one exit is a trap for the coach who typed 1234
+                              * instead of 12345.
+                              */}
+                            <button
+                                onClick={() => setTakenBy(null)}
+                                data-testid="taken-back"
+                                className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                            >
+                                <ArrowLeft size={18} />
+                                I typed the wrong number
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const renderStepContent = () => {
         switch (currentStep) {

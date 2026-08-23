@@ -84,6 +84,8 @@ const child: ManagedProfile = {
     fullName: 'Sam Lovelace',
     notes: '',
     promotionCode: '',
+    promotedToUserId: null,
+    promotedAt: null,
 };
 
 const renderOnboarding = () =>

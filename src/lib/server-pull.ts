@@ -957,6 +957,10 @@ export async function pullEntitlement(teamId: string): Promise<void> {
             seatsUsed: Number(data.seats_used ?? 0),
             validUntil: data.valid_until,
             lapsedAt: data.lapsed_at,
+            // FALSE when absent, not `true`: an older client, or a view that has not been
+            // migrated yet, must not start telling every team it is on probation. The
+            // pessimistic default here is the one that says LESS (WALK-B-09).
+            isProbation: data.is_probation === true,
         });
     } catch (err) {
         console.warn('Error pulling team entitlement:', err);

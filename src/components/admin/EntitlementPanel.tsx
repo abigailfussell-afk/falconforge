@@ -150,9 +150,26 @@ export default function EntitlementPanel() {
                                     ? validUntil.toLocaleDateString()
                                     : 'Open-ended'}
                     </dd>
+                    {/*
+                      * WALK-B-09. "Gifted licence" was shown to every team with an unlimited
+                      * in-force grant, which included every team that had just registered
+                      * itself — on the same screen where step 1 of the wizard had said "you
+                      * will be billed monthly". The coach gifted nothing and was told they had
+                      * been given something.
+                      *
+                      * Under D3 the honest word is Kevin's own: a 30-day PROBATION, extended to
+                      * season length by the operator once the team number has been eyeballed.
+                      * Extension is the normal path, so this reads as a step in a process
+                      * rather than as a countdown to losing the app.
+                      */}
                     {entitlement && entitlement.seatsUnlimited && !isReadOnly && (
-                        <p className="mt-1 text-2xs text-slate-500 dark:text-slate-400">
-                            Gifted licence
+                        <p
+                            data-testid="licence-source-label"
+                            className="mt-1 text-2xs text-slate-500 dark:text-slate-400"
+                        >
+                            {entitlement.isProbation
+                                ? 'Beta probation — we extend this to the full season once we have checked your team number'
+                                : 'Gifted licence'}
                         </p>
                     )}
                 </div>

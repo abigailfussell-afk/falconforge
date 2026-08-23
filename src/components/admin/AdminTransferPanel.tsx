@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Crown, AlertCircle, Clock, X } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -50,17 +50,84 @@ export default function AdminTransferPanel({ teamId, teamMembers }: AdminTransfe
         teamMembers.find((m) => m.userId === profile?.id)?.role === 'admin';
 
     /**
-     * Candidates for the role.
+     * Candidates for the role, before the age filter.
      *
      * Mirrors `nominate_team_admin`'s own refusals so the console does not offer a nomination the
      * server would reject: approved, not a managed profile (a child has no login to attest with),
-     * and not the current admin. The 18+ rule and the terms attestation are deliberately NOT
-     * filtered on — the successor may well not have attested yet, since that is what accepting
-     * is for, and hiding them here would make the flow impossible to start.
+     * and not the current admin. The terms attestation is deliberately NOT filtered on — the
+     * successor may well not have attested yet, since that is what accepting is for, and hiding
+     * them here would make the flow impossible to start.
      */
-    const candidates = teamMembers.filter(
-        (m) => m.role !== 'admin' && (m.status === 'approved' || !m.status) && !m.managedProfileId,
+    const rosterCandidates = useMemo(
+        () =>
+            teamMembers.filter(
+                (m) =>
+                    m.role !== 'admin' &&
+                    (m.status === 'approved' || !m.status) &&
+                    !m.managedProfileId,
+            ),
+        [teamMembers],
     );
+
+    /*
+     * WALK-B-11 / D9. The age rule was the ONE refusal this list did not mirror, and it is the
+     * one that lands worst: `nominate_team_admin` refuses a `13_to_17` account outright, so
+     * Sprint 6's version succeeded at the coach's end and delivered the refusal to the STUDENT
+     * on acceptance — the one person who could neither act on it nor explain it.
+     *
+     * Kevin's D9 (2026-08-23) keeps the refusal and filters the picker, because an affordance
+     * that does nothing is `docs/failure-modes.md` §8, and adds the part that makes filtering
+     * safe: "The empty case needs words: a team whose only other members are minors sees why,
+     * not an empty list."
+     *
+     * `team_members` carries no age, so this is a read of `users.age_classification` for the
+     * candidates — which `users_select_teammates` already permits and which the admin needs in
+     * order to know who is eligible at all.
+     */
+    const [ages, setAges] = useState<Record<string, string | null> | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        const ids = rosterCandidates.map((m) => m.userId).filter(Boolean) as string[];
+        if (!supabaseSync || isOffline || ids.length === 0) {
+            setAges(null);
+            return;
+        }
+        void supabaseSync
+            .from('users')
+            .select('id, age_classification')
+            .in('id', ids)
+            .then(({ data }) => {
+                if (cancelled) return;
+                if (!data) {
+                    // Left NULL rather than set to {}: see the fail-open note below. An empty
+                    // map would read as "everybody is under 18", which is the opposite answer.
+                    setAges(null);
+                    return;
+                }
+                setAges(Object.fromEntries(data.map((u) => [u.id, u.age_classification])));
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [rosterCandidates, isOffline]);
+
+    /*
+     * FAILS OPEN, the same rule `entitlement.ts` states at length and for the same reason.
+     *
+     * `ages === null` means "we have not been able to ask" — offline, or the query failed —
+     * and that must not read as "nobody is old enough". Hiding every candidate would leave the
+     * admin of a perfectly ordinary team staring at "no one to hand over to", with the real
+     * answer being a timeout. The server refuses an under-18 regardless; this list only
+     * decides what is worth offering.
+     */
+    const candidates =
+        ages === null
+            ? rosterCandidates
+            : rosterCandidates.filter((m) => !m.userId || ages[m.userId] === '18_plus');
+
+    /** Filtered out for being under 18, which is a different empty list from "nobody at all". */
+    const minorsHidden = rosterCandidates.length - candidates.length;
 
     const fetchNomination = useCallback(async () => {
         if (!supabaseSync || !teamId || isOffline) return;
@@ -191,10 +258,24 @@ export default function AdminTransferPanel({ teamId, teamMembers }: AdminTransfe
                     </div>
                 </div>
             ) : candidates.length === 0 ? (
+                /*
+                 * TWO EMPTY STATES, because they are two different problems with two different
+                 * fixes (D9's "the empty case needs words"). "Invite someone" is useless advice
+                 * to a coach whose team is eleven fifteen-year-olds; what they need to know is
+                 * that the next adult to join is the answer, and that the operator exists.
+                 */
                 <EmptyState
                     icon={Crown}
-                    title="No one to hand over to yet."
-                    body="The admin role can only go to an approved adult member with their own account. Invite or approve someone first."
+                    title={
+                        minorsHidden > 0
+                            ? 'No adult on this team to hand over to.'
+                            : 'No one to hand over to yet.'
+                    }
+                    body={
+                        minorsHidden > 0
+                            ? `${minorsHidden} ${minorsHidden === 1 ? 'member is' : 'members are'} on the roster but recorded as under 18, and the team admin must be 18 or over. Invite an adult — another coach or mentor — and they can take the role. If you have already left, the FalconForge operator can reassign the team on request.`
+                            : 'The admin role can only go to an approved adult member with their own account. Invite or approve someone first.'
+                    }
                 />
             ) : (
                 <div className="space-y-3">
