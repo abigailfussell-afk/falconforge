@@ -9,11 +9,13 @@
  * reproduced over the API, and recorded as RESOLVED in the plan because the CLIENT half of the
  * same defect (B27) had been fixed a sprint earlier.
  *
- * WHY THE TEST DRIVES `auth.users` DIRECTLY
+ * WHAT STANDS IN FOR A SIGN-IN
  *
- * `UPDATE auth.users SET last_sign_in_at = now()` is what a sign-in does to this table, minus
- * the rate limits and the session. Asserting through a real password grant would be a slower
- * test of GoTrue; the thing under test is the trigger.
+ * `simulateSignIn` writes `app_metadata`, which is an UPDATE of `auth.users` that leaves
+ * `raw_user_meta_data` alone — which is precisely what `last_sign_in_at` is, from this
+ * trigger's point of view. It is not a claim about GoTrue: a real password grant was run
+ * against the fix over the API and is quoted in `docs/sprint-10-report.md`. Signing in here
+ * would spend the local rate limit (30 per window) that `fixtures.ts` mints JWTs to avoid.
  *
  * The two "still propagates" cases are not padding. The shortest reading of the finding — let
  * the existing row win for every column — deletes the ONLY path by which renaming yourself
@@ -21,30 +23,27 @@
  * all have stayed green over it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Client } from 'pg';
 import { Fixtures } from './fixtures';
-import { serviceClient, stackCredentials, assertLocalStack } from './stack';
+import { serviceClient, userClient } from './stack';
 
 let fixtures: Fixtures;
-let pg: Client;
 const svc = serviceClient();
+let touch = 0;
 
-beforeAll(async () => {
-    const { dbUrl, apiUrl } = stackCredentials();
-    assertLocalStack(apiUrl);
+beforeAll(() => {
     fixtures = new Fixtures();
-    pg = new Client({ connectionString: dbUrl });
-    await pg.connect();
 });
 
 afterAll(async () => {
-    await pg.end();
     await fixtures.cleanup();
 });
 
-/** What a password sign-in does to `auth.users`, and therefore to this trigger. */
+/** An UPDATE of `auth.users` that does not touch the signup metadata. See the header. */
 async function simulateSignIn(userId: string) {
-    await pg.query('UPDATE auth.users SET last_sign_in_at = now() WHERE id = $1', [userId]);
+    const { error } = await svc.auth.admin.updateUserById(userId, {
+        app_metadata: { sec02_signin: ++touch },
+    });
+    if (error) throw new Error(`simulateSignIn failed: ${error.message}`);
 }
 
 async function profile(userId: string) {
@@ -75,11 +74,11 @@ describe('SEC-02 — a corrected age classification survives', () => {
     it('is not reverted by a sign-in', async () => {
         const user = await fixtures.createUser('sec02-turned18', '13_to_17');
 
-        // The profile control, exactly as the app calls it.
-        await pg.query(
-            "UPDATE users SET age_classification = '18_plus' WHERE id = $1",
-            [user.id],
-        );
+        // The profile control's own path, not a hand-written UPDATE.
+        const { data } = await userClient(user.token).rpc('update_user_age_classification', {
+            classification: '18_plus',
+        });
+        expect(data).toMatchObject({ success: true });
         expect((await profile(user.id)).age_classification).toBe('18_plus');
 
         await simulateSignIn(user.id);
@@ -92,9 +91,12 @@ describe('SEC-02 — a corrected age classification survives', () => {
 
     it('is not reverted by a profile update, which UPDATEs auth.users too', async () => {
         const user = await fixtures.createUser('sec02-rename-age', '13_to_17');
-        await pg.query("UPDATE users SET age_classification = '18_plus' WHERE id = $1", [user.id]);
+        await userClient(user.token).rpc('update_user_age_classification', {
+            classification: '18_plus',
+        });
 
-        // `auth.updateUser({ data: { full_name } })`.
+        // `auth.updateUser({ data: { full_name } })` — the metadata still says 13_to_17,
+        // because nothing has ever written it since signup. That is the whole defect.
         await svc.auth.admin.updateUserById(user.id, {
             user_metadata: { full_name: 'Renamed Person', age_classification: '13_to_17' },
         });
@@ -107,7 +109,7 @@ describe('SEC-02 — a corrected age classification survives', () => {
 
     it('still fills a NULL classification from the metadata (the ensureUserProfile race)', async () => {
         const user = await fixtures.createUser('sec02-null-age', '13_to_17');
-        await pg.query('UPDATE users SET age_classification = NULL WHERE id = $1', [user.id]);
+        await svc.from('users').update({ age_classification: null } as never).eq('id', user.id);
 
         await simulateSignIn(user.id);
 
@@ -134,7 +136,7 @@ describe('SEC-02 — renaming yourself still reaches the profile and the roster'
 
     it('does not put a stale metadata name back over a corrected one on sign-in', async () => {
         const user = await fixtures.createUser('sec02-corrected');
-        await pg.query("UPDATE users SET full_name = 'Corrected Name' WHERE id = $1", [user.id]);
+        await svc.from('users').update({ full_name: 'Corrected Name' } as never).eq('id', user.id);
 
         await simulateSignIn(user.id);
 
