@@ -785,4 +785,39 @@ BEGIN
     END LOOP;
 END $$;
 
+
+-- 25. SEC-05 -- a managed profile is readable by its guardian and by nobody else.
+--
+--     `managed_profiles` holds what a parent typed into "Allergies, pickup arrangements" and
+--     the promotion code that hands over the child's roster place. It carried a second SELECT
+--     policy returning the WHOLE ROW to every teammate, including every 13-year-old student on
+--     the team; the policy had no reader (the entity is guardian-scoped and the roster names a
+--     child from `team_members.full_name`) and was dropped in Sprint 10.
+--
+--     Policies for the same verb OR together, so a second one added later is a widening with no
+--     error -- exactly how `team_members` came to have five. This asserts the count as well as
+--     the predicate. Behavioural proof is in `tenant-isolation.rls.db.test.ts`, as the student.
+DO $$
+DECLARE
+    v_count integer;
+    v_qual  text;
+BEGIN
+    SELECT count(*), min(qual) INTO v_count, v_qual
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'managed_profiles'
+      AND cmd IN ('SELECT', 'ALL');
+
+    IF v_count <> 1 THEN
+        RAISE EXCEPTION
+            'managed_profiles has % policies that permit SELECT; exactly one (the guardian) is '
+            'expected -- a second one is a widening nothing else would report (SEC-05)', v_count;
+    END IF;
+
+    IF v_qual IS NULL OR position('guardian_user_id = auth.uid()' IN v_qual) = 0 THEN
+        RAISE EXCEPTION
+            'the managed_profiles read policy is no longer guardian-only (got: %)',
+            coalesce(v_qual, '<none>');
+    END IF;
+END $$;
+
 SELECT 'schema assertions passed' AS result;

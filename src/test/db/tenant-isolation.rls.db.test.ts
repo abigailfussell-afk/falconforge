@@ -974,12 +974,29 @@ describe('guardians reach their own child, and nothing else', () => {
         expect(consents.data).toEqual([]);
     });
 
-    it('owns the profile: the child’s own team can see it but not change it', async () => {
-        const visible = await teamA.coach.client
+    it('SEC-05: a teammate reads nothing of a child’s profile, not even their name', async () => {
+        /*
+         * CHANGED IN SPRINT 10, and the change is the finding.
+         *
+         * This assertion used to be `visible.data` has length 1 — the coach could SELECT the
+         * profile. It never said WHICH COLUMNS, and `managed_profiles_select_teammates` was
+         * `USING (id IN …)` over the whole row, so it also passed while every rostered
+         * STUDENT could read `notes` — "Allergies, pickup arrangements", in the guardian's own
+         * words on `AddChildDialog` — and `promotion_code`, which is a credential that hands
+         * over the child's roster place. Reproduced as `iron-student0@` on the seeded stack.
+         * `docs/failure-modes.md` §2: an assertion satisfied by a state the defect produces.
+         *
+         * The policy is dropped rather than narrowed. Nothing read it: `managed_profiles` is a
+         * guardian-scoped registry entity, so a teammate's pull filters on
+         * `guardian_user_id = auth.uid()` and never asked for another family's child; the
+         * roster names a child from `team_members.full_name`, which is asserted just below so
+         * that this refusal cannot pass by making the roster unusable.
+         */
+        const asCoach = await teamA.coach.client
             .from('managed_profiles')
-            .select('id')
+            .select('id, full_name, notes, promotion_code')
             .eq('id', teamA.guardian.profileId);
-        expect(visible.data, 'the roster could not see a managed member').toHaveLength(1);
+        expect(asCoach.data ?? [], 'a coach still reads a child’s profile row').toEqual([]);
 
         await expectDenied(
             'coach UPDATE of a managed profile',
@@ -989,6 +1006,52 @@ describe('guardians reach their own child, and nothing else', () => {
                 .eq('id', teamA.guardian.profileId)
                 .select(),
         );
+    });
+
+    it('SEC-05: a student cannot read a child’s notes or promotion code', async () => {
+        // The least-privileged role that can reach the table — failure-modes §6's rule for
+        // writing an isolation test. A 13-year-old with the anon key and their own token.
+        const { serviceClient } = await import('./stack');
+        const svc = serviceClient();
+        await svc
+            .from('managed_profiles')
+            .update({
+                notes: 'Peanut allergy — epipen in bag. Collected by grandma on Thursdays.',
+                promotion_code: 'SEC05CDE',
+            } as never)
+            .eq('id', teamA.guardian.profileId);
+
+        const { data } = await teamA.users.student.client
+            .from('managed_profiles')
+            .select('notes, promotion_code');
+
+        const leaked = (data ?? []) as { notes: string | null; promotion_code: string | null }[];
+        expect(leaked, 'a teammate read a child’s health and pickup notes').toEqual([]);
+    });
+
+    it('SEC-05 control: the roster still names the child, from team_members', async () => {
+        // What the dropped policy was assumed to be for. If this ever goes red, the fix above
+        // has taken a child's name off the roster and the refusal means nothing.
+        const { data } = await teamA.coach.client
+            .from('team_members')
+            .select('id, full_name, managed_profile_id')
+            .eq('id', teamA.guardian.memberId)
+            .single<{ id: string; full_name: string | null; managed_profile_id: string | null }>();
+
+        expect(data?.managed_profile_id).toBe(teamA.guardian.profileId);
+        expect(data?.full_name, 'the roster cannot name a managed child').toBeTruthy();
+    });
+
+    it('SEC-05 control: the guardian still reads every column of their own child', async () => {
+        const { data, error } = await teamA.guardian.user.client
+            .from('managed_profiles')
+            .select('*')
+            .eq('id', teamA.guardian.profileId)
+            .single<{ notes: string | null; promotion_code: string | null }>();
+
+        expect(error, 'the guardian lost their own child’s profile').toBeNull();
+        expect(data?.notes).toMatch(/Peanut allergy/);
+        expect(data?.promotion_code).toBe('SEC05CDE');
     });
 
     it('sees their child’s team and no other, without becoming a member of it', async () => {
