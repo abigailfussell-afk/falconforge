@@ -81,6 +81,7 @@ before anything is written.
 - (a) Keep the automatic 90-day trial in `create_team_as_admin` (expires ~5 Dec 2026 for kickoff registrations).
 - (b) Lengthen the trial to cover the season (e.g. until 30 Apr 2027).
 - (c) Remove the automatic trial; beta teams get an operator gift at onboarding (plan §2's original model).
+- (d) **Chosen, and not on the original list:** a short automatic *probation* that the operator extends to season length. See the decision below.
 
 **Evidence** ([SEC-07](auth-rls-licensing.md)): only an in-app banner warns; no operator expiry
 list; content screens keep offering writes that dead-letter. [SEC-08](auth-rls-licensing.md):
@@ -88,17 +89,46 @@ trial chaining is unlimited.
 
 **Recommendation:** (b) for the 2026–27 beta, plus the operator expiry view; (c) once Stripe exists.
 
-**Decision:** **(c) — no automatic trial; an operator gift at onboarding** (Kevin, 2026-08-23).
+**Decision:** **30-day probation, extended to season length by the operator** (Kevin,
+2026-08-23; revised the same day from an initial (c)).
+
+`create_team_as_admin` grants **30 days automatically**, so a coach registering at 8am on a
+competition Saturday has a working app without waiting for Kevin. The operator console lists new
+teams; one click extends to season length once the team number has been eyeballed. A fake team is
+therefore worth 30 days of nothing, and a real team gets a season without a renewal treadmill.
+
+**Why the licence is not the anti-abuse control.** Kevin's concern was fake teams and stolen team
+numbers. Withholding the licence addresses neither — a squatter with a read-only team has still
+taken the number, and the only people actually delayed are real coaches. The two threats get
+their own controls, both agreed:
+
+- **`UNIQUE (program, team_number)`**, and claiming a taken number routes to *request to join*
+  rather than silently creating a duplicate. This is not primarily an anti-abuse feature: it
+  fixes two coaches from the same team both registering, and typo'd numbers, which are certain.
+  It **reuses the existing `pending` membership status and join RPC** — no second join path.
+- **One auto-created team per account.** A second team needs an operator grant. Kills SEC-08's
+  unlimited trial chaining outright and is invisible to a real coach, who has one team and whose
+  students arrive by invite.
+
+Deliberately **not** built, per the project's guardrail bar (name the defect or leave it out):
+a team-number format check, and any automatic verification against FIRST's published team list.
+The latter is the same commercial-use exposure D2 just avoided; a human check is one public URL
+(`ftc-events.firstinspires.org/<year>/team/<number>`) and costs no code.
+
+**`program`, because FRC is planned and the numbers overlap** (Kevin). Stored as a **column**
+with `UNIQUE (program, team_number)`, not as a literal `"FTC-12345"` string: the prefix stays
+data rather than a convention every query has to parse, and display renders "FTC 12345". Defaults
+to `ftc`; **no FRC behaviour is built now** — the column is cheap insurance before the September
+schema freeze, the features are not.
 
 **Consequences:**
-- `create_team_as_admin` stops granting the automatic 90-day trial.
-- **Every beta team needs a manual grant from Kevin at onboarding**, so the operator console has
-  to make that a real one-click action with an expiry date — today it is SQL in `docs/v2-schema.md`.
-- **SEC-08's unlimited trial chaining becomes moot**: there is no automatic trial to chain.
-- SEC-07 still applies to a *lapsed* gift: the content screens must stop offering writes that
-  dead-letter, and the operator needs an expiry list so a team is not surprised.
-- A team that arrives before Kevin grants anything is read-only on day one. That state must read
-  as "waiting for access", not as a broken app.
+- **SEC-07 is now a prerequisite, not a companion.** Under a 30-day grant a lapse is routine
+  rather than exceptional, and today a lapsed team is still offered writes that dead-letter.
+- The operator console needs the new-team list and the one-click extend before any team onboards.
+- 30 days is a *probation*, not a trial: the extension is the normal path, not an exception.
+- Knock-on for D2: **FRC is 3v3 and FTC is 2v2**, so a match cannot be
+  `red1/red2/blue1/blue2` columns. Participants are rows — which is also what makes surrogates
+  and mid-event changes expressible, which D2 requires.
 
 ---
 
