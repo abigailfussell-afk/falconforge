@@ -120,6 +120,21 @@ interface Created {
     userIds: string[];
 }
 
+/**
+ * A team number no other fixture team in this process is using.
+ *
+ * A counter and not `Math.random()`: two random five-digit numbers collide once in a hundred
+ * thousand, which is a suite that fails one run in a few hundred with an error about the
+ * fixture rather than about the test -- and this repo already has one unexplained
+ * once-only e2e failure it could not reproduce. Deterministic per process; the base is offset
+ * so it cannot collide with the numbers `seed-review-states.mjs` uses.
+ */
+let fixtureTeamNumberSeq = 30000;
+function nextFixtureTeamNumber(): string {
+    fixtureTeamNumberSeq += 1;
+    return String(fixtureTeamNumberSeq);
+}
+
 export class Fixtures {
     private readonly svc = serviceClient();
     private readonly created: Created = { teamIds: [], userIds: [] };
@@ -177,7 +192,20 @@ export class Fixtures {
 
         const team = await this.insert('teams', {
             name: `${label} Robotics`,
-            team_number: '9999',
+            /*
+             * UNIQUE PER FIXTURE TEAM, since D3 added `UNIQUE (program, team_number)`.
+             *
+             * This was `'9999'` for every team the suite has ever built, which was invisible
+             * while nothing enforced uniqueness and is an insert failure the moment something
+             * does. The isolation suites depend on standing up several tenants at once, so a
+             * shared number would have taken the whole of `tenant-isolation` down with an
+             * error about the fixture rather than about the thing under test.
+             *
+             * Five digits, because FTC numbers are 1-5 digits and `WALK-A-06` capped the
+             * scouting form at that -- a six-digit fixture number would make the fixtures
+             * disagree with the validation.
+             */
+            team_number: nextFixtureTeamNumber(),
             owner_id: owner.id,
         });
         this.created.teamIds.push(team.id);

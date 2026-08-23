@@ -327,9 +327,28 @@ export async function enterApp(page: Page): Promise<void> {
  * visible at each step. A test that hardcodes "click Next twice" starts lying the first time
  * a step is added, and fails somewhere unrelated.
  */
+/**
+ * A team number no other spec in this run is using.
+ *
+ * The default was `'9911'` for every spec, which D3's `UNIQUE (program, team_number)` turns
+ * from harmless into a hard failure -- and into the WRONG failure, because
+ * `create_team_as_admin` now answers a taken number with "ask their admin for an invite code"
+ * rather than an error, so the wizard would sit on step 2 looking like a UI bug.
+ *
+ * Worker index plus a counter, not `Math.random()`: the pack runs 4 workers and a collision
+ * would be a once-in-a-few-hundred-runs red that reproduces on nobody's machine. This repo
+ * already carries one unexplained single e2e failure; it does not need a second source.
+ */
+let e2eTeamNumberSeq = 0;
+export function uniqueTeamNumber(): string {
+    e2eTeamNumberSeq += 1;
+    const worker = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+    return String(40000 + worker * 1000 + e2eTeamNumberSeq);
+}
+
 export async function createTeam(
     page: Page,
-    { teamName, teamNumber = '9911' }: { teamName: string; teamNumber?: string },
+    { teamName, teamNumber = uniqueTeamNumber() }: { teamName: string; teamNumber?: string },
 ): Promise<void> {
     await page.goto('/#/create-team');
 

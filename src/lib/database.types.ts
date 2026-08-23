@@ -89,6 +89,65 @@ export type Database = {
           },
         ]
       }
+      extra_team_grants: {
+        Row: {
+          created_at: string
+          granted_by: string
+          id: string
+          notes: string | null
+          used_at: string | null
+          used_team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by: string
+          id?: string
+          notes?: string | null
+          used_at?: string | null
+          used_team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string
+          id?: string
+          notes?: string | null
+          used_at?: string | null
+          used_team_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extra_team_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extra_team_grants_used_team_id_fkey"
+            columns: ["used_team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "extra_team_grants_used_team_id_fkey"
+            columns: ["used_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extra_team_grants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guardian_consents: {
         Row: {
           consent_type: string
@@ -953,6 +1012,7 @@ export type Database = {
           pending_admin_member_id: string | null
           pending_admin_nominated_at: string | null
           pending_admin_nominated_by: string | null
+          program: string
           team_number: string | null
           updated_at: string
         }
@@ -964,6 +1024,7 @@ export type Database = {
           pending_admin_member_id?: string | null
           pending_admin_nominated_at?: string | null
           pending_admin_nominated_by?: string | null
+          program?: string
           team_number?: string | null
           updated_at?: string
         }
@@ -975,6 +1036,7 @@ export type Database = {
           pending_admin_member_id?: string | null
           pending_admin_nominated_at?: string | null
           pending_admin_nominated_by?: string | null
+          program?: string
           team_number?: string | null
           updated_at?: string
         }
@@ -1108,6 +1170,7 @@ export type Database = {
         Args: { season_name: string; team_name: string; team_number?: string }
         Returns: Json
       }
+      current_season_end: { Args: never; Returns: string }
       current_team_member_id: { Args: { p_team_id: string }; Returns: string }
       current_team_role: { Args: { p_team_id: string }; Returns: string }
       get_user_team_ids: { Args: never; Returns: string[] }
@@ -1149,6 +1212,32 @@ export type Database = {
       offer_managed_profile_promotion: {
         Args: { p_managed_profile_id: string }
         Returns: Json
+      }
+      operator_extend_to_season: {
+        Args: { p_notes?: string; p_team_id: string }
+        Returns: Json
+      }
+      operator_grant_extra_team: {
+        Args: { p_notes?: string; p_user_id: string }
+        Returns: Json
+      }
+      operator_new_teams: {
+        Args: { p_limit?: number }
+        Returns: {
+          admin_email: string
+          admin_name: string
+          age_days: number
+          content_rows: number
+          created_at: string
+          has_been_used: boolean
+          is_probation: boolean
+          members_total: number
+          program: string
+          team_id: string
+          team_name: string
+          team_number: string
+          valid_until: string
+        }[]
       }
       operator_revoke_license: {
         Args: {
