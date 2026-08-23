@@ -6,7 +6,17 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 
 - **Sprint Planning / Kanban Board** - Agile-style task management with Board, List, and Calendar views
 - **Pre-Match Checklist** - Customizable checklists for competition day, saveable as team templates
-- **Scouting Reports** - Track opponent capabilities during competitions
+- **Scouting Reports** - Track opponent capabilities during competitions. The form comes from
+  the season's game rather than from the code: FTC replaces the game every September, so each
+  one is a JSON definition in `src/games/`, and a team can hide fields it does not use, rename
+  them, and add a few of its own without anybody editing a type. Nothing a team adds can clash
+  with next year's official fields, and hiding a field never deletes what was already recorded
+- **Competitions** - The event schedule, either pasted from your event's public FIRST page
+  (with a preview showing exactly what was read, because pasted text has no table structure and
+  team names contain digits) or built entirely by hand, which is the normal case on the morning
+  of an event. Everything stays editable afterwards: surrogates and mid-event schedule changes
+  are routine, so an imported schedule that cannot be corrected is wrong by lunchtime.
+  FalconForge never fetches that page itself
 - **Match Planner** - Draw autonomous paths and game strategies on the field
 - **Meetings & Attendance** - Schedule practices, build sessions, competitions, outreach and
   deadlines, one-off or recurring. Every occurrence gets its own four-digit code and QR poster,
