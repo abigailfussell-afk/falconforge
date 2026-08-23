@@ -128,6 +128,18 @@ jobs:
       - name: Behavioural database tests (RLS + data layer)
         run: npm run test:db
 
+      # Coverage runs HERE and nowhere else (OPS-01). It measures all three suites merged,
+      # and the db suite needs the stack this job has already started -- running it in the
+      # `test` job would report the unit suite's coverage as if it were the whole picture,
+      # which is the flattering half of the number.
+      #
+      # It was enforced by nothing for nine sprints, so the thresholds set in Sprint 5 drifted
+      # about six points above the truth while new files landed underneath them. They have been
+      # re-measured downward to today's floor and may only go up; see the comment in
+      # `vitest.config.coverage.ts` for why lowering was the honest move rather than deleting.
+      - name: Coverage thresholds (all three suites, merged)
+        run: npm run test:coverage
+
   smoke:
     name: Smoke pack drives the built app in a browser
     runs-on: ubuntu-latest

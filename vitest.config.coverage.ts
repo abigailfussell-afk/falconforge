@@ -54,11 +54,29 @@ export default defineConfig({
              * chain) and the store split moved four domains out of the thinly-covered
              * store.ts into slices the season-lifecycle suite already exercises.
              */
+            /*
+             * RE-MEASURED DOWNWARD, 2026-08-23 (OPS-01), and that is the honest direction.
+             *
+             * The numbers above were set in Sprint 5 and enforced by nothing, so nine sprints
+             * of new files landed underneath them: `GettingStarted.tsx` and `ResetPassword.tsx`
+             * at 0%, the guardian and operator surfaces thinly covered. Measured today the
+             * suite is 66.6 / 60.41 / 63.08 / 68.34 — roughly six points below a floor that had
+             * never once been checked.
+             *
+             * The choice the assessment asked to be STATED: the thresholds are kept and lowered
+             * to the measurement, not deleted. A floor at today's number is a ratchet — the same
+             * shape as the `as any` count — and it starts working immediately. A deleted floor
+             * is nothing, and re-earning six points is a sprint's worth of tests that nobody has
+             * scheduled.
+             *
+             * They may only go UP from here. If a change drops coverage, write the test rather
+             * than editing this block.
+             */
             thresholds: {
-                statements: 72,
-                branches: 67,
-                functions: 69,
-                lines: 74,
+                statements: 66,
+                branches: 60,
+                functions: 63,
+                lines: 68,
             },
         },
     },
