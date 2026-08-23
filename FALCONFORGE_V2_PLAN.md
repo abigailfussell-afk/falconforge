@@ -592,7 +592,16 @@ reading the schema:*
   pending legal review rather than for an engineering sprint.
 
 *From scoping Sprint 9 (2026-08-17), all verified against the live schema:*
-- **✅ RESOLVED 2026-08-22** (`v2/age-classification-writer`). It has a writer: "I've turned 18"
+- **✅ RESOLVED 2026-08-24** (Sprint 10, `20260824000100_sec_02_…`) — **and this line said
+  "RESOLVED 2026-08-22" for two days while the correction still reverted on the next login.**
+  Sprint 9 fixed the CLIENT half (B27). `handle_new_user` is `AFTER INSERT OR UPDATE ON
+  auth.users` and its conflict branch read `age_classification = COALESCE(EXCLUDED.…,
+  users.…)`, where EXCLUDED is signup metadata that nothing ever updates — so GoTrue's
+  `last_sign_in_at` write put `13_to_17` back on the next password grant, independently of the
+  client. Found by the August 2026 assessment ([SEC-02](docs/assessment-2026-08/auth-rls-licensing.md));
+  reproduced over the API, closed by making the column win and letting metadata fill only a
+  NULL. The class is failure-modes §1: one fact, two writers, nothing comparing them. It has a
+  writer: "I've turned 18"
   on the profile screen, which records the `age_18_plus` attestation and then raises the
   column. Fixing it required fixing B27 first — every boot wrote signup metadata back over
   the column, so no correction of any kind could have survived a reload. The profile control
