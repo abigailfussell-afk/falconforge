@@ -169,7 +169,7 @@ export default function Sidebar({
                 <div className="px-3 pt-3">
                     <label
                         htmlFor="season-selector"
-                        className="text-2xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 block"
+                        className="text-2xs font-bold text-slate-400 uppercase tracking-wider mb-1 block"
                     >
                         Season
                     </label>
@@ -238,7 +238,7 @@ export default function Sidebar({
                             <span className="font-medium">Tasks Done</span>
                             <span className="font-bold tabular-nums">
                                 {doneCount}
-                                <span className="text-slate-400 dark:text-slate-500">/{tasks.length}</span>
+                                <span className="text-slate-400 dark:text-slate-300">/{tasks.length}</span>
                             </span>
                         </div>
                         <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-1 mt-1.5">
@@ -265,7 +265,7 @@ export default function Sidebar({
                                     <NavLink
                                         data-testid="edit-profile-button"
                                         to={pathFor('profile')}
-                                        className="text-2xs text-slate-500 hover:text-forge-600 dark:text-slate-400 dark:hover:text-forge-400 font-medium transition-colors"
+                                        className="inline-flex items-center text-2xs text-slate-500 hover:text-forge-600 dark:text-slate-400 dark:hover:text-forge-400 font-medium transition-colors"
                                     >
                                         Edit Profile
                                     </NavLink>
@@ -283,7 +283,7 @@ export default function Sidebar({
 
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
                                 <div className="w-7 h-7 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center shrink-0">
-                                    <span className="text-2xs font-bold text-slate-500 dark:text-slate-400">
+                                    <span className="text-2xs font-bold text-slate-500 dark:text-slate-300">
                                         {currentTeam?.teamNumber ? `#${currentTeam.teamNumber.slice(0, 2)}` : 'T'}
                                     </span>
                                 </div>

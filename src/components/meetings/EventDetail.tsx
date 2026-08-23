@@ -123,8 +123,24 @@ export default function EventDetail() {
 
             <header className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        {/*
+                          * `break-words` (WALK-A-11). A 165-character title with no spaces in it
+                          * ran off the right edge of this header and was simply gone — the
+                          * `min-w-0` on the wrapper lets the flex item shrink, but nothing told
+                          * the TEXT it was allowed to break mid-word, so it overflowed instead.
+                          * The cap on the input stops new ones; this renders the ones already
+                          * stored, which is the half a length limit cannot do retroactively.
+                          *
+                          * `min-w-0` IS HALF THE FIX and `break-words` alone did nothing — the
+                          * probe measured the h1 at 1331px inside a 375px viewport with the class
+                          * already applied. A flex item defaults to `min-width: auto`, meaning
+                          * "never shrink below your content", so the box simply grew to fit the
+                          * unbroken word and `overflow-wrap` was never consulted: it breaks text
+                          * that has run out of room, and this text never did. Both the h1 and the
+                          * flex row above it need it.
+                          */}
+                        <h1 className="min-w-0 break-words text-2xl font-bold text-slate-800 dark:text-white">
                             {meeting.title}
                         </h1>
                         <span className={`rounded border px-1.5 py-0.5 text-2xs font-bold ${type.chip}`}>

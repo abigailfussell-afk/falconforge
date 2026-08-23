@@ -61,6 +61,7 @@ const SprintBoard: React.FC<SprintBoardProps> = ({
                             {columnTasks.map(task => (
                                 <button
                                     key={task.id}
+                                    data-testid="task-card"
                                     onClick={() => openTask(task)}
                                     className="w-full text-left bg-white dark:bg-slate-700 p-2 rounded-lg shadow-card border border-slate-200 dark:border-slate-600 hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition-all"
                                 >
@@ -68,7 +69,7 @@ const SprintBoard: React.FC<SprintBoardProps> = ({
                                         <span className={`text-2xs uppercase font-bold px-1.5 py-px rounded ${task.type === TaskType.Bug ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
                                             {task.type}
                                         </span>
-                                        <span className="text-2xs text-slate-400 dark:text-slate-500 shrink-0 tabular-nums">{new Date(task.createdAt).toLocaleDateString()}</span>
+                                        <span className="text-2xs text-slate-400 dark:text-slate-300 shrink-0 tabular-nums">{new Date(task.createdAt).toLocaleDateString()}</span>
                                     </div>
                                     <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 leading-snug">{task.title || 'Untitled'}</h4>
                                     <div className="flex items-center gap-1.5 mt-1.5 text-2xs text-slate-500 dark:text-slate-400">

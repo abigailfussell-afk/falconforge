@@ -319,6 +319,7 @@ const ScoutingReports: React.FC = () => {
                     label={editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}
                     width="dialog"
                     className="overflow-hidden flex flex-col"
+                    onClose={() => setIsScoutModalOpen(false)}
                 >
                     <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">
                         {editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}

@@ -172,6 +172,62 @@ h6 {
   }
 
   /*
+   * A 32px FLOOR under every real control, on touch devices only (WALK-A-10).
+   *
+   * Measured at 375px with `pointer: coarse` actually matching: 59 interactive elements
+   * rendered below 32px — Approve and Reject at 40x28, the meetings type filters at 26px, the
+   * partner-capability checkboxes at 13x13, "Generate Link" at 133x30. A 13px checkbox at a
+   * venue, on a phone, in gloves, is not a control.
+   *
+   * READ THE BLOCK ABOVE BEFORE WIDENING THIS. There used to be a rule here matching
+   * `button[class*="p-"]` and friends, and it was removed for good reason. Two things make this
+   * one a different rule rather than the same mistake wearing a smaller number:
+   *
+   *   - It selects ELEMENTS, not class substrings. The old rule could not tell a utility from
+   *     a coincidence — `p-` matched `placeholder-slate-400`, `bg-` matched `bg-transparent` —
+   *     so it hit essentially everything. `button` matches buttons.
+   *   - It sets min-HEIGHT only, except on checkboxes and radios which are square by nature.
+   *     The old rule forced 44px of WIDTH too, which is what squashed the sprint board's row
+   *     actions on a phone and produced the "blown up" density Sprint 5 was fixing.
+   *
+   * 32, not 44. `touch-target` is still the 44px promise and still opt-in for the controls that
+   * are primary actions; the index.css note above is explicit that a segmented control or a
+   * row's inline delete should stay small, and 44px everywhere would overrule that. This is a
+   * floor, not a target: the two numbers say different things and both are wanted.
+   *
+   * WHAT WOULD MAKE THIS FAIL, since a stylesheet has no error channel: `min-height` does
+   * nothing to a non-replaced INLINE element, so any text link left as `display: inline` is
+   * silently unaffected by this rule. That is not hypothetical — it is why the handful of
+   * inline links in the sidebar, dashboard and meetings list carry `inline-flex` at their call
+   * sites. `scripts/probe-accessibility.mjs` measures the rendered boxes and is the only thing
+   * that can tell the difference between this rule working and this rule being a no-op.
+   */
+  button,
+  select,
+  textarea,
+  a[href],
+  [role='button'],
+  [role='switch'],
+  input:not([type='hidden']):not([type='checkbox']):not([type='radio']) {
+    min-height: 32px;
+  }
+
+  /*
+   * CHECKBOXES AND RADIOS ARE NOT IN THAT LIST, deliberately.
+   *
+   * A native checkbox forced to 32x32 is a large white square that dwarfs the 12px label beside
+   * it — tried it, screenshotted it at 375px on the planner, and it looks broken. It is also
+   * solving a problem that does not exist here: every checkbox in this app is WRAPPED IN ITS
+   * LABEL, and a wrapping label is part of the same control — the whole row is clickable and
+   * already well over 32px (the planner's capability rows are `p-2` plus text; the COPPA
+   * attestation is three lines of it).
+   *
+   * The 13x13 boxes WALK-A-10 lists are therefore a measurement of the wrong box, not a defect;
+   * `scripts/probe-accessibility.mjs` now measures a wrapped input's label, which is what a
+   * thumb actually hits. Left at their natural size on purpose.
+   */
+
+  /*
    * iOS Safari zooms the viewport when a focused form control computes below 16px, and it
    * does not zoom back out. Sprint 5's type scale puts `text-base` at 14px, so without this
    * every text field on an iPhone would yank the layout sideways on focus — at a venue,

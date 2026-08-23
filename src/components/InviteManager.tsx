@@ -327,7 +327,7 @@ export default function InviteManager({ teamId }: InviteManagerProps) {
             )}
 
             {/* Info note */}
-            <p className="text-xs text-slate-400 dark:text-slate-500">
+            <p className="text-xs text-slate-400">
                 Invite links last a week. Anyone who joins with one waits as a request until the
                 team admin approves them, which is when they take up a licensed seat.
                 {/*

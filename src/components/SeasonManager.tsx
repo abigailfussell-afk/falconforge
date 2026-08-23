@@ -1,3 +1,4 @@
+import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 import React, { useEffect, useState } from 'react';
 import { Calendar, Plus, Trash2, X, Upload, AlertTriangle, Archive, ArchiveRestore, Sparkles } from 'lucide-react';
 import { useAppStore } from '../lib/store';
@@ -209,6 +210,7 @@ const SeasonManager: React.FC = () => {
             <div className="flex gap-2 mb-4">
                 <input
                     type="text"
+                    maxLength={TITLE_MAX_LENGTH}
                     value={newSeasonName}
                     onChange={(e) => setNewSeasonName(e.target.value)}
                     placeholder="Add an empty season (e.g. Off-Season 2027)"
@@ -400,7 +402,7 @@ const SeasonManager: React.FC = () => {
             </div>
 
             {isWizardOpen && (
-                <Modal label="Start a New Season" width="dialog" className="p-6 overflow-y-auto">
+                <Modal label="Start a New Season" width="dialog" className="p-6 overflow-y-auto" onClose={() => setIsWizardOpen(false)}>
                     <div data-testid="new-season-wizard">
                         <div className="mb-4 flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-forge-100 dark:bg-forge-900/30">
@@ -423,6 +425,7 @@ const SeasonManager: React.FC = () => {
                                 <input
                                     type="text"
                                     data-testid="wizard-season-name"
+                                    maxLength={TITLE_MAX_LENGTH}
                                     value={rollover.name}
                                     onChange={(e) => setRollover({ ...rollover, name: e.target.value })}
                                     placeholder="e.g. 2027-2028 Season"
@@ -572,7 +575,7 @@ const SeasonManager: React.FC = () => {
 
             {deleteConfirmSeasonId && (
                 // stacked: this confirm can open above the wizard's z-50 overlay.
-                <Modal label="Delete Season?" width="sm" stacked>
+                <Modal label="Delete Season?" width="sm" stacked onClose={() => setDeleteConfirmSeasonId(null)}>
                     <div>
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">

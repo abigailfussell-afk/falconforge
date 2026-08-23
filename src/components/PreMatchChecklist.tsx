@@ -207,7 +207,7 @@ const PreMatchChecklist: React.FC = () => {
                                     <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${item.checked ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-500 text-transparent'}`}>
                                         <CheckCircle2 size={13} fill="currentColor" className={item.checked ? 'text-white' : ''} />
                                     </span>
-                                    <span className={`text-sm font-medium flex-1 transition-colors ${item.checked ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                    <span className={`text-sm font-medium flex-1 transition-colors ${item.checked ? 'text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
                                         {item.text}
                                     </span>
                                     {item.assignedTo && (

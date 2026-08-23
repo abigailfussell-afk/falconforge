@@ -1,3 +1,4 @@
+import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 import React, { useState } from 'react';
 import { Layers, Plus, Trash2, Check } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
@@ -38,6 +39,7 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
             <div className="flex gap-2 mb-3">
                 <input
                     type="text"
+                    maxLength={TITLE_MAX_LENGTH}
                     value={newSubTeamName}
                     onChange={(e) => setNewSubTeamName(e.target.value)}
                     placeholder="New Sub-Team Name (e.g. Pit Crew)"
