@@ -352,6 +352,7 @@ const MatchPlanner: React.FC = () => {
 
           <svg
             ref={svgRef}
+            data-testid="planner-field"
             className="absolute inset-0 w-full h-full z-10 touch-none"
             viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
             preserveAspectRatio="xMidYMid meet"

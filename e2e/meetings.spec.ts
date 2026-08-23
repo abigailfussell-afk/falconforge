@@ -237,7 +237,36 @@ test.describe('layout properties', () => {
                 };
             });
 
-        const off = await measure();
+        /*
+         * SETTLE BEFORE THE FIRST MEASUREMENT TOO.
+         *
+         * The `on` measurement below has waited for `transitionend` since the day this test was
+         * written; the `off` one did not, and that was the remaining half of the same race. It
+         * surfaced when the pack gained a second project and the machine got busier: the knob
+         * was still settling from the page's own entrance when `off` was taken, so the symmetry
+         * assertion compared a moving knob to a stationary one and reported a real-looking
+         * asymmetry. Reproduced in isolation with `--repeat-each=4`, so it was never contention.
+         *
+         * Polling until two consecutive reads agree is the version that cannot race: it does
+         * not need to know what is animating or for how long.
+         */
+        const settled = async () => {
+            let previous = await measure();
+            for (let i = 0; i < 40; i++) {
+                await page.waitForTimeout(50);
+                const next = await measure();
+                if (
+                    Math.abs(next.insetLeft - previous.insetLeft) < 0.5 &&
+                    Math.abs(next.insetRight - previous.insetRight) < 0.5
+                ) {
+                    return next;
+                }
+                previous = next;
+            }
+            return previous;
+        };
+
+        const off = await settled();
         expect(off.insetLeft, 'knob escapes the left edge when off').toBeGreaterThanOrEqual(0);
         expect(off.insetRight, 'knob escapes the right edge when off').toBeGreaterThanOrEqual(0);
 
@@ -256,7 +285,7 @@ test.describe('layout properties', () => {
                 }),
         );
 
-        const on = await measure();
+        const on = await settled();
         expect(on.insetLeft, 'knob escapes the left edge when on').toBeGreaterThanOrEqual(0);
         expect(on.insetRight, 'knob escapes the right edge when on').toBeGreaterThanOrEqual(0);
 

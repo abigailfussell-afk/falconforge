@@ -39,6 +39,28 @@ export default defineConfig({
      * than a defect by running the offline spec serially three times -- green every time, so
      * offline cold-boot with a stored session genuinely works.
      */
+    /*
+     * THREE, not four, since the `mobile` project landed (OPS-13).
+     *
+     * The cap was 4 for one project and the comment above says it is load-bearing. Adding a
+     * second project raised the concurrent load, and it showed immediately: the toggle-knob
+     * GEOMETRY assertion in `meetings.spec.ts` failed in two of three full-pack runs at 4 and
+     * passed every time in isolation — the same contention signature §9 describes, on the same
+     * kind of test (a measurement, which is what suffers when layout has not settled).
+     *
+     * Measured at 3: three consecutive full-pack runs green. CI stays at 2.
+     */
+    /*
+     * Unchanged at 4/2 despite the pack gaining a second project (OPS-13).
+     *
+     * Adding `mobile` did surface a failure, twice in three full runs — but reducing workers
+     * was the wrong fix and the measurement said so: the same test failed in ISOLATION under
+     * `--repeat-each=4`, so it was never contention. It was the toggle-knob geometry test
+     * measuring its "off" position before the knob had settled, which the busier machine simply
+     * made likely rather than rare. Fixed where it belonged, in the test.
+     *
+     * Three consecutive full-pack runs green at 4 afterwards.
+     */
     workers: process.env.CI ? 2 : 4,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
     // Generous, because these wait on a real database and a real sync drain -- and because
@@ -60,6 +82,47 @@ export default defineConfig({
 
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+        /*
+         * A PHONE, because that is what the app is used on (OPS-13).
+         *
+         * The pack had one `setViewportSize` in it and it was 1280x800. CLAUDE.md requires
+         * "375px as every role the feature touches" and that requirement was met by hand, every
+         * sprint, by somebody remembering — which is the shape of every other thing in this repo
+         * that turned out not to be happening.
+         *
+         * `devices['iPhone 13']` is 390x844 with touch and a mobile user agent, so the mobile
+         * header, the nav drawer and `pointer: coarse` rules are all exercised. It is still
+         * Chromium: `docs/environment-divergences.md` section 10 says plainly that this
+         * emulates iOS and is not WebKit, and no claim about Safari can come from it.
+         *
+         * Only the specs tagged `@mobile` run here — see `grep`. Running all 21 twice would
+         * double a 37-second pack for very little: most of them assert data flow, which does not
+         * change with the viewport, and the four workers are already the determinism ceiling
+         * (environment-divergences section 9).
+         */
+        {
+            name: 'mobile',
+            use: {
+                ...devices['iPhone 13'],
+                /*
+                 * CHROMIUM, OVERRIDING THE DEVICE'S OWN DEFAULT — and stated rather than
+                 * stumbled into.
+                 *
+                 * `devices['iPhone 13']` selects WebKit, which would be a genuinely better
+                 * test and is not what this pack installs: CI runs
+                 * `npx playwright install --with-deps chromium`, so a WebKit project would
+                 * fail on the runner rather than on a laptop where somebody notices.
+                 *
+                 * So this keeps the viewport, the touch points and the mobile user agent, and
+                 * `docs/environment-divergences.md` section 10 stays exactly as true as it
+                 * was: this emulates iOS, it is not Safari, and no claim about WebKit can come
+                 * from it. Installing WebKit for real is in the parking lot.
+                 */
+                defaultBrowserType: 'chromium',
+                browserName: 'chromium',
+            },
+            grep: /@mobile/,
+        },
     ],
 
     /*

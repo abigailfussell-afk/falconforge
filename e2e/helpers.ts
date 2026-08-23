@@ -233,6 +233,50 @@ ${body.slice(0, 500)}`);
 }
 
 /**
+ * The RECOVERY link out of Mailpit, as distinct from the confirmation one.
+ *
+ * A separate function rather than a parameter on {@link confirmationLinkFor}, because the two
+ * are looking for different things and a shared matcher would find whichever email happened to
+ * arrive first. An account that has just been created has BOTH in its mailbox.
+ *
+ * The recovery link is `type=recovery` in GoTrue's verify URL; the confirmation is `type=signup`.
+ */
+export async function recoveryLinkFor(email: string, timeoutMs = 30_000): Promise<string> {
+    assertLocalStack(MAILPIT_URL);
+
+    let link: string | undefined;
+    await expect
+        .poll(
+            async () => {
+                const search = await fetch(
+                    `${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+                );
+                const { messages = [] } = (await search.json()) as { messages?: { ID: string }[] };
+
+                for (const message of messages) {
+                    const source = (await (
+                        await fetch(`${MAILPIT_URL}/api/v1/message/${message.ID}`)
+                    ).json()) as { HTML?: string; Text?: string };
+                    const body = `${source.HTML ?? ''}
+${source.Text ?? ''}`;
+                    const match = body.match(
+                        /https?:\/\/[^\s"'<>]*(?:type=recovery|token_hash=)[^\s"'<>]*/,
+                    );
+                    if (match) {
+                        link = match[0].replace(/&amp;/g, '&');
+                        return 1;
+                    }
+                }
+                return 0;
+            },
+            { timeout: timeoutMs, message: `No password-recovery email for ${email}` },
+        )
+        .toBeGreaterThan(0);
+
+    return link!;
+}
+
+/**
  * A confirmed account, signed in, sitting wherever a fresh account lands.
  *
  * The workhorse for every spec whose subject is not registration. It stops short of
