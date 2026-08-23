@@ -51,7 +51,25 @@ token." FTCScout publishes no terms. FRC's TBA is a free keyed API with no such 
 **Recommendation:** (b) now (zero legal exposure, unblocks the events entity), pursue (c) in
 parallel, get a lawyer's read before any server-side fetch.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **(b), and more than (b)** (Kevin, 2026-08-23) — paste/parse **plus** full manual
+entry **plus** editing after the fact. FalconForge never calls the API; the coach copies the
+schedule from the public event page and pastes it, with instructions and a preview to confirm
+before anything is written.
+
+**Consequences / scope this sets:**
+- A `competition_events` entity with matches, decided **before** the September schema freeze.
+- Import is a **shortcut, not the substrate**: every field the parser fills must be enterable and
+  editable by hand. A coach with no published schedule yet — normal on the morning of an event —
+  must be able to build the whole thing manually.
+- Matches stay editable after import. Kevin's reason, which is the one that matters at a venue:
+  **surrogates and mid-event schedule changes are routine**, so an imported schedule that cannot
+  be corrected is wrong by lunchtime.
+- The parser is heuristic (pasted text has no table structure, and team names contain digits), so
+  the **preview-and-confirm step is load-bearing** and an import must never write silently.
+- Verified 2026-08-23 rather than assumed: the schedule is a public page needing no API token —
+  `ftc-events.firstinspires.org/<year>/<code>/qualifications`, two teams per alliance. Which is
+  also why we do not fetch it ourselves: a paid product scraping FIRST data server-side carries
+  the same commercial-use exposure as the API, arguably worse.
 
 ---
 
@@ -70,7 +88,17 @@ trial chaining is unlimited.
 
 **Recommendation:** (b) for the 2026–27 beta, plus the operator expiry view; (c) once Stripe exists.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **(c) — no automatic trial; an operator gift at onboarding** (Kevin, 2026-08-23).
+
+**Consequences:**
+- `create_team_as_admin` stops granting the automatic 90-day trial.
+- **Every beta team needs a manual grant from Kevin at onboarding**, so the operator console has
+  to make that a real one-click action with an expiry date — today it is SQL in `docs/v2-schema.md`.
+- **SEC-08's unlimited trial chaining becomes moot**: there is no automatic trial to chain.
+- SEC-07 still applies to a *lapsed* gift: the content screens must stop offering writes that
+  dead-letter, and the operator needs an expiry list so a team is not surprised.
+- A team that arrives before Kevin grants anything is read-only on day one. That state must read
+  as "waiting for access", not as a broken app.
 
 ---
 
@@ -89,7 +117,17 @@ and a new validation bug class.
 
 **Recommendation:** (a) for phase S (kickoff), (b) for phase M. Never (c) before beta retention is known.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **(b) — curated templates plus light per-team overrides** (Kevin, 2026-08-23),
+rather than the assessment's phased (a)-then-(b).
+
+**Consequences:**
+- `team_game_overrides.patch` ships with the templates: add a field, hide a field, relabel.
+- The override patch is season-scoped and must survive a season roll the same way sub-team
+  structure does — a team that customised its DECODE form does not want it silently carried into
+  BIOBUZZ, nor silently lost.
+- Not (c): no form builder. Field *types* stay ours.
+- The validation surface widens — a per-team field needs the same treatment WALK-A-06 just gave
+  the fixed ones, so the rules belong in `scouting-validation.ts` with the rest.
 
 ---
 
@@ -166,4 +204,9 @@ delete any teammate's task, scouting report, match plan or checklist item.
 (WALK-B-11). Options: keep the refusal and filter the dropdown; or soften to "must confirm 18+
 on acceptance" (the plan §3 handshake). Not urgent.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **Keep the refusal; filter the dropdown** (Kevin, 2026-08-23).
+
+**Consequences:** `nominate_team_admin` keeps refusing a `13_to_17` account, and the picker stops
+listing accounts it will refuse (WALK-B-11) — an affordance that does nothing is
+`docs/failure-modes.md` §8. No self-attested 18+ claim is introduced. The empty case needs words:
+a team whose only other members are minors sees why, not an empty list.
