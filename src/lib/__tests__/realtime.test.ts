@@ -129,8 +129,9 @@ describe('realtime', () => {
             const distinct = [...new Set(tables)];
 
             expect(distinct.sort()).toEqual([
-                'checklists', 'match_plans', 'meeting_attendance', 'meetings',
-                'scouting_reports', 'seasons', 'sub_teams', 'tasks',
+                'checklists', 'competition_events', 'event_matches', 'match_participants',
+                'match_plans', 'meeting_attendance', 'meetings', 'scouting_reports', 'seasons',
+                'sub_teams', 'tasks', 'team_game_overrides',
             ]);
             expect(mockOn).toHaveBeenCalledTimes(distinct.length * 3);
         });

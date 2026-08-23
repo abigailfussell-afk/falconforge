@@ -14,38 +14,50 @@ vi.mock('../../lib/store', () => ({
     ScoutingReport: {},
 }));
 
+/*
+ * The game's fields, in the jsonb bag they have always been stored in (P-01 phase S).
+ *
+ * SAME KEYS, ONE LEVEL DOWN. `scouting_reports.data` was keyed exactly this way before the
+ * refactor and no row was migrated, so these fixtures are a re-nesting rather than a rewrite —
+ * which is what makes "existing seeded DECODE rows render unchanged" a checkable claim rather
+ * than an assurance.
+ */
 const mockScoutingReports = [
     {
         id: 'report-1',
         teamNumber: '12345',
         matchNumber: 1,
-        hasAutonomous: true,
-        autoScore: 25,
-        intakeType: 'Automatic',
-        autoAim: true,
-        farShooting: false,
-        shotsTaken: 10,
-        shotsMissed: 2,
-        parking: 'Full Park',
-        rating: 4,
-        endGameNotes: 'Great performance!',
         seasonId: 'season-1',
+        data: {
+            hasAutonomous: true,
+            autoScore: 25,
+            intakeType: 'Automatic',
+            autoAim: true,
+            farShooting: false,
+            shotsTaken: 10,
+            shotsMissed: 2,
+            parking: 'Full Park',
+            rating: 4,
+            endGameNotes: 'Great performance!',
+        },
     },
     {
         id: 'report-2',
         teamNumber: '67890',
         matchNumber: 2,
-        hasAutonomous: false,
-        autoScore: 0,
-        intakeType: 'Human Player',
-        autoAim: false,
-        farShooting: true,
-        shotsTaken: 5,
-        shotsMissed: 3,
-        parking: 'No Park',
-        rating: 2,
-        endGameNotes: 'Needs improvement',
         seasonId: 'season-1',
+        data: {
+            hasAutonomous: false,
+            autoScore: 0,
+            intakeType: 'Human Player',
+            autoAim: false,
+            farShooting: true,
+            shotsTaken: 5,
+            shotsMissed: 3,
+            parking: 'No Park',
+            rating: 2,
+            endGameNotes: 'Needs improvement',
+        },
     },
 ];
 
@@ -57,7 +69,17 @@ const mockStore = {
     currentSeasonId: 'season-1',
     // Sprint 4: every view now asks whether its season is archived, so the mocked
     // store needs the season the records belong to.
-    seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
+    /*
+     * `gameTitle: 'DECODE'` rather than '', so `gameForSeason` resolves the DECODE template and
+     * these fixtures render against the schema they were written for. With '' it falls through
+     * to the newest bundle — BIOBUZZ — and every assertion below would be about the wrong
+     * game's fields while still passing or failing for reasons that have nothing to do with
+     * the code under test.
+     */
+    seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: 'DECODE', gameDefinitionId: 'ftc-2025-decode', fieldImageData: '', isArchived: false, createdAt: 1000 }],
+    // The team has made no changes to the template. An empty array, not undefined: the page
+    // does `.find` on it, and undefined is the "still loading" state this mock is not in.
+    gameOverrides: [],
 };
 
 describe('ScoutingReports', () => {
@@ -286,12 +308,15 @@ describe('ScoutingReport form validation', () => {
         it('refuses 5,000 characters of notes', () => {
             const saveBtn = openForm();
             fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
-            fireEvent.change(screen.getByTestId('scout-notes'), {
+            fireEvent.change(screen.getByTestId('field-endGameNotes'), {
                 target: { value: 'x'.repeat(5000) },
             });
 
             expect(saveBtn.disabled, '5,000 characters of notes were accepted').toBe(true);
-            expect(screen.getByTestId('scout-notes-error')).toBeTruthy();
+            // The field's own message, from `SchemaForm` — the schema owns the cap now
+            // (`maxLength: 500` on the DECODE definition), so the error is rendered beside the
+            // field it belongs to rather than by the page.
+            expect(screen.getByTestId('field-endGameNotes-error')).toBeTruthy();
 
             fireEvent.click(saveBtn);
             expect(mockStore.addScoutingReport).not.toHaveBeenCalled();
@@ -308,13 +333,13 @@ describe('ScoutingReport form validation', () => {
 
             // Below three-quarters full there is no counter at all: a limit announced to
             // somebody who was not going to reach it.
-            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(100) } });
+            fireEvent.change(screen.getByTestId('field-endGameNotes'), { target: { value: 'x'.repeat(100) } });
             expect(screen.queryByTestId('scout-notes-remaining')).toBeNull();
 
-            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(400) } });
+            fireEvent.change(screen.getByTestId('field-endGameNotes'), { target: { value: 'x'.repeat(400) } });
             expect(screen.getByTestId('scout-notes-remaining').textContent).toBe('100 left');
 
-            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(5000) } });
+            fireEvent.change(screen.getByTestId('field-endGameNotes'), { target: { value: 'x'.repeat(5000) } });
             expect(screen.getByTestId('scout-notes-remaining').textContent).toBe('4500 over');
             expect(saveBtn.disabled).toBe(true);
         });
@@ -328,12 +353,17 @@ describe('ScoutingReport form validation', () => {
             const saveBtn = openForm();
             fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
             fireEvent.change(screen.getByTestId('scout-match-number'), { target: { value: '12' } });
-            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'Fast intake' } });
+            fireEvent.change(screen.getByTestId('field-endGameNotes'), { target: { value: 'Fast intake' } });
 
             expect(saveBtn.disabled).toBe(false);
             fireEvent.click(saveBtn);
             expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
-                expect.objectContaining({ teamNumber: '8412', matchNumber: 12, endGameNotes: 'Fast intake' }),
+                expect.objectContaining({
+                    teamNumber: '8412',
+                    matchNumber: 12,
+                    // The game's fields go in the bag; the report's identity does not.
+                    data: expect.objectContaining({ endGameNotes: 'Fast intake' }),
+                }),
             );
         });
 

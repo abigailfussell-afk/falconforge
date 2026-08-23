@@ -90,16 +90,24 @@ describe('transformToSupabaseSchema', () => {
             teamNumber: '12345',
             matchNumber: 1,
             eventName: 'League Meet #3',
-            hasAutonomous: true,
-            autoScore: 25,
-            intakeType: 'Automatic',
-            autoAim: true,
-            farShooting: false,
-            shotsTaken: 10,
-            shotsMissed: 2,
-            parking: 'Full Park',
-            rating: 4,
-            endGameNotes: 'Great!',
+            /*
+             * The game's fields, in the bag (P-01 phase S). This test's own comment already
+             * said "most fields are nested under 'data'" — that has always been true of the
+             * COLUMN, and what changed is that the local type now says so too, so `toRemote`
+             * passes the bag through instead of enumerating ten DECODE keys.
+             */
+            data: {
+                hasAutonomous: true,
+                autoScore: 25,
+                intakeType: 'Automatic',
+                autoAim: true,
+                farShooting: false,
+                shotsTaken: 10,
+                shotsMissed: 2,
+                parking: 'Full Park',
+                rating: 4,
+                endGameNotes: 'Great!',
+            },
             createdBy: 'user-abc-123',
             teamId: 'team-1',
             seasonId: 'season-1',

@@ -1,5 +1,9 @@
-import type { ChecklistItem, MatchPlan, ScoutingReport, Season, SubTeam, Task } from '../../types';
+import type {
+    ChecklistItem, MatchPlan, ScoutingReport, Season, SubTeam, Task, TeamGameOverride,
+} from '../../types';
+import type { GamePatch } from '../game-definition';
 import { generateId, queueForSync } from '../offline-db';
+import { canWriteToSeason } from '../season-rules';
 import type { SliceCreator } from './types';
 
 /** What the new-season wizard collects. */
@@ -8,6 +12,14 @@ export interface SeasonRolloverInput {
     name: string;
     /** The FTC game, e.g. "DECODE". Optional; '' means not recorded. */
     gameTitle?: string;
+    /**
+     * Which bundled `GameDefinition` the new season plays (P-01 phase S).
+     *
+     * Also decides whether the previous season's form patch travels: a patch written against
+     * DECODE means nothing to BIOBUZZ, which is D4's "not silently carried into a new game".
+     */
+    gameDefinitionId?: string;
+    gameDefinitionVersion?: number;
     /**
      * The season to clone STRUCTURE from. Defaults to the current season.
      * Its member assignments are never carried over — see {@link SeasonSlice.rollOverSeason}.
@@ -29,6 +41,25 @@ export interface SeasonRolloverInput {
 
 export interface SeasonSlice {
     seasons: Season[];
+    /**
+     * The team's scouting-form changes, one per season (D4(b)).
+     *
+     * IN THE SEASON SLICE RATHER THAN ITS OWN, because the rollover is the whole reason the
+     * shape needed deciding — D4 says the patch "must survive a season roll the same way
+     * sub-team structure does", and the code that carries it forward lives here beside the code
+     * that carries sub-teams. A separate slice would have put the rule and its one hard case in
+     * two files.
+     */
+    gameOverrides: TeamGameOverride[];
+    /** Write (or replace) this season's patch. Returns the row id, or null when refused. */
+    saveGameOverride: (input: {
+        seasonId: string;
+        baseDefinitionId: string;
+        baseVersion?: number | null;
+        patch: GamePatch;
+    }) => string | null;
+    setGameOverrides: (items: TeamGameOverride[]) => void;
+
     currentSeasonId: string | null;
     addSeason: (name: string, fieldImageData?: string, gameTitle?: string) => string | null;
     updateSeason: (id: string, updates: Partial<Season>) => void;
@@ -48,10 +79,55 @@ export interface SeasonSlice {
 export const seasonInitialState = {
     seasons: [] as Season[],
     currentSeasonId: null as string | null,
+    gameOverrides: [] as TeamGameOverride[],
 };
 
 export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
     ...seasonInitialState,
+
+    setGameOverrides: (gameOverrides) => set({ gameOverrides }),
+
+    /**
+     * Write this season's form patch, replacing whatever was there.
+     *
+     * ONE ROW PER SEASON, matching the table's `UNIQUE (team_id, season_id)`: a second patch
+     * for one season is not a thing the product can express, and letting the client create one
+     * would produce a push that the database refuses with a 23505 and the queue retries five
+     * times before parking. So an existing row is UPDATED in place, keeping its id.
+     */
+    saveGameOverride: (input) => {
+        const state = get();
+        const { currentTeamId } = state;
+        if (!currentTeamId) {
+            console.warn('[store] saveGameOverride ignored: no team is selected');
+            return null;
+        }
+        if (!canWriteToSeason(state.seasons, input.seasonId, 'saveGameOverride')) return null;
+
+        const existing = state.gameOverrides.find((o) => o.seasonId === input.seasonId);
+        const row: TeamGameOverride = {
+            id: existing?.id ?? generateId(),
+            seasonId: input.seasonId,
+            baseDefinitionId: input.baseDefinitionId,
+            baseVersion: input.baseVersion ?? null,
+            patch: input.patch,
+            teamId: currentTeamId,
+            createdAt: existing?.createdAt ?? Date.now(),
+        };
+
+        set((s: any) => ({
+            gameOverrides: existing
+                ? s.gameOverrides.map((o: TeamGameOverride) => (o.id === row.id ? row : o))
+                : [...s.gameOverrides, row],
+        }));
+        queueForSync(
+            'team_game_overrides',
+            row.id,
+            existing ? 'update' : 'create',
+            row,
+        ).catch(console.error);
+        return row.id;
+    },
 
     addSeason: (name, fieldImageData = '', gameTitle = '') => {
         const { currentTeamId } = get();
@@ -250,6 +326,38 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
                     ...clone,
                     teamId: currentTeamId,
                 }).catch(console.error);
+            }
+        }
+
+        /*
+         * THE FORM PATCH, CARRIED FORWARD ONLY WHEN THE GAME IS THE SAME (D4(b)).
+         *
+         * D4: "a team that customised its DECODE form does not want it silently carried into
+         * BIOBUZZ, nor silently lost." Both halves are real, and they point opposite ways, so
+         * the condition is the game rather than the wizard's checkbox alone:
+         *
+         *   * same game as the season it came from — the patch still means something, so it
+         *     travels, like sub-team NAMES;
+         *   * different game — it does not travel, because `hide: ['shotsMissed']` is
+         *     meaningless against a form with no such field. It is not deleted either: it
+         *     stays on the season it belongs to, which is what "not silently lost" means when
+         *     the alternative is applying it somewhere it makes no sense.
+         *
+         * `cloneSubTeams` gates it, so the wizard's existing "start structure fresh" choice
+         * covers this too rather than growing a second checkbox nobody asked for.
+         */
+        if (input.cloneSubTeams !== false && fromSeasonId) {
+            const previous = state.gameOverrides.find((o) => o.seasonId === fromSeasonId);
+            const newGameId = input.gameDefinitionId?.trim() || null;
+            const sameGame =
+                previous && (!newGameId || newGameId === previous.baseDefinitionId);
+            if (previous && sameGame) {
+                get().saveGameOverride({
+                    seasonId: newSeasonId,
+                    baseDefinitionId: previous.baseDefinitionId,
+                    baseVersion: previous.baseVersion ?? null,
+                    patch: previous.patch,
+                });
             }
         }
 

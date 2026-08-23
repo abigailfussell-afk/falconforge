@@ -97,16 +97,19 @@ describe('transformToSupabaseSchema', () => {
             teamNumber: '12345',
             matchNumber: 7,
             eventName: 'Regional',
-            hasAutonomous: true,
-            autoScore: 30,
-            intakeType: 'Active',
-            autoAim: true,
-            farShooting: false,
-            shotsTaken: 12,
-            shotsMissed: 3,
-            parking: 'Full Park',
-            rating: 4,
-            endGameNotes: 'Strong endgame',
+            // The game's fields, in the bag the column has always held them in (P-01 phase S).
+            data: {
+                hasAutonomous: true,
+                autoScore: 30,
+                intakeType: 'Active',
+                autoAim: true,
+                farShooting: false,
+                shotsTaken: 12,
+                shotsMissed: 3,
+                parking: 'Full Park',
+                rating: 4,
+                endGameNotes: 'Strong endgame',
+            },
             createdBy: 'user-1',
         };
 
@@ -199,6 +202,11 @@ describe('transformToSupabaseSchema', () => {
                 name: '2025-2026 Decode',
                 team_id: 'team-1',
                 game_title: null,
+                // P-01 phase S. Null for a season the caller did not name a template for —
+                // which is every season created before the column existed. `gameForSeason`
+                // falls back to the game title, then to the newest bundle.
+                game_definition_id: null,
+                game_definition_version: null,
                 field_image_data: null,
                 is_archived: false,
             });

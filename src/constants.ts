@@ -30,4 +30,3 @@ export const STATUS_COLUMNS = [
  */
 
 // The field image filename - MatchPlanner will prepend BASE_URL when using this
-export const FIELD_IMAGE_URL = "DecodeField.png";

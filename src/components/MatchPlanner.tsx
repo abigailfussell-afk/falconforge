@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import { FIELD_IMAGE_URL } from '../constants';
+import { resolveGameForSeason } from '../lib/games';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
@@ -56,13 +56,27 @@ const MatchPlanner: React.FC = () => {
     if (currentSeason?.id) ensureSeasonFieldImage(currentSeason.id).catch(console.warn);
   }, [currentSeason?.id]);
 
+  /**
+   * The game this season plays, for the field image and the partner-capability labels.
+   *
+   * The team's own patch is NOT applied here, deliberately: a patch changes the SCOUTING form,
+   * and the planner's two capability checkboxes are database columns (`partner_autonomous`,
+   * `partner_park`) rather than schema fields. Resolving the patch would imply they could be
+   * hidden or added to, which they cannot — that is a phase-M change to `match_plans`, not a
+   * relabel.
+   */
+  const game = resolveGameForSeason(currentSeason);
+
   // Field image: can be Base64 data URL, full URL, or local file path
   const customFieldImage = currentSeason?.fieldImageData;
   const fieldImageSrc = customFieldImage
     ? (customFieldImage.startsWith('data:') || customFieldImage.startsWith('http')
       ? customFieldImage
       : `${import.meta.env.BASE_URL}${customFieldImage}`)
-    : `${import.meta.env.BASE_URL}${FIELD_IMAGE_URL}`;
+    // The season's own game decides the default field, so a new September is a new JSON
+    // file rather than an edit to `constants.ts` (P-01 phase S). A season-specific uploaded
+    // image still wins: a team that photographed their own field wants that.
+    : `${import.meta.env.BASE_URL}${game.field.image}`;
   const matchPlans = useSeasonScoped(allMatchPlans);
   const [paths, setPaths] = useState<{ d: string, stroke: string, width: number }[]>([]);
   const [undoHistory, setUndoHistory] = useState<{ d: string, stroke: string, width: number }[]>([]);
@@ -417,11 +431,18 @@ const MatchPlanner: React.FC = () => {
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Partner Capabilities</label>
             <div className="grid grid-cols-2 gap-2">
+              {/* The two labels come from the season's game (P-01 phase S). "Lifted Park" was
+                  a DECODE literal sitting in this JSX; the columns behind these checkboxes are
+                  generic (`partner_autonomous`, `partner_park`) and always were, so only the
+                  words were game-specific. The keys are matched, not indexed, so a definition
+                  listing them in the other order cannot swap the two checkboxes. */}
               <label className="flex items-center gap-2 p-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-xs text-slate-800 dark:text-slate-200 cursor-pointer transition-colors hover:border-forge-300 dark:hover:border-forge-600">
-                <input type="checkbox" className="accent-forge-600" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} /> Autonomous
+                <input type="checkbox" className="accent-forge-600" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} />{' '}
+                {game.planner.partnerCapabilities.find((c) => c.key === 'partnerAutonomous')?.label ?? 'Autonomous'}
               </label>
               <label className="flex items-center gap-2 p-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-xs text-slate-800 dark:text-slate-200 cursor-pointer transition-colors hover:border-forge-300 dark:hover:border-forge-600">
-                <input type="checkbox" className="accent-forge-600" checked={parked} onChange={(e) => setParked(e.target.checked)} /> Lifted Park
+                <input type="checkbox" className="accent-forge-600" checked={parked} onChange={(e) => setParked(e.target.checked)} />{' '}
+                {game.planner.partnerCapabilities.find((c) => c.key === 'partnerPark')?.label ?? 'End game'}
               </label>
             </div>
           </div>

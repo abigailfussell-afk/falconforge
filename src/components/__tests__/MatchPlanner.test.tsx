@@ -93,11 +93,18 @@ describe('MatchPlanner', () => {
         currentSeasonId: 'season-1',
         currentTeamId: 'team-1',
         // Sprint 4: the planner asks whether its season is archived before offering a save.
-        seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
+        /*
+         * `gameTitle: 'DECODE'` rather than '', because the planner's capability LABELS now come
+         * from the season's game (P-01 phase S) and "Lifted Park" is DECODE's word for the
+         * second one. With '' the season resolves to the newest bundle and this test would be
+         * asserting on a different game's label — passing or failing for a reason unrelated to
+         * the planner.
+         */
+        seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: 'DECODE', gameDefinitionId: 'ftc-2025-decode', fieldImageData: '', isArchived: false, createdAt: 1000 }],
         getCurrentSeason: () => ({
             id: 'season-1',
             name: 'Test Season',
-            gameTitle: '',
+            gameTitle: 'DECODE',
             fieldImageData: '',
             isArchived: false,
             createdAt: 1000,

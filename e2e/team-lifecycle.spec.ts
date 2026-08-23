@@ -56,7 +56,7 @@ test.describe('team lifecycle', () => {
          * safe, the layout did.
          */
         await page.getByTestId('scout-event-name').fill(`Qualifier-${'x'.repeat(120)}`);
-        await page.getByTestId('scout-notes').fill('x'.repeat(500));
+        await page.getByTestId('field-endGameNotes').fill('x'.repeat(500));
         await page.getByTestId('save-scouting-report').click();
 
         const card = page.getByTestId('scout-card').first();

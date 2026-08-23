@@ -173,20 +173,124 @@ export interface ScoutingReport {
   /** Undefined when the scout did not record a match number. Never 0 — see B18. */
   matchNumber?: number;
   eventName?: string;
-  hasAutonomous: boolean;
-  autoScore: number;
-  intakeType: 'No Intake' | 'Human Player' | 'Automatic';
-  autoAim: boolean;
-  farShooting: boolean;
-  shotsTaken: number;
-  shotsMissed: number;
-  parking: 'No Park' | 'Full Park' | 'Partial Park';
-  rating: number; // 1-5
-  endGameNotes: string;
+  /**
+   * Everything the GAME defines, keyed by `GameField.key` (P-01 phase S).
+   *
+   * This used to be ten typed properties — `hasAutonomous`, `intakeType`, `parking` and the
+   * rest — which made DECODE part of the type system. Supporting next September's game meant
+   * editing this interface, `constants.ts`, two components and the entity registry's
+   * `toRemote`/`fromRemote`, three weeks before kickoff.
+   *
+   * `scouting_reports.data` has ALWAYS been a jsonb bag keyed exactly this way, so every
+   * existing row is already a valid instance and nothing was migrated. What changed is that
+   * the app stopped enumerating the keys: the form renders from the season's
+   * `GameDefinition`, and unknown keys are preserved rather than dropped.
+   *
+   * `unknown`, not `any`: a caller has to say what it expects a field to be, which is what
+   * stops `data.shotsTaken + 1` compiling into a string concatenation the day a template
+   * changes a counter to a select. `game-definition.ts` carries the type per field.
+   */
+  data: Record<string, unknown>;
   createdBy?: string;   // TeamMember ID who created this report
   seasonId: string;     // Scoped to a specific Season
   createdAt?: number;
   teamId?: string;      // Which tenant this row belongs to. See TENANT ON EVERY ROW.
+}
+
+/**
+ * One competition, with its schedule (D2).
+ *
+ * Kevin, 2026-08-23: paste/parse **plus** full manual entry **plus** editing after the fact.
+ * The import is a shortcut; this entity is the substrate, and every field it fills is
+ * enterable by hand — a coach whose schedule is not published yet, which is normal on the
+ * morning of an event, has to be able to build the whole thing.
+ */
+export interface CompetitionEvent {
+  id: string;
+  name: string;
+  /** FIRST's event code, e.g. `USMIDET1`. Free text; the app never fetches anything with it. */
+  eventCode?: string;
+  /**
+   * `YYYY-MM-DD`, as a STRING, and that is deliberate.
+   *
+   * A competition date is a date, not an instant. Stored as epoch millis it renders one day
+   * early at negative UTC offsets — `docs/failure-modes.md` §10, which this project has
+   * already shipped twice and which is still open for task due dates. A `date` column and a
+   * `YYYY-MM-DD` string on the client have no timezone to get wrong.
+   */
+  startsOn?: string;
+  endsOn?: string;
+  location?: string;
+  notes?: string;
+  seasonId: string;
+  teamId?: string;
+  createdAt?: number;
+}
+
+/** One match at one event. */
+export interface EventMatch {
+  id: string;
+  eventId: string;
+  phase: 'practice' | 'qualification' | 'playoff';
+  matchNumber: number;
+  /** Epoch millis. Undefined when the order is known and the time is not. */
+  scheduledAt?: number;
+  /**
+   * Filled in afterwards, by hand. `undefined` means NOT PLAYED — never 0, which is a real
+   * score and the exact conflation that corrupted five of nine live production rows (B18).
+   */
+  redScore?: number;
+  blueScore?: number;
+  notes?: string;
+  teamId?: string;
+}
+
+/**
+ * One team's changes to a curated scouting template, for one season (D4(b)).
+ *
+ * SEASON-SCOPED, which is the half D4 asked to be decided rather than discovered: *"the
+ * override patch is season-scoped and must survive a season roll the same way sub-team
+ * structure does — a team that customised its DECODE form does not want it silently carried
+ * into BIOBUZZ, nor silently lost."* So the rollover wizard offers to copy it and SAYS it has,
+ * exactly as it does for sub-team names.
+ *
+ * `baseDefinitionId` is on the patch because a patch is only meaningful next to the template it
+ * was written against: a `hide: ['shotsMissed']` written for DECODE means nothing to a game
+ * with no such field, and carrying it silently is the "silently carried into a new game" half
+ * of what D4 rules out.
+ */
+export interface TeamGameOverride {
+  id: string;
+  seasonId: string;
+  baseDefinitionId: string;
+  baseVersion?: number | null;
+  /** `{ add: [...], hide: [...], relabel: {...} }`. See `GamePatch`. */
+  patch: import('./lib/game-definition').GamePatch;
+  teamId?: string;
+  createdAt?: number;
+}
+
+/**
+ * One team in one match — a ROW, not a column (D2, and D3's knock-on).
+ *
+ * `red1 red2 blue1 blue2` was rejected for two reasons. FRC is 3v3 and FTC is 2v2, so four
+ * columns bake FTC's alliance size into the schema — `teams.program` exists precisely so that
+ * assumption stops being made. And a SURROGATE (a team playing a match that does not count for
+ * them) is a property of a participation, which a column layout has nowhere to put; D2 says
+ * surrogates and mid-event changes are routine, so an imported schedule that cannot express one
+ * is "wrong by lunchtime".
+ */
+export interface MatchParticipant {
+  id: string;
+  matchId: string;
+  alliance: 'red' | 'blue';
+  /** 1-based within the alliance. */
+  station: number;
+  /** Text, not a reference: these are other teams, which this platform has never heard of. */
+  teamNumber: string;
+  teamName?: string;
+  isSurrogate: boolean;
+  teamId?: string;
 }
 
 /**
@@ -231,6 +335,16 @@ export interface Season {
    * the column is nullable with a not-blank CHECK, and the mapping trims to null.
    */
   gameTitle: string;
+  /**
+   * Which bundled `GameDefinition` this season plays (P-01 phase S).
+   *
+   * Null on every season created before this column existed, which is all of them today —
+   * `gameForSeason` falls back to matching `gameTitle`, then to the newest bundle, and the
+   * report says where that guess is wrong (an archived season whose game the app no longer
+   * ships). `game_snapshot` in phase M is what fixes it properly.
+   */
+  gameDefinitionId?: string | null;
+  gameDefinitionVersion?: number | null;
   /**
    * Base64 field image, for offline support.
    *

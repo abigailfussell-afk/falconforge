@@ -1,0 +1,140 @@
+{
+  "id": "ftc-2025-decode",
+  "program": "ftc",
+  "seasonKey": "2025-26",
+  "title": "DECODE",
+  "version": 1,
+  "match": {
+    "allianceSize": 2,
+    "phases": [
+      { "key": "auto", "label": "Autonomous", "seconds": 30 },
+      { "key": "teleop", "label": "TeleOp", "seconds": 120 },
+      { "key": "endgame", "label": "End Game", "seconds": 30 }
+    ]
+  },
+  "field": {
+    "image": "DecodeField.png",
+    "width": 1024,
+    "height": 1024
+  },
+  "scouting": {
+    "match": {
+      "sections": [
+        {
+          "key": "auto",
+          "label": "Autonomous",
+          "fields": [
+            {
+              "key": "hasAutonomous",
+              "label": "Has Autonomous",
+              "type": "bool",
+              "default": false,
+              "phase": "auto",
+              "summary": true
+            },
+            {
+              "key": "autoScore",
+              "label": "Auto Score",
+              "type": "counter",
+              "min": 0,
+              "default": 0,
+              "phase": "auto",
+              "summary": true
+            }
+          ]
+        },
+        {
+          "key": "teleop",
+          "label": "TeleOp",
+          "fields": [
+            {
+              "key": "intakeType",
+              "label": "Intake Type",
+              "type": "select",
+              "options": ["No Intake", "Human Player", "Automatic"],
+              "default": "No Intake",
+              "phase": "teleop",
+              "summary": true
+            },
+            {
+              "key": "autoAim",
+              "label": "Auto Aim",
+              "type": "bool",
+              "default": false,
+              "phase": "teleop"
+            },
+            {
+              "key": "farShooting",
+              "label": "Far Shooting",
+              "type": "bool",
+              "default": false,
+              "phase": "teleop"
+            },
+            {
+              "key": "shotsTaken",
+              "label": "Shots Taken",
+              "type": "counter",
+              "min": 0,
+              "default": 0,
+              "phase": "teleop",
+              "summary": true
+            },
+            {
+              "key": "shotsMissed",
+              "label": "Shots Missed",
+              "type": "counter",
+              "min": 0,
+              "default": 0,
+              "phase": "teleop",
+              "summary": true
+            }
+          ]
+        },
+        {
+          "key": "endgame",
+          "label": "End Game",
+          "fields": [
+            {
+              "key": "parking",
+              "label": "Parking",
+              "type": "select",
+              "options": ["No Park", "Full Park", "Partial Park"],
+              "default": "No Park",
+              "phase": "endgame",
+              "summary": true
+            },
+            {
+              "key": "rating",
+              "label": "Overall Rating",
+              "type": "rating",
+              "min": 1,
+              "max": 5,
+              "default": 3,
+              "summary": true
+            },
+            {
+              "key": "endGameNotes",
+              "label": "Notes",
+              "type": "textarea",
+              "maxLength": 500
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "scoring": {
+    "metrics": [
+      { "key": "autoScore", "label": "Auto score", "field": "autoScore", "aggregate": "mean" },
+      { "key": "shotsTaken", "label": "Shots taken", "field": "shotsTaken", "aggregate": "mean" },
+      { "key": "shotsMissed", "label": "Shots missed", "field": "shotsMissed", "aggregate": "mean" },
+      { "key": "rating", "label": "Rating", "field": "rating", "aggregate": "mean" }
+    ]
+  },
+  "planner": {
+    "partnerCapabilities": [
+      { "key": "partnerAutonomous", "label": "Autonomous" },
+      { "key": "partnerPark", "label": "Lifted Park" }
+    ]
+  }
+}

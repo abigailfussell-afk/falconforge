@@ -312,6 +312,108 @@ describe('the landing page describes the product that exists', () => {
     });
 });
 
+describe('the game is data, not code (P-01 phase S)', () => {
+    /*
+     * WHY THIS RATCHET EXISTS. FTC replaces the game every September, and until Sprint 18 the
+     * game was spelled out in TypeScript: `intakeType: 'No Intake' | 'Human Player' |
+     * 'Automatic'` in `types.ts`, `FIELD_IMAGE_URL = "DecodeField.png"` in `constants.ts`,
+     * "Lifted Park" as a checkbox label in `MatchPlanner.tsx`, and ten enumerated keys in the
+     * entity registry. Supporting the next game meant editing a type, a constant, two
+     * components and the sync layer — in September, three weeks before kickoff.
+     *
+     * The coupling is gone. This is what stops it coming back one convenient literal at a
+     * time, which is exactly how it accumulated: nobody adds a game-specific type on purpose.
+     *
+     * P-01's exit criterion names these four files, so these four files are what is checked.
+     * `src/games/*.json` is where every one of these strings now lives, and this test does not
+     * look there.
+     */
+    const GAME_LITERALS = [
+        'FIELD_IMAGE_URL',
+        'DecodeField',
+        'DECODE',
+        'BIOBUZZ',
+        'intakeType',
+        'Lifted Park',
+        'No Intake',
+        'Human Player',
+        'Full Park',
+        'Partial Park',
+        'hasAutonomous',
+        'shotsTaken',
+        'shotsMissed',
+        'farShooting',
+        'autoAim',
+    ];
+
+    const FILES = [
+        'src/components/ScoutingReports.tsx',
+        'src/components/MatchPlanner.tsx',
+        'src/constants.ts',
+        'src/types.ts',
+    ];
+
+    for (const file of FILES) {
+        it(`${file} names no game`, () => {
+            const source = read(file);
+            /*
+             * COMMENTS ARE STRIPPED FIRST, and that is not a loophole.
+             *
+             * Every one of these files explains what used to be there and why it is gone — the
+             * `FIELD_IMAGE_URL` note in `constants.ts` is a whole paragraph naming the constant
+             * it replaced. A ratchet that failed on the explanation would force the explanation
+             * out, and this repo's own guidance is that the reasoning is the valuable part.
+             * What matters is that no CODE branches on a game.
+             */
+            const code = source
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/^\s*\/\/.*$/gm, '')
+                .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+
+            const found = GAME_LITERALS.filter((literal) => code.includes(literal));
+            expect(
+                found,
+                `${file} still names ${found.join(', ')} in code. A game belongs in ` +
+                    'src/games/<id>.json, which is the whole point of P-01 phase S.',
+            ).toEqual([]);
+        });
+    }
+
+    /*
+     * The registry is the fifth place the coupling lived, and the one that would be silent:
+     * an enumerated `toRemote` drops an unknown key rather than failing, so a report carrying
+     * a field a team added under D4(b) would lose it on the next round trip through an older
+     * build — and the row would still save.
+     */
+    it('the entity registry does not enumerate scouting fields', () => {
+        const code = read('src/lib/entity-registry.ts')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+
+        for (const key of ['hasAutonomous', 'shotsTaken', 'intakeType', 'endGameNotes']) {
+            expect(
+                code.includes(key),
+                `entity-registry.ts still enumerates ${key}; the data bag must pass through opaque.`,
+            ).toBe(false);
+        }
+    });
+
+    /*
+     * And the bundled files are valid. `import x from './x.json'` is typed by the literal
+     * contents, never checked against `GameDefinition`, so a typo'd key compiles and ships and
+     * fails at render time — on the scouting screen, which is used at a venue. `games.ts`
+     * throws at module load; importing it here is what makes that a Gate failure.
+     */
+    it('every bundled game definition loads', async () => {
+        const { BUNDLED_GAMES } = await import('../../lib/games');
+        expect(BUNDLED_GAMES.length).toBeGreaterThan(0);
+        for (const game of BUNDLED_GAMES) {
+            expect(game.id, 'a bundled game has no id').toBeTruthy();
+            expect(game.scouting.match.sections.length).toBeGreaterThan(0);
+        }
+    });
+});
+
 describe('the guidance describes the repo that exists', () => {
     /*
      * Every `npm run <script>` named in the agent-facing docs must exist.

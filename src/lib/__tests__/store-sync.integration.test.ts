@@ -151,16 +151,18 @@ describe('Store → Sync Queue Integration', () => {
             store.addScoutingReport({
                 teamNumber: '12345',
                 matchNumber: 5,
-                hasAutonomous: true,
-                autoScore: 30,
-                intakeType: 'Automatic',
-                autoAim: true,
-                farShooting: false,
-                shotsTaken: 15,
-                shotsMissed: 3,
-                parking: 'Full Park',
-                rating: 4,
-                endGameNotes: 'Great autonomous, good scoring',
+                data: {
+                    hasAutonomous: true,
+                    autoScore: 30,
+                    intakeType: 'Automatic',
+                    autoAim: true,
+                    farShooting: false,
+                    shotsTaken: 15,
+                    shotsMissed: 3,
+                    parking: 'Full Park',
+                    rating: 4,
+                    endGameNotes: 'Great autonomous, good scoring',
+                },
             });
 
             await waitForAsync(150);
@@ -184,16 +186,18 @@ describe('Store → Sync Queue Integration', () => {
             store.addScoutingReport({
                 teamNumber: '12345',
                 matchNumber: 1,
-                hasAutonomous: false,
-                autoScore: 0,
-                intakeType: 'No Intake',
-                autoAim: false,
-                farShooting: false,
-                shotsTaken: 0,
-                shotsMissed: 0,
-                parking: 'No Park',
-                rating: 2,
-                endGameNotes: '',
+                data: {
+                    hasAutonomous: false,
+                    autoScore: 0,
+                    intakeType: 'No Intake',
+                    autoAim: false,
+                    farShooting: false,
+                    shotsTaken: 0,
+                    shotsMissed: 0,
+                    parking: 'No Park',
+                    rating: 2,
+                    endGameNotes: '',
+                },
             });
 
             await waitForAsync(150);
@@ -355,16 +359,18 @@ describe('Store → Sync Queue Integration', () => {
             store.addScoutingReport({
                 teamNumber: '99999',
                 matchNumber: 1,
-                hasAutonomous: true,
-                autoScore: 25,
-                intakeType: 'Human Player',
-                autoAim: false,
-                farShooting: true,
-                shotsTaken: 10,
-                shotsMissed: 5,
-                parking: 'Partial Park',
-                rating: 3,
-                endGameNotes: 'Test',
+                data: {
+                    hasAutonomous: true,
+                    autoScore: 25,
+                    intakeType: 'Human Player',
+                    autoAim: false,
+                    farShooting: true,
+                    shotsTaken: 10,
+                    shotsMissed: 5,
+                    parking: 'Partial Park',
+                    rating: 3,
+                    endGameNotes: 'Test',
+                },
             });
 
             await waitForAsync(200);

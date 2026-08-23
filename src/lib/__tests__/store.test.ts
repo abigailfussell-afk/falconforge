@@ -160,22 +160,26 @@ describe('AppStore', () => {
             store.addScoutingReport({
                 teamNumber: '12345',
                 matchNumber: 1,
-                hasAutonomous: true,
-                autoScore: 25,
-                intakeType: 'Automatic',
-                autoAim: true,
-                farShooting: false,
-                shotsTaken: 10,
-                shotsMissed: 2,
-                parking: 'Full Park',
-                rating: 4,
-                endGameNotes: 'Great match!',
+                // The game's own fields, in the jsonb bag they have always been stored in
+                // (P-01 phase S). Same keys, one level down.
+                data: {
+                    hasAutonomous: true,
+                    autoScore: 25,
+                    intakeType: 'Automatic',
+                    autoAim: true,
+                    farShooting: false,
+                    shotsTaken: 10,
+                    shotsMissed: 2,
+                    parking: 'Full Park',
+                    rating: 4,
+                    endGameNotes: 'Great match!',
+                },
             });
 
             const reports = useAppStore.getState().scoutingReports;
             expect(reports).toHaveLength(1);
             expect(reports[0].teamNumber).toBe('12345');
-            expect(reports[0].rating).toBe(4);
+            expect(reports[0].data.rating).toBe(4);
         });
 
         it('should delete a scouting report', () => {
@@ -184,16 +188,20 @@ describe('AppStore', () => {
             store.addScoutingReport({
                 teamNumber: '12345',
                 matchNumber: 1,
-                hasAutonomous: true,
-                autoScore: 25,
-                intakeType: 'Automatic',
-                autoAim: true,
-                farShooting: false,
-                shotsTaken: 10,
-                shotsMissed: 2,
-                parking: 'Full Park',
-                rating: 4,
-                endGameNotes: 'Great match!',
+                // The game's own fields, in the jsonb bag they have always been stored in
+                // (P-01 phase S). Same keys, one level down.
+                data: {
+                    hasAutonomous: true,
+                    autoScore: 25,
+                    intakeType: 'Automatic',
+                    autoAim: true,
+                    farShooting: false,
+                    shotsTaken: 10,
+                    shotsMissed: 2,
+                    parking: 'Full Park',
+                    rating: 4,
+                    endGameNotes: 'Great match!',
+                },
             });
 
             const reportId = useAppStore.getState().scoutingReports[0].id;
@@ -207,34 +215,47 @@ describe('AppStore', () => {
             store.addScoutingReport({
                 teamNumber: '12345',
                 matchNumber: 1,
-                hasAutonomous: true,
-                autoScore: 25,
-                intakeType: 'Automatic',
-                autoAim: true,
-                farShooting: false,
-                shotsTaken: 10,
-                shotsMissed: 2,
-                parking: 'Full Park',
-                rating: 4,
-                endGameNotes: 'Great match!',
+                // The game's own fields, in the jsonb bag they have always been stored in
+                // (P-01 phase S). Same keys, one level down.
+                data: {
+                    hasAutonomous: true,
+                    autoScore: 25,
+                    intakeType: 'Automatic',
+                    autoAim: true,
+                    farShooting: false,
+                    shotsTaken: 10,
+                    shotsMissed: 2,
+                    parking: 'Full Park',
+                    rating: 4,
+                    endGameNotes: 'Great match!',
+                },
             });
 
             const reportId = useAppStore.getState().scoutingReports[0].id;
 
             // Update the report
-            store.updateScoutingReport(reportId, {
-                rating: 5,
-                endGameNotes: 'Updated notes',
-                shotsTaken: 15,
+            /*
+              * A PARTIAL UPDATE REPLACES THE WHOLE BAG, and this fixture says so on purpose.
+              *
+              * `updateScoutingReport` spreads `updates` over the record, so `data` is replaced
+              * rather than merged — three keys in, three keys out. That is the same semantics
+              * every other `Partial<T>` update in this store has, and a merge here would be a
+              * second, different rule for one field. The form always sends a complete bag
+              * (`blankReportData` underneath the report's own values), so the case does not
+              * arise in the app; it arises the moment somebody writes a helper that sends two
+              * keys, which is why it is pinned rather than left to be discovered.
+              */
+             store.updateScoutingReport(reportId, {
+                data: { rating: 5, endGameNotes: 'Updated notes', shotsTaken: 15 },
             });
 
             const updated = useAppStore.getState().scoutingReports.find(r => r.id === reportId);
             expect(updated).toBeDefined();
             expect(updated!.id).toBe(reportId); // ID preserved
             expect(updated!.teamNumber).toBe('12345'); // Unchanged fields preserved
-            expect(updated!.rating).toBe(5); // Updated
-            expect(updated!.endGameNotes).toBe('Updated notes'); // Updated
-            expect(updated!.shotsTaken).toBe(15); // Updated
+            expect(updated!.data.rating).toBe(5); // Updated
+            expect(updated!.data.endGameNotes).toBe('Updated notes'); // Updated
+            expect(updated!.data.shotsTaken).toBe(15); // Updated
         });
     });
 
@@ -255,10 +276,12 @@ describe('AppStore', () => {
                 ],
                 scoutingReports: [
                     {
-                        id: 'sr-1', teamNumber: '12345', matchNumber: 1, hasAutonomous: false,
-                        autoScore: 0, intakeType: 'No Intake' as const, autoAim: false,
-                        farShooting: false, shotsTaken: 0, shotsMissed: 0,
-                        parking: 'No Park' as const, rating: 1, endGameNotes: '', seasonId: SEASON_ID,
+                        id: 'sr-1', teamNumber: '12345', matchNumber: 1, seasonId: SEASON_ID,
+                        data: {
+                            hasAutonomous: false, autoScore: 0, intakeType: 'No Intake',
+                            autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0,
+                            parking: 'No Park', rating: 1, endGameNotes: '',
+                        },
                     },
                 ],
                 checklistsBySeason: { [SEASON_ID]: [{ id: 'cl-1', text: 'Dirty item', checked: true }] },

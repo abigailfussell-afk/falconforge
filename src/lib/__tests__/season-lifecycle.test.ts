@@ -109,7 +109,7 @@ describe('rollOverSeason', () => {
     it('starts the sprint board, scouting log and match planner empty', () => {
         useAppStore.setState({
             tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
-            scoutingReports: [{ id: 'r1', teamNumber: '1', hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '', seasonId: S1 }],
+            scoutingReports: [{ id: 'r1', teamNumber: '1', data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, seasonId: S1 }],
             matchPlans: [{ id: 'p1', title: 'Old', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1, seasonId: S1 }],
         });
 
@@ -289,9 +289,12 @@ describe('an archived season queues no writes', () => {
 
     it('refuses a scouting report and a match plan', async () => {
         useAppStore.getState().addScoutingReport({
-            teamNumber: '1234', hasAutonomous: false, autoScore: 0, intakeType: 'No Intake',
-            autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0,
-            parking: 'No Park', rating: 3, endGameNotes: '',
+            teamNumber: '1234',
+            data: {
+                hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false,
+                farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park',
+                rating: 3, endGameNotes: '',
+            },
         } as never);
         useAppStore.getState().addMatchPlan({
             title: 'Nope', drawingData: null, notes: '', allianceTeam: '',
@@ -347,7 +350,7 @@ describe('deleteSeason cascades locally, the way the server does', () => {
                 { id: 't1', title: 'Doomed', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 },
                 { id: 't2', title: 'Survivor', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: 'season-2' },
             ],
-            scoutingReports: [{ id: 'r1', teamNumber: '1', hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '', seasonId: S1 }],
+            scoutingReports: [{ id: 'r1', teamNumber: '1', data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, seasonId: S1 }],
             matchPlans: [{ id: 'p1', title: 'Doomed', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1, seasonId: S1 }],
         });
     });

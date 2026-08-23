@@ -43,6 +43,10 @@ import type {
     AttendanceStatus,
     AttendanceMethod,
     ManagedProfile,
+    TeamGameOverride,
+    CompetitionEvent,
+    EventMatch,
+    MatchParticipant,
     GuardianConsent,
     GuardianConsentType,
 } from '../types';
@@ -239,7 +243,10 @@ const seasons: EntityDefinition<Season> = {
     scope: 'team',
     seasonScope: null,
     // Every column except `field_image_data`. See EntityDefinition.pullColumns.
-    pullColumns: ['id', 'name', 'team_id', 'game_title', 'is_archived', 'created_at', 'updated_at'],
+    pullColumns: [
+        'id', 'name', 'team_id', 'game_title', 'game_definition_id', 'game_definition_version',
+        'is_archived', 'created_at', 'updated_at',
+    ],
     deferredFields: ['fieldImageData'] as const,
     toRemote: (s) => ({
         id: s.id,
@@ -248,6 +255,10 @@ const seasons: EntityDefinition<Season> = {
         // Nullable with a not-blank CHECK, so whitespace-only has to become NULL rather
         // than reaching the constraint. Same shape as field_image_data below.
         game_title: s.gameTitle?.trim() || null,
+        // P-01 phase S: which template, and which version of it. Null until a season is
+        // created or edited by a build that knows about them.
+        game_definition_id: s.gameDefinitionId || null,
+        game_definition_version: s.gameDefinitionVersion ?? null,
         /*
          * OMITTED, not nulled, when this device has never fetched it.
          *
@@ -269,6 +280,8 @@ const seasons: EntityDefinition<Season> = {
         name: r.name,
         teamId: r.team_id,
         gameTitle: r.game_title || '',
+        gameDefinitionId: r.game_definition_id ?? null,
+        gameDefinitionVersion: r.game_definition_version ?? null,
         // Absent column -> undefined ("not fetched"); present-and-null -> '' ("no image").
         fieldImageData: 'field_image_data' in r ? (r.field_image_data || '') : undefined,
         isArchived: r.is_archived ?? false,
@@ -320,36 +333,33 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         match_number: r.matchNumber ?? null,
         event_name: r.eventName || null,
         created_by: r.createdBy || null,
-        // The scouting payload lives in a jsonb column rather than as columns, so the
-        // nesting is part of the mapping rather than an accident.
-        data: {
-            hasAutonomous: r.hasAutonomous,
-            autoScore: r.autoScore,
-            intakeType: r.intakeType,
-            autoAim: r.autoAim,
-            farShooting: r.farShooting,
-            shotsTaken: r.shotsTaken,
-            shotsMissed: r.shotsMissed,
-            parking: r.parking,
-            rating: r.rating,
-            endGameNotes: r.endGameNotes,
-        },
+        /*
+         * THE PAYLOAD PASSES THROUGH, UNREAD (P-01 phase S).
+         *
+         * This used to enumerate ten DECODE keys in each direction, which meant the sync layer
+         * knew what game it was September. It also meant an UNKNOWN KEY WAS DROPPED: a report
+         * written by a newer build, or carrying a field a team added under D4(b), lost that
+         * field on the next round trip through an older client — silently, because the row
+         * still saved.
+         *
+         * `data` is now opaque here and typed by the season's `GameDefinition` at render time.
+         * The round-trip test asserts an unknown key survives, which is the property that
+         * enumeration could not have.
+         */
+        data: r.data ?? {},
     }),
     fromRemote: (r) => ({
         id: r.id,
         teamNumber: r.opponent_team_number,
         matchNumber: r.match_number ?? undefined,
         eventName: r.event_name || '',
-        hasAutonomous: r.data?.hasAutonomous ?? false,
-        autoScore: r.data?.autoScore ?? 0,
-        intakeType: r.data?.intakeType ?? 'No Intake',
-        autoAim: r.data?.autoAim ?? false,
-        farShooting: r.data?.farShooting ?? false,
-        shotsTaken: r.data?.shotsTaken ?? 0,
-        shotsMissed: r.data?.shotsMissed ?? 0,
-        parking: r.data?.parking ?? 'No Park',
-        rating: r.data?.rating ?? 0,
-        endGameNotes: r.data?.endGameNotes ?? '',
+        /*
+         * `?? {}` and no per-key defaults, which also retires P-01's named trap: the DECODE
+         * form defaulted `rating` to 3 and this line defaulted it to 0, so a report saved
+         * without touching the slider read back as a different number than it was saved with.
+         * One default now, in the schema, applied by `blankReportData` when the form opens.
+         */
+        data: (r.data as Record<string, unknown>) ?? {},
         createdBy: r.created_by || '',
         seasonId: r.season_id,
         teamId: r.team_id,
@@ -771,6 +781,169 @@ const teams: EntityDefinition<Team> = {
     setInStore: (s, items) => s.setTeams(items),
 };
 
+/**
+ * A team's changes to the curated scouting template (D4(b)).
+ *
+ * One row per (team, season) — the table has a UNIQUE on that pair — so this is an entity with
+ * a natural key as well as an id. The client still uses a uuid id, because the offline queue
+ * merges on record id and a natural key it would have to derive is a second identity scheme
+ * (`docs/failure-modes.md` §9, four sprints of that).
+ */
+const gameOverrides: EntityDefinition<TeamGameOverride> = {
+    serverAssigned: ['createdAt'] as const,
+    localKey: 'gameOverrides',
+    remoteTable: 'team_game_overrides',
+    scope: 'team',
+    seasonScope: 'column',
+    toRemote: (o) => ({
+        id: o.id,
+        team_id: o.teamId,
+        season_id: o.seasonId,
+        base_definition_id: o.baseDefinitionId,
+        base_version: o.baseVersion ?? null,
+        // Opaque, exactly like `scouting_reports.data`: the registry does not know what a
+        // patch contains and must not start enumerating it, or adding an operation becomes a
+        // sync-layer change.
+        patch: (o.patch ?? {}) as never,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        seasonId: r.season_id,
+        baseDefinitionId: r.base_definition_id,
+        baseVersion: r.base_version ?? null,
+        patch: (r.patch as TeamGameOverride['patch']) ?? {},
+        teamId: r.team_id,
+        createdAt: toEpochMillis(r.created_at),
+    }),
+    getFromStore: (s) => s.gameOverrides,
+    setInStore: (s, items) => s.setGameOverrides(items),
+};
+
+/**
+ * A competition, with the schedule hanging off it (D2).
+ *
+ * Season-scoped by column, like tasks and scouting reports: an event belongs to one season, and
+ * a new season is a fresh start.
+ */
+const competitionEvents: EntityDefinition<CompetitionEvent> = {
+    serverAssigned: ['createdAt'] as const,
+    localKey: 'competitionEvents',
+    remoteTable: 'competition_events',
+    scope: 'team',
+    seasonScope: 'column',
+    toRemote: (e) => ({
+        id: e.id,
+        team_id: e.teamId,
+        season_id: e.seasonId,
+        name: e.name,
+        event_code: e.eventCode?.trim() || null,
+        /*
+         * DATE STRINGS, PASSED THROUGH UNTOUCHED, and that is the whole point of the column
+         * type. A competition date is a date; converting it to an instant and back renders it
+         * one day early at negative UTC offsets, which this project has shipped twice
+         * (`docs/failure-modes.md` §10) and which for "which day is the competition" is not a
+         * cosmetic bug. `''` becomes null so a blank field is absent rather than an invalid
+         * date the column would reject.
+         */
+        starts_on: e.startsOn?.trim() || null,
+        ends_on: e.endsOn?.trim() || null,
+        location: e.location?.trim() || null,
+        notes: e.notes?.trim() || null,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        name: r.name,
+        eventCode: r.event_code ?? '',
+        startsOn: r.starts_on ?? '',
+        endsOn: r.ends_on ?? '',
+        location: r.location ?? '',
+        notes: r.notes ?? '',
+        seasonId: r.season_id,
+        teamId: r.team_id,
+        createdAt: toEpochMillis(r.created_at),
+    }),
+    getFromStore: (s) => s.competitionEvents,
+    setInStore: (s, items) => s.setCompetitionEvents(items),
+};
+
+/**
+ * One match at one event.
+ *
+ * NOT season-scoped, because it has no `season_id` column — it hangs off the event, which has
+ * one. `seasonScope: null` is the registry's way of saying so, and the write policy checks the
+ * season THROUGH the event so that the rule is enforced rather than merely implied.
+ */
+const eventMatches: EntityDefinition<EventMatch> = {
+    serverAssigned: [] as const,
+    localKey: 'eventMatches',
+    remoteTable: 'event_matches',
+    scope: 'team',
+    seasonScope: null,
+    toRemote: (m) => ({
+        id: m.id,
+        team_id: m.teamId,
+        event_id: m.eventId,
+        phase: m.phase,
+        match_number: m.matchNumber,
+        scheduled_at: toISO(m.scheduledAt),
+        /*
+         * `?? null`, NEVER `?? 0`. An unplayed match has no score, and 0 is a real score — a
+         * 0-0 tie happens. B18 is this exact conflation, and it corrupted five of nine live
+         * production scouting rows before anybody noticed.
+         */
+        red_score: m.redScore ?? null,
+        blue_score: m.blueScore ?? null,
+        notes: m.notes?.trim() || null,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        eventId: r.event_id,
+        phase: (r.phase as EventMatch['phase']) ?? 'qualification',
+        matchNumber: r.match_number,
+        scheduledAt: toEpochMillis(r.scheduled_at),
+        redScore: r.red_score ?? undefined,
+        blueScore: r.blue_score ?? undefined,
+        notes: r.notes ?? '',
+        teamId: r.team_id,
+    }),
+    getFromStore: (s) => s.eventMatches,
+    setInStore: (s, items) => s.setEventMatches(items),
+};
+
+/** One team in one match. Rows, not columns — see the type's comment, and D3's knock-on. */
+const matchParticipants: EntityDefinition<MatchParticipant> = {
+    serverAssigned: [] as const,
+    localKey: 'matchParticipants',
+    remoteTable: 'match_participants',
+    scope: 'team',
+    seasonScope: null,
+    toRemote: (p) => ({
+        id: p.id,
+        team_id: p.teamId,
+        match_id: p.matchId,
+        alliance: p.alliance,
+        station: p.station,
+        team_number: p.teamNumber,
+        team_name: p.teamName?.trim() || null,
+        is_surrogate: p.isSurrogate,
+    }),
+    fromRemote: (r) => ({
+        id: r.id,
+        matchId: r.match_id,
+        alliance: (r.alliance as MatchParticipant['alliance']) ?? 'red',
+        station: r.station,
+        teamNumber: r.team_number,
+        teamName: r.team_name ?? '',
+        // `?? false` is right here and wrong two entities up, and the difference is worth
+        // naming: `is_surrogate` is NOT NULL with a default, so absence means false. A score
+        // is nullable, so absence means "not played".
+        isSurrogate: r.is_surrogate ?? false,
+        teamId: r.team_id,
+    }),
+    getFromStore: (s) => s.matchParticipants,
+    setInStore: (s, items) => s.setMatchParticipants(items),
+};
+
 export const SYNCED_ENTITIES = [
     seasons,
     subTeams,
@@ -782,6 +955,17 @@ export const SYNCED_ENTITIES = [
     // to must not be pushed first. Order in this array IS the push order.
     meetings,
     meetingAttendance,
+    /*
+     * Events before matches before participants, for the same reason meetings come before
+     * attendance: each carries a composite foreign key into the one above it, so a child
+     * pushed first is refused. Order in this array IS the pull order, and the push order is
+     * whatever `queueForSync` timestamped (B1) — which is why the import writes them in this
+     * order too, and `event-import.ts` says so.
+     */
+    gameOverrides,
+    competitionEvents,
+    eventMatches,
+    matchParticipants,
 ] as const;
 
 /**

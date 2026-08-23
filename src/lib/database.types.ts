@@ -89,6 +89,134 @@ export type Database = {
           },
         ]
       }
+      competition_events: {
+        Row: {
+          created_at: string
+          ends_on: string | null
+          event_code: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          season_id: string
+          starts_on: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_on?: string | null
+          event_code?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          season_id: string
+          starts_on?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string | null
+          event_code?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          season_id?: string
+          starts_on?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_events_season_id_team_id_fkey"
+            columns: ["season_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "competition_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "competition_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_matches: {
+        Row: {
+          blue_score: number | null
+          created_at: string
+          event_id: string
+          id: string
+          match_number: number
+          notes: string | null
+          phase: string
+          red_score: number | null
+          scheduled_at: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          blue_score?: number | null
+          created_at?: string
+          event_id: string
+          id?: string
+          match_number: number
+          notes?: string | null
+          phase?: string
+          red_score?: number | null
+          scheduled_at?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          blue_score?: number | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          match_number?: number
+          notes?: string | null
+          phase?: string
+          red_score?: number | null
+          scheduled_at?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_matches_event_id_team_id_fkey"
+            columns: ["event_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "competition_events"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "event_matches_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "event_matches_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       extra_team_grants: {
         Row: {
           created_at: string
@@ -362,6 +490,67 @@ export type Database = {
             columns: ["promoted_to_user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_participants: {
+        Row: {
+          alliance: string
+          created_at: string
+          id: string
+          is_surrogate: boolean
+          match_id: string
+          station: number
+          team_id: string
+          team_name: string | null
+          team_number: string
+          updated_at: string
+        }
+        Insert: {
+          alliance: string
+          created_at?: string
+          id?: string
+          is_surrogate?: boolean
+          match_id: string
+          station: number
+          team_id: string
+          team_name?: string | null
+          team_number: string
+          updated_at?: string
+        }
+        Update: {
+          alliance?: string
+          created_at?: string
+          id?: string
+          is_surrogate?: boolean
+          match_id?: string
+          station?: number
+          team_id?: string
+          team_name?: string | null
+          team_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_participants_match_id_team_id_fkey"
+            columns: ["match_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "event_matches"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "match_participants_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "match_participants_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -753,6 +942,8 @@ export type Database = {
         Row: {
           created_at: string
           field_image_data: string | null
+          game_definition_id: string | null
+          game_definition_version: number | null
           game_title: string | null
           id: string
           is_archived: boolean
@@ -763,6 +954,8 @@ export type Database = {
         Insert: {
           created_at?: string
           field_image_data?: string | null
+          game_definition_id?: string | null
+          game_definition_version?: number | null
           game_title?: string | null
           id?: string
           is_archived?: boolean
@@ -773,6 +966,8 @@ export type Database = {
         Update: {
           created_at?: string
           field_image_data?: string | null
+          game_definition_id?: string | null
+          game_definition_version?: number | null
           game_title?: string | null
           id?: string
           is_archived?: boolean
@@ -935,6 +1130,61 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_game_overrides: {
+        Row: {
+          base_definition_id: string
+          base_version: number | null
+          created_at: string
+          id: string
+          patch: Json
+          season_id: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_definition_id: string
+          base_version?: number | null
+          created_at?: string
+          id?: string
+          patch?: Json
+          season_id: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_definition_id?: string
+          base_version?: number | null
+          created_at?: string
+          id?: string
+          patch?: Json
+          season_id?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_game_overrides_season_id_team_id_fkey"
+            columns: ["season_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "team_game_overrides_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team_entitlement"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "team_game_overrides_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"

@@ -36,6 +36,10 @@ import type {
     MeetingAttendance,
     ManagedProfile,
     GuardianConsent,
+    TeamGameOverride,
+    CompetitionEvent,
+    EventMatch,
+    MatchParticipant,
 } from '@/types';
 
 /** Contextual fields the server needs but the local types do not carry. */
@@ -75,6 +79,11 @@ const season: Season = {
     name: '2025-2026 Season',
     // Sprint 4. Both directions, or the round-trip below fails — which is the point.
     gameTitle: 'DECODE',
+    // P-01 phase S. Which TEMPLATE, as opposed to the free-text label above: `gameTitle` is
+    // what a coach typed and is not an identity, so the app cannot decide which form to render
+    // from it without guessing at a string.
+    gameDefinitionId: 'ftc-2025-decode',
+    gameDefinitionVersion: 1,
     teamId: 'team-1',
     fieldImageData: 'data:image/png;base64,AAAA',
     isArchived: true,
@@ -95,16 +104,23 @@ const scoutingReport: ScoutingReport = {
     teamNumber: '12345',
     matchNumber: 7,
     eventName: 'League Meet 2',
-    hasAutonomous: true,
-    autoScore: 24,
-    intakeType: 'Automatic',
-    autoAim: true,
-    farShooting: false,
-    shotsTaken: 12,
-    shotsMissed: 3,
-    parking: 'Full Park',
-    rating: 4,
-    endGameNotes: 'Strong driver, slow cycle',
+    /*
+      * The GAME's fields, in the jsonb bag (P-01 phase S). The registry no longer enumerates
+      * these — `data` passes through opaque in both directions — which is what makes the
+      * unknown-key test below possible at all.
+      */
+    data: {
+        hasAutonomous: true,
+        autoScore: 24,
+        intakeType: 'Automatic',
+        autoAim: true,
+        farShooting: false,
+        shotsTaken: 12,
+        shotsMissed: 3,
+        parking: 'Full Park',
+        rating: 4,
+        endGameNotes: 'Strong driver, slow cycle',
+    },
     createdBy: 'member-1',
     seasonId: 'season-1',
     createdAt: undefined, // server-assigned; absent on a locally-created record
@@ -208,7 +224,78 @@ const team = {
     createdAt: undefined as unknown as number, // server-assigned
 };
 
+/**
+ * A team's changes to the scouting template (D4(b)).
+ *
+ * The `patch` is opaque to the registry, exactly like `scouting_reports.data` — so the round
+ * trip is what pins that: adding an operation to a patch must not need a sync-layer change.
+ */
+const gameOverride: TeamGameOverride = {
+    id: 'override-1',
+    seasonId: 'season-1',
+    baseDefinitionId: 'ftc-2025-decode',
+    baseVersion: 1,
+    patch: {
+        hide: ['farShooting'],
+        relabel: { shotsTaken: 'Attempts' },
+        add: [{ section: 'teleop', field: { key: 'team.climb', label: 'Climbed', type: 'bool' } }],
+    },
+    teamId: 'team-1',
+    createdAt: undefined,
+};
+
+const competitionEvent: CompetitionEvent = {
+    id: 'event-1',
+    name: 'Michigan State Championship',
+    eventCode: 'USMIDET1',
+    /*
+     * DATE STRINGS, and the round trip is where that gets checked. Stored as epoch millis these
+     * render one day early at negative UTC offsets — `docs/failure-modes.md` §10, twice shipped
+     * — and for "which day is the competition" that is the whole value of the field.
+     */
+    startsOn: '2027-02-21',
+    endsOn: '2027-02-22',
+    location: 'Detroit, MI',
+    notes: 'Load in at 07:00',
+    seasonId: 'season-1',
+    teamId: 'team-1',
+    createdAt: undefined,
+};
+
+const eventMatch: EventMatch = {
+    id: 'match-1',
+    eventId: 'event-1',
+    phase: 'qualification',
+    matchNumber: 12,
+    scheduledAt: 1_770_000_000_000,
+    redScore: 108,
+    blueScore: 11,
+    notes: 'Replayed after a field fault',
+    teamId: 'team-1',
+};
+
+const matchParticipant: MatchParticipant = {
+    id: 'participant-1',
+    matchId: 'match-1',
+    alliance: 'blue',
+    station: 2,
+    teamNumber: '25756',
+    teamName: 'Nano Ninjas',
+    /*
+     * The reason participants are ROWS rather than four columns (D2). A surrogate is a property
+     * of a PARTICIPATION, and a `red1/red2/blue1/blue2` layout has nowhere to put it — which
+     * matters because D2 says surrogates and mid-event changes are routine, so a schedule that
+     * cannot express one is "wrong by lunchtime".
+     */
+    isSurrogate: true,
+    teamId: 'team-1',
+};
+
 const SAMPLES: Record<string, any> = {
+    team_game_overrides: gameOverride,
+    competition_events: competitionEvent,
+    event_matches: eventMatch,
+    match_participants: matchParticipant,
     teams: team,
     managed_profiles: managedProfile,
     guardian_consents: guardianConsent,

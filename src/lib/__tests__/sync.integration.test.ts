@@ -150,7 +150,7 @@ describe('sync.integration', () => {
             const store = useAppStore.getState();
             expect(store.scoutingReports.length).toBe(1);
             expect(store.scoutingReports[0].teamNumber).toBe('1234');
-            expect(store.scoutingReports[0].hasAutonomous).toBe(true);
+            expect(store.scoutingReports[0].data.hasAutonomous).toBe(true);
 
             expect(store.subTeams.length).toBe(1);
             expect(store.subTeams[0].name).toBe('Programming');
