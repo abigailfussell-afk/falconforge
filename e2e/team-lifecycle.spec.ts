@@ -31,6 +31,59 @@ test.describe('team lifecycle', () => {
         await expect(page.getByText('#4321')).toBeVisible();
     });
 
+    test('a long value wraps inside the report card instead of pushing the badge out @mobile', async ({ page }) => {
+        /*
+         * WALK-A-06's other half, and the half no unit test can see: jsdom applies no
+         * stylesheet, so it renders the broken and fixed cards identically.
+         *
+         * The walkthrough's 21-character team number shoved the "No match #" badge out past the
+         * card's own edge. The cause is not the string — it is that a flex child defaults to
+         * `min-width: auto` and so refuses to shrink below its content. Validation stops new
+         * reports carrying a number that long, but not event names or notes, and not the rows
+         * already in databases; the layout has to hold regardless.
+         */
+        await goToView(page, 'scouting', 'scouting');
+
+        await page.getByTestId('scout-match').click();
+        await page.getByTestId('scout-team-number').fill('41234');
+        /*
+         * No spaces, and long enough to overflow the widest card in the grid.
+         *
+         * The first version of this test used a 56-character name and **passed with the layout
+         * fix reverted** — it was decoration, caught by reverting rather than by reading it.
+         * The event name has no length rule (only the team number does), so this is a value a
+         * scout can still type today, which is the point: validation did not make the card
+         * safe, the layout did.
+         */
+        await page.getByTestId('scout-event-name').fill(`Qualifier-${'x'.repeat(120)}`);
+        await page.getByTestId('scout-notes').fill('x'.repeat(500));
+        await page.getByTestId('save-scouting-report').click();
+
+        const card = page.getByTestId('scout-card').first();
+        await expect(card).toBeVisible();
+
+        const [cardBox, badgeBox, teamBox, notesBox] = await Promise.all([
+            card.boundingBox(),
+            card.getByTestId('scout-card-match').boundingBox(),
+            card.getByTestId('scout-card-team').boundingBox(),
+            card.getByTestId('scout-card-notes').boundingBox(),
+        ]);
+        if (!cardBox || !badgeBox || !teamBox || !notesBox) {
+            throw new Error('the report card did not render');
+        }
+
+        // One pixel of slack for sub-pixel rounding, and no more: the defect was measured in
+        // tens of pixels, so a generous tolerance would pass on the broken version.
+        const right = cardBox.x + cardBox.width + 1;
+        expect(badgeBox.x + badgeBox.width, 'the match badge is outside its card').toBeLessThanOrEqual(right);
+        expect(teamBox.x + teamBox.width, 'the team number is outside its card').toBeLessThanOrEqual(right);
+        expect(notesBox.x + notesBox.width, 'the notes are outside their card').toBeLessThanOrEqual(right);
+
+        // And the badge is still a badge: `min-w-0` on the left child without `shrink-0` on the
+        // right one simply moves the crushing from the card to the badge.
+        expect(badgeBox.width, 'the match badge was squashed instead of the value wrapping').toBeGreaterThan(40);
+    });
+
     test('the pre-match checklist is seeded for a new team and can be worked', async ({ page }) => {
         await goToView(page, 'checklist', 'checklist');
 

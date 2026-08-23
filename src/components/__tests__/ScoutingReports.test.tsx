@@ -244,6 +244,113 @@ describe('ScoutingReport form validation', () => {
         );
     });
 
+    /*
+     * WALK-A-06 — the three values the walkthrough put into the running app and the form kept.
+     *
+     * `scouting-validation.test.ts` proves the RULES. This proves the FORM asks them, which is a
+     * different claim: the rules were correct in a module nothing called for as long as it took
+     * to write this block.
+     */
+    describe('refuses the values the walkthrough got in (WALK-A-06)', () => {
+        const openForm = () => {
+            render(<ScoutingReports />);
+            fireEvent.click(screen.getByTestId('scout-match'));
+            return screen.getByTestId('save-scouting-report') as HTMLButtonElement;
+        };
+
+        it('refuses the pasted team number, and says which box is wrong', () => {
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), {
+                target: { value: '-12345678901234567890 🦅' },
+            });
+
+            expect(saveBtn.disabled, 'the pasted team number was accepted').toBe(true);
+            expect(screen.getByTestId('scout-team-number-error').textContent).toMatch(/digits only/i);
+
+            fireEvent.click(saveBtn);
+            expect(mockStore.addScoutingReport).not.toHaveBeenCalled();
+        });
+
+        it('refuses a negative match number rather than storing it as "No match #"', () => {
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
+            fireEvent.change(screen.getByTestId('scout-match-number'), { target: { value: '-5' } });
+
+            expect(saveBtn.disabled, 'a negative match number still saved').toBe(true);
+            expect(screen.getByTestId('scout-match-number-error').textContent).toMatch(/start at 1/i);
+
+            fireEvent.click(saveBtn);
+            expect(mockStore.addScoutingReport).not.toHaveBeenCalled();
+        });
+
+        it('refuses 5,000 characters of notes', () => {
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
+            fireEvent.change(screen.getByTestId('scout-notes'), {
+                target: { value: 'x'.repeat(5000) },
+            });
+
+            expect(saveBtn.disabled, '5,000 characters of notes were accepted').toBe(true);
+            expect(screen.getByTestId('scout-notes-error')).toBeTruthy();
+
+            fireEvent.click(saveBtn);
+            expect(mockStore.addScoutingReport).not.toHaveBeenCalled();
+        });
+
+        it('counts down, and says how far over rather than counting past zero', () => {
+            /*
+             * Found by opening the built app, not by this suite: a paste that gets past
+             * `maxLength` made the counter read "-4500 left", which is a negative allowance —
+             * a number that looks like a budget and is not one.
+             */
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
+
+            // Below three-quarters full there is no counter at all: a limit announced to
+            // somebody who was not going to reach it.
+            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(100) } });
+            expect(screen.queryByTestId('scout-notes-remaining')).toBeNull();
+
+            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(400) } });
+            expect(screen.getByTestId('scout-notes-remaining').textContent).toBe('100 left');
+
+            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'x'.repeat(5000) } });
+            expect(screen.getByTestId('scout-notes-remaining').textContent).toBe('4500 over');
+            expect(saveBtn.disabled).toBe(true);
+        });
+
+        it('still saves the report a scout actually files', () => {
+            /*
+             * The control. Three tests that assert "Save is disabled" are all satisfied by a
+             * Save button that is disabled forever, which would be a worse bug than the one
+             * being fixed — the venue case is somebody unable to file any report at all.
+             */
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
+            fireEvent.change(screen.getByTestId('scout-match-number'), { target: { value: '12' } });
+            fireEvent.change(screen.getByTestId('scout-notes'), { target: { value: 'Fast intake' } });
+
+            expect(saveBtn.disabled).toBe(false);
+            fireEvent.click(saveBtn);
+            expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
+                expect.objectContaining({ teamNumber: '8412', matchNumber: 12, endGameNotes: 'Fast intake' }),
+            );
+        });
+
+        it('leaves the match number out when it was never entered', () => {
+            // "Not recorded" is a legitimate answer and must not be dragged into the error
+            // path by the rule that rejects -5 (B18: absence is not a value).
+            const saveBtn = openForm();
+            fireEvent.change(screen.getByTestId('scout-team-number'), { target: { value: '8412' } });
+
+            expect(saveBtn.disabled).toBe(false);
+            fireEvent.click(saveBtn);
+            expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
+                expect.objectContaining({ teamNumber: '8412', matchNumber: undefined }),
+            );
+        });
+    });
+
     it('a report card opens from the keyboard', () => {
         // Regression (Sprint 5.5): the card was a bare div with onClick — not tabbable,
         // not Enter-activatable, so a pit crew on a Bluetooth keyboard could not open a

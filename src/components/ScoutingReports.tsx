@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppStore, ScoutingReport } from '../lib/store';
 import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
 import { useScoutingQuery } from '../lib/queries';
+import { NOTES_MAX_LENGTH, TEAM_NUMBER_MAX_DIGITS, scoutingReportErrors } from '../lib/scouting-validation';
 import { Plus, Trophy, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react';
 import Button from './ui/Button';
 import Modal from './ui/Modal';
@@ -42,13 +43,20 @@ const ScoutingReports: React.FC = () => {
         endGameNotes: ''
     });
 
-    // The one fact the report is useless without. The save button disables on it (with a
-    // title saying why) instead of the old silent early-return, which ate the tap and kept
-    // the modal open with no explanation — at a venue that read as "the app lost my entry".
+    /*
+     * Every rule about what a report may contain, asked in one place (WALK-A-06).
+     *
+     * The save button disables with a title saying why, instead of the old silent early-return
+     * that ate the tap and kept the modal open with no explanation — at a venue that read as
+     * "the app lost my entry". The same reasoning is why each field shows its own message: a
+     * disabled button tells a scout that something is wrong and not which box.
+     */
+    const errors = scoutingReportErrors(newScout);
     const hasTeamNumber = Boolean(newScout.teamNumber?.trim());
+    const canSave = Object.keys(errors).length === 0;
 
     const saveScoutingReport = () => {
-        if (!hasTeamNumber) return;
+        if (!canSave) return;
 
         const reportData = {
             teamNumber: newScout.teamNumber || '',
@@ -191,6 +199,7 @@ const ScoutingReports: React.FC = () => {
                      */
                     <div
                         key={report.id}
+                        data-testid="scout-card"
                         role="button"
                         tabIndex={0}
                         onClick={() => openEditModal(report)}
@@ -202,14 +211,21 @@ const ScoutingReports: React.FC = () => {
                         }}
                         className="bg-white dark:bg-slate-800 p-3 md:p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition cursor-pointer"
                     >
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <div className="text-2xl font-black text-slate-800 dark:text-white">#{report.teamNumber}</div>
+                        {/* `min-w-0` and `break-words`, because validation only protects reports
+                            written from NOW on. The walkthrough's 21-character team number is
+                            already in databases, and a flex child defaults to `min-width: auto`
+                            — it refuses to shrink below its content, so the long value pushed
+                            the match badge out past the card's own edge instead of wrapping.
+                            `shrink-0` keeps the badge whole while the number wraps.
+                            (Geometry, so jsdom cannot see this: asserted in the e2e pack.) */}
+                        <div className="flex justify-between items-start gap-2 mb-4">
+                            <div className="min-w-0">
+                                <div data-testid="scout-card-team" className="text-2xl font-black text-slate-800 dark:text-white break-words">#{report.teamNumber}</div>
                                 {report.eventName && (
-                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{report.eventName}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">{report.eventName}</div>
                                 )}
                             </div>
-                            <div className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <div data-testid="scout-card-match" className="shrink-0 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300">
                                 {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
                             </div>
                         </div>
@@ -260,7 +276,7 @@ const ScoutingReports: React.FC = () => {
                             </button>
                         </div>
                         {report.endGameNotes && (
-                            <p className="text-xs bg-slate-50 dark:bg-slate-700 p-2 rounded-lg text-slate-500 dark:text-slate-300 italic">
+                            <p data-testid="scout-card-notes" className="text-xs bg-slate-50 dark:bg-slate-700 p-2 rounded-lg text-slate-500 dark:text-slate-300 italic break-words">
                                 "{report.endGameNotes}"
                             </p>
                         )}
@@ -306,18 +322,38 @@ const ScoutingReports: React.FC = () => {
                     <div className="p-4 md:p-6 space-y-4 overflow-y-auto">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Team # <span className="text-forge-600 dark:text-forge-400">*</span></label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-team-number">Team # <span className="text-forge-600 dark:text-forge-400">*</span></label>
+                                {/* `inputMode` rather than `type="number"`: the value is text
+                                    (a leading zero is not a rounding error), but a phone should
+                                    still open the number pad for it. */}
                                 <input
+                                    id="scout-team-number"
+                                    data-testid="scout-team-number"
                                     type="text"
+                                    inputMode="numeric"
+                                    maxLength={TEAM_NUMBER_MAX_DIGITS}
+                                    aria-invalid={Boolean(errors.teamNumber)}
                                     className="field"
                                     value={newScout.teamNumber || ''}
                                     onChange={e => setNewScout({ ...newScout, teamNumber: e.target.value })}
                                 />
+                                {/* `maxLength` stops typing past five, and a paste on some
+                                    browsers gets through it — so the message is not decoration.
+                                    It also carries the reason for the ones maxLength cannot
+                                    catch at all: a sign, a space, an emoji. */}
+                                {hasTeamNumber && errors.teamNumber && (
+                                    <p data-testid="scout-team-number-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.teamNumber}</p>
+                                )}
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Match #</label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-match-number">Match #</label>
                                 <input
+                                    id="scout-match-number"
+                                    data-testid="scout-match-number"
                                     type="number"
+                                    min={1}
+                                    step={1}
+                                    aria-invalid={Boolean(errors.matchNumber)}
                                     className="field"
                                     placeholder="Optional"
                                     value={newScout.matchNumber ?? ''}
@@ -329,12 +365,20 @@ const ScoutingReports: React.FC = () => {
                                             : parseInt(e.target.value, 10),
                                     })}
                                 />
+                                {/* `min` is advice to the browser, not enforcement: typing -5
+                                    still puts -5 in the box. It used to be saved as "No match #"
+                                    — accepted, discarded, and reported as never entered. */}
+                                {errors.matchNumber && (
+                                    <p data-testid="scout-match-number-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.matchNumber}</p>
+                                )}
                             </div>
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Event Name <span className="font-normal normal-case">(optional)</span></label>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-event-name">Event Name <span className="font-normal normal-case">(optional)</span></label>
                             <input
+                                id="scout-event-name"
+                                data-testid="scout-event-name"
                                 type="text"
                                 className="field"
                                 placeholder="e.g. League Meet #3"
@@ -435,12 +479,37 @@ const ScoutingReports: React.FC = () => {
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Notes</label>
+                            <div className="flex items-baseline justify-between">
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-notes">Notes</label>
+                                {/* Shown from three-quarters full rather than always: a counter
+                                    on an empty box is a limit announced to someone who was not
+                                    going to reach it. */}
+                                {(newScout.endGameNotes?.length || 0) > NOTES_MAX_LENGTH * 0.75 && (
+                                    <span
+                                        data-testid="scout-notes-remaining"
+                                        className={errors.endGameNotes ? 'text-xs text-red-600 dark:text-red-400' : 'text-xs text-slate-500 dark:text-slate-400'}
+                                    >
+                                        {/* "-4500 left" is what this said when a paste got past
+                                            `maxLength`, which is a number pretending to be an
+                                            allowance. Over the cap it says how far over. */}
+                                        {(newScout.endGameNotes?.length || 0) > NOTES_MAX_LENGTH
+                                            ? `${(newScout.endGameNotes?.length || 0) - NOTES_MAX_LENGTH} over`
+                                            : `${NOTES_MAX_LENGTH - (newScout.endGameNotes?.length || 0)} left`}
+                                    </span>
+                                )}
+                            </div>
                             <textarea
+                                id="scout-notes"
+                                data-testid="scout-notes"
+                                maxLength={NOTES_MAX_LENGTH}
+                                aria-invalid={Boolean(errors.endGameNotes)}
                                 className="field h-20"
                                 value={newScout.endGameNotes || ''}
                                 onChange={e => setNewScout({ ...newScout, endGameNotes: e.target.value })}
                             ></textarea>
+                            {errors.endGameNotes && (
+                                <p data-testid="scout-notes-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.endGameNotes}</p>
+                            )}
                         </div>
                     </div>
                     <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
@@ -451,13 +520,18 @@ const ScoutingReports: React.FC = () => {
                         <Button
                             data-testid="save-scouting-report"
                             onClick={saveScoutingReport}
-                            disabled={!canEdit || !hasTeamNumber}
+                            disabled={!canEdit || !canSave}
                             title={
                                 !canEdit
                                     ? 'This season is archived and read-only'
                                     : !hasTeamNumber
                                         ? 'Enter a team number first'
-                                        : 'Save report'
+                                        // The field's own message, repeated on the button: on a
+                                        // phone the offending box may be scrolled out of sight
+                                        // by the time somebody wonders why Save is grey.
+                                        : !canSave
+                                            ? (errors.teamNumber || errors.matchNumber || errors.endGameNotes)
+                                            : 'Save report'
                             }
                             className="px-6"
                         >
