@@ -17,6 +17,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AppShell from '../AppShell';
 import { useAppStore } from '../../lib/store';
 import { db, queueForSync } from '../../lib/offline-db';
+import { getRealtimeStatus } from '../../lib/realtime';
 
 vi.mock('@/lib/auth');
 vi.mock('@/lib/realtime');
@@ -50,6 +51,8 @@ vi.mock('../../lib/server-pull', () => ({
     fetchGuardianData: vi.fn().mockResolvedValue(undefined),
     fetchSeasonData: vi.fn().mockResolvedValue(undefined),
     ensureSeasonFieldImage: vi.fn().mockResolvedValue(undefined),
+    // The sync loop pulls after every drain, and "sync, then sign out" drains for real here.
+    pullFromServer: vi.fn().mockResolvedValue({}),
 }));
 
 /** The hard reload at the end of sign-out, which jsdom cannot do. */
@@ -137,6 +140,28 @@ describe('signing out with unsynced work (SYNC-05)', () => {
 
         await waitFor(() => expect(redirected).toHaveBeenCalled());
         expect(await db.syncQueue.count(), 'the user chose to sign out and the queue survived').toBe(0);
+    });
+
+    it('withdraws "Sync, then sign out" once it has been tried and changed nothing', async () => {
+        // The server is unreachable in this suite (`supabaseSync.from` resolves to no rows and
+        // the drain has nothing that can succeed), so the push cannot clear the queue. Offering
+        // the same button again would be offering the same nothing — failure-modes §8.
+        await queueForSync('scouting_reports', 'report-1', 'create', { id: 'report-1' });
+        // The offer is only made when the engine believes it can reach the server; the shared
+        // realtime mock reports 'disconnected', which is a different case (tested above).
+        vi.mocked(getRealtimeStatus).mockReturnValue('connected');
+
+        renderShell();
+        fireEvent.click(await screen.findByTestId('sign-out-button'));
+        fireEvent.click(await screen.findByTestId('unsynced-signout-sync-first'));
+
+        await screen.findByTestId('unsynced-signout-sync-failed');
+        expect(
+            screen.queryByTestId('unsynced-signout-sync-first'),
+            'the button that just failed was offered again with no explanation',
+        ).toBeNull();
+        expect(screen.getByTestId('unsynced-signout-confirm')).toBeTruthy();
+        expect(screen.getByTestId('unsynced-signout-cancel')).toBeTruthy();
     });
 
     it('does not interrupt a sign-out with nothing queued — the control', async () => {

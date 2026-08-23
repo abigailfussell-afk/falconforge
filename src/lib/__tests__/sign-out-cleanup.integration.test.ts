@@ -169,6 +169,30 @@ describe('performSignOut leaves nothing behind for the next user (B5)', () => {
             expect(redirect, 'a cancelled sign-out navigated away anyway').not.toHaveBeenCalled();
         });
 
+        it('puts parked changes back on the queue before it tries to push them', async () => {
+            /*
+             * `drainSyncQueue` does not touch the dead-letter store, and after a bad
+             * afternoon a dead letter is most of what is on the device. So "Sync, then sign
+             * out" used to run, change nothing, and ask the same question again — which is
+             * what it did in the browser at 375px, and is `docs/failure-modes.md` section 8:
+             * an enabled control whose handler silently does nothing.
+             */
+            await seedASession(); // 1 queued create, 1 parked dead letter
+            expect(await db.syncFailures.count()).toBe(1);
+
+            const seen: boolean[] = [];
+            await performSignOut(vi.fn().mockResolvedValue(undefined), vi.fn(), (_work, prompt) => {
+                seen.push(prompt.syncAttempted);
+                return seen.length === 1 ? 'sync-first' : 'cancel';
+            });
+
+            expect(seen, 'the second question did not know a sync had been tried').toEqual([false, true]);
+            expect(
+                await db.syncFailures.count(),
+                'the parked change was never re-queued, so syncing could not have helped it',
+            ).toBe(0);
+        });
+
         it('does not ask at all when there is nothing unsynced', async () => {
             await indexedDBStorage.setItem('falconforge-storage', JSON.stringify({ state: {} }));
             const ask = vi.fn(() => 'sign-out' as const);

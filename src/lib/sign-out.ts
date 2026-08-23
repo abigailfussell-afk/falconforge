@@ -8,6 +8,7 @@ import {
 } from './offline-db';
 import { PROFILE_CACHE_KEY } from './profile-cache';
 import { drainSyncQueue } from './sync';
+import { retrySyncFailures } from './offline-db';
 
 /** How long to wait on Supabase before giving up and clearing local state anyway. */
 const SIGN_OUT_TIMEOUT_MS = 3000;
@@ -32,6 +33,19 @@ export interface UnsyncedWork {
 
 /** What the person decided when told there was unsynced work. */
 export type UnsyncedChoice = 'sign-out' | 'sync-first' | 'cancel';
+
+/** What has already been tried, so the question can be asked honestly the second time. */
+export interface UnsyncedPrompt {
+    /**
+     * True once "sync first" has been tried and the work is still here.
+     *
+     * Without it the dialog reappears with the identical sentence and the identical button,
+     * which is `docs/failure-modes.md` section 8 exactly: an enabled control whose handler
+     * silently does nothing, and at a venue with no WiFi that is indistinguishable from a
+     * broken app. Seen doing precisely that in the browser at 375px before this existed.
+     */
+    syncAttempted: boolean;
+}
 
 /** How many times a caller may answer `sync-first` before this gives up and cancels. */
 const MAX_SYNC_FIRST_ROUNDS = 5;
@@ -63,9 +77,10 @@ export async function getUnsyncedWork(): Promise<UnsyncedWork> {
  * scouted three matches in a gym can tell that from a device with nothing on it.
  */
 export function describeUnsyncedWork(work: UnsyncedWork): string {
-    const changes = work.total === 1 ? '1 change' : `${work.total} changes`;
-    const verb = work.total === 1 ? "hasn't" : "haven't";
-    return `${changes} ${verb} reached the server yet. Signing out deletes them from this device.`;
+    const one = work.total === 1;
+    const changes = one ? '1 change' : `${work.total} changes`;
+    return `${changes} ${one ? "hasn't" : "haven't"} reached the server yet. ` +
+        `Signing out deletes ${one ? 'it' : 'them'} from this device.`;
 }
 
 /**
@@ -76,7 +91,7 @@ export function describeUnsyncedWork(work: UnsyncedWork): string {
  * and neither renders the shell's dialog; a plain confirm there is a great deal better than
  * the silence that used to be there.
  */
-function confirmViaWindow(work: UnsyncedWork): UnsyncedChoice {
+function confirmViaWindow(work: UnsyncedWork, _prompt: UnsyncedPrompt): UnsyncedChoice {
     if (typeof window === 'undefined' || typeof window.confirm !== 'function') return 'sign-out';
     return window.confirm(`${describeUnsyncedWork(work)}\n\nSign out anyway?`) ? 'sign-out' : 'cancel';
 }
@@ -106,8 +121,10 @@ export async function performSignOut(
      * only how the question is asked: the app shell shows a real dialog, the two screens
      * outside it get `window.confirm`.
      */
-    askAboutUnsyncedWork: (work: UnsyncedWork) => Promise<UnsyncedChoice> | UnsyncedChoice =
-        confirmViaWindow,
+    askAboutUnsyncedWork: (
+        work: UnsyncedWork,
+        prompt: UnsyncedPrompt,
+    ) => Promise<UnsyncedChoice> | UnsyncedChoice = confirmViaWindow,
 ): Promise<void> {
     /*
      * SIGNING OUT DESTROYS QUEUED AND PARKED WORK, SO IT HAS TO SAY SO (SYNC-05).
@@ -122,6 +139,7 @@ export async function performSignOut(
      * Before the try block, because a cancel must leave EVERYTHING alone — including the
      * redirect, which lives in `finally` and would otherwise fire on the way out.
      */
+    let syncAttempted = false;
     for (let round = 0; ; round++) {
         const work = await getUnsyncedWork();
         if (work.total === 0) break;
@@ -131,16 +149,24 @@ export async function performSignOut(
             return;
         }
 
-        const choice = await askAboutUnsyncedWork(work);
+        const choice = await askAboutUnsyncedWork(work, { syncAttempted });
         if (choice === 'cancel') return;
         if (choice === 'sign-out') break;
 
-        // 'sync-first': push what we can, then look again. Whatever is left is asked about
-        // with the smaller number, which is the honest thing to show.
+        /*
+         * 'sync-first': put the PARKED changes back on the queue first, then push.
+         *
+         * `drainSyncQueue` alone would not touch a dead letter, and a dead letter is most of
+         * what is here after a bad afternoon — so the button would have run, changed nothing,
+         * and asked the same question again. Which is what it did, in the browser, before
+         * this line existed.
+         */
+        syncAttempted = true;
         try {
+            await retrySyncFailures();
             await drainSyncQueue();
         } catch (err) {
-            console.warn('Could not drain the queue before signing out:', err);
+            console.warn('Could not push the outstanding changes before signing out:', err);
         }
     }
 

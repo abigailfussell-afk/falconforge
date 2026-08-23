@@ -52,6 +52,19 @@
         "--strictPort"
       ],
       "port": 5190
+    },
+    {
+      "name": "preview-11",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4191",
+        "--strictPort"
+      ],
+      "port": 4191
     }
   ]
 }

@@ -8,7 +8,12 @@ import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/
 import { fetchTeamData, fetchGuardianData, fetchSeasonData } from '../lib/server-pull';
 import { APP_ROOT } from '../lib/navigation';
 import { supabaseSync } from '../lib/supabase';
-import { performSignOut, type UnsyncedChoice, type UnsyncedWork } from '../lib/sign-out';
+import {
+    performSignOut,
+    type UnsyncedChoice,
+    type UnsyncedPrompt,
+    type UnsyncedWork,
+} from '../lib/sign-out';
 import { getRealtimeStatus } from '../lib/realtime';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
@@ -231,6 +236,7 @@ export default function AppShell() {
     const [unsyncedPrompt, setUnsyncedPrompt] = useState<{
         work: UnsyncedWork;
         canSync: boolean;
+        syncAttempted: boolean;
         resolve: (choice: UnsyncedChoice) => void;
     } | null>(null);
 
@@ -238,13 +244,14 @@ export default function AppShell() {
         performSignOut(
             signOut,
             undefined,
-            (work) =>
+            (work: UnsyncedWork, prompt: UnsyncedPrompt) =>
                 new Promise<UnsyncedChoice>((resolve) =>
                     setUnsyncedPrompt({
                         work,
                         // What the sync engine believes, not `navigator.onLine`, which is true
                         // on venue WiFi that goes nowhere (SYNC-07).
                         canSync: navigator.onLine && getRealtimeStatus() !== 'disconnected',
+                        syncAttempted: prompt.syncAttempted,
                         resolve,
                     }),
                 ),
@@ -299,6 +306,7 @@ export default function AppShell() {
                 <UnsyncedSignOutDialog
                     work={unsyncedPrompt.work}
                     canSync={unsyncedPrompt.canSync}
+                    syncAttempted={unsyncedPrompt.syncAttempted}
                     onChoose={answerUnsyncedPrompt}
                 />
             )}

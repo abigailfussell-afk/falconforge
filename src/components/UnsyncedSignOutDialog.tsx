@@ -25,10 +25,23 @@ interface UnsyncedSignOutDialogProps {
     work: UnsyncedWork;
     /** Whether "Sync, then sign out" is worth offering: the engine believes it can reach the server. */
     canSync: boolean;
+    /**
+     * True when "Sync, then sign out" has already been tried and the work is still here.
+     *
+     * The button is then withdrawn and replaced by a sentence, rather than offered a second
+     * time to do the same nothing — which is what it did at 375px with the server
+     * unreachable, and is `docs/failure-modes.md` section 8 in one screenshot.
+     */
+    syncAttempted: boolean;
     onChoose: (choice: UnsyncedChoice) => void;
 }
 
-const UnsyncedSignOutDialog: React.FC<UnsyncedSignOutDialogProps> = ({ work, canSync, onChoose }) => (
+const UnsyncedSignOutDialog: React.FC<UnsyncedSignOutDialogProps> = ({
+    work,
+    canSync,
+    syncAttempted,
+    onChoose,
+}) => (
     <Modal label="Unsynced changes" width="sm" stacked>
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
             Sign out with unsynced changes?
@@ -36,11 +49,21 @@ const UnsyncedSignOutDialog: React.FC<UnsyncedSignOutDialogProps> = ({ work, can
         <p className="text-slate-600 dark:text-slate-300 mb-2" data-testid="unsynced-signout-message">
             {describeUnsyncedWork(work)}
         </p>
-        {!canSync && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                This device can&rsquo;t reach the server right now, so they can&rsquo;t be sent first.
+        {syncAttempted ? (
+            <p
+                className="text-xs text-amber-700 dark:text-amber-400 mb-4"
+                data-testid="unsynced-signout-sync-failed"
+            >
+                Sending {work.total === 1 ? 'it' : 'them'} didn&rsquo;t work &mdash; the server is
+                still out of reach. {work.total === 1 ? 'It stays' : 'They stay'} on this device
+                until it can be reached again.
             </p>
-        )}
+        ) : !canSync ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                This device can&rsquo;t reach the server right now, so {work.total === 1 ? 'it' : 'they'}
+                can&rsquo;t be sent first.
+            </p>
+        ) : null}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-4">
             <Button
                 variant="secondary"
@@ -56,7 +79,7 @@ const UnsyncedSignOutDialog: React.FC<UnsyncedSignOutDialogProps> = ({ work, can
             >
                 Sign out anyway
             </Button>
-            {canSync && (
+            {canSync && !syncAttempted && (
                 <Button
                     variant="primary"
                     onClick={() => onChoose('sync-first')}
