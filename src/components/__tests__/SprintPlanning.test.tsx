@@ -112,6 +112,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -126,6 +127,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -139,6 +141,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -157,6 +160,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -173,6 +177,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -192,6 +197,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -215,6 +221,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -230,6 +237,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -247,6 +255,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -262,6 +271,7 @@ describe('SprintPlanning', () => {
                     tasks={mockTasks}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 
@@ -288,6 +298,7 @@ describe('SprintPlanning', () => {
                     tasks={[]}
                     teamMembers={mockTeamMembers}
                     subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
                 />
             );
 

@@ -64,7 +64,7 @@ const CheckIn = lazy(() => import('./components/meetings/CheckIn'));
  * sub-teams by season.
  */
 function SprintPlanningRoute() {
-    const { teamMembers, subTeams } = useAppShell();
+    const { teamMembers, subTeams, currentMember } = useAppShell();
     // `useSeasonScoped`, not `s.tasks`. The board shows THIS season's work; handing it the
     // raw collection is precisely the defect Sprint 4 found in ScoutingReports, where a
     // whole prior season's rows had been mixed into the current list with no way to tell
@@ -80,7 +80,14 @@ function SprintPlanningRoute() {
             })),
         [tasks],
     );
-    return <SprintPlanning tasks={tasksForComponent} teamMembers={teamMembers} subTeams={subTeams} />;
+    return (
+        <SprintPlanning
+            tasks={tasksForComponent}
+            teamMembers={teamMembers}
+            subTeams={subTeams}
+            currentMember={currentMember}
+        />
+    );
 }
 
 function AdminSettingsRoute() {

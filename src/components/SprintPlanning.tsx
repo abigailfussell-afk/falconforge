@@ -19,9 +19,23 @@ interface SprintPlanningProps {
     tasks: Task[];
     teamMembers: TeamMember[];
     subTeams: SubTeam[];
+    /**
+     * This user's row on the current team, from the shell.
+     *
+     * Needed because a timeline entry's author is a TeamMember id — `types.ts` says so and
+     * `SprintTaskActivity` looks one up — while the only id this component had was the auth
+     * user's. That mismatch is FEAT-01: every comment rendered as "Guest" to everybody
+     * except its author.
+     */
+    currentMember: TeamMember | null;
 }
 
-const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, subTeams }) => {
+const SprintPlanning: React.FC<SprintPlanningProps> = ({
+    tasks,
+    teamMembers,
+    subTeams,
+    currentMember,
+}) => {
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isNewTask, setIsNewTask] = useState(false);
@@ -102,7 +116,10 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
             const statusEvent: TimelineEvent = {
                 id: Date.now().toString(),
                 type: 'history',
-                authorId: profile?.id || 'System',
+                // A TeamMember id, which is what the reader looks up (FEAT-01). The
+                // `profile.id` fallback is what a device with no roster row would have
+                // written before, and the reader still resolves it.
+                authorId: currentMember?.id || profile?.id || 'System',
                 content: `moved to ${activeTask.status}`,
                 timestamp: Date.now()
             };
@@ -134,7 +151,8 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({ tasks, teamMembers, sub
         const comment: TimelineEvent = {
             id: Date.now().toString(),
             type: 'comment',
-            authorId: profile?.id || 'guest',
+            // See the status event above: a TeamMember id (FEAT-01).
+            authorId: currentMember?.id || profile?.id || 'guest',
             content: text,
             timestamp: Date.now()
         };

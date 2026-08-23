@@ -101,6 +101,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
                             <select
+                                data-testid="task-status-select"
                                 value={task.status}
                                 onChange={(e) => onChange({ ...task, status: e.target.value as TaskStatus })}
                                 className="field"

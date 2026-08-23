@@ -40,13 +40,32 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
      * An author is one of: the signed-in user, the System pseudo-author used for automatic
      * history entries, a member still on the roster, or -- for comments left by someone
      * since removed from the team -- nobody we can name, hence "Guest".
+     *
+     * TWO IDS ARE ACCEPTED, AND THAT IS NOT BELT-AND-BRACES (FEAT-01).
+     *
+     * `TimelineEvent.authorId` is documented as a TeamMember id and the writer stored the
+     * AUTH USER id, so every comment anybody else left rendered as "Guest" with a "G" —
+     * on the board's only collaboration surface, from the first day a team used it. The
+     * author saw their own name, because the `profile.id` line above short-circuits before
+     * the lookup ever runs, which is why nobody writing it would notice.
+     *
+     * The writer stores the member id now. This still matches `userId` as well, because
+     * every comment written before today is on a device and in a database somewhere with the
+     * old value in it, and a fix that renamed everybody's history to "Guest" for ever would
+     * be a worse bug than the one it closed.
+     *
+     * `!m.managedProfileId` is the same load-bearing clause as `AppShell`'s `currentMember`:
+     * a guardian's roster row carries THEIR user id and their CHILD's profile, so without it
+     * a guardian's comment would be attributed to their child.
      */
     const describeAuthor = (authorId: string): { name: string; initials: string } => {
         if (authorId === 'System') return { name: 'System', initials: 'S' };
         if (profile && authorId === profile.id) {
             return { name: displayName, initials: userInitials };
         }
-        const member = teamMembers.find((m) => m.id === authorId);
+        const member =
+            teamMembers.find((m) => m.id === authorId) ??
+            teamMembers.find((m) => m.userId === authorId && !m.managedProfileId);
         if (member) {
             return { name: getMemberDisplayName(member), initials: getMemberInitials(member) };
         }
