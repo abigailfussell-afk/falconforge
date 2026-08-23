@@ -5,8 +5,9 @@
 Sprint 13 did not take: OPS-04's classification half, OPS-05's uptime half, OPS-09 backups,
 OPS-10 deploy gate.
 **Branch:** `v2/sprint-14-observability`, off `main` at `388f653` (Sprint 13 merged first).
-**Commit range:** `8c4ecd3..00af7f1` — seven commits; an eighth adds this report, the plan lines
-and one stale-comment deletion.
+**Commit range:** `8c4ecd3..81a4597` — eight commits. The eighth is not paperwork: rehearsing the
+restore for this report is what found the two backup defects in §2 (SYNC-11), so it carries those
+fixes, OPS-10's missing ratchet, this report and the plan lines.
 **`supabase/` touched:** no. Nothing in this package needed a migration; the backup workflow
 talks to the database over `SUPABASE_DB_URL` and never runs `--linked`.
 
