@@ -541,8 +541,18 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                     </div>
 
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        {/* Role Selector */}
+                                        {/*
+                                          * Role Selector.
+                                          *
+                                          * The name has to carry WHOSE role this is (WALK-A-09).
+                                          * Fourteen of these render in one list, and axe reported
+                                          * fourteen critical `select-name` violations; with a bare
+                                          * "Role" they would instead be fourteen identical names,
+                                          * which passes the rule and still leaves a screen-reader
+                                          * user unable to tell which member they are demoting.
+                                          */}
                                         <select
+                                            aria-label={`Role for ${getDisplayName(member)}`}
                                             value={member.role}
                                             onChange={(e) => updateMemberRole(member.id, e.target.value as MemberRole)}
                                             disabled={processingIds.has(member.id) || member.role === 'admin'}

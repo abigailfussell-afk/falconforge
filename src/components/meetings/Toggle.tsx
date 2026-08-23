@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * The switch the mockups use for "Show past events", "Repeats" and "Attendance tracking".
  *
@@ -27,6 +29,7 @@ export default function Toggle({
     'data-testid': testId,
 }: ToggleProps) {
     const on = tone === 'teal' ? 'bg-teal-500' : 'bg-forge-500';
+    const labelId = useId();
 
     return (
         <div className="inline-flex items-center gap-2">
@@ -34,7 +37,19 @@ export default function Toggle({
                 type="button"
                 role="switch"
                 aria-checked={checked}
+                /*
+                 * WALK-A-09. `showLabel ? undefined : label` looked like the careful choice —
+                 * don't repeat a name the user can already see — and was the bug: the visible
+                 * text is a SIBLING <span>, not the button's content, so nothing associated the
+                 * two and the switch had no accessible name at all. axe reported it as a
+                 * critical `button-name` on /app/meetings; a screen reader announced "switch,
+                 * on".
+                 *
+                 * `aria-labelledby` rather than always-on `aria-label`, so the announced name is
+                 * the same string the user is looking at and cannot drift from it.
+                 */
                 aria-label={showLabel ? undefined : label}
+                aria-labelledby={showLabel ? labelId : undefined}
                 disabled={disabled}
                 data-testid={testId}
                 onClick={() => onChange(!checked)}
@@ -66,7 +81,7 @@ export default function Toggle({
                 />
             </button>
             {showLabel && (
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</span>
+                <span id={labelId} className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</span>
             )}
         </div>
     );

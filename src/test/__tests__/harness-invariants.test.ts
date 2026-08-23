@@ -85,6 +85,27 @@ describe('type-escape and token ratchets', () => {
         const { total, hits } = countMatches(sourceFiles('src'), re);
         expect(total, `arbitrary values:\n${hits.join('\n')}`).toBeLessThanOrEqual(2);
     });
+
+    /*
+     * `dark:text-slate-500`, held at zero (WALK-A-09).
+     *
+     * WHY THIS ONE VALUE AND NOT A GENERAL CONTRAST RULE. Contrast depends on the ground, and
+     * a grep cannot see the ground — which is why the real check is axe in a real browser
+     * (`scripts/probe-accessibility.mjs`), and why jsdom will never catch this class
+     * (`docs/failure-modes.md` §5: CSS with no error channel). But slate-500 is the one value
+     * that needs no ground to judge: #64748b fails 4.5:1 against every dark surface this app
+     * uses — 3.07:1 on slate-800, 2.52:1 on slate-700/60, 2.18:1 on slate-700, all measured.
+     * There is no dark ground on which it is legible, so its count can be zero and stay zero.
+     *
+     * All five sites were written as `text-slate-400 dark:text-slate-500`, which reads as
+     * careful — dimmer text on a dimmer ground — and inverts the requirement: a dark ground
+     * needs LIGHTER muted text, not darker. That is the shape a grep can catch and a reviewer
+     * repeatedly did not.
+     */
+    it('has no `dark:text-slate-500`, which fails 4.5:1 on every dark ground in the app', () => {
+        const { total, hits } = countMatches(sourceFiles('src'), /dark:text-slate-500/g);
+        expect(total, `illegible muted text:\n${hits.join('\n')}`).toBe(0);
+    });
 });
 
 describe('the harness cannot quietly stop verifying', () => {

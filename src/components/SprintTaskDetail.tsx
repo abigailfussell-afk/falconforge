@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useId } from 'react';
 import { Task, TaskStatus, TaskType, SubTeam, TeamMember } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { Plus, Trash2, X, Archive } from 'lucide-react';
@@ -82,6 +82,16 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
     const newChecklistRef = useRef<HTMLInputElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
 
+    /*
+     * One prefix for the whole modal's htmlFor/id pairs (WALK-A-09).
+     *
+     * The five field labels were plain <label>s with no `htmlFor`, so they named nothing: a
+     * screen reader announced five unnamed selects, and clicking a label did not focus its
+     * control either. `useId` rather than `task.id` because a NEW task has no id until it is
+     * saved, and two modals must never mint the same ids.
+     */
+    const fieldId = useId();
+
     // A new task opens with a placeholder title, so select it for immediate overtyping.
     useEffect(() => {
         if (isNewTask && titleInputRef.current) {
@@ -98,6 +108,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     <div className="flex-1 mr-4">
                         <input
                             ref={titleInputRef}
+                            aria-label="Task title"
                             value={task.title}
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"
@@ -129,8 +140,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                 <fieldset disabled={!canEdit} className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
+                            <label htmlFor={`${fieldId}-type`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
                             <select
+                                id={`${fieldId}-type`}
                                 value={task.type}
                                 onChange={(e) => onChange({ ...task, type: e.target.value as TaskType })}
                                 className="field"
@@ -140,8 +152,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
+                            <label htmlFor={`${fieldId}-status`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
                             <select
+                                id={`${fieldId}-status`}
                                 data-testid="task-status-select"
                                 value={task.status}
                                 onChange={(e) => onChange({ ...task, status: e.target.value as TaskStatus })}
@@ -154,8 +167,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Sub-Team</label>
+                            <label htmlFor={`${fieldId}-subteam`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Sub-Team</label>
                             <select
+                                id={`${fieldId}-subteam`}
                                 value={task.department}
                                 onChange={(e) => onChange({ ...task, department: e.target.value })}
                                 className="field"
@@ -164,8 +178,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Assigned To</label>
+                            <label htmlFor={`${fieldId}-assignee`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Assigned To</label>
                             <select
+                                id={`${fieldId}-assignee`}
                                 value={task.assignedTo}
                                 onChange={(e) => onChange({ ...task, assignedTo: e.target.value })}
                                 className="field"
@@ -175,8 +190,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Due Date</label>
+                            <label htmlFor={`${fieldId}-due`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Due Date</label>
                             <input
+                                id={`${fieldId}-due`}
                                 type="date"
                                 value={toDateInputValue(task.dueDate)}
                                 onChange={(e) => onChange({ ...task, dueDate: e.target.valueAsNumber })}
@@ -186,8 +202,9 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Description / Notes</label>
+                        <label htmlFor={`${fieldId}-description`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Description / Notes</label>
                         <textarea
+                            id={`${fieldId}-description`}
                             value={task.description}
                             onChange={(e) => onChange({ ...task, description: e.target.value })}
                             className="field h-32"

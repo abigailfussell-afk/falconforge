@@ -247,6 +247,7 @@ export default function CompetitionEvents() {
                         title={canEdit ? undefined : editRefusalReason}
                     />
                     <input
+                        aria-label="Event date"
                         data-testid="new-event-date"
                         className="field w-auto shrink-0"
                         type="date"
