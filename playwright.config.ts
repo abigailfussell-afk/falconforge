@@ -40,17 +40,6 @@ export default defineConfig({
      * offline cold-boot with a stored session genuinely works.
      */
     /*
-     * THREE, not four, since the `mobile` project landed (OPS-13).
-     *
-     * The cap was 4 for one project and the comment above says it is load-bearing. Adding a
-     * second project raised the concurrent load, and it showed immediately: the toggle-knob
-     * GEOMETRY assertion in `meetings.spec.ts` failed in two of three full-pack runs at 4 and
-     * passed every time in isolation — the same contention signature §9 describes, on the same
-     * kind of test (a measurement, which is what suffers when layout has not settled).
-     *
-     * Measured at 3: three consecutive full-pack runs green. CI stays at 2.
-     */
-    /*
      * Unchanged at 4/2 despite the pack gaining a second project (OPS-13).
      *
      * Adding `mobile` did surface a failure, twice in three full runs — but reducing workers

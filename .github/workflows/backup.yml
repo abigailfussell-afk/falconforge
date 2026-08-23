@@ -79,18 +79,39 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          # `--data-only` is deliberately NOT used: the schema is in supabase/migrations, but a
-          # restore that has to reconstruct it from a migration history the tooling cannot
-          # replay (`db push` does not work on this repo — see beta-ops.md) is a restore that
-          # fails when it is needed. A full dump restores on its own.
-          supabase db dump --db-url "$DB_URL" -f backup.sql
-          echo "rows_bytes=$(wc -c < backup.sql)" >> "$GITHUB_ENV"
-          # A dump that is suspiciously small is the shape of "authenticated, and read nothing".
-          # 50 KB is far below a seeded single team and far above an empty file.
-          if [ "$(wc -c < backup.sql)" -lt 51200 ]; then
-            echo "::error::The dump is under 50 KB — that is almost certainly not a real backup."
+          # TWO dumps, because `supabase db dump` with no flag is SCHEMA ONLY.
+          #
+          # This was found by rehearsing the sequence against the local stack rather than by
+          # reading it: the single-command version produced a 137 KB file with zero `COPY`
+          # statements in it — every table, every policy, every function, and not one row. It
+          # also sailed past the 50 KB check below, so the job would have gone green nightly
+          # for thirty days and the artifact would have restored an empty database.
+          #
+          # `--data-only` alone is not enough either: the schema has to exist first, and
+          # `db push` cannot replay this repo's squashed migration history (beta-ops.md). So:
+          # schema, then data, concatenated in restore order into one file that `psql -f`
+          # applies on its own. The data half opens with `SET session_replication_role =
+          # replica`, which is what lets it load without fighting foreign keys.
+          supabase db dump --db-url "$DB_URL" -f schema.sql
+          supabase db dump --db-url "$DB_URL" --data-only -f data.sql
+
+          # The size check belongs on the DATA half. "Connected, authenticated, read nothing"
+          # is precisely the failure that produces a full schema and no rows, and checking the
+          # combined file would hide it behind 137 KB of `CREATE TABLE`.
+          data_bytes=$(wc -c < data.sql)
+          echo "data_bytes=$data_bytes" >> "$GITHUB_ENV"
+          if [ "$data_bytes" -lt 51200 ]; then
+            echo "::error::The data dump is ${data_bytes} bytes, under 50 KB — that is almost certainly not a real backup."
             exit 1
           fi
+          # And the schema half has to actually be a schema.
+          grep -q 'CREATE TABLE' schema.sql || {
+            echo "::error::The schema dump contains no CREATE TABLE."
+            exit 1
+          }
+
+          cat schema.sql data.sql > backup.sql
+          rm -f schema.sql data.sql
 
       - name: Encrypt before it leaves the runner
         env:

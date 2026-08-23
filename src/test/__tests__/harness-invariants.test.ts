@@ -354,6 +354,35 @@ describe('the guidance describes the repo that exists', () => {
     });
 
     /*
+     * ...and the deploy runs THAT, not a fourth copy of it (OPS-10).
+     *
+     * `deploy.yml` used to spell the Gate out as four steps and call `tsc --noEmit` directly.
+     * It had already drifted: Sprint 9 added ESLint to `lint`, and the change never reached
+     * the workflow that ships to production, so every deploy since ran a Gate missing its
+     * linter. That is the same defect as the three definitions above, on the one path where
+     * nobody would notice.
+     */
+    it('runs the Gate in the deploy, rather than restating it', () => {
+        /*
+         * Comments stripped FIRST, and both assertions read the stripped text.
+         *
+         * The step this replaced is described at length in that file, `tsc --noEmit` and all —
+         * and the comment explaining the fix says "npm run gate" too. A check that reads prose
+         * as if it were a command passes on the strength of its own documentation, which is
+         * this repo's most-repeated test defect wearing yet another hat.
+         */
+        const commands = read('.github/workflows/deploy.yml')
+            .split(NL)
+            .filter((line) => !line.trim().startsWith('#'))
+            .join(NL);
+        expect(commands, 'deploy.yml no longer runs `npm run gate`').toContain('npm run gate');
+        expect(
+            commands.includes('tsc --noEmit'),
+            'deploy.yml calls tsc directly again - that is the drift OPS-10 removed',
+        ).toBe(false);
+    });
+
+    /*
      * `npm run lint` actually lints.
      *
      * It was `tsc --noEmit` with no ESLint in the repo for eight sprints, while every rule

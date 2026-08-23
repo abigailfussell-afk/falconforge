@@ -11,11 +11,39 @@ before beta onboarding, so that none of it has to be invented during an incident
 point-in-time recovery. There is one database, it holds every team's season, and the only thing
 standing between a bad migration and a lost season is a dump somebody took on purpose.
 
-### The one-liner
+### The one-liner is two lines, and the reason matters
 
 ```bash
-supabase db dump --linked -f "backups/falconforge-$(date +%Y-%m-%d).sql"
+supabase db dump --linked             -f "backups/falconforge-$(date +%Y-%m-%d)-schema.sql"
+supabase db dump --linked --data-only -f "backups/falconforge-$(date +%Y-%m-%d)-data.sql"
+cat backups/falconforge-*-schema.sql backups/falconforge-*-data.sql > backups/falconforge-$(date +%Y-%m-%d).sql
 ```
+
+**`supabase db dump` with no flag dumps the SCHEMA and nothing else.** This document carried the
+single-command version from Sprint 7 until Sprint 14, when running it turned out to produce a
+137 KB file containing every table, policy and function — and zero rows. The backup this file
+calls "the difference between a bad afternoon and a lost season", taken before every migration,
+would have restored an empty database.
+
+It is not a subtle output either — the file has no data statements in it at all. That is the
+check worth doing on any backup, here or anywhere else in this document:
+
+```bash
+# 23 on the current schema (17 public tables + 6 auth). 0 means the dump has no data in it.
+grep -c '^INSERT INTO ' backups/falconforge-2026-09-01.sql
+
+# And which tables, which is what tells you a restore would bring the app back:
+grep -o '^INSERT INTO "[a-z_]*"\."[a-z_]*"' backups/falconforge-2026-09-01.sql | sort -u
+```
+
+`INSERT INTO`, not `COPY`: the Supabase CLI emits multi-row inserts. A check written for `COPY`
+reports zero on a perfectly good backup, which is the false alarm that teaches people to ignore
+the check.
+
+Schema first, then data: the data half opens with `SET session_replication_role = replica`, which
+is what lets it load without tripping over foreign keys, and it has nothing to load into until
+the schema exists. `supabase db push` cannot rebuild the schema from this repo's squashed
+migration history (see the traps below), so the dump has to carry it.
 
 `backups/` is gitignored — a dump contains every team's data and every user's email address, and
 it must never reach a public repository.
@@ -40,11 +68,13 @@ Add both under Settings → Secrets and variables → Actions → New repository
 workflow once by hand (Actions → *Nightly encrypted database backup* → Run workflow) rather than
 waiting until 07:10 to find out whether it works.
 
-**What the job refuses to do.** It fails rather than uploading if either secret is missing, or
-if the dump comes back under 50 KB — that size is the shape of "connected, authenticated, and
-read nothing", which is a failure that otherwise uploads happily and looks like a backup for
-thirty days. The plaintext is shredded before the upload step runs, so only the `.gpg` can reach
-the artifact.
+**What the job refuses to do.** It fails rather than uploading if either secret is missing, if
+the **data** dump comes back under 50 KB, or if the schema dump contains no `CREATE TABLE`. That
+size is the shape of "connected, authenticated, and read nothing", which is a failure that
+otherwise uploads happily and looks like a backup for thirty days. The check is on the data half
+specifically, and that is not a detail: the first version of this workflow checked the combined
+file, where 137 KB of schema hides the absence of every row. The plaintext is shredded before the
+upload step runs, so only the `.gpg` can reach the artifact.
 
 **The artifact contains every minor's name.** That is why it is encrypted on the runner rather
 than after the fact: a GitHub artifact is readable by anybody with repo access, and the
@@ -63,6 +93,53 @@ gpg --output restored.sql --decrypt backup-2026-09-01.sql.gpg
 
 # 3. Restore. Read the two traps below FIRST.
 psql "$DATABASE_URL" -f restored.sql
+```
+
+**Step 3 has a trap that reports success.** The data half of the dump opens with
+
+```sql
+SET session_replication_role = replica;
+```
+
+which is `pg_dump`'s way of holding triggers and foreign keys off while rows load. **The
+`postgres` role on Supabase is not a superuser and is not allowed to set it** (`select usesuper
+from pg_user where usename = 'postgres'` → `f`). psql prints one `permission denied to set
+parameter` line in the middle of several hundred lines of output, carries on with every
+application trigger live, and **exits 0**.
+
+Measured, on the local stack, restoring a real dump this way: `teams` 32 and `seasons` 32
+restored; `team_members`, `tasks`, `meetings`, `meeting_attendance` and `scouting_reports` all
+**0**. The first trigger to fire rejects the row ("The team admin must accept the terms of
+service…"), and every table with a foreign key to what it rejected fails after it. A restore that
+gives you the teams and none of their people, work, meetings or scouting — and calls it success.
+
+So disable the triggers yourself, as the table owner, which `postgres` is allowed to do:
+
+```sql
+-- BEFORE loading the data half.
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT format('%I.%I', schemaname, tablename) AS t FROM pg_tables WHERE schemaname = 'public'
+  LOOP EXECUTE 'ALTER TABLE ' || r.t || ' DISABLE TRIGGER USER'; END LOOP;
+END $$;
+
+-- ...load the data...
+
+-- AFTER. Do not skip this: the app's own invariants live in these triggers.
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT format('%I.%I', schemaname, tablename) AS t FROM pg_tables WHERE schemaname = 'public'
+  LOOP EXECUTE 'ALTER TABLE ' || r.t || ' ENABLE TRIGGER USER'; END LOOP;
+END $$;
+```
+
+With those two blocks around the load, the same dump restored **32 teams, 64 members, 7 tasks,
+20 meetings, 126 attendance rows, 4 match plans and 67 auth users**, zero errors — Iron Falcons
+back with its 18 members and 17 meetings.
+
+**Always count something afterwards.** A restore is not finished when psql exits:
+
+```sql
+select (select count(*) from teams) teams, (select count(*) from team_members) members,
+       (select count(*) from tasks) tasks, (select count(*) from meetings) meetings;
 ```
 
 ### Restoring ONE team, without touching the others
@@ -95,9 +172,17 @@ that actually bites.
 Run it as the service role or as `postgres`: every one of these tables is behind RLS, and a
 restore performed as an ordinary user silently writes nothing.
 
-**Not yet rehearsed.** Writing a restore procedure and having performed one are different
-claims, and only the second is worth anything on the day. The rehearsal — restore a nightly
-artifact into a scratch project and prove one team comes back — is in the plan's parking lot.
+**Rehearsed once, on 2026-08-23, against the local stack — and it is the reason two things above
+are written differently from how they were first written.** The rehearsal was: dump the local
+database, run it through the workflow's own steps (size check, `gpg --symmetric`, `shred` the
+plaintext), decrypt, and restore into an emptied database. It found the schema-only dump and the
+`session_replication_role` trap, in that order, neither of which was visible by reading.
+
+**What is still not rehearsed:** a restore of a real *hosted* artifact into a *new* Supabase
+project. The local stack provides the `auth`, `extensions` and `vault` schemas that Supabase
+manages on a hosted project — restoring into a bare Postgres database instead fails on all three,
+so the local rehearsal cannot say anything about what a fresh project supplies. That last mile is
+in the plan's parking lot and needs a scratch project plus one real nightly artifact.
 
 ### When to take a manual one anyway
 
@@ -106,15 +191,13 @@ artifact into a scratch project and prove one team comes back — is in the plan
 | **Before applying any migration to the hosted project** | Non-negotiable. Sprint 3's `db reset --linked` and Sprint 4's incident are both in the plan's log; a dump is the difference between a bad afternoon and a lost season. A nightly from up to 24 hours ago is not the same thing as one from two minutes ago. |
 | Before and after beta onboarding | The onboarding itself is the risky change. |
 
-### Restoring
+### Two more traps, whichever restore you are doing
 
-Restoring is not a command you want to be reading for the first time under pressure:
+The steps live in **Restoring from a nightly artifact** above — there is one restore procedure in
+this document, not two. (There were two until Sprint 14, and the older one was a bare `psql -f`
+that silently loses five tables.)
 
-```bash
-psql "$DATABASE_URL" -f backups/falconforge-2026-09-01.sql
-```
-
-Two things that have bitten this project before, both recorded in the plan's log:
+These two have bitten this project before, both recorded in the plan's log:
 
 - `supabase db push` **cannot apply a squashed migration history** — the first `CREATE TABLE`
   collides with what is already there. That is why Sprint 3 used `db reset --linked` instead.
