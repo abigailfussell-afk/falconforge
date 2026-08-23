@@ -1,3 +1,4 @@
+import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { resolveGameForSeason } from '../lib/games';
@@ -477,6 +478,7 @@ const MatchPlanner: React.FC = () => {
                 autoFocus
                 type="text"
                 placeholder="Plan Name (e.g. Match 1)"
+                maxLength={TITLE_MAX_LENGTH}
                 value={planTitle}
                 onChange={(e) => setPlanTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}

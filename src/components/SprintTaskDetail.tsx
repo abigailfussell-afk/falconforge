@@ -8,6 +8,7 @@ import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import { getMemberDisplayName } from '../lib/member-utils';
 import { toDateInputValue } from '../lib/date-only';
+import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 
 /**
  * The task create/edit modal, extracted from SprintPlanning.
@@ -109,6 +110,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <input
                             ref={titleInputRef}
                             aria-label="Task title"
+                            maxLength={TITLE_MAX_LENGTH}
                             value={task.title}
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"

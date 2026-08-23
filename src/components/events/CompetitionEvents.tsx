@@ -11,6 +11,7 @@ import EmptyState from '../ui/EmptyState';
 import SectionHeader from '../ui/SectionHeader';
 import ConfirmDialog from '../ConfirmDialog';
 import SchedulePasteImport from './SchedulePasteImport';
+import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 
 /**
  * Competitions, and the schedule at each (D2).
@@ -232,6 +233,7 @@ export default function CompetitionEvents() {
                         data-testid="new-event-name"
                         className="field min-w-0 flex-1"
                         placeholder="Event name"
+                        maxLength={TITLE_MAX_LENGTH}
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         disabled={!canEdit}

@@ -1,3 +1,4 @@
+import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 import { useMemo, useState } from 'react';
 import { Repeat, X } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
@@ -280,6 +281,7 @@ export default function EventFormModal({ meeting, onClose, onCreated }: EventFor
                 <Field label="Title">
                     <input
                         className="field"
+                        maxLength={TITLE_MAX_LENGTH}
                         value={title}
                         autoFocus
                         onChange={(e) => setTitle(e.target.value)}
