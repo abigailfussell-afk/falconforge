@@ -4,6 +4,7 @@ import { Sun, Moon, LogOut, User, ChevronDown, ArrowRightLeft, Menu, X, MessageS
 import SyncStatusIndicator from './SyncStatusIndicator';
 import { useFeedbackLink } from '../lib/use-feedback-link';
 import Wordmark from './Wordmark';
+import TeamBadge from './ui/TeamBadge';
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
@@ -282,11 +283,13 @@ export default function Sidebar({
                             </div>
 
                             <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
-                                <div className="w-7 h-7 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center shrink-0">
-                                    <span className="text-2xs font-bold text-slate-500 dark:text-slate-300">
-                                        {currentTeam?.teamNumber ? `#${currentTeam.teamNumber.slice(0, 2)}` : 'T'}
-                                    </span>
-                                </div>
+                                <TeamBadge
+                                    teamNumber={currentTeam?.teamNumber}
+                                    teamName={currentTeam?.name}
+                                    size="sm"
+                                    className="bg-slate-200 dark:bg-slate-700"
+                                    textClassName="text-2xs text-slate-500 dark:text-slate-300"
+                                />
                                 <p
                                     data-testid="team-display-name"
                                     className="flex-1 min-w-0 text-xs font-medium text-slate-900 dark:text-white truncate"
