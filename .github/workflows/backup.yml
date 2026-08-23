@@ -130,15 +130,55 @@ jobs:
           supabase db dump --db-url "$DB_URL" -f schema.sql
           supabase db dump --db-url "$DB_URL" --data-only -f data.sql
 
-          # The size check belongs on the DATA half. "Connected, authenticated, read nothing"
-          # is precisely the failure that produces a full schema and no rows, and checking the
-          # combined file would hide it behind 137 KB of `CREATE TABLE`.
+          # ------------------------------------------------------------------------------------
+          # IS THIS A REAL BACKUP? Counted, not weighed.
+          #
+          # This was a 50 KB floor on `data.sql`, and the first run that ever reached it failed:
+          # production's data half is **38 452 bytes**. Nothing was wrong with the dump — the same
+          # database dumped by hand the same day produced 37 155 bytes of data, and that file was
+          # verified by RESTORING it and applying all 14 pending migrations on top. The floor was
+          # a guess made before anyone had measured the thing it was guarding.
+          #
+          # A byte count is the wrong instrument twice over: it fails a small database that is
+          # perfectly backed up, and it passes a large one whose rows are missing but whose
+          # `SET`/`COMMENT` preamble is bulky. So use the check `docs/beta-ops.md` already
+          # documents and calls "the check worth doing on any backup, here or anywhere else in
+          # this document" — count the INSERT statements, and name the tables that must be there.
+          #
+          # `INSERT INTO`, not `COPY`: the Supabase CLI emits multi-row inserts, and a check
+          # written for `COPY` reports zero on a perfectly good backup — the false alarm that
+          # teaches people to ignore the check.
+          #
+          # `auth.users` and `public.teams` specifically, because those two are the ones whose
+          # loss cannot be undone by re-running anything: an account and a tenancy. A dump that
+          # has them has the irreplaceable part; a dump missing them is not worth encrypting.
+          # ------------------------------------------------------------------------------------
           data_bytes=$(wc -c < data.sql)
           echo "data_bytes=$data_bytes" >> "$GITHUB_ENV"
-          if [ "$data_bytes" -lt 51200 ]; then
-            echo "::error::The data dump is ${data_bytes} bytes, under 50 KB — that is almost certainly not a real backup."
+
+          inserts=$(grep -c '^INSERT INTO ' data.sql || true)
+          echo "insert_statements=$inserts" >> "$GITHUB_ENV"
+          echo "Data dump: ${data_bytes} bytes, ${inserts} INSERT statement(s)."
+          grep -o '^INSERT INTO "[a-z_]*"\."[a-z_]*"' data.sql | sort -u || true
+
+          if [ "$inserts" -eq 0 ]; then
+            echo "::error::The data dump has no INSERT statements at all — it would restore an empty database."
             exit 1
           fi
+
+          for required in '"auth"."users"' '"public"."teams"'; do
+            grep -q "^INSERT INTO ${required}" data.sql || {
+              echo "::error::The data dump has no rows for ${required}. That is the part a restore cannot rebuild."
+              exit 1
+            }
+          done
+
+          # A floor low enough to catch only a truly broken file, since the real check is above.
+          if [ "$data_bytes" -lt 2048 ]; then
+            echo "::error::The data dump is ${data_bytes} bytes. Something is badly wrong."
+            exit 1
+          fi
+
           # And the schema half has to actually be a schema.
           grep -q 'CREATE TABLE' schema.sql || {
             echo "::error::The schema dump contains no CREATE TABLE."
@@ -179,5 +219,8 @@ jobs:
           echo "- artifact: \`db-backup-${{ github.run_id }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- retained: 30 days" >> "$GITHUB_STEP_SUMMARY"
           echo "- encrypted: gpg symmetric, AES-256" >> "$GITHUB_STEP_SUMMARY"
+          # The numbers, not just the claim. A summary saying "backup taken" is what thirty days
+          # of green would have looked like while the artifact restored an empty database.
+          echo "- data: ${data_bytes} bytes, ${insert_statements} INSERT statement(s)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Restore procedure: \`docs/beta-ops.md\`, section **Backups**." >> "$GITHUB_STEP_SUMMARY"
