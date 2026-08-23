@@ -104,6 +104,90 @@ export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [];
  *
  * Returns the types still needing acceptance, so a caller can prompt for exactly those.
  */
+/**
+ * WHERE "LATER" IS REMEMBERED (WALK-A-07).
+ *
+ * "Later" used to be a `useState` flag, so it lasted exactly as long as the page did. The
+ * walkthrough hit the prompt on EVERY navigation and reload — 60+ times in one run, across
+ * eight scripts — and had to add a `dismissLater()` call after every `page.goto`. On a phone
+ * that is the modal returning on every cold start and every PWA resume, which is precisely
+ * the moment a student is scanning a QR code to check in.
+ *
+ * Keyed by user id, because a shared team laptop must not snooze the next person; and
+ * carrying the VERSIONS that were dismissed, because "please accept 2.0" answered with
+ * "later" says nothing about 3.0. A rewrite therefore asks again immediately rather than
+ * being silently covered by an old snooze.
+ */
+const SNOOZE_KEY = 'falconforge-attestation-snooze';
+
+/** How long "Later" lasts. A week: long enough to cover a competition and the travel around it. */
+export const ATTESTATION_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface AttestationSnooze {
+    userId: string;
+    /** The exact set of documents-and-versions that were dismissed. */
+    signature: string;
+    until: number;
+}
+
+/** What was asked, as one comparable string. */
+export function attestationSignature(types: AttestationType[]): string {
+    return [...types]
+        .sort()
+        .map((type) => `${type}@${ATTESTATION_VERSIONS[type]}`)
+        .join(',');
+}
+
+/** Record that this user asked to be reminded later about exactly these documents. */
+export function snoozeAttestations(userId: string, types: AttestationType[], now = Date.now()): void {
+    try {
+        const record: AttestationSnooze = {
+            userId,
+            signature: attestationSignature(types),
+            until: now + ATTESTATION_SNOOZE_MS,
+        };
+        localStorage.setItem(SNOOZE_KEY, JSON.stringify(record));
+    } catch {
+        /* Private mode / storage disabled: the prompt simply behaves as it did before. */
+    }
+}
+
+/**
+ * Is this exact ask still snoozed for this user?
+ *
+ * Returns false for a different user, a different set of documents, a different version, an
+ * expired window, or anything unparseable — every "we are not sure" answer shows the prompt,
+ * because failing towards asking is the right direction for a consent refresh.
+ */
+export function isAttestationSnoozed(
+    userId: string,
+    types: AttestationType[],
+    now = Date.now(),
+): boolean {
+    try {
+        const raw = localStorage.getItem(SNOOZE_KEY);
+        if (!raw) return false;
+        const record = JSON.parse(raw) as Partial<AttestationSnooze>;
+        return (
+            record.userId === userId &&
+            record.signature === attestationSignature(types) &&
+            typeof record.until === 'number' &&
+            record.until > now
+        );
+    } catch {
+        return false;
+    }
+}
+
+/** Drop the snooze — on sign-out, and once the documents are actually accepted. */
+export function clearAttestationSnooze(): void {
+    try {
+        localStorage.removeItem(SNOOZE_KEY);
+    } catch {
+        /* as above */
+    }
+}
+
 export async function getOutdatedAttestations(
     types: AttestationType[],
     userId: string,

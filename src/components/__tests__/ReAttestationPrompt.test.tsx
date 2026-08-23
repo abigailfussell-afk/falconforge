@@ -25,9 +25,9 @@ vi.mock('@/lib/attestations', async () => {
     };
 });
 
-function renderPrompt() {
+function renderPrompt(initialPath = '/app/board') {
     return render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[initialPath]}>
             <ReAttestationPrompt />
         </MemoryRouter>,
     );
@@ -35,6 +35,7 @@ function renderPrompt() {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mockAuth.mockReturnValue({ user: { id: 'user-1' }, isOffline: false });
     mockOutdated.mockResolvedValue([]);
     mockRecord.mockResolvedValue({ success: true });
@@ -135,5 +136,118 @@ describe('not asking', () => {
 
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         expect(mockRecord).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * WALK-A-07 — "Later" outlives the page.
+ *
+ * It was a `useState` flag, so it lasted exactly as long as the page did. The walkthrough met
+ * this modal on every navigation and reload — 60+ times in one run — and had to click it away
+ * after every `page.goto`. On a phone that is the modal returning on every cold start and every
+ * PWA resume.
+ *
+ * "Reload" here is a fresh `render()` with the same storage, which is what a reload is from this
+ * component's point of view: new React tree, same localStorage, same user.
+ */
+describe('"Later" survives a reload (WALK-A-07)', () => {
+    const ask = () => mockOutdated.mockResolvedValue(['privacy_and_guidelines']);
+
+    it('does not come back on the next three loads', async () => {
+        ask();
+        const first = renderPrompt();
+        fireEvent.click(await screen.findByTestId('reattestation-later'));
+        first.unmount();
+
+        for (const attempt of [1, 2, 3]) {
+            const again = renderPrompt();
+            // Long enough for the async version check to have resolved and rendered.
+            await waitFor(() => expect(mockOutdated).toHaveBeenCalled());
+            expect(
+                screen.queryByRole('dialog'),
+                `the prompt came back on load ${attempt}`,
+            ).toBeNull();
+            again.unmount();
+        }
+    });
+
+    it('comes back for a DIFFERENT user on the same device', async () => {
+        // A shared team laptop. Snoozing one person must not snooze the next.
+        ask();
+        const first = renderPrompt();
+        fireEvent.click(await screen.findByTestId('reattestation-later'));
+        first.unmount();
+
+        mockAuth.mockReturnValue({ user: { id: 'user-2' }, isOffline: false });
+        renderPrompt();
+
+        expect(await screen.findByRole('dialog')).toBeDefined();
+    });
+
+    it('comes back when a NEW version is published', async () => {
+        ask();
+        const first = renderPrompt();
+        fireEvent.click(await screen.findByTestId('reattestation-later'));
+        first.unmount();
+
+        // A second document is now out of date: a different ask, so the old snooze says
+        // nothing about it.
+        mockOutdated.mockResolvedValue(['privacy_and_guidelines', 'terms']);
+        renderPrompt();
+
+        expect(await screen.findByRole('dialog')).toBeDefined();
+    });
+
+    it('comes back once the window has passed', async () => {
+        ask();
+        const first = renderPrompt();
+        fireEvent.click(await screen.findByTestId('reattestation-later'));
+        first.unmount();
+
+        const { ATTESTATION_SNOOZE_MS } = await import('@/lib/attestations');
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + ATTESTATION_SNOOZE_MS + 1);
+        renderPrompt();
+
+        expect(await screen.findByRole('dialog')).toBeDefined();
+        vi.mocked(Date.now).mockRestore();
+    });
+
+    it('is cleared by accepting, so it cannot cover the next rewrite', async () => {
+        ask();
+        const first = renderPrompt();
+        fireEvent.click(await screen.findByTestId('reattestation-later'));
+        first.unmount();
+
+        const second = renderPrompt();
+        await waitFor(() => expect(mockOutdated).toHaveBeenCalled());
+        expect(screen.queryByRole('dialog')).toBeNull();
+        second.unmount();
+
+        // Now they accept — through a different route, e.g. the next week's prompt.
+        const { snoozeAttestations, isAttestationSnoozed, clearAttestationSnooze } =
+            await import('@/lib/attestations');
+        snoozeAttestations('user-1', ['privacy_and_guidelines']);
+        expect(isAttestationSnoozed('user-1', ['privacy_and_guidelines'])).toBe(true);
+        clearAttestationSnooze();
+        expect(isAttestationSnoozed('user-1', ['privacy_and_guidelines'])).toBe(false);
+    });
+});
+
+describe('where it is never shown (WALK-A-07)', () => {
+    it('does not cover the check-in screen', async () => {
+        // A student at a poster with a queue behind them, and usually a minor who cannot
+        // accept the documents anyway.
+        mockOutdated.mockResolvedValue(['privacy_and_guidelines']);
+        renderPrompt('/app/checkin/AB12');
+
+        await waitFor(() => expect(mockOutdated).toHaveBeenCalled());
+        expect(screen.queryByRole('dialog'), 'the prompt covered check-in').toBeNull();
+    });
+
+    it('still shows on an ordinary screen — the control', async () => {
+        mockOutdated.mockResolvedValue(['privacy_and_guidelines']);
+        renderPrompt('/app/board');
+
+        expect(await screen.findByRole('dialog')).toBeDefined();
     });
 });

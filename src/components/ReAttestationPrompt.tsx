@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { FileText, AlertCircle } from 'lucide-react';
 import {
     SIGNUP_REQUIRED_ATTESTATIONS,
     getOutdatedAttestations,
     recordAttestation,
+    isAttestationSnoozed,
+    snoozeAttestations,
+    clearAttestationSnooze,
 } from '../lib/attestations';
+import { APP_ROOT } from '../lib/navigation';
 import type { AttestationType } from '../types';
 import { useAuth } from '../lib/auth';
 import Modal from './ui/Modal';
@@ -39,8 +43,19 @@ const DOCUMENT_LABELS: Partial<Record<AttestationType, { label: string; href: st
  * list when it cannot read — a flaky connection must not turn into a nag loop that reappears on
  * every render, and an offline device asks nothing at all.
  */
+/**
+ * Where this prompt is never shown, however out of date the documents are.
+ *
+ * Check-in is a student standing at a poster with a phone, and the modal covers the code
+ * entry. A consent refresh that blocks the one interaction with a queue behind it is worse
+ * than a consent refresh a day late — and the person it blocks is usually a minor who cannot
+ * accept the documents anyway.
+ */
+const SILENT_ROUTES = [`${APP_ROOT}/checkin`];
+
 export default function ReAttestationPrompt() {
     const { user, isOffline } = useAuth();
+    const location = useLocation();
     const [outdated, setOutdated] = useState<AttestationType[]>([]);
     const [isBusy, setIsBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -95,13 +110,24 @@ export default function ReAttestationPrompt() {
                     return;
                 }
             }
+            // Accepted, so the snooze is dead state — and leaving it would silently cover
+            // the NEXT rewrite for whatever is left of the week.
+            clearAttestationSnooze();
             setSettled(true);
         } finally {
             setIsBusy(false);
         }
     };
 
+    /** "Later" now outlives the page. See `snoozeAttestations`. */
+    const later = () => {
+        if (userId) snoozeAttestations(userId, outdated);
+        setSettled(true);
+    };
+
     if (settled || outdated.length === 0) return null;
+    if (SILENT_ROUTES.some((route) => location.pathname.startsWith(route))) return null;
+    if (userId && isAttestationSnoozed(userId, outdated)) return null;
 
     const documents = outdated
         .map((type) => DOCUMENT_LABELS[type])
@@ -170,10 +196,15 @@ export default function ReAttestationPrompt() {
                   * they are not unlicensed — they are out of date, and the honest response to that
                   * is to ask again next session rather than to lock them out mid-competition.
                   */}
-                <Button variant="secondary" onClick={() => setSettled(true)} disabled={isBusy}>
+                <Button
+                    variant="secondary"
+                    onClick={later}
+                    disabled={isBusy}
+                    data-testid="reattestation-later"
+                >
                     Later
                 </Button>
-                <Button onClick={accept} busy={isBusy}>
+                <Button onClick={accept} busy={isBusy} data-testid="reattestation-accept">
                     I&apos;ve read and accept them
                 </Button>
             </div>
