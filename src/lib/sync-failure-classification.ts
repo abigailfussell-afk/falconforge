@@ -138,6 +138,46 @@ export function classifySyncFailure(
         };
     }
 
+    /*
+     * THE BUNDLE AND THE SCHEMA DISAGREE (OPS-04).
+     *
+     * A deploy applied out of order, or a PWA left open across one — `registerType: 'prompt'`
+     * means a stale tab runs the OLD bundle against the NEW schema for as long as the person
+     * ignores the update prompt — produces writes the database cannot accept in a way no
+     * retry can fix:
+     *
+     *   PGRST204  the bundle sent a column PostgREST does not know (client ahead of schema)
+     *   42703     the same thing reaching Postgres: undefined column
+     *
+     * NOT 23502, THOUGH THE FINDING ASKS FOR IT. A not-null violation is ambiguous in a way
+     * the other two are not: it is equally "the bundle does not know to fill a new required
+     * column" and "this row is missing a value somebody can still supply". The rule at the top
+     * of this file was decided deliberately — a constraint violation is a refusal of THIS
+     * VERSION of the row, not of the change, and parking it discards a correction the user has
+     * already made — and `a missing NOT NULL column stays retryable` is the test that holds it.
+     * Making it terminal to satisfy a fix direction would trade a documented data-preserving
+     * rule for a guess about which cause was more likely. An unknown COLUMN cannot be anything
+     * but a version disagreement; a missing VALUE can.
+     *
+     * These used to fall through to RETRYABLE, so the queue spent five attempts over ~9
+     * minutes and parked the work with the raw error. The coach saw "could not sync" with no
+     * reason and an all-or-nothing "Retry them" that fails identically — while the actual fix
+     * (reload the app) is one they could have performed immediately.
+     *
+     * TERMINAL WITH A REASON, not retryable. The work is preserved exactly as B2 requires and
+     * `retrySyncFailures` can put it back the moment the app is updated; what is removed is
+     * nine minutes of pointless retries and a message nobody can act on. This is B24's rule
+     * applied to a second cause: park it NOW, and say what would change the answer.
+     */
+    if (code === 'PGRST204' || code === '42703') {
+        return {
+            terminal: true,
+            reason:
+                'This device is running a different version of the app from the server. ' +
+                'Nothing has been lost — reload the page to update, then retry this change.',
+        };
+    }
+
     if (code !== '42501') return RETRYABLE;
 
     // A policy said no. Only local state can say which policy, and only sometimes.

@@ -199,6 +199,47 @@ describe('a constraint violation keeps its retries, because queued data is mutab
         expect(result.terminal).toBe(false);
     });
 
+    /*
+     * OPS-04 — a bundle and a schema that disagree.
+     *
+     * A deploy applied out of order, or a PWA left open across one (`registerType: 'prompt'`
+     * means a stale tab runs the old bundle against the new schema for as long as the person
+     * ignores the prompt). These used to spend five retries over ~9 minutes and park with the
+     * raw error, offering a "Retry them" that fails identically — while the fix, reloading, is
+     * one the coach could have done immediately.
+     */
+    it('an unknown column is a version mismatch, not something to retry', () => {
+        const result = classifySyncFailure(
+            item(),
+            { code: 'PGRST204', message: "Could not find the 'match_number' column of 'match_plans'" },
+            context(),
+        );
+
+        expect(result.terminal).toBe(true);
+        expect(result.reason).toMatch(/different version of the app/i);
+        expect(result.reason, 'the reason does not say what to do').toMatch(/reload/i);
+    });
+
+    it('says the same for Postgres’ own undefined-column code', () => {
+        const result = classifySyncFailure(
+            item(),
+            { code: '42703', message: 'column "match_number" of relation "match_plans" does not exist' },
+            context(),
+        );
+
+        expect(result.terminal).toBe(true);
+    });
+
+    /*
+     * AND NOT 23502, though OPS-04's fix direction lists it.
+     *
+     * A not-null violation is ambiguous where an unknown column is not: it is equally "the
+     * bundle does not know to fill a new required column" and "this row is missing a value
+     * somebody can still supply". This file's own rule — a constraint violation refuses THIS
+     * VERSION of the row, not the change, and parking it discards a correction already made —
+     * was decided deliberately and is what B19's regression leans on. Deviation recorded in
+     * the sprint report rather than made silently.
+     */
     it('a missing NOT NULL column stays retryable', () => {
         const result = classifySyncFailure(
             item(),
