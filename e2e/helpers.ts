@@ -328,34 +328,57 @@ export async function enterApp(page: Page): Promise<void> {
  * a step is added, and fails somewhere unrelated.
  */
 /**
- * A team number no other spec in this run is using.
+ * A five-digit team number for a test team.
  *
- * The default was `'9911'` for every spec, which D3's `UNIQUE (program, team_number)` turns
- * from harmless into a hard failure -- and into the WRONG failure, because
- * `create_team_as_admin` now answers a taken number with "ask their admin for an invite code"
- * rather than an error, so the wizard would sit on step 2 looking like a UI bug.
+ * WHY RANDOM, AFTER TWO DETERMINISTIC SCHEMES FAILED. D3 added
+ * `UNIQUE (program, team_number)`, and the default used to be `'9911'` for every spec — which
+ * fails as the WRONG error, because `create_team_as_admin` answers a taken number with "ask
+ * their admin for an invite code" rather than an error, so the wizard sits on step 2 and the
+ * report says `locator.waitFor: Timeout 45000ms exceeded` with nothing about numbers in it.
  *
- * Worker index plus a counter, not `Math.random()`: the pack runs 4 workers and a collision
- * would be a once-in-a-few-hundred-runs red that reproduces on nobody's machine. This repo
- * already carries one unexplained single e2e failure; it does not need a second source.
+ *   1. `TEST_PARALLEL_INDEX` + counter. Wrong: the parallel index is a SLOT between 0 and
+ *      workers-1 and is REUSED, so chromium's worker 0 and the mobile project's worker 0
+ *      produced the same numbers over the same specs. Four mobile failures.
+ *   2. `TEST_WORKER_INDEX` + counter. Unique within a run, and still wrong ACROSS runs: the
+ *      pack never deletes its teams (no globalSetup, no reset), so every run starts its
+ *      counter at 1 again and collides with what the last run left behind. That is a suite
+ *      that passes once on a clean database and fails on the second attempt, which is
+ *      precisely the shape `onboarding-gate.db.test.ts` hit on the same afternoon.
+ *
+ * So the number is random and the COLLISION IS HANDLED rather than avoided — see `createTeam`,
+ * which recognises the taken-number screen and tries another. That is what makes randomness
+ * acceptable here: this repo's rule against `Math.random()` in fixtures is about collisions
+ * that surface as an unreproducible red, and a collision this one causes surfaces as one extra
+ * click.
+ *
+ * 50000-94999 keeps it clear of `seed-review-states.mjs` (12345 and below) and of the db
+ * fixtures (30001+), and stays inside five digits — FTC numbers are 1-5 digits and WALK-A-06
+ * caps the scouting form there.
  */
-let e2eTeamNumberSeq = 0;
 export function uniqueTeamNumber(): string {
-    e2eTeamNumberSeq += 1;
-    const worker = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
-    return String(40000 + worker * 1000 + e2eTeamNumberSeq);
+    return String(50_000 + Math.floor(Math.random() * 45_000));
 }
 
 export async function createTeam(
     page: Page,
-    { teamName, teamNumber = uniqueTeamNumber() }: { teamName: string; teamNumber?: string },
+    { teamName, teamNumber }: { teamName: string; teamNumber?: string },
 ): Promise<void> {
     await page.goto('/#/create-team');
 
     const done = page.getByRole('button', { name: 'Go to Dashboard' });
     const next = page.getByRole('button', { name: /^(Next|Create Team)$/ });
+    const taken = page.getByTestId('team-number-taken');
 
-    for (let step = 0; step < 8; step++) {
+    /*
+     * Mutable, because a collision means trying a different one (D3). A caller who passed an
+     * explicit number gets exactly that number and no retry — a spec that asserts on a
+     * specific team number is asserting on it deliberately.
+     */
+    let number = teamNumber ?? uniqueTeamNumber();
+    const fixedNumber = teamNumber !== undefined;
+    let collisions = 0;
+
+    for (let step = 0; step < 12; step++) {
         /*
          * Wait for the step to SETTLE before touching it, rather than sleeping a fixed 400ms.
          *
@@ -368,11 +391,29 @@ export async function createTeam(
         const state = await Promise.race([
             done.waitFor({ state: 'visible', timeout: 45_000 }).then(() => 'done' as const),
             next.waitFor({ state: 'visible', timeout: 45_000 }).then(() => 'next' as const),
+            taken.waitFor({ state: 'visible', timeout: 45_000 }).then(() => 'taken' as const),
         ]);
 
         if (state === 'done') {
             await done.click();
             break;
+        }
+
+        /*
+         * The number was already registered (D3). Go back and pick another — which also means
+         * every full run of this pack exercises that screen, rather than it being covered only
+         * by a unit test.
+         */
+        if (state === 'taken') {
+            if (fixedNumber || ++collisions > 3) {
+                throw new Error(
+                    `createTeam: team number ${number} is already registered` +
+                        (fixedNumber ? ' (passed explicitly by the spec)' : ' after 3 retries'),
+                );
+            }
+            number = uniqueTeamNumber();
+            await page.getByTestId('taken-back').click();
+            continue;
         }
 
         // Every step's acceptance checkbox, if this step has one.
@@ -382,8 +423,8 @@ export async function createTeam(
         const name = page.getByPlaceholder('e.g., Falcon Force');
         if (await name.isVisible().catch(() => false)) await name.fill(teamName);
 
-        const number = page.getByPlaceholder('e.g., 12345');
-        if (await number.isVisible().catch(() => false)) await number.fill(teamNumber);
+        const numberField = page.getByPlaceholder('e.g., 12345');
+        if (await numberField.isVisible().catch(() => false)) await numberField.fill(number);
 
         await expect(next).toBeEnabled({ timeout: 20_000 });
         await next.click();
