@@ -28,6 +28,30 @@
  * mean "we did not look".
  */
 
+/**
+ * Did this failure come back FROM the server, or did the request never arrive?
+ *
+ * THE ANSWER IS THE `code` FIELD, AND IT HAS TO BE NON-EMPTY.
+ *
+ * postgrest-js resolves — it does not reject — when `fetch` itself fails, handing back
+ * `{ message: 'TypeError: Failed to fetch', details, hint: '', code: '', status: 0 }`. Its own
+ * source says why: *"We don't populate code/hint for client-side network errors since those
+ * fields are meant for upstream service errors"*. A real refusal carries `code: '42501'` and an
+ * HTTP status.
+ *
+ * So "there is an error object" does NOT mean the server spoke, and "the promise rejected" does
+ * not mean it did not. Both intuitions are wrong here and both were in the first version of
+ * this fix: the pull recorded CONTACT for every network failure, and the push accepted `''` as
+ * a code. Found by stopping the API gateway and watching the indicator go on saying
+ * "Synced · just now" with nothing reaching the server — which is the defect SYNC-07 is about,
+ * reintroduced by its own fix (`docs/failure-modes.md`, the meta-class).
+ */
+export function isServerAnswer(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' && code.length > 0;
+}
+
 /** How long a successful contact stays believable before the indicator hedges. */
 export const CONTACT_STALE_AFTER_MS = 2 * 60 * 1000;
 

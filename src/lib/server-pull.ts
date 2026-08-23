@@ -50,7 +50,7 @@ import {
     type SeasonScope,
 } from './entity-registry';
 import { withTimeout, PER_QUERY_TIMEOUT_MS, type SyncToken } from './timeout';
-import { recordServerContact } from './server-reachability';
+import { isServerAnswer, recordServerContact } from './server-reachability';
 
 /**
  * How often a pull does a full reconciliation instead of a delta (every Nth pull).
@@ -515,7 +515,7 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
             for (let pageNumber = 0; pageNumber < MAX_PULL_PAGES; pageNumber++) {
                 if (token.cancelled) return received;
 
-                let result: { data: any[] | null; error: { message: string } | null };
+                let result: { data: any[] | null; error: { message: string; code?: string } | null };
                 try {
                     result = await withTimeout((async () => page(after))(), PER_QUERY_TIMEOUT_MS, `pull ${table}`);
                 } catch (err) {
@@ -527,14 +527,14 @@ export async function pullFromServer(options: PullOptions): Promise<PullResult> 
                 }
 
                 /*
-                 * AN ERROR HERE IS STILL CONTACT.
+                 * AN ERROR HERE MAY OR MAY NOT BE CONTACT — see `isServerAnswer`.
                  *
-                 * PostgREST answered — with a refusal, a bad filter, whatever. The server is
-                 * reachable and that is the question this records. A 42501 lighting a
-                 * "can't reach server" warning would be a lapsed licence wearing the wrong
-                 * explanation.
+                 * A refusal is the server answering, and recording it as unreachable would
+                 * put a "can't reach server" warning on a lapsed licence. But postgrest-js
+                 * RESOLVES with an error object when `fetch` itself failed, so "no error" is
+                 * the only thing that reliably means the request arrived.
                  */
-                recordServerContact(true);
+                recordServerContact(!result.error || isServerAnswer(result.error));
 
                 if (result.error) {
                     console.warn(`Pull for ${table} failed:`, result.error.message);

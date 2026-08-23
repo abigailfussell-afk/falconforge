@@ -18,7 +18,7 @@ import {
     type SyncFailureContext,
 } from './sync-failure-classification';
 import { pullFromServer } from './server-pull';
-import { recordServerContact } from './server-reachability';
+import { isServerAnswer, recordServerContact } from './server-reachability';
 import {
     withTimeout,
     PER_QUERY_TIMEOUT_MS,
@@ -465,19 +465,12 @@ export async function processSyncItem(item: SyncQueueItem): Promise<void> {
             return value;
         },
         (err) => {
-            // A PostgREST error object means it answered; a thrown TypeError or a timeout
-            // means the request never completed.
+            // A populated PostgREST `code` means it answered; a timeout, or the empty-string
+            // code postgrest-js uses for a client-side network failure, means it did not.
             recordServerContact(isServerAnswer(err));
             throw err;
         },
     );
-}
-
-/** Did this failure come back FROM the server, or did the request never get there? */
-function isServerAnswer(err: unknown): boolean {
-    if (!err || typeof err !== 'object') return false;
-    // PostgREST errors carry a `code`; supabase-js wraps network failures without one.
-    return typeof (err as { code?: unknown }).code === 'string';
 }
 
 async function pushSyncItem(item: SyncQueueItem): Promise<void> {

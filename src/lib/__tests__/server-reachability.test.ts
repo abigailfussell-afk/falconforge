@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     CONTACT_STALE_AFTER_MS,
+    isServerAnswer,
     describeLastContact,
     getServerReachability,
     isContactStale,
@@ -128,5 +129,39 @@ describe('resetting', () => {
             lastFailureAt: null,
             reachable: null,
         });
+    });
+});
+
+/**
+ * Telling "the server refused" from "the request never arrived".
+ *
+ * These fixtures are postgrest-js's OWN shapes, taken from `PostgrestBuilder.ts`, not shapes
+ * invented here — the first version of this fix guessed, guessed wrong in both directions, and
+ * the indicator went on saying "Synced · just now" with the API gateway stopped.
+ */
+describe('what counts as the server having answered', () => {
+    it('treats a PostgREST refusal as contact', () => {
+        // The 42501 a lapsed licence or an RLS policy produces. The server spoke.
+        expect(isServerAnswer({
+            message: 'new row violates row-level security policy',
+            details: '', hint: '', code: '42501',
+        })).toBe(true);
+    });
+
+    it('does NOT treat a client-side network failure as contact', () => {
+        // postgrest-js RESOLVES with this when `fetch` itself failed, and deliberately leaves
+        // `code` empty: "those fields are meant for upstream service errors".
+        expect(isServerAnswer({
+            message: 'TypeError: Failed to fetch',
+            details: 'TypeError: Failed to fetch', hint: '', code: '',
+        })).toBe(false);
+    });
+
+    it('does not mistake a thrown Error or a timeout for an answer', () => {
+        expect(isServerAnswer(new Error('pull tasks timed out'))).toBe(false);
+        expect(isServerAnswer(new TypeError('Failed to fetch'))).toBe(false);
+        expect(isServerAnswer(null)).toBe(false);
+        expect(isServerAnswer(undefined)).toBe(false);
+        expect(isServerAnswer('nope')).toBe(false);
     });
 });
