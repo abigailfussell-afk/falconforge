@@ -127,11 +127,46 @@ export const APP_VIEWS: AppView[] = [
      * above exist to prevent.
      */
     { id: 'help', path: 'help', label: 'Getting started', icon: LifeBuoy, inNav: true, startsGroup: true },
-    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false, requiresTeam: true },
+    /*
+     * Profile carries NO `requiresTeam` either, and for the same reason Help does not
+     * (WALK-B-01).
+     *
+     * It edits the SIGNED-IN USER — their name, their age classification — and reads no team
+     * data at all. Marking it as needing a team meant the shell's no-team redirect bounced
+     * every guardian off it one second after arriving, so a guardian could not rename
+     * themselves and the "Edit Profile" link their own sidebar renders led to
+     * "Welcome! Let's get you set up."
+     */
+    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
 ];
 
 /** The view the app opens on, and what `/app` and `/dashboard` redirect to. */
 export const DEFAULT_VIEW_PATH = 'dashboard';
+
+/**
+ * Does this `/app/*` path need an open team to mean anything? (WALK-B-01)
+ *
+ * The shell's no-team redirect used to ask a different question — "is this anything other
+ * than `/app/guardian`?" — which is the same answer only while the guardian view is the sole
+ * team-free page. It has not been for a while: `help` was added without `requiresTeam` in the
+ * beta-prep branch, and `profile` never needed one. So a guardian was bounced off both, one
+ * second after arriving, by a rule that was true when it was written.
+ *
+ * Reading {@link AppView.requiresTeam} keeps the two in step by construction, which is the
+ * countermeasure for a hand-kept list that must track another list
+ * (`docs/failure-modes.md` section 12).
+ *
+ * A path with no registered view — the meeting detail pages, check-in — needs a team, and
+ * that default is the safe one: every unregistered route under `/app` reads team data, and
+ * being wrong the other way renders a plausible-looking empty screen to somebody who is not
+ * on the team.
+ */
+export function pathNeedsTeam(pathname: string): boolean {
+    if (!pathname.startsWith(APP_ROOT)) return false;
+    const segment = pathname.slice(APP_ROOT.length).replace(/^\/+/, '').split('/')[0] ?? '';
+    const view = APP_VIEWS.find((v) => v.path === segment);
+    return view ? view.requiresTeam === true : true;
+}
 
 /**
  * The sidebar's list for a given user.

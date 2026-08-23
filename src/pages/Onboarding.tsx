@@ -6,7 +6,8 @@ import { TEAMS_ENTITY } from '../lib/entity-registry';
 import { supabaseSync } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
 import { performSignOut } from '../lib/sign-out';
-import { readReturnTo } from '../lib/navigation';
+import { fetchGuardianData } from '../lib/server-pull';
+import { APP_ROOT, readReturnTo } from '../lib/navigation';
 import ClaimCodeForm from '../components/guardian/ClaimCodeForm';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
@@ -33,6 +34,17 @@ export default function Onboarding() {
     const [isLoading, setIsLoading] = useState(true);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
     const [profileCompleteSuccess, setProfileCompleteSuccess] = useState(false);
+
+    /**
+     * True when the person asked for this screen rather than being sent here (WALK-B-02).
+     *
+     * A guardian with no membership of their own is sent straight to `/app/guardian` below,
+     * which is right on sign-in and wrong when they pressed "Switch team" — that would be a
+     * button whose only effect is to return you to where you already were. The sidebar sets
+     * this, so the picker stays reachable for the one case that wants it: a guardian joining
+     * a team, or adding a second child.
+     */
+    const askedForThePicker = (location.state as { picker?: boolean } | null)?.picker === true;
 
     useEffect(() => {
         void loadTeams();
@@ -82,8 +94,11 @@ export default function Onboarding() {
                  * explanation. Matching the server here is what keeps the client's idea of
                  * "my teams" the same as the database's.
                  *
-                 * A guardian's own view is `/app/guardian`, and `GuardianOnly` below routes
-                 * them there.
+                 * A guardian's own view is `/app/guardian`, and an account with children
+                 * and no memberships of its own is sent there rather than being greeted as a
+                 * brand-new user (WALK-B-02). The `GuardianOnly` component this comment used
+                 * to promise never existed — `grep -rn GuardianOnly src` found only the
+                 * comment. Half a contract, documented as whole: failure-modes section 7.
                  */
                 .is('managed_profile_id', null) as { data: any[] | null; error: any };
 
@@ -159,6 +174,33 @@ export default function Onboarding() {
 
             // An approved team is readable in its own right, so its remembered name is dead.
             forgetPendingTeamNames(approved.map(m => m.team_id));
+
+            /*
+             * A GUARDIAN IS NOT A NEW USER (WALK-B-02).
+             *
+             * An account with children on a team and no membership of its own landed here on
+             * every single sign-in, under "Welcome! Let's get you set up." and three buttons
+             * about creating a team — and had to work out for itself that "I'm a parent or
+             * guardian: add a child who is too young for their own login" was the way to a
+             * child they had already added. The code comment above claimed a `GuardianOnly`
+             * component routed them; `grep -rn GuardianOnly src` found only the comment.
+             *
+             * Asked through `fetchGuardianData`, which is the one read path for guardian
+             * records — not a second `.from('managed_profiles')` here, which is how this
+             * project acquired four copies of the team read before Sprint 2 unified them.
+             * It also warms the view we are about to send them to.
+             *
+             * Zero children means a genuinely new account, and it stays here. That is the
+             * difference this has to get right, so it is asserted as its own case.
+             */
+            if (!askedForThePicker && approved.length === 0 && pending.length === 0) {
+                await fetchGuardianData(user.id);
+                if (useAppStore.getState().managedProfiles.length > 0) {
+                    clearTimeout(loadTimeout);
+                    navigate(`${APP_ROOT}/guardian`, { replace: true });
+                    return;
+                }
+            }
         } catch (err) {
             console.error('Exception loading teams:', err);
         } finally {

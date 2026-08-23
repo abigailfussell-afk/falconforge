@@ -6,7 +6,7 @@ import { useSeasonScoped } from '../lib/season-scope';
 import { isActiveMember } from '../lib/member-utils';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
 import { fetchTeamData, fetchGuardianData, fetchSeasonData } from '../lib/server-pull';
-import { APP_ROOT } from '../lib/navigation';
+import { pathNeedsTeam } from '../lib/navigation';
 import { supabaseSync } from '../lib/supabase';
 import {
     performSignOut,
@@ -197,7 +197,7 @@ export default function AppShell() {
          * The redirect exists for a DIFFERENT case — a member who has not chosen a team yet —
          * so it is scoped to routes that need one rather than removed.
          */
-        if (location.pathname.startsWith(`${APP_ROOT}/guardian`)) return;
+        if (!pathNeedsTeam(location.pathname)) return;
 
         // With no team, wait out a possible hydration delay before redirecting — persisted
         // state comes back from IndexedDB asynchronously and arriving here first is normal.
@@ -299,7 +299,9 @@ export default function AppShell() {
                 canManageTeam={canManageTeam}
                 isOperator={isOperator === true}
                 onSignOut={handleSignOut}
-                onSwitchTeam={() => navigate('/onboarding')}
+                // `picker` so Onboarding knows this was asked for: a guardian is otherwise
+                // sent straight back to their own view, and the button would do nothing.
+                onSwitchTeam={() => navigate('/onboarding', { state: { picker: true } })}
             />
 
             {unsyncedPrompt && (
