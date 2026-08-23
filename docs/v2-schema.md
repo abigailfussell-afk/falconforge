@@ -272,19 +272,47 @@ must approve.
 
 | Function | Notes |
 |---|---|
-| `create_team_as_admin(team_name, season_name, team_number?)` | Renamed from `create_team_as_coach`. `season_name` is required — V1 hardcoded `'Demo Season'`. Creates the team, a trial licence, the admin member, an invite, the first season, five sub-teams and the pre-match checklist. |
-| `join_team_with_invite(code)` | The only path to a membership for somebody not already on the roster. Creates a PENDING member. |
+| `create_team_as_admin(team_name, season_name, team_number?)` | Renamed from `create_team_as_coach`. `season_name` is required — V1 hardcoded `'Demo Season'`. Creates the team, a **30-day probation** licence, the admin member, an invite, the first season, five sub-teams and the pre-match checklist. Refuses a `team_number` another team holds (`error_code: 'team_number_taken'`, with the team's NAME and deliberately not its id) and a second team from one account (`'one_team_per_account'`) — D3. |
+| `join_team_with_invite(code)` | The only path to a membership for somebody not already on the roster. Creates a PENDING member. A caller who is already on the team gets `error_code: 'already_member'` **with** the team id, so the client can put them in it (WALK-B-05). |
 | `grant_team_license(team_id, seats?, valid_until?, notes?)` | Operator only. |
+| `operator_new_teams(limit?)` | Operator only. Recent registrations with age, roster size and whether anybody has USED the team — the field the extend-or-not decision turns on. |
+| `operator_extend_to_season(team_id, notes?)` | Operator only. Appends a grant running to `current_season_end()`; the probation row is left in force so the audit trail keeps the fact that one happened. |
+| `operator_grant_extra_team(user_id, notes?)` | Operator only. One single-use permission for an account to self-create a second team. Idempotent. |
 | `transfer_team_admin(team_id, new_member_id)` | Demote-then-promote in one transaction; the unique index permits no moment with two admins. |
 | `update_user_age_classification(classification)` | Unchanged from V1. |
 
-### The trial grant is temporary
+### The probation grant, and the two rules that replaced it as the anti-abuse control
 
-`create_team_as_admin` issues a **90-day unlimited gift grant** at registration. A team with
-no licence is read-only, so self-serve registration has to leave the team entitled or the app
-is dead on arrival. Beta teams run on that; the platform operator replaces it with a real
-gift, or Stripe replaces it in Sprint 10. **When billing goes live, delete the grant block**
-and registration becomes "create team, then pay".
+**Kevin's D3, 2026-08-23** (`docs/assessment-2026-08/decisions.md`). `create_team_as_admin`
+issues a **30-day unlimited gift grant** at registration — a *probation*, not a trial, because
+the operator extending it to season length is the NORMAL path rather than an exception. A team
+with no licence is read-only, so self-serve registration has to leave the team entitled or the
+app is dead on arrival; thirty days means a coach registering at 8am on a competition Saturday
+has a working app without waiting for anybody.
+
+**The extension is one click in the operator console, not SQL.** This document used to describe
+it as a `grant_team_license` call to paste into psql. It is now the "Extend to the season"
+button on each row of the console's new-team panel, which calls `operator_extend_to_season` and
+records the action in `operator_actions` like every other operator decision. The SQL still works
+and is still the escape hatch; it is no longer the procedure.
+
+The licence is deliberately **not** the anti-abuse control, and D3 says why: withholding it
+stops neither a fake team nor a stolen number — a squatter with a read-only team has still taken
+the number — and the only people delayed are real coaches. Two structural rules do that work:
+
+- **`UNIQUE (program, team_number)`**, partial so a team with no number yet is still allowed.
+  Primarily a correctness fix rather than an abuse one: two coaches from one team both
+  registering, and typo'd numbers, are certain. Claiming a taken number routes to *request to
+  join* through the existing invite path — no second join mechanism.
+- **One auto-created team per account**, closing SEC-08's unlimited trial chaining. A second
+  needs an `operator_grant_extra_team` permission, which is single-use.
+
+`teams.program` is a column (`'ftc'` default, `'frc'` allowed) rather than an `"FTC-12345"`
+string, because FRC is planned and the number ranges overlap. **No FRC behaviour exists** — the
+column is cheap insurance taken before the September schema freeze.
+
+**When billing goes live, delete the grant block** and registration becomes "create team, then
+pay".
 
 ---
 
