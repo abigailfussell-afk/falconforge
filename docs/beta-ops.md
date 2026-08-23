@@ -59,6 +59,19 @@ position was "lose everything since somebody last remembered".
 **Two repository secrets, and until they exist the workflow goes red every night.** That is
 deliberate: a backup job that skips quietly is the failure this is meant to remove.
 
+**Status, 2026-08-23 — both secrets exist and the workflow still does not.** `gh secret list -R
+abigailfussell-afk/falconforge` shows `SUPABASE_DB_URL` (11:50 UTC) and `BACKUP_PASSPHRASE`
+(11:55 UTC), added by Kevin. But `gh workflow list --all` returns only *CI*, *Deploy* and
+*pages-build-deployment*: `.github/workflows/backup.yml` landed in Sprint 14 and **`main` has
+not been pushed since `c1cec81`**, so the file exists on Kevin's machine and nowhere GitHub can
+see it. The consequence is worth stating plainly rather than leaving as an inference — **the
+nightly backup has never run, no artifact exists, and the recovery position today is still
+"lose everything".** It is not going red every night; it is not running at all, which is the
+quieter of the two failures and the one this workflow was written to make impossible.
+
+The fix is one `git push` of `main`, which is Kevin's to make because `main` also deploys to
+production. Do it, then run the workflow once by hand as below and check the artifact size.
+
 | Secret | What it is | Where to get it |
 |---|---|---|
 | `SUPABASE_DB_URL` | The **direct** Postgres connection string for the hosted project, including the password. | Supabase dashboard → Project Settings → Database → Connection string → URI. Use the direct connection, not the pooler: `pg_dump` needs a session, and the pooler is transaction-mode. |
@@ -599,6 +612,13 @@ that script already makes:
 Either [UptimeRobot](https://uptimerobot.com) or [BetterStack](https://betterstack.com) has a
 free tier that covers a 5-minute interval on two monitors with email alerts. **This is an
 account signup, so it is Kevin's to do** — there is nothing in the repo that can do it.
+
+**Status, 2026-08-23 — Kevin reports UptimeRobot is set up.** Recorded rather than verified:
+an external monitoring account leaves no trace in this repo or in the GitHub API, so nothing
+here can confirm the two monitors exist, point at the URLs in the table above, or alert
+anybody. The check that would settle it is the one that matters anyway — take the site down
+deliberately for six minutes and see whether the mail arrives — and it should be done once
+before a competition rather than discovered during one.
 
 Two reasons it is worth the ten minutes:
 

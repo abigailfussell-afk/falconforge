@@ -455,8 +455,22 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   `BACKUP_PASSPHRASE` exist (deliberately: a backup job that skips quietly is the failure it
   exists to remove). The uptime check needs an UptimeRobot or BetterStack account. Both are
   documented in `docs/beta-ops.md` with the exact values and URLs.
+  **CORRECTED 2026-08-23 (Sprint 16), and the correction is not the one expected.** Both
+  secrets now exist — `gh secret list` dates them 2026-08-23 11:50 and 11:55 — and Kevin
+  reports UptimeRobot is set up. The backup is still not running, for a reason neither this
+  line nor `beta-ops.md` had considered: **`gh workflow list --all` returns only CI, Deploy
+  and pages-build-deployment.** `backup.yml` was written in Sprint 14 and `main` has not been
+  pushed since `c1cec81`, so GitHub has never seen the file. It is not failing nightly; it has
+  never run once, no artifact exists, and the recovery position is unchanged from before
+  Sprint 14 wrote the workflow. Unblocking it is a `git push` of `main`, which is Kevin's
+  because `main` deploys to production — and which is why an agent could not simply do it.
+  The same fact retires the "run the workflow once by hand" item that Sprint 16 was asked to
+  close: there is nothing on GitHub to run.
 - **The last mile of the restore is still unrehearsed: a HOSTED artifact into a NEW Supabase
-  project.** The local rehearsal on 2026-08-23 did happen and found both defects recorded in the
+  project.** *(Still blocked as of 2026-08-23, one step further back than this line assumed:
+  it waits on a real nightly artifact, and the workflow that would produce one is not on
+  GitHub — see the corrected line above. The secrets were the blocker named here; the push is
+  the blocker that was not.)* The local rehearsal on 2026-08-23 did happen and found both defects recorded in the
   row above, but the local stack supplies the `auth`, `extensions` and `vault` schemas that
   Supabase manages on a hosted project — the same restore into a bare Postgres database fails on
   all three — so it cannot speak for what a fresh project provides. Needs a scratch project and
