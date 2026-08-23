@@ -34,7 +34,7 @@ const MatchPlanner: React.FC = () => {
   const [color, setColor] = useState('#ef4444'); // Red default
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
   // Simple history stack for undo/redo
-  const { matchPlans: allMatchPlans, addMatchPlan, deleteMatchPlan, getCurrentSeason, currentTeamId } = useAppStore();
+  const { matchPlans: allMatchPlans, addMatchPlan, updateMatchPlan, deleteMatchPlan, getCurrentSeason, currentTeamId } = useAppStore();
   const { canEdit } = useSeasonScope();
 
   // Background refresh — fetches latest match plans when this page is visited
@@ -78,25 +78,79 @@ const MatchPlanner: React.FC = () => {
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
   const [planTitle, setPlanTitle] = useState('');
+  const [matchNumber, setMatchNumber] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  /**
+   * The plan currently on the canvas, if it came from Load (FEAT-05).
+   *
+   * Without it `handleSave` could only ever `addMatchPlan`, so Load → edit → Save produced a
+   * SECOND "Match 3" and left the original untouched — `updateMatchPlan` existed with no
+   * caller outside its own test (`docs/failure-modes.md` §7, a door with no gate). The drive
+   * team editing a plan between matches is exactly who hit it.
+   */
+  const [loadedPlanId, setLoadedPlanId] = useState<string | null>(null);
 
-  const handleSave = () => {
-    setSaveStatus('saving');
-    addMatchPlan({
-      title: planTitle || `Match Plan ${new Date().toLocaleString()}`,
-      drawingData: paths,
-      notes: strategyNotes,
-      allianceTeam: alliancePartner,
-      partnerAutonomous: autonomous,
-      partnerPark: parked
-    });
+  /**
+   * `match_number` is an integer column, and 0 is not "not recorded" (B18).
+   *
+   * `parseInt('')` is NaN and `NaN || 0` is 0, which is how five of nine live production
+   * scouting rows were corrupted. Empty stays undefined here rather than becoming a number.
+   */
+  const parsedMatchNumber = (): number | undefined => {
+    const trimmed = matchNumber.trim();
+    if (!trimmed) return undefined;
+    const n = Number.parseInt(trimmed, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
+  /** What Save writes, in both directions. One object, so update and create cannot drift. */
+  const planFromCanvas = () => ({
+    title: planTitle.trim() || defaultPlanTitle(),
+    matchNumber: parsedMatchNumber(),
+    drawingData: paths,
+    notes: strategyNotes,
+    allianceTeam: alliancePartner,
+    partnerAutonomous: autonomous,
+    partnerPark: parked,
+  });
+
+  const defaultPlanTitle = () => {
+    const n = parsedMatchNumber();
+    return n ? `Match ${n}` : `Match Plan ${new Date().toLocaleString()}`;
+  };
+
+  const finishSave = () => {
     setSaveStatus('success');
     // Show success message briefly, then close modal
     setTimeout(() => {
       setIsSaveModalOpen(false);
-      setPlanTitle('');
       setSaveStatus('idle');
     }, 1500);
+  };
+
+  /**
+   * Save over the plan that was loaded, when there is one (FEAT-05).
+   *
+   * The title is deliberately NOT cleared afterwards: the canvas still holds that plan, so
+   * re-opening Save has to show what it is about to overwrite.
+   */
+  const handleSave = () => {
+    setSaveStatus('saving');
+    if (loadedPlanId) {
+      updateMatchPlan(loadedPlanId, planFromCanvas());
+    } else {
+      addMatchPlan(planFromCanvas());
+      setPlanTitle('');
+    }
+    finishSave();
+  };
+
+  /** Save the edited canvas as a NEW plan, keeping the one it was loaded from. */
+  const handleSaveAsCopy = () => {
+    setSaveStatus('saving');
+    addMatchPlan(planFromCanvas());
+    setLoadedPlanId(null);
+    finishSave();
   };
 
   const handleLoad = (plan: MatchPlan) => {
@@ -105,6 +159,10 @@ const MatchPlanner: React.FC = () => {
     setStrategyNotes(plan.notes);
     setAutonomous(plan.partnerAutonomous);
     setParked(plan.partnerPark);
+    // Remembering WHICH plan is what makes the next Save an update rather than a duplicate.
+    setLoadedPlanId(plan.id);
+    setPlanTitle(plan.title);
+    setMatchNumber(plan.matchNumber ? String(plan.matchNumber) : '');
     setIsLoadModalOpen(false);
   };
 
@@ -381,7 +439,17 @@ const MatchPlanner: React.FC = () => {
             </div>
           ) : (
             <>
-              <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Save Match Plan</h3>
+              <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">
+                {loadedPlanId ? 'Update Match Plan' : 'Save Match Plan'}
+              </h3>
+              {loadedPlanId && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-3" data-testid="save-target">
+                  Saving over &ldquo;{planTitle}&rdquo;.
+                </p>
+              )}
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Plan name
+              </label>
               <input
                 autoFocus
                 type="text"
@@ -389,11 +457,43 @@ const MatchPlanner: React.FC = () => {
                 value={planTitle}
                 onChange={(e) => setPlanTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                data-testid="plan-title-input"
+                className="field mb-3"
+              />
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Match number <span className="font-normal">(optional)</span>
+              </label>
+              {/*
+                * The column has existed since Sprint 3 and nothing could set it — the write
+                * path read `data.matchNumber` from a type that had no such property (B10),
+                * and then the type got one and the form never did.
+                */}
+              <input
+                type="number"
+                min={1}
+                inputMode="numeric"
+                placeholder="e.g. 3"
+                value={matchNumber}
+                onChange={(e) => setMatchNumber(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                data-testid="plan-match-number-input"
                 className="field mb-4"
               />
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
                 <Button variant="secondary" onClick={() => setIsSaveModalOpen(false)}>Cancel</Button>
-                <Button onClick={handleSave} busy={saveStatus === 'saving'}>Save</Button>
+                {loadedPlanId && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleSaveAsCopy}
+                    busy={saveStatus === 'saving'}
+                    data-testid="save-as-copy"
+                  >
+                    Save as copy
+                  </Button>
+                )}
+                <Button onClick={handleSave} busy={saveStatus === 'saving'} data-testid="save-plan-confirm">
+                  {loadedPlanId ? 'Update' : 'Save'}
+                </Button>
               </div>
             </>
           )}
