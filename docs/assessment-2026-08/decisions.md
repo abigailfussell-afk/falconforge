@@ -27,7 +27,19 @@ sizes; serious tier spends $10–20k so $99–149 is <2%.
 **Recommendation:** (c) — flat per team per season with a generous cap, because the entitlement
 model already counts seats and a cap keeps the existing `license_grants.seat_count` meaningful.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **Deferred until the beta ends and Stripe goes in** (Kevin, 2026-08-23).
+
+Not "undecided" — deliberately not yet decided, and the sequence is the reason. The beta is
+free, so nothing in the product needs a price to work, and pricing set before a single team has
+used the thing for a season is a guess dressed as a decision. It gets answered as part of the
+Stripe work, alongside D7's hosting move, because those two share a trigger: the moment money
+changes hands.
+
+**Consequences, and they are live now.** Sprint 10 (Stripe) stays parked. `LAND-04` — the
+landing page's roles block is styled as pricing tiers with no prices — is answered for the beta
+by saying so: "Free during the 2026–27 beta" is a true and complete answer to the question a
+coach is actually asking. Seat semantics in the licence code stay as they are; they already work
+for gifted grants, which is every grant until Stripe exists.
 
 **Consequences once decided:** Stripe product/price shape; whether `seat_count` stays; landing
 copy; whether guardians/mentors consume seats.
@@ -179,7 +191,24 @@ allow copying only FTC Docs/SDK samples (BSD-3).
 **Recommendation:** (b), app work in Phase 3 of the roadmap (post-season), authoring by veteran
 students with Kevin reviewing, because that is how every team in the evidence already does it.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **Content deferred; the presentation is not** (Kevin, 2026-08-23).
+
+Two halves, answered differently on purpose.
+
+**Authoring is deferred.** The material will be AI-generated from FTC and REV Robotics
+documentation, with Claude's help, rather than written from scratch — which changes the shape of
+the work enough that scheduling it now would be scheduling the wrong thing. It is not this
+season's sprint.
+
+**The UI is in scope now, as a stub.** Kevin wants the shape of how training is presented
+settled before there is anything to present: the navigation, the unit/lesson structure, what a
+student sees versus a mentor, how progress is recorded. Deciding that against real content is
+harder than deciding it against none, and a stub is cheap to move.
+
+**What "stub" means here, so it is not read as "build P-06":** routes, layout and empty states
+with a small amount of representative placeholder content, and no authoring tools, no progress
+persistence beyond what the existing store already offers, and no content pipeline. If it needs
+a migration, it is out of scope. `P-06` Phase 1 remains deferred.
 
 ---
 
@@ -197,7 +226,21 @@ will ask about 1-day log retention, no PITR, and no security headers.
 
 **Recommendation:** (a) now; (b) after Supabase Pro and the Cloudflare move.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **No SDPC National Data Privacy Agreement this season** (Kevin, 2026-08-23).
+
+Overkill for the size of the beta. An NDPA is the instrument for selling into districts at
+scale; the 2026–27 beta is a small number of known teams, and signing one would add weeks of
+review to reach an agreement nobody is currently asking for.
+
+**What this does NOT change, and the distinction matters.** The product's obligations to minors
+are unchanged: COPPA still governs the under-13 model, the guardian-managed profile is still how
+a child appears on a roster, the Privacy Policy still describes what is held and how to have it
+erased, and `SEC-11`'s erasure tooling still exists to honour that. Not signing an NDPA is a
+decision about a *contract with districts*, not about how the data is handled.
+
+**When it comes back.** The moment a district — rather than a coach — is the party being sold
+to. That is the same trigger as D1 and D7, and it should be revisited together with them rather
+than separately.
 
 ---
 
@@ -209,7 +252,25 @@ will ask about 1-day log retention, no PITR, and no security headers.
 excludes commercial SaaS) as a hard Cloudflare trigger; move Supabase Pro's trigger from "first
 paying customer" to "first real team data" (no backups, 7-day pause, 1-day logs on Free).
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **Stay on GitHub Pages and Supabase free through the beta; move when Stripe
+goes in** (Kevin, 2026-08-23).
+
+One trigger, not a set of measured thresholds: **the transition off beta and onto Stripe.**
+
+**`OPS-07` is the reason this is a decision and not a preference.** GitHub Pages' terms exclude
+commercial SaaS offerings. A free beta is defensibly outside that; a paid product served from
+Pages is not. So the hosting move and the first payment are the same event, and doing them in
+either order alone is the mistake — shipping Stripe on Pages breaches the terms, and moving
+hosting before there is revenue spends money and a weekend on nothing.
+
+**`OPS-09` stays open and accepted for now.** Free-tier Supabase pauses after 7 idle days, which
+is exactly what an off-season looks like. During the beta season that is unlikely to bite;
+after it, it will. The nightly backup (working since 2026-08-23) is what makes accepting this
+survivable — a paused project is recoverable, an unbacked-up one is not.
+
+**Consequences.** The Cloudflare migration plan in §1 stays a plan. `docs/beta-ops.md`'s
+"trigger text still waits on D7" parking-lot item is answered: the trigger is Stripe, and the
+runbook should say so rather than describing thresholds nobody is measuring.
 
 ---
 
