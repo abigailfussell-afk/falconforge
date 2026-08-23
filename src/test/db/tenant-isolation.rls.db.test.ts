@@ -108,8 +108,9 @@ function crossTenantCases() {
             table: 'teams',
             id: () => teamB.id,
             update: { name: 'stolen' },
-            // teams_insert_owner requires owner_id = auth.uid(); the cross-tenant attempt
-            // is claiming somebody else as owner.
+            // SEC-08: `teams` has no INSERT policy at all now, so this is refused whoever is
+            // named as owner. The case that mattered was naming YOURSELF — see the SEC-08
+            // block below, and failure-modes §6's rule about trying your own id.
             insert: () => ({ name: 'injected team', owner_id: teamB.coach.id }),
         },
         {
@@ -1134,5 +1135,71 @@ describe('team_entitlement does not leak across tenants', () => {
     it('shows an anonymous client nothing', async () => {
         const { data, error } = await anon.from('team_entitlement').select('team_id');
         if (!error) expect(data ?? []).toEqual([]);
+    });
+});
+
+describe('SEC-08 — a team is created by the RPC or not at all', () => {
+    it('an authenticated user cannot POST a bare team row naming themselves as owner', async () => {
+        /*
+         * `teams_insert_owner` was `WITH CHECK (owner_id = auth.uid())`. The cross-tenant case
+         * above always failed, because it named somebody ELSE as owner — so 269 isolation
+         * assertions ran over a policy whose whole permitted case was never tried. That is
+         * `docs/failure-modes.md` §6's rule verbatim: try naming your OWN id, not only the
+         * victim's. Reproduced over PostgREST as `guardian@`: 201, and a team with no members,
+         * no licence and no season, invisible to its own creator and visible in the operator
+         * directory.
+         *
+         * Asserted on the ROW, not only on the response. The first attempt at reproducing this
+         * came back 403 because `Prefer: return=representation` also needs the SELECT policy —
+         * and the row had landed anyway.
+         */
+        const { serviceClient } = await import('./stack');
+        const svc = serviceClient();
+        const name = `SEC-08 bare insert ${crypto.randomUUID()}`;
+
+        const { error } = await teamA.users.student.client
+            .from('teams')
+            .insert({ name, owner_id: teamA.users.student.id } as never);
+
+        expect(error, 'a bare team INSERT was accepted').not.toBeNull();
+
+        const { data } = await svc.from('teams').select('id').eq('name', name);
+        expect(data ?? [], 'no error came back, but the row is there').toEqual([]);
+    });
+
+    it('and create_team_as_admin still builds a whole team — the control', async () => {
+        const { serviceClient, userClient } = await import('./stack');
+        const svc = serviceClient();
+
+        const founder = await fixtures.createUser('sec08-founder');
+        await fixtures.attest(founder.id, 'coach_terms', '2.0');
+
+        const { data } = await userClient(founder.token).rpc('create_team_as_admin', {
+            team_name: 'SEC-08 Proper Team',
+            season_name: '2026-2027',
+        });
+        expect(data, 'create_team_as_admin stopped working when the policy went').toMatchObject({
+            success: true,
+        });
+
+        const teamId = (data as { team_id: string }).team_id;
+        try {
+            // The point of the RPC, and the thing the bare INSERT skipped.
+            for (const [table, expected] of [
+                ['team_members', 1],
+                ['license_grants', 1],
+                ['seasons', 1],
+                ['sub_teams', 5],
+                ['checklists', 1],
+            ] as const) {
+                const { data: rows } = await svc
+                    .from(table)
+                    .select('id')
+                    .eq('team_id', teamId);
+                expect(rows ?? [], `${table} for the new team`).toHaveLength(expected);
+            }
+        } finally {
+            await svc.from('teams').delete().eq('id', teamId);
+        }
     });
 });
