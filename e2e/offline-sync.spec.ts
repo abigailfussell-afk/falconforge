@@ -91,6 +91,15 @@ test.describe('offline and sync', () => {
         await registerAccount(page, { fullName: 'Coldboot Coach', email: uniqueEmail('coldboot') });
         await createTeam(page, { teamName: unique('Coldboot Falcons') });
         await goToView(page, 'kanban', 'board');
+
+        // Something to find afterwards. SYNC-16 is about the store hydrating from IndexedDB
+        // with the network down — an assertion that only checks the shell rendered would pass
+        // against an app that came up completely empty.
+        const cached = unique('Charge the batteries');
+        await page.getByTestId('new-task-button').click();
+        await page.getByTestId('task-title-input').fill(cached);
+        await page.getByTestId('save-task').click();
+        await expect(page.getByText(cached)).toBeVisible();
         await waitForSync(page);
 
         await context.setOffline(true);
@@ -108,6 +117,14 @@ test.describe('offline and sync', () => {
         const status = page.getByTestId('sync-status-text');
         await expect(status).toBeVisible({ timeout: 30_000 });
         await expect(page.getByTestId('season-selector')).toBeVisible({ timeout: 15_000 });
+
+        // And the DATA came back, out of IndexedDB, with nothing to fetch it from. This is the
+        // half that makes the spec about the product rather than about the service worker.
+        await goToView(page, 'kanban', 'board');
+        await expect(
+            page.getByText(cached),
+            'the board came up empty after an offline cold boot — the store did not hydrate',
+        ).toBeVisible({ timeout: 30_000 });
 
         /*
          * The label. `navigator.onLine` is the reason this is worth asserting: read it here

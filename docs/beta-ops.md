@@ -480,6 +480,55 @@ Why client errors are not written to Postgres: it would need a table anyone may 
 which is an unauthenticated write endpoint on the database holding every team's data. That
 deserves its own design, not a rider on a hardening sprint.
 
+### What a beta report now carries (OPS-03 / OPS-05)
+
+The "Send feedback" link is still a `mailto:`, and the body now brings the context that used to
+have to be asked for over three emails:
+
+```
+build: 83e4190          <- the commit, not "0.1.0" (OPS-03)
+screen: #/app/board
+device online: yes      <- navigator.onLine
+server: NOT reachable   <- what the app has actually observed (SYNC-07)
+unsent changes: 3 queued, 1 parked
+team: 6eec0597-…
+```
+
+`device online` and `server` are deliberately two lines. They answer different questions, and
+conflating them is the whole of SYNC-07: a captive portal is "online: yes, server: NOT
+reachable", and an email that only said the first would send you looking at the wrong layer.
+
+It carries **no names, no task content and no address but the support one** — asserted in
+`src/lib/__tests__/feedback.test.ts`, which walks every line of the block and fails on any key
+outside the fixed set. A support inbox is not where minors' data should arrive by accident.
+
+### Uptime — the piece that is still yours to set up (OPS-05)
+
+Nothing watches the site between deploys. `check-production.mjs` runs once, after a deploy, and
+then nobody looks until somebody emails. Two free HTTPS checks close that, and both are GETs
+that script already makes:
+
+| Check | URL | Expect |
+|---|---|---|
+| The app is served | `https://falcon-forge.com/` | 200, and the body contains `<div id="root"`  |
+| Auth is answering | `https://<project>.supabase.co/auth/v1/settings` | 200 JSON |
+
+Either [UptimeRobot](https://uptimerobot.com) or [BetterStack](https://betterstack.com) has a
+free tier that covers a 5-minute interval on two monitors with email alerts. **This is an
+account signup, so it is Kevin's to do** — there is nothing in the repo that can do it.
+
+Two reasons it is worth the ten minutes:
+
+1. It is the only thing that would tell you the site is down **before a coach does**. Everything
+   else in this document is a review cadence, which means "after the fact by up to a week".
+2. **It defeats the 7-day inactivity pause.** A Supabase free project with no requests for seven
+   days is paused, and the first person to notice is whoever tries to sign in on the eighth day.
+   A check every five minutes is traffic, so the project never idles — which matters most in the
+   quiet weeks between competitions, when nobody is using the app and nobody would notice it had
+   stopped working.
+
+Point them at the two URLs above rather than at a health endpoint the app does not have.
+
 ## Feedback
 
 The sidebar has a feedback link on every screen (`src/lib/feedback.ts`). It is a `mailto:` with
