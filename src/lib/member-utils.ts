@@ -61,3 +61,24 @@ export const getMemberInitials = (
 
     return fallback;
 };
+
+
+/**
+ * Who is on this team's roster right now.
+ *
+ * SEC-03. "Remove from team" used to `DELETE` the `team_members` row — which failed outright
+ * for anyone with a task, a scouting report or a meeting (`23502`; five composite foreign keys
+ * with a NOT NULL `team_id`) and destroyed their attendance when it succeeded. It now sets
+ * `status = 'removed'`, the value the schema, `join_team_with_invite`'s rejoin branch and the
+ * one-admin partial index have all expected since Sprint 3 and nothing ever wrote.
+ *
+ * `pullFromServer` already filters `team_members` to `status = 'approved'`, so the ordinary
+ * roster never carries a removed row and this is NOT a second copy of that rule. It exists for
+ * the one path that bypasses it: `pullGuardianMemberships` merges a guardian's children in at
+ * EVERY status, deliberately, so a coach who is also a parent has their own removed child in
+ * the same collection every assignee picker reads. Applied once, in `AppShell`, where the
+ * roster is assembled — not at each picker, because "who is on the team" having four
+ * definitions is `docs/failure-modes.md` §1 and this project's most frequent defect.
+ */
+export const isActiveMember = (member: { status?: string | null }): boolean =>
+    member.status !== 'removed';

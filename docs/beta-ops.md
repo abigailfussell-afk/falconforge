@@ -292,8 +292,16 @@ meeting, filed a scouting report, taken a roster, or been nominated as admin:
 ERROR: null value in column "team_id" of relation "tasks" violates not-null constraint
 ```
 
-This has never bitten anyone because the app never deletes a member — it sets
-`status = 'removed'`. See the plan's parking lot; it is a real schema defect and it is logged.
+**Until Sprint 10 this section said "this has never bitten anyone because the app never deletes
+a member — it sets `status = 'removed'`". That was wrong.** `MemberManager` called `.delete()`
+for both "Remove from team" and "Reject", and nothing anywhere wrote `status = 'removed'`, so
+the refusal above was what a coach got from the Remove button for any student with a task —
+and when the delete did succeed it took the member's attendance history with it
+(`meeting_attendance … ON DELETE CASCADE`). Found by SEC-03 in the August 2026 assessment.
+
+Since Sprint 10 the app really does set `status = 'removed', seat_assigned = false`, so this
+runbook is once again the only thing that ever issues a `DELETE FROM team_members`. The
+underlying schema defect is unchanged and still logged in the plan's parking lot.
 
 The consequence for this runbook: **release every reference explicitly first.** A single-column
 `UPDATE ... SET assigned_to = NULL` is fine, because a composite FK with any NULL column is not

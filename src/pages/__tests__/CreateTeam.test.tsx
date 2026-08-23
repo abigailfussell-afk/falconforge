@@ -56,6 +56,15 @@ vi.mock('react-router-dom', async () => {
     };
 });
 
+/**
+ * The mocked `rpc`, typed.
+ *
+ * The rest of this file predates the type-escape ratchet in `harness-invariants.test.ts` and
+ * casts inline; principle 7 says that count only goes down, so the cases added for SEC-09 go
+ * through here rather than adding two more.
+ */
+const rpcMock = () => supabase!.rpc as unknown as ReturnType<typeof vi.fn>;
+
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <BrowserRouter>{children}</BrowserRouter>
 );
@@ -260,7 +269,7 @@ describe('CreateTeam', () => {
 
         it('prints the expiry the server actually chose', async () => {
             const expires = new Date('2026-09-12T18:30:00.000Z');
-            (supabase!.rpc as any).mockResolvedValue({
+            rpcMock().mockResolvedValue({
                 data: {
                     success: true,
                     team_id: 't1',
@@ -283,7 +292,7 @@ describe('CreateTeam', () => {
         it('says nothing rather than inventing a deadline when the server gave none', async () => {
             // A client running against a server that predates the RPC change. "Absent" is not
             // "expires today" and must not render as one — failure-modes §4.
-            (supabase!.rpc as any).mockResolvedValue({
+            rpcMock().mockResolvedValue({
                 data: { success: true, team_id: 't1', invite_code: 'CODE123' },
                 error: null,
             });

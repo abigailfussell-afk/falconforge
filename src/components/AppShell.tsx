@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
+import { isActiveMember } from '../lib/member-utils';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
 import { fetchTeamData, fetchGuardianData } from '../lib/server-pull';
 import { APP_ROOT } from '../lib/navigation';
@@ -89,8 +90,16 @@ export default function AppShell() {
     const currentTeamId = useAppStore((s) => s.currentTeamId);
 
     const subTeams = useSeasonScoped(allSubTeams);
+    /*
+     * `isActiveMember` is SEC-03's other half. `pullFromServer` filters `team_members` to
+     * `status = 'approved'`, so a removed member normally never reaches the client at all —
+     * except through `pullGuardianMemberships`, which merges a guardian's children in at every
+     * status on purpose. A coach who is also a parent would otherwise be offered their own
+     * removed child in every assignee picker in the app. One filter here rather than one per
+     * picker: see `isActiveMember`.
+     */
     const teamMembers = useMemo(
-        () => allTeamMembers.filter((m) => m.teamId === currentTeamId),
+        () => allTeamMembers.filter((m) => m.teamId === currentTeamId && isActiveMember(m)),
         [allTeamMembers, currentTeamId],
     );
 

@@ -215,6 +215,46 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         }
     };
 
+    /*
+     * SEC-03 — REMOVING SOMEBODY IS A STATUS, NOT A DELETE.
+     *
+     * Both this and `removeMember` used to call `.delete()`, while `FALCONFORGE_V2_PLAN.md` §8
+     * and `docs/beta-ops.md` both said the app never deletes a member and that the FK problem
+     * was therefore "masked completely today". It was not masked; it was the bug. Five composite
+     * foreign keys reference `team_members(id, team_id)` with `NOT NULL team_id`, so removing
+     * anyone who had ever been assigned a task, filed a scouting report or run a roster came
+     * back as
+     *
+     *     23502  null value in column "team_id" of relation "tasks" violates not-null constraint
+     *
+     * and the screen said "Failed to remove member" — for the ordinary case by mid-season. When
+     * it did succeed, `meeting_attendance(team_member_id) ON DELETE CASCADE` took the person's
+     * whole attendance record with it, which is the history the attendance feature exists to
+     * keep. Reproduced over PostgREST both ways: 9 attendance rows to 0 on the delete that
+     * worked, 23502 on the one that did not.
+     *
+     * `status = 'removed'` is what the schema has expected all along: `team_members_one_admin_
+     * per_team` is partial on `status <> 'removed'`, `join_team_with_invite` turns a removed row
+     * back into a pending one on the SAME `team_members.id`, and `MEMBER_STATUSES` has carried
+     * the value since Sprint 3 with nothing in `src/` ever writing it (failure-modes §7).
+     *
+     * REJECTING AND REMOVING TAKE THE SAME PATH, deliberately. A pending row usually has no
+     * references, so a delete would usually work — and "usually" is how this defect got here.
+     * One path also means a rejected person who reapplies with a code lands back on their own
+     * row rather than a new one.
+     *
+     * The FK actions themselves are NOT changed here: per-column `ON DELETE SET NULL` on the
+     * five composite keys is a migration on the frozen schema and a separate item (SEC-03's
+     * schema half). Nothing in the app DELETEs a member any more, so nothing reaches them.
+     */
+    const setMemberRemoved = async (memberId: string) =>
+        supabaseSync!
+            .from('team_members')
+            // One statement: a removed member holds no seat, and two statements could leave a
+            // removed member still counted against the licence if the second one failed.
+            .update({ status: 'removed', seat_assigned: false } as never)
+            .eq('id', memberId);
+
     // Reject a pending member
     const rejectMember = async (memberId: string) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
@@ -222,12 +262,9 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: deleteError } = await supabaseSync
-                .from('team_members')
-                .delete()
-                .eq('id', memberId);
+            const { error: rejectError } = await setMemberRemoved(memberId);
 
-            if (deleteError) throw deleteError;
+            if (rejectError) throw rejectError;
 
             setPendingMembers(prev => prev.filter(m => m.id !== memberId));
         } catch (err: any) {
@@ -268,19 +305,17 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
         }
     };
 
-    // Remove member from team (confirmation handled by the ConfirmDialog below)
+    // Remove member from team (confirmation handled by the ConfirmDialog below). See
+    // `setMemberRemoved` above for why this is a status change and not a delete.
     const removeMember = async (memberId: string) => {
         if (!supabaseSync || !isSupabaseConfigured()) return;
 
         setProcessingIds(prev => new Set(prev).add(memberId));
 
         try {
-            const { error: deleteError } = await supabaseSync
-                .from('team_members')
-                .delete()
-                .eq('id', memberId);
+            const { error: removeError } = await setMemberRemoved(memberId);
 
-            if (deleteError) throw deleteError;
+            if (removeError) throw removeError;
             onMembersChange();
         } catch (err: any) {
             console.error('Error removing member:', err);
@@ -575,7 +610,7 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
             {removeConfirmId && (
                 <ConfirmDialog
                     title="Remove Member?"
-                    message="Are you sure you want to remove this member from the team?"
+                    message="They lose access and free up their seat. Their tasks, scouting reports and attendance stay on the team's record, and they can rejoin later with an invite code."
                     confirmLabel="Remove"
                     onConfirm={() => {
                         void removeMember(removeConfirmId);

@@ -489,9 +489,19 @@ reading the schema:*
   nulls **every column in the key**, so each tries to null a `team_id` that is `NOT NULL`, and
   the last one tries to null `teams.id`, the primary key. Deleting a member who has been
   assigned a task therefore fails with `null value in column "team_id" of relation "tasks"
-  violates not-null constraint`. **Masked completely today** because the app never deletes a
-  member — `MemberManager` sets `status = 'removed'` — so this has never been reached by any
-  flow or any test. It was found the first time anything tried an actual DELETE. The runbook in
+  violates not-null constraint`. **"Masked completely today because the app never deletes a
+  member — `MemberManager` sets `status = 'removed'`" is what this entry used to say, and it was
+  false.** `MemberManager.removeMember` and `rejectMember` both called `.delete()`, and nothing
+  in `src/` had ever written `status = 'removed'` — the value existed in the type union and in
+  `MEMBER_STATUSES` with no writer. So this was reached by the ordinary flow: "Remove from team"
+  failed for any student who had ever been assigned a task, and destroyed the member's whole
+  attendance record (`meeting_attendance … ON DELETE CASCADE`) when it succeeded. Found by
+  [SEC-03](docs/assessment-2026-08/auth-rls-licensing.md) and reproduced over PostgREST both
+  ways: 9 attendance rows to 0 on the delete that worked, `23502` on the one that did not.
+  **The UI half is fixed in Sprint 10** — both handlers now set
+  `status = 'removed', seat_assigned = false`, which is what the partial admin index and
+  `join_team_with_invite`'s rejoin branch have expected since Sprint 3 — so the schema defect
+  below is genuinely unreached now rather than assumed to be. The runbook in
   `docs/beta-ops.md` works around it by releasing each reference with a single-column UPDATE
   first (a composite FK with any NULL column is not enforced), which is correct but is a
   workaround for a constraint that does not mean what it says. **The real fix is per-column
