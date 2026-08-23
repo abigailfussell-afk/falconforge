@@ -75,6 +75,7 @@ export default function Toggle({
                 className="inline-flex shrink-0 items-center justify-center rounded-full bg-transparent p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-forge-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800"
             >
                 <span
+                    data-testid="toggle-track"
                     className={`relative block h-5 w-9 rounded-full transition-colors ${
                         checked ? on : 'bg-slate-300 dark:bg-slate-600'
                     }`}
@@ -95,6 +96,7 @@ export default function Toggle({
                  * two have to move with it.
                  */}
                     <span
+                        data-testid="toggle-knob"
                         className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-card transition-transform ${
                             checked ? 'translate-x-4' : 'translate-x-0'
                         }`}

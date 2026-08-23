@@ -215,6 +215,18 @@ test.describe('layout properties', () => {
          * jsdom computes no layout, so only a real browser can hold this. Measured rather than
          * eyeballed: the knob must sit inside the track with the same inset at whichever end
          * it is parked.
+         *
+         * WALK-A-10 SPLIT THE BUTTON INTO TWO BOXES and this test had to change with it, which
+         * is worth saying rather than quietly editing. The <button> used to BE the track; it is
+         * now a transparent hit area that grows to 32px on a touch device while the track stays
+         * 36x20, because the 32px floor would otherwise stretch the track and leave this very
+         * knob adrift in it. The old measurement — knob against BUTTON — would now be measuring
+         * the knob against the hit area and would report a 6px top inset as correct on a phone
+         * and 0 on a desktop.
+         *
+         * So the boxes are named. `el.querySelector('span')` used to be unambiguous and is now
+         * two elements, and a test that picks the first of two spans by position is one refactor
+         * away from silently measuring the wrong thing again.
          */
         const email = uniqueEmail('meet-toggle');
         await registerAccount(page, { fullName: 'Toggle Coach', email });
@@ -226,8 +238,9 @@ test.describe('layout properties', () => {
 
         const measure = () =>
             toggle.evaluate((el) => {
-                const knob = el.querySelector('span')!;
-                const t = el.getBoundingClientRect();
+                const track = el.querySelector('[data-testid="toggle-track"]')!;
+                const knob = el.querySelector('[data-testid="toggle-knob"]')!;
+                const t = track.getBoundingClientRect();
                 const k = knob.getBoundingClientRect();
                 return {
                     insetLeft: k.left - t.left,
@@ -275,7 +288,7 @@ test.describe('layout properties', () => {
 
         // The knob slides. Measuring immediately catches it mid-flight and reports a real
         // asymmetry that is only the animation — which is exactly what the first run did.
-        await toggle.locator('span').evaluate(
+        await toggle.getByTestId('toggle-knob').evaluate(
             (el) =>
                 new Promise((resolve) => {
                     const done = () => resolve(null);
