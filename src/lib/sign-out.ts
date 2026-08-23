@@ -1,12 +1,85 @@
 import { teardownRealtimeSubscription } from './realtime';
 import { useAppStore } from './store';
-import { clearLocalDatabase, clearAppState } from './offline-db';
+import {
+    clearLocalDatabase,
+    clearAppState,
+    getPendingSyncCount,
+    getSyncFailureCount,
+} from './offline-db';
 import { PROFILE_CACHE_KEY } from './profile-cache';
+import { drainSyncQueue } from './sync';
 
 /** How long to wait on Supabase before giving up and clearing local state anyway. */
 const SIGN_OUT_TIMEOUT_MS = 3000;
 /** How long to wait on IndexedDB before giving up. */
 const IDB_TIMEOUT_MS = 2000;
+
+/**
+ * Work on this device that the server has not accepted: queued pushes and parked ones.
+ *
+ * Both count. A dead letter is not "already dealt with" — it is a change that failed five
+ * times and is waiting for a human to retry it (B2), and clearing it is the same loss as
+ * clearing the queue.
+ */
+export interface UnsyncedWork {
+    /** Changes still queued for a push. */
+    pending: number;
+    /** Changes parked in the dead-letter store, waiting to be retried (B2/B24). */
+    failed: number;
+    /** The number a person cares about. */
+    total: number;
+}
+
+/** What the person decided when told there was unsynced work. */
+export type UnsyncedChoice = 'sign-out' | 'sync-first' | 'cancel';
+
+/** How many times a caller may answer `sync-first` before this gives up and cancels. */
+const MAX_SYNC_FIRST_ROUNDS = 5;
+
+/** How much of this device's work has not reached the server. Never throws. */
+export async function getUnsyncedWork(): Promise<UnsyncedWork> {
+    try {
+        const [pending, failed] = await Promise.all([
+            getPendingSyncCount(),
+            getSyncFailureCount(),
+        ]);
+        return { pending, failed, total: pending + failed };
+    } catch (err) {
+        /*
+         * An unreadable queue reports zero, and that is not the absence-as-a-value mistake
+         * it looks like: the same IndexedDB that cannot be counted cannot be cleared either,
+         * so the work is not destroyed by carrying on. Blocking sign-out on a database read
+         * would strand somebody on a shared laptop with the previous person still signed in.
+         */
+        console.warn('Could not read the sync queue before signing out:', err);
+        return { pending: 0, failed: 0, total: 0 };
+    }
+}
+
+/**
+ * The sentence shown to the person, written once.
+ *
+ * Named counts, not "some changes": the whole point of the warning is that a student who
+ * scouted three matches in a gym can tell that from a device with nothing on it.
+ */
+export function describeUnsyncedWork(work: UnsyncedWork): string {
+    const changes = work.total === 1 ? '1 change' : `${work.total} changes`;
+    const verb = work.total === 1 ? "hasn't" : "haven't";
+    return `${changes} ${verb} reached the server yet. Signing out deletes them from this device.`;
+}
+
+/**
+ * The fallback prompt, for sign-out buttons that are not inside the app shell.
+ *
+ * `window.confirm` cannot offer three options, so it offers the two that matter: sign out
+ * and lose the work, or stay. `Onboarding` and `JoinTeam` are the two screens on this path
+ * and neither renders the shell's dialog; a plain confirm there is a great deal better than
+ * the silence that used to be there.
+ */
+function confirmViaWindow(work: UnsyncedWork): UnsyncedChoice {
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return 'sign-out';
+    return window.confirm(`${describeUnsyncedWork(work)}\n\nSign out anyway?`) ? 'sign-out' : 'cancel';
+}
 
 /**
  * Tears down a signed-in session and returns the user to the landing page.
@@ -23,8 +96,54 @@ const IDB_TIMEOUT_MS = 2000;
 export async function performSignOut(
     signOut: () => Promise<void>,
     /** Injectable purely so tests can observe the redirect instead of navigating. */
-    redirect: () => void = redirectToLanding
+    redirect: () => void = redirectToLanding,
+    /**
+     * Asked when the device still holds work the server has not accepted.
+     *
+     * The POLICY lives here rather than at the three call sites, because sign-out is the one
+     * path where a missed step loses somebody's data and the three copies of it are how this
+     * project learned that (`docs/failure-modes.md` section 1). What differs per call site is
+     * only how the question is asked: the app shell shows a real dialog, the two screens
+     * outside it get `window.confirm`.
+     */
+    askAboutUnsyncedWork: (work: UnsyncedWork) => Promise<UnsyncedChoice> | UnsyncedChoice =
+        confirmViaWindow,
 ): Promise<void> {
+    /*
+     * SIGNING OUT DESTROYS QUEUED AND PARKED WORK, SO IT HAS TO SAY SO (SYNC-05).
+     *
+     * `clearLocalDatabase()` empties the sync queue AND the dead-letter store. That is
+     * correct — the next person on this laptop must not inherit them — and it used to happen
+     * on one unannounced click. The case is not hypothetical and is one this product is
+     * explicitly designed around: a student scouts three matches offline, signs out so the
+     * next student can sign in, and the reports are gone. Principle 2 says failed sync work
+     * is never silently dropped; this was the one path that dropped it on purpose.
+     *
+     * Before the try block, because a cancel must leave EVERYTHING alone — including the
+     * redirect, which lives in `finally` and would otherwise fire on the way out.
+     */
+    for (let round = 0; ; round++) {
+        const work = await getUnsyncedWork();
+        if (work.total === 0) break;
+
+        if (round >= MAX_SYNC_FIRST_ROUNDS) {
+            console.warn('Giving up on syncing before sign-out; leaving the queue alone.');
+            return;
+        }
+
+        const choice = await askAboutUnsyncedWork(work);
+        if (choice === 'cancel') return;
+        if (choice === 'sign-out') break;
+
+        // 'sync-first': push what we can, then look again. Whatever is left is asked about
+        // with the smaller number, which is the honest thing to show.
+        try {
+            await drainSyncQueue();
+        } catch (err) {
+            console.warn('Could not drain the queue before signing out:', err);
+        }
+    }
+
     try {
         // Before clearing state, so no realtime event can repopulate the store mid-teardown.
         teardownRealtimeSubscription();

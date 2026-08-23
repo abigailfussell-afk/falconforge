@@ -5,10 +5,11 @@ import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { isActiveMember } from '../lib/member-utils';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
-import { fetchTeamData, fetchGuardianData } from '../lib/server-pull';
+import { fetchTeamData, fetchGuardianData, fetchSeasonData } from '../lib/server-pull';
 import { APP_ROOT } from '../lib/navigation';
 import { supabaseSync } from '../lib/supabase';
-import { performSignOut } from '../lib/sign-out';
+import { performSignOut, type UnsyncedChoice, type UnsyncedWork } from '../lib/sign-out';
+import { getRealtimeStatus } from '../lib/realtime';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
 import LicenceBanner from './LicenceBanner';
@@ -16,6 +17,7 @@ import OfflineBanner from './OfflineBanner';
 import AppUpdatePrompt from './AppUpdatePrompt';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import ReAttestationPrompt from './ReAttestationPrompt';
+import UnsyncedSignOutDialog from './UnsyncedSignOutDialog';
 import type { SubTeam, TeamMember } from '../types';
 
 /**
@@ -200,6 +202,60 @@ export default function AppShell() {
         return () => clearTimeout(timeout);
     }, [currentTeamId, navigate, location.pathname]);
 
+    /*
+     * THE SEASON THE USER PICKED, LOADED WHEN THEY PICK IT.
+     *
+     * The pull is season-scoped now (SYNC-01/03), so selecting an archived season in the
+     * sidebar is a request for rows this device may never have downloaded — a fresh start
+     * cuts both ways, and "prior seasons are read-only" only stays cheap if they are also
+     * read on demand. What arrives is cached like everything else, so the season is readable
+     * offline afterwards.
+     *
+     * `fetchSeasonData` de-duplicates in flight, so this firing on mount alongside
+     * `fetchTeamData`'s own call for the same season costs one request, not two.
+     */
+    const currentSeasonId = useAppStore((s) => s.currentSeasonId);
+    useEffect(() => {
+        if (!currentTeamId || !currentSeasonId) return;
+        fetchSeasonData(currentTeamId, currentSeasonId).catch(console.error);
+    }, [currentTeamId, currentSeasonId]);
+
+    /*
+     * SIGN-OUT ASKS FIRST WHEN IT WOULD DESTROY WORK (SYNC-05).
+     *
+     * The decision itself is `performSignOut`'s, so all three sign-out buttons in the app
+     * obey the same rule; this is only how the shell ASKS. The promise is resolved by the
+     * dialog's buttons, which is what lets the lib-side policy await a human without knowing
+     * anything about React.
+     */
+    const [unsyncedPrompt, setUnsyncedPrompt] = useState<{
+        work: UnsyncedWork;
+        canSync: boolean;
+        resolve: (choice: UnsyncedChoice) => void;
+    } | null>(null);
+
+    const handleSignOut = () =>
+        performSignOut(
+            signOut,
+            undefined,
+            (work) =>
+                new Promise<UnsyncedChoice>((resolve) =>
+                    setUnsyncedPrompt({
+                        work,
+                        // What the sync engine believes, not `navigator.onLine`, which is true
+                        // on venue WiFi that goes nowhere (SYNC-07).
+                        canSync: navigator.onLine && getRealtimeStatus() !== 'disconnected',
+                        resolve,
+                    }),
+                ),
+        );
+
+    const answerUnsyncedPrompt = (choice: UnsyncedChoice) => {
+        const prompt = unsyncedPrompt;
+        setUnsyncedPrompt(null);
+        prompt?.resolve(choice);
+    };
+
     // Realtime subscription lifecycle — subscribe when a team is selected & online.
     useEffect(() => {
         if (!currentTeamId) return;
@@ -235,9 +291,17 @@ export default function AppShell() {
                 isGuardian={isGuardian}
                 canManageTeam={canManageTeam}
                 isOperator={isOperator === true}
-                onSignOut={() => performSignOut(signOut)}
+                onSignOut={handleSignOut}
                 onSwitchTeam={() => navigate('/onboarding')}
             />
+
+            {unsyncedPrompt && (
+                <UnsyncedSignOutDialog
+                    work={unsyncedPrompt.work}
+                    canSync={unsyncedPrompt.canSync}
+                    onChoose={answerUnsyncedPrompt}
+                />
+            )}
 
             {/*
              * Over the shell, not instead of it. A consent refresh is not a lockout: the user has

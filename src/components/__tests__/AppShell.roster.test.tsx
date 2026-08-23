@@ -60,6 +60,10 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../lib/server-pull', () => ({
     fetchTeamData: vi.fn().mockResolvedValue(undefined),
     fetchGuardianData: vi.fn().mockResolvedValue(undefined),
+    // The shell loads the picked season on demand now (SYNC-01/03). Stubbed here even though
+    // this suite renders with no season: a mock missing an export the component imports is
+    // how a suite starts asserting about its own harness.
+    fetchSeasonData: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../lib/sign-out', () => ({ performSignOut: vi.fn() }));

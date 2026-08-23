@@ -15,6 +15,13 @@
  *   - delta-sync cursors would make the new user's first pull silently incomplete — the
  *     server is asked for everything changed since a timestamp that has nothing to do with
  *     them, so records are skipped with no error anywhere (B5).
+ *
+ * SIGN-OUT NOW ASKS BEFORE IT DESTROYS UNSYNCED WORK (SYNC-05), so the cases below hand
+ * `performSignOut` an answer. That is a new INPUT, not a relaxed assertion: every teardown
+ * assertion in this file is unchanged and still runs, and `answering 'cancel'` below pins
+ * the other half — that a refusal leaves the queue exactly where it was. Without the answer
+ * these cases would pass a jsdom `window.confirm` that returns `undefined`, which reads as
+ * "cancel", so they would be asserting that a sign-out which never happened cleared nothing.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { performSignOut } from '../sign-out';
@@ -68,7 +75,7 @@ describe('performSignOut leaves nothing behind for the next user (B5)', () => {
         expect((await getSyncMeta()).cursors['team-1:tasks']).toBeTruthy();
         expect(await indexedDBStorage.getItem('falconforge-storage')).not.toBeNull();
 
-        await performSignOut(vi.fn().mockResolvedValue(undefined), vi.fn());
+        await performSignOut(vi.fn().mockResolvedValue(undefined), vi.fn(), () => 'sign-out');
 
         expect(await db.syncQueue.count(), 'queued changes survived sign-out').toBe(0);
         expect(await db.syncFailures.count(), 'parked changes survived sign-out').toBe(0);
@@ -119,11 +126,57 @@ describe('performSignOut leaves nothing behind for the next user (B5)', () => {
         await seedASession();
         const redirect = vi.fn();
 
-        await performSignOut(vi.fn().mockRejectedValue(new Error('no network')), redirect);
+        await performSignOut(vi.fn().mockRejectedValue(new Error('no network')), redirect, () => 'sign-out');
 
         expect(await db.syncQueue.count()).toBe(0);
         expect(await db.syncFailures.count()).toBe(0);
         expect((await getSyncMeta()).cursors).toEqual({});
         expect(redirect).toHaveBeenCalled();
+    });
+
+    describe('and it asks first, when there is work it would destroy (SYNC-05)', () => {
+        it('names the count of queued AND parked changes', async () => {
+            await seedASession(); // one queued create, one parked dead letter
+
+            const asked: number[] = [];
+            await performSignOut(vi.fn().mockResolvedValue(undefined), vi.fn(), (work) => {
+                asked.push(work.total);
+                expect(work.pending).toBe(1);
+                expect(work.failed).toBe(1);
+                return 'cancel';
+            });
+
+            expect(asked, 'sign-out did not ask about unsynced work').toEqual([2]);
+        });
+
+        it('answering "cancel" leaves the queue, the dead letters and the session alone', async () => {
+            await seedASession();
+            const signOut = vi.fn().mockResolvedValue(undefined);
+            const redirect = vi.fn();
+
+            await performSignOut(signOut, redirect, () => 'cancel');
+
+            expect(await db.syncQueue.count(), 'a cancelled sign-out cleared the queue').toBe(1);
+            expect(await db.syncFailures.count(), 'a cancelled sign-out cleared the dead letters').toBe(1);
+            expect((await getSyncMeta()).cursors['team-1:tasks']).toBeTruthy();
+            expect(await indexedDBStorage.getItem('falconforge-storage')).not.toBeNull();
+            expect(localStorage.getItem('sb-abcdef-auth-token'), 'the session was signed out anyway').toBe(
+                'the-coach-jwt',
+            );
+            expect(signOut).not.toHaveBeenCalled();
+            // The redirect lives in `finally`, so a cancel that reached the try block would
+            // still navigate away. It must not even get that far.
+            expect(redirect, 'a cancelled sign-out navigated away anyway').not.toHaveBeenCalled();
+        });
+
+        it('does not ask at all when there is nothing unsynced', async () => {
+            await indexedDBStorage.setItem('falconforge-storage', JSON.stringify({ state: {} }));
+            const ask = vi.fn(() => 'sign-out' as const);
+
+            await performSignOut(vi.fn().mockResolvedValue(undefined), vi.fn(), ask);
+
+            expect(ask, 'an empty queue still interrupted the user').not.toHaveBeenCalled();
+            expect(await indexedDBStorage.getItem('falconforge-storage')).toBeNull();
+        });
     });
 });
