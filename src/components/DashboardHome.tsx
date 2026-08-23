@@ -12,7 +12,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import EmptyState from './ui/EmptyState';
 import Button from './ui/Button';
-import { useAppStore } from '../lib/store';
+import { useAppStore, useStoreHydrated } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { useAuth } from '../lib/auth';
 import { pathFor } from '../lib/navigation';
@@ -36,6 +36,39 @@ export default function DashboardHome() {
     const scoutingReports = useSeasonScoped(allScoutingReports);
 
     const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'Team Member';
+
+    /**
+     * "Welcome back" is a claim, and on the first screen a new coach ever sees it is false
+     * (WALK-B-06).
+     *
+     * The header greeted everybody with `Welcome back, Pat! 👋` and `You have 0 open tasks for
+     * this sprint` — above four stat tiles reading zero, on a team created ninety seconds
+     * earlier. It is the first sentence FalconForge says to a coach and it is about a visit
+     * that never happened.
+     *
+     * THE TEST IS THE TEAM'S CONTENT, NOT A CLOCK. The fix direction offered "team created < N
+     * minutes ago" as an alternative, and `docs/failure-modes.md` §10 is four sprints of
+     * defects from deriving behaviour from wall-clock arithmetic — a coach who comes back after
+     * lunch on day one would get "welcome back" over the same four zeros. Whether the team has
+     * any work in it is the thing the sentence is actually wrong about, and it needs no clock.
+     *
+     * The three collections are the ones the four stat tiles count. The pre-match checklist is
+     * deliberately NOT one of them: every team is seeded with eight checklist items at
+     * creation (B20), so counting it would make every team look used from the first second.
+     *
+     * HYDRATING IS NOT EMPTY (§4). Before IndexedDB has rehydrated, every collection is `[]`,
+     * which is indistinguishable from a brand-new team — so a returning coach would be told
+     * how to get started for the first few hundred milliseconds of every cold open. While the
+     * store is still loading the header says neither thing.
+     */
+    const hydrated = useStoreHydrated();
+    const hasAnyWork =
+        tasks.length > 0 || scoutingReports.length > 0 || matchPlans.length > 0;
+    const greetingState: 'loading' | 'new' | 'returning' = !hydrated
+        ? 'loading'
+        : hasAnyWork
+            ? 'returning'
+            : 'new';
 
     // Calculate sprint metrics
     const doneCount = tasks.filter(t => t.status === 'Done').length;
@@ -88,9 +121,25 @@ export default function DashboardHome() {
             {/* Header / Welcome */}
             <div className="relative overflow-hidden bg-gradient-to-r from-forge-600 to-forge-500 rounded-2xl px-5 py-4 text-white shadow-raised">
                 <div className="relative z-10">
-                    <h1 className="text-xl sm:text-2xl font-bold mb-0.5">Welcome back, {firstName}! 👋</h1>
-                    <p className="text-forge-100 text-sm opacity-90 max-w-prose">
-                        Your robotics Command Center is ready. You have {openCount} open {openCount === 1 ? 'task' : 'tasks'} for this sprint.
+                    <h1 data-testid="dashboard-greeting" className="text-xl sm:text-2xl font-bold mb-0.5">
+                        {greetingState === 'returning' ? 'Welcome back' : 'Welcome'}, {firstName}! 👋
+                    </h1>
+                    <p data-testid="dashboard-greeting-sub" className="text-forge-100 text-sm opacity-90 max-w-prose">
+                        {greetingState === 'returning' && (
+                            <>Your robotics Command Center is ready. You have {openCount} open {openCount === 1 ? 'task' : 'tasks'} for this sprint.</>
+                        )}
+                        {greetingState === 'new' && (
+                            <>Your team is set up and this is its hub. Nothing has been added yet — plan your first sprint below, or{' '}
+                                <button
+                                    type="button"
+                                    onClick={() => goTo('help')}
+                                    className="underline underline-offset-2 font-semibold hover:text-white"
+                                >
+                                    read the getting-started guide
+                                </button>.
+                            </>
+                        )}
+                        {greetingState === 'loading' && <>Your robotics Command Center is ready.</>}
                     </p>
                 </div>
                 {/* Decorative elements */}
