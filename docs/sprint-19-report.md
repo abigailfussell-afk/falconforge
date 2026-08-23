@@ -2,7 +2,20 @@
 
 **Branch:** `v2/sprint-19-accessibility`
 **Commits:** `c5d4d50..86cece7` (four)
-**Gate:** `npm run gate:db` green — 1021 unit, 95 integration, build, `db:verify`, 626 db, 418 RLS.
+**Gate:** `npm run gate:db` green on the branch at `86cece7` — one complete chained run: 1021
+unit (+2 skipped), 95 integration, build, schema assertions, 626 db, 418 RLS. e2e 35/35.
+
+**And a caveat that belongs in the headline rather than a footnote.** Later in the same session
+`gate:db` began dying part-way through `test:db` with exit 127, at a different suite each time
+and never on a failing test. **This is not a Sprint 19 regression — it reproduces on `1610c0f`,
+the commit before the sprint**, in both Git Bash and PowerShell, with the containers healthy and
+~4.5 GB of RAM free. The same command run directly as
+`npx vitest run --config vitest.config.db.ts` completed 626 passed, exit 0. So the post-merge
+verification of `main` is **stage by stage** rather than one chained run: lint + 1021 unit + 95
+integration + build (repeatedly, green), `db:verify` schema assertions (green), 626 db (green,
+exit 0), 418 RLS (green, exit 0). Both this and the fixture-leftover cascade it causes are in §8
+with the numbers — a Gate that dies at a random point is indistinguishable from a Gate that found
+something, and that is worth someone's time.
 **Ratchets:** `as any` 56 (unchanged), arbitrary Tailwind values 2 (unchanged), no `describe.skip`,
 no assertion-free tests. Two ratchets added, both at zero.
 
