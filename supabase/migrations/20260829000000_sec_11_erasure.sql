@@ -492,4 +492,92 @@ BEGIN
 END;
 $function$;
 
+
+-- ==============================================================================================
+-- 5. `operator_team_detail` carries the account id, so the console can erase a person.
+--
+-- Copied from `pg_get_functiondef` and patched in one place.
+-- ==============================================================================================
+CREATE OR REPLACE FUNCTION public.operator_team_detail(p_team_id uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_team teams%ROWTYPE;
+BEGIN
+    IF NOT is_platform_operator() THEN
+        RETURN json_build_object('success', false, 'error', 'Not a platform operator');
+    END IF;
+
+    SELECT * INTO v_team FROM teams WHERE id = p_team_id;
+    IF v_team.id IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'No such team');
+    END IF;
+
+    RETURN json_build_object(
+        'success', true,
+        'team', json_build_object(
+            'id', v_team.id,
+            'name', v_team.name,
+            'team_number', v_team.team_number,
+            'created_at', v_team.created_at,
+            'pending_admin_member_id', v_team.pending_admin_member_id
+        ),
+        'members', coalesce((
+            SELECT json_agg(row_to_json(m) ORDER BY m.sort_role, m.full_name, m.id)
+            FROM (
+                SELECT
+                    tm.id, tm.full_name, tm.email, tm.role, tm.status,
+                    tm.seat_assigned, tm.joined_at,
+                    -- SEC-11 needs the ACCOUNT, not the membership, to erase a person. Note the
+                    -- trap this exposes and the console guards: for a managed child this column
+                    -- is the GUARDIAN's user id, because a child has no login of their own. An
+                    -- "erase" offered against a child row would erase their parent.
+                    tm.user_id,
+                    tm.managed_profile_id IS NOT NULL AS is_managed,
+                    -- Admins first, then coaches, then everyone: the order a support question
+                    -- is usually about.
+                    CASE tm.role WHEN 'admin' THEN 0 WHEN 'coach' THEN 1
+                                 WHEN 'mentor' THEN 2 ELSE 3 END AS sort_role
+                FROM team_members tm
+                WHERE tm.team_id = p_team_id AND tm.status <> 'removed'
+            ) m
+        ), '[]'::json),
+        'grants', coalesce((
+            SELECT json_agg(row_to_json(g) ORDER BY g.created_at DESC)
+            FROM (
+                SELECT
+                    lg.id, lg.source, lg.seats, lg.valid_from, lg.valid_until,
+                    lg.revoked_at, lg.notes, lg.created_at,
+                    -- "In force right now", computed once here so the UI does not re-derive
+                    -- a rule the database already owns.
+                    (lg.revoked_at IS NULL
+                       AND lg.valid_from <= now()
+                       AND (lg.valid_until IS NULL OR lg.valid_until > now())) AS in_force
+                FROM license_grants lg
+                WHERE lg.team_id = p_team_id
+            ) g
+        ), '[]'::json),
+        'actions', coalesce((
+            SELECT json_agg(row_to_json(a) ORDER BY a.created_at DESC)
+            FROM (
+                SELECT oa.id, oa.action, oa.detail, oa.notes, oa.created_at
+                FROM operator_actions oa
+                WHERE oa.team_id = p_team_id
+            ) a
+        ), '[]'::json),
+        'seasons', coalesce((
+            SELECT json_agg(row_to_json(s) ORDER BY s.created_at DESC)
+            FROM (
+                SELECT se.id, se.name, se.is_archived, se.created_at
+                FROM seasons se
+                WHERE se.team_id = p_team_id
+            ) s
+        ), '[]'::json)
+    );
+END;
+$function$;
+
 COMMIT;

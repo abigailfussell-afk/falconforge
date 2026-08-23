@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
+    Trash2,
     Gift,
     ShieldAlert,
     Crown,
@@ -16,6 +17,7 @@ import {
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
 import { EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
 import { useAuth } from '../../lib/auth';
+import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 import Button from '../ui/Button';
 import SectionHeader from '../ui/SectionHeader';
 import EmptyState from '../ui/EmptyState';
@@ -64,6 +66,12 @@ interface NewTeamRow {
 
 interface DetailMember {
     id: string;
+    /**
+     * The ACCOUNT behind the membership, which erasure acts on — and for a managed child this is
+     * the GUARDIAN's id, because a child has no login of their own. Every use of it below is
+     * guarded by `is_managed` for that reason.
+     */
+    user_id: string | null;
     full_name: string | null;
     email: string | null;
     role: string;
@@ -242,6 +250,13 @@ export default function OperatorConsole() {
 
     const [revokeNotes, setRevokeNotes] = useState('');
     const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
+
+    // SEC-11. `eraseTarget` holds the whole member rather than an id, so the confirmation can
+    // name the person the operator is about to erase rather than a uuid they cannot check.
+    const [eraseTarget, setEraseTarget] = useState<DetailMember | null>(null);
+    const [eraseNotes, setEraseNotes] = useState('');
+    const [deleteConfirmName, setDeleteConfirmName] = useState('');
+    const [deleteNotes, setDeleteNotes] = useState('');
 
     const [isBusy, setIsBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -468,6 +483,107 @@ export default function OperatorConsole() {
             await refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not reassign the admin role');
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    /*
+     * SEC-11 — erase a person.
+     *
+     * Deliberately NOT offered for a managed child: their `user_id` is their guardian's, so
+     * "erase this child" would erase the parent and every other child they have. A guardian
+     * removes one child from their own screen, which is the only place that can express it.
+     */
+    const eraseUser = async () => {
+        const target = eraseTarget;
+        if (!supabaseSync || !target?.user_id) return;
+        setIsBusy(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const { data, error: rpcError } = await supabaseSync.rpc('operator_erase_user', {
+                p_user_id: target.user_id,
+                p_notes: eraseNotes.trim() || undefined,
+            });
+            if (rpcError) throw rpcError;
+
+            const result = data as unknown as {
+                success: boolean;
+                error?: string;
+                memberships_removed?: number;
+                children_removed?: number;
+            };
+            if (!result.success) {
+                setError(result.error ?? 'Could not erase this person');
+                return;
+            }
+            /*
+             * Report what it DID, not that it worked. "Erased" alone leaves the operator to guess
+             * whether a request that mentioned a child was fully honoured, and they are usually
+             * answering an email that asked about exactly that.
+             */
+            const children = result.children_removed ?? 0;
+            setSuccess(
+                `Erased. ${result.memberships_removed ?? 0} membership` +
+                    `${result.memberships_removed === 1 ? '' : 's'} removed` +
+                    (children > 0 ? `, ${children} child profile${children === 1 ? '' : 's'} removed` : '') +
+                    '. Their contributions stay with the team, and the action is in the audit log.',
+            );
+            setEraseNotes('');
+            setEraseTarget(null);
+            await refresh();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not erase this person');
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    /*
+     * SEC-11 — delete a team.
+     *
+     * The typed name goes to the SERVER, which compares it; the button below is only disabled as
+     * a courtesy. A confirmation enforced solely in the browser is a confirmation that a stale
+     * bundle or a direct call does not have — the same reason `operator_delete_team` refuses on
+     * `name_mismatch` rather than trusting the caller.
+     */
+    const deleteTeam = async () => {
+        if (!supabaseSync || !selectedId || !detail) return;
+        setIsBusy(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const { data, error: rpcError } = await supabaseSync.rpc('operator_delete_team', {
+                p_team_id: selectedId,
+                p_confirm_name: deleteConfirmName,
+                p_notes: deleteNotes.trim() || undefined,
+            });
+            if (rpcError) throw rpcError;
+
+            const result = data as unknown as {
+                success: boolean;
+                error?: string;
+                team_name?: string;
+                members_removed?: number;
+            };
+            if (!result.success) {
+                setError(result.error ?? 'Could not delete this team');
+                return;
+            }
+            setSuccess(
+                `${result.team_name} is gone, with ${result.members_removed ?? 0} membership` +
+                    `${result.members_removed === 1 ? '' : 's'}. The people keep their accounts. ` +
+                    'The deletion is recorded in the audit log, which outlives the team.',
+            );
+            setDeleteConfirmName('');
+            setDeleteNotes('');
+            // The selection now points at nothing: clear it before the directory reloads.
+            setSelectedId(null);
+            setDetail(null);
+            await refresh();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not delete this team');
         } finally {
             setIsBusy(false);
         }
@@ -871,9 +987,31 @@ export default function OperatorConsole() {
                                             {m.email}
                                         </span>
                                     </span>
-                                    <span className="text-2xs text-slate-500 dark:text-slate-400">
-                                        {m.role} · {m.status}
-                                        {m.seat_assigned ? ' · seated' : ''}
+                                    <span className="flex items-center gap-2 text-2xs text-slate-500 dark:text-slate-400">
+                                        <span>
+                                            {m.role} · {m.status}
+                                            {m.seat_assigned ? ' · seated' : ''}
+                                        </span>
+                                        {/*
+                                          * NOT offered for a child profile, and not merely
+                                          * disabled: their `user_id` is the guardian's, so this
+                                          * button would erase the parent. The guardian's own
+                                          * screen is where one child is removed.
+                                          */}
+                                        {!m.is_managed && m.user_id && (
+                                            <Button
+                                                size="sm"
+                                                variant="danger"
+                                                disabled={isBusy}
+                                                data-testid={`erase-user-${m.id}`}
+                                                onClick={() => {
+                                                    setEraseTarget(m);
+                                                    setEraseNotes('');
+                                                }}
+                                            >
+                                                Erase
+                                            </Button>
+                                        )}
                                     </span>
                                 </li>
                             ))}
@@ -1088,6 +1226,73 @@ export default function OperatorConsole() {
                         )}
                     </div>
                 </>
+            )}
+
+            {detail && (
+                <div className="rounded-xl border border-red-200 bg-white p-3 shadow-card dark:border-red-900/50 dark:bg-slate-800 md:p-4">
+                    <SectionHeader icon={Trash2} title="Delete this team" />
+                    <p className="mb-2 text-xs text-slate-600 dark:text-slate-300">
+                        Everything the team has — roster, seasons, tasks, meetings, attendance,
+                        scouting, plans — goes with it, and there is no undo short of a restore
+                        from a nightly backup. The people keep their accounts; erasing a person is
+                        the button on their roster row.
+                    </p>
+                    <label
+                        htmlFor="delete-team-confirm"
+                        className="mb-1 block text-2xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                    >
+                        Type <span className="font-mono normal-case">{detail.team.name}</span> to confirm
+                    </label>
+                    <input
+                        id="delete-team-confirm"
+                        data-testid="delete-team-confirm"
+                        className="field mb-2"
+                        value={deleteConfirmName}
+                        onChange={(e) => setDeleteConfirmName(e.target.value)}
+                        placeholder={detail.team.name}
+                        autoComplete="off"
+                    />
+                    <input
+                        data-testid="delete-team-notes"
+                        className="field mb-2"
+                        value={deleteNotes}
+                        onChange={(e) => setDeleteNotes(e.target.value)}
+                        placeholder="Why (optional, kept in the audit log)"
+                        maxLength={TITLE_MAX_LENGTH}
+                    />
+                    <Button
+                        variant="danger"
+                        data-testid="delete-team"
+                        busy={isBusy}
+                        /*
+                         * Disabled until the name matches, but the SERVER is what enforces it.
+                         * This is a courtesy that stops a mis-click, not the control.
+                         */
+                        disabled={isBusy || deleteConfirmName.trim() !== detail.team.name}
+                        onClick={() => void deleteTeam()}
+                    >
+                        Delete {detail.team.name}
+                    </Button>
+                </div>
+            )}
+
+            {eraseTarget && (
+                <ConfirmDialog
+                    title={`Erase ${eraseTarget.full_name ?? 'this person'}?`}
+                    message={
+                        `Their name, email address and every membership they hold will be removed, ` +
+                        `across every team — not just this one. Anything they contributed stays with ` +
+                        `the team it belongs to, with their name taken off it. Their sign-in stops ` +
+                        `working. This cannot be undone.`
+                    }
+                    confirmLabel="Erase this person"
+                    confirmTestId="confirm-erase-user"
+                    onConfirm={() => void eraseUser()}
+                    onCancel={() => {
+                        setEraseTarget(null);
+                        setEraseNotes('');
+                    }}
+                />
             )}
 
             {confirmRevokeAll && detail && (
