@@ -22,6 +22,16 @@ const mocks = vi.hoisted(() => ({
     directory: [] as Record<string, unknown>[],
     detail: null as Record<string, unknown> | null,
     rpc: vi.fn(),
+    /**
+     * What an action RPC answers, so a test can be about the REFUSAL rather than the happy path.
+     *
+     * `operator_erase_user` and `operator_delete_team` both return `{success: false, error}` for
+     * every refusal the database makes — sole administrator, name mismatch, not an operator — and
+     * every one of those lands on a person mid-request who needs to know what to do next. Until
+     * these tests the component's entire failure half was unexercised.
+     */
+    actionResult: null as Record<string, unknown> | null,
+    actionError: null as { message: string } | null,
 }));
 
 vi.mock('../../lib/auth', () => ({
@@ -48,6 +58,12 @@ vi.mock('../../lib/supabase', () => ({
             // where it expects an array -- a harness failure dressed up as a component one.
             if (name === 'operator_new_teams') {
                 return Promise.resolve({ data: [], error: null });
+            }
+            if (mocks.actionError) {
+                return Promise.resolve({ data: null, error: mocks.actionError });
+            }
+            if (mocks.actionResult) {
+                return Promise.resolve({ data: mocks.actionResult, error: null });
             }
             return Promise.resolve({ data: { success: true, revoked_count: 2 }, error: null });
         },
@@ -96,6 +112,8 @@ const detailFor = (members: Record<string, unknown>[]) => ({
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.isOperator = true;
+    mocks.actionResult = null;
+    mocks.actionError = null;
     mocks.directory = [directoryRow];
     mocks.detail = detailFor([
         { id: 'm-admin', user_id: 'u-admin', full_name: 'Coach Example', email: 'coach@example.com', role: 'admin', status: 'approved', seat_assigned: true, is_managed: false },
@@ -198,6 +216,89 @@ describe('SEC-11 — erasing a person from the console', () => {
         expect(mocks.rpc).not.toHaveBeenCalledWith('operator_erase_user', expect.anything());
     });
 
+    /*
+     * THE REFUSALS, which is where an operator actually needs the component to be good.
+     *
+     * `operator_erase_user` returns `{success: false, error}` for a sole administrator, and the
+     * message names the team and the remedy. A component that reports "Erased." on that, or that
+     * says nothing at all, sends somebody away believing a legal request was honoured when it was
+     * refused. Neither path had a test before this.
+     */
+    it('shows the database\'s reason when an erasure is refused', async () => {
+        mocks.actionResult = {
+            success: false,
+            error_code: 'sole_admin',
+            error: 'This person is the only administrator of: Iron Falcons. Transfer the admin role first, then erase.',
+        };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+        fireEvent.click(await screen.findByTestId('confirm-erase-user'));
+
+        // The database's own words, not a generic failure: they name the team and the remedy.
+        expect(await screen.findByText(/only administrator of: Iron Falcons/i)).toBeInTheDocument();
+        expect(screen.queryByText(/^Erased\./i)).not.toBeInTheDocument();
+    });
+
+    /*
+     * A transport failure does not report success — and this test documents a real limitation
+     * rather than the behaviour anyone would want.
+     *
+     * A supabase-js error is a PostgrestError: a plain `{message, code, details, hint}` object,
+     * NEVER an `Error` instance. Every catch block here reads
+     * `err instanceof Error ? err.message : <generic>`, so the database's own explanation is
+     * discarded and the operator is told "Could not erase this person" whatever went wrong.
+     * Seven handlers in this file do it, and more elsewhere, so fixing it is one shared helper
+     * and not a line in this component — parked in the plan's §8 with the count.
+     *
+     * What this DOES pin down is that the failure is surfaced at all, and that "Erased." never
+     * appears: reporting success on a refused erasure is the outcome that actually harms someone.
+     */
+    it('surfaces a transport failure rather than reporting success', async () => {
+        mocks.actionError = { message: 'network is unreachable' };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+        fireEvent.click(await screen.findByTestId('confirm-erase-user'));
+
+        expect(await screen.findByText(/Could not erase this person/i)).toBeInTheDocument();
+        expect(screen.queryByText(/memberships removed/i)).not.toBeInTheDocument();
+    });
+
+    /*
+     * On success it reports WHAT IT DID, not that it worked. The operator is usually answering an
+     * email that asked about a child specifically, and "Erased." leaves them guessing whether the
+     * child profiles went too.
+     */
+    it('reports the counts it removed, including children', async () => {
+        mocks.actionResult = {
+            success: true,
+            memberships_removed: 3,
+            children_removed: 2,
+        };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+        fireEvent.click(await screen.findByTestId('confirm-erase-user'));
+
+        const banner = await screen.findByText(/3 memberships removed/i);
+        expect(banner).toBeInTheDocument();
+        expect(banner.textContent).toMatch(/2 child profiles removed/i);
+        expect(banner.textContent).toMatch(/stay with the team/i);
+    });
+
+    it('closes without erasing anything when the operator cancels', async () => {
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('erase-user-m-coach'));
+        fireEvent.click(await screen.findByText('Cancel'));
+
+        await waitFor(() =>
+            expect(screen.queryByTestId('confirm-erase-user')).not.toBeInTheDocument(),
+        );
+        expect(mocks.rpc).not.toHaveBeenCalledWith('operator_erase_user', expect.anything());
+    });
+
     it('erases the account behind the membership, not the membership', async () => {
         await selectTeam();
 
@@ -242,6 +343,33 @@ describe('SEC-11 — deleting a team from the console', () => {
      * mis-click; `operator_delete_team` refuses on `name_mismatch` regardless, because a
      * confirmation enforced only in the browser is one a stale bundle does not have.
      */
+    it('shows the server\'s reason when the name does not match', async () => {
+        mocks.actionResult = {
+            success: false,
+            error_code: 'name_mismatch',
+            error: "Type the team's name exactly to confirm. Expected: Iron Falcons",
+        };
+        await selectTeam();
+
+        fireEvent.change(screen.getByTestId('delete-team-confirm'), { target: { value: 'Iron Falcons' } });
+        fireEvent.click(screen.getByTestId('delete-team'));
+
+        expect(await screen.findByText(/Type the team's name exactly to confirm/i)).toBeInTheDocument();
+    });
+
+    it('says what went and what did not, when a team is deleted', async () => {
+        mocks.actionResult = { success: true, team_name: 'Iron Falcons', members_removed: 14 };
+        await selectTeam();
+
+        fireEvent.change(screen.getByTestId('delete-team-confirm'), { target: { value: 'Iron Falcons' } });
+        fireEvent.click(screen.getByTestId('delete-team'));
+
+        const banner = await screen.findByText(/Iron Falcons is gone/i);
+        // The two things an operator has to be able to tell somebody afterwards.
+        expect(banner.textContent).toMatch(/14 memberships/i);
+        expect(banner.textContent).toMatch(/people keep their accounts/i);
+    });
+
     it('sends the typed name for the server to check', async () => {
         await selectTeam();
 

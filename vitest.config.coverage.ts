@@ -73,10 +73,21 @@ export default defineConfig({
              * than editing this block.
              */
             thresholds: {
-                statements: 66,
+                /*
+                 * Raised 2026-08-23 to the floor of the measurement after SEC-11
+                 * (68.21 / 60.75 / 63.77 / 70.12). Statements and lines move; branches and
+                 * functions stay, because their margins are under a point and a ratchet set
+                 * inside the noise stops being a ratchet and becomes a coin toss.
+                 *
+                 * This block earned its keep on the same day: CI refused the release at
+                 * branches 59.96 against 60, and the thing it was pointing at was a 535-line
+                 * GuardianView at ZERO coverage that had just been given an irreversible
+                 * "Remove this child" button. First time this gate has caught something real.
+                 */
+                statements: 68,
                 branches: 60,
                 functions: 63,
-                lines: 68,
+                lines: 70,
             },
         },
     },
