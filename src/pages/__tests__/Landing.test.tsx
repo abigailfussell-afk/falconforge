@@ -25,7 +25,57 @@ describe('LandingPage', () => {
         );
 
         expect(screen.getByText(/FORGE IT/i)).toBeInTheDocument();
-        expect(screen.getByText(/The ultimate agile engineering solution for your robotics team/i)).toBeInTheDocument();
+        // LAND-02: the program is named above the fold, not only in the meta description.
+        expect(screen.getAllByText(/Tech Challenge/i).length).toBeGreaterThan(0);
+    });
+
+    /*
+     * LAND-01 — the hero's two calls to action are LINKS.
+     *
+     * They were `<button onClick={navigate}>`, which cannot be middle-clicked, opened in a new
+     * tab, or copied into the Discord thread this page will be posted to — and is invisible to
+     * anything counting the page's outbound links, which is how the page reached zero `<a>`
+     * elements without anybody noticing.
+     *
+     * The two cases below this one click the HEADER's buttons (`getAllByText(...)[0]` is the
+     * nav, not the hero), so without this the hero CTAs would have no coverage at all.
+     */
+    it('offers the hero calls to action as real links', () => {
+        render(
+            <MemoryRouter>
+                <LandingPage />
+            </MemoryRouter>
+        );
+
+        const start = screen.getByText(/Start Forging Now/i).closest('a');
+        expect(start, 'the primary call to action is not a link').not.toBeNull();
+        expect(start).toHaveAttribute('href', '#/login?mode=signup');
+    });
+
+    it('links to the legal documents and the support address (LAND-01)', () => {
+        render(
+            <MemoryRouter>
+                <LandingPage />
+            </MemoryRouter>
+        );
+
+        // The page had ZERO anchors before this, on a product holding minors' data.
+        const hrefs = [...document.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+        expect(hrefs).toContain('#/legal/terms');
+        expect(hrefs).toContain('#/legal/privacy');
+        expect(hrefs).toContain('#/legal/community');
+        expect(hrefs.some((h) => h?.startsWith('mailto:'))).toBe(true);
+        expect(hrefs.length).toBeGreaterThanOrEqual(5);
+    });
+
+    it('says it is not affiliated with FIRST (LAND-01)', () => {
+        render(
+            <MemoryRouter>
+                <LandingPage />
+            </MemoryRouter>
+        );
+
+        expect(screen.getByText(/not affiliated with/i)).toBeInTheDocument();
     });
 
     it('renders the CTA buttons', () => {

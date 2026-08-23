@@ -137,6 +137,84 @@ describe('the harness cannot quietly stop verifying', () => {
     });
 });
 
+describe('the landing page describes the product that exists', () => {
+    /*
+     * LAND-03 — eight phrases on the marketing page for features that do not exist.
+     *
+     * "analyze scouting data", "Detailed match analysis", "Data-driven alliance selection",
+     * "powerful metrics for your picklist", "Team progression charts", "tag key starting
+     * positions", "assign tasks to alliance partners", "Analyze aggregate scouting data".
+     * None of them shipped. The assessment's note is the one that matters: this is the claim
+     * most likely to generate "where is…" support mail, at the first event, from the coach
+     * who trusted it.
+     *
+     * A source-level ratchet rather than a rendering test, in the spirit of the ones below: the
+     * failure mode is somebody writing enthusiastic copy months from now, and the thing that
+     * catches that is a list of the exact words, not a DOM query.
+     */
+    it('does not make the claims LAND-03 found', () => {
+        const overclaims = [
+            'analyze scouting data',
+            'Analyze aggregate scouting data',
+            'Detailed match analysis',
+            'Data-driven alliance selection',
+            'powerful metrics',
+            'Team progression charts',
+            'tag key starting positions',
+            'assign tasks to alliance partners',
+        ];
+        const landing = read('src/pages/Landing.tsx');
+        const found = overclaims.filter((phrase) =>
+            landing.toLowerCase().includes(phrase.toLowerCase()),
+        );
+
+        expect(
+            found,
+            'Landing.tsx claims features that do not exist: ' + found.join(', ') +
+            '. If one of these has since been BUILT, delete it from this list in the same commit.',
+        ).toEqual([]);
+    });
+
+    /*
+     * LAND-01 — the page had zero `<a>` elements, measured.
+     *
+     * Terms, Privacy, Acceptable use and the support address were unreachable from the one page
+     * a district privacy officer or a careful parent looks at, on a product holding minors'
+     * data. Counted in the source because the alternative is rendering a 1,000-line marketing
+     * page in jsdom to count anchors, and the thing that would break this is somebody replacing
+     * a link with a `navigate()` button — which is exactly what the source shows.
+     */
+    it('links to the legal documents and the support address', () => {
+        const landing = read('src/pages/Landing.tsx');
+        for (const href of ['#/legal/terms', '#/legal/privacy', '#/legal/community', 'mailto:']) {
+            expect(landing, `the landing page does not link to ${href}`).toContain(href);
+        }
+        const anchors = landing.match(/<a[\s>]/g) ?? [];
+        expect(anchors.length, 'the landing page is back below five links').toBeGreaterThanOrEqual(5);
+    });
+
+    /*
+     * LAND-02 — the body copy never said "FTC" or "FIRST Tech Challenge".
+     *
+     * Only the `<meta description>` did, so the page read as generic robotics to both a human
+     * and a search engine, while the buyer is typing "FTC team management".
+     */
+    it('names the program it is for', () => {
+        const landing = read('src/pages/Landing.tsx');
+        expect(landing).toMatch(/FTC|Tech Challenge/);
+    });
+
+    /*
+     * LAND-01 — the trademark disclaimer.
+     *
+     * FIRST asks third-party tools to say it, and a coach's first question about an unfamiliar
+     * tool is whether it is official. Its absence is not neutral.
+     */
+    it('says it is not affiliated with FIRST', () => {
+        expect(read('src/pages/Landing.tsx')).toMatch(/not affiliated with/i);
+    });
+});
+
 describe('the guidance describes the repo that exists', () => {
     /*
      * Every `npm run <script>` named in the agent-facing docs must exist.

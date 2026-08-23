@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { FEEDBACK_EMAIL } from '../lib/feedback';
 import {
     ArrowRight, ChevronRight, Check, Crown, User, Brain,
     KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy,
@@ -283,7 +284,7 @@ export default function LandingPage() {
 
                 <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-8 relative z-10 text-center">
                     <div className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-md text-2xs sm:text-sm text-amber-400 font-medium mb-6 sm:mb-8 shadow-xl text-center">
-                        <Zap className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> <span>The ultimate agile engineering solution for your robotics team</span>
+                        <Zap className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> <span>The team hub for FIRST&reg; Tech Challenge &mdash; free during the 2026&ndash;27 beta</span>
                     </div>
 
                     <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 sm:mb-8 leading-none sm:leading-tight">
@@ -294,22 +295,35 @@ export default function LandingPage() {
                     </h1>
 
                     <p className="mt-6 text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed">
-                        The complete platform for competitive robotics teams to plan sprints, analyze scouting data, strategize with alliances, and learn real-world agile engineering processes.
+                        Everything an FTC team runs on between kickoff and the last match: the
+                        build board, the scouting notes, the match plan, the checklist and who
+                        turned up &mdash; and all of it works with no Wi-Fi at all, which is what
+                        a competition venue actually gives you.
                     </p>
 
+                    {/*
+                      * ANCHORS, NOT BUTTONS, FOR THE TWO CALLS TO ACTION.
+                      *
+                      * They navigate to a route, and a link to a route should be a link: it can
+                      * be middle-clicked, opened in a new tab, copied out of the page and shared
+                      * in the Discord thread this page will be posted to. A `<button onClick>`
+                      * can do none of that, and it is also invisible to anything counting the
+                      * page's outbound links — which is how a marketing page ends up with zero
+                      * `<a>` elements without anybody noticing (LAND-01).
+                      */}
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <button
-                            onClick={() => navigate('/login?mode=signup')}
+                        <a
+                            href="#/login?mode=signup"
                             className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-forge-500 to-amber-600 hover:from-forge-600 hover:to-amber-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-forge-500/25 transition-all flex items-center justify-center gap-2"
                         >
                             Start Forging Now <ChevronRight className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-lg border border-slate-700 transition-all"
+                        </a>
+                        <a
+                            href="#/login"
+                            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-lg border border-slate-700 transition-all flex items-center justify-center"
                         >
                             Log In
-                        </button>
+                        </a>
                     </div>
                 </div>
             </main>
@@ -332,12 +346,12 @@ export default function LandingPage() {
                             {
                                 icon: <Map className="w-6 h-6 text-amber-400" />,
                                 title: "Match Planner",
-                                desc: "Visualize strategies, assign tasks to alliance partners, and win more matches."
+                                desc: "Draw the plan over this season’s field, note who does what, and open it again at the venue with no signal."
                             },
                             {
                                 icon: <BarChart3 className="w-6 h-6 text-emerald-400" />,
                                 title: "Scouting Reports",
-                                desc: "Detailed match analysis and offline-first data sync for competition scenarios."
+                                desc: "Log what a robot actually did, in the stands, offline. It syncs when the Wi-Fi comes back."
                             },
                             {
                                 icon: <ClipboardCheck className="w-6 h-6 text-blue-400" />,
@@ -458,7 +472,10 @@ export default function LandingPage() {
                                 Visualize your next move
                             </h2>
                             <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-                                Our built-in Match Planner lets you draw, diagram, and formulate complex alliance strategies directly over the season's field map. Record crucial strategy notes, tag key starting positions, and build a unified game plan for your entire alliance.
+                                Draw straight over this season&rsquo;s field map, write the notes
+                                that go with it, and save the plan against a match number. Load it
+                                back at the venue &mdash; on a phone, with no signal &mdash; and
+                                edit it between matches.
                             </p>
                             <ul className="space-y-4 mb-8">
                                 {[
@@ -597,16 +614,19 @@ export default function LandingPage() {
                                 <BarChart3 className="w-4 h-4" /> Scouting Reports
                             </div>
                             <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
-                                Data-driven alliance selection
+                                Scouting that works in the stands
                             </h2>
                             <p className="text-xl text-slate-400 mb-8 leading-relaxed">
-                                Move beyond pen and paper. Empower your scouts to log match data seamlessly, even without Wi-Fi. Sync to the cloud and uncover powerful metrics for your picklist.
+                                Move beyond pen and paper. Your scouts log what they saw on
+                                their own phones, offline, and it reaches the rest of the team as
+                                soon as there is a connection &mdash; ready to read through
+                                together when you are choosing.
                             </p>
                             <ul className="space-y-4 mb-8">
                                 {[
                                     "Deep quantitative analysis",
                                     "Offline-first pit & stand data entry",
-                                    "Team progression charts"
+                                    "One report per match, per robot"
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-center gap-3 text-slate-300">
                                         <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -1018,16 +1038,64 @@ export default function LandingPage() {
                             <ul className="space-y-4 mb-8 flex-1">
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create & distribute Kanban tasks</span></li>
                                 <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Draw Match Planner diagrams</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Analyze aggregate scouting data</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Read the team&rsquo;s scouting reports</span></li>
                             </ul>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="py-8 border-t border-slate-800 text-center text-slate-500">
-                <p>© {new Date().getFullYear()} FalconForge platform. Built for competitive robotics.</p>
+            {/*
+              * THE FOOTER, AND WHY IT IS NOT DECORATION (LAND-01).
+              *
+              * This page contained ZERO `<a>` elements — measured. The legal routes existed and
+              * were unreachable from the one page a district privacy officer or a careful parent
+              * will look at, on a product that holds minors' data. That is the first thing such
+              * a reader checks for, and its absence is the answer they take away.
+              *
+              * Real anchors, not `navigate()` buttons: these are documents somebody may want to
+              * open in a new tab, send to a parent, or link to from a school's own page.
+              */}
+            <footer className="py-10 border-t border-slate-800 text-slate-500">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8">
+                    <nav
+                        aria-label="Legal and support"
+                        className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm mb-6"
+                    >
+                        <a href="#/legal/terms" className="hover:text-forge-400 transition-colors">
+                            Terms
+                        </a>
+                        <a href="#/legal/privacy" className="hover:text-forge-400 transition-colors">
+                            Privacy
+                        </a>
+                        <a href="#/legal/community" className="hover:text-forge-400 transition-colors">
+                            Acceptable use
+                        </a>
+                        <a
+                            href={`mailto:${FEEDBACK_EMAIL}`}
+                            className="hover:text-forge-400 transition-colors"
+                        >
+                            {FEEDBACK_EMAIL}
+                        </a>
+                    </nav>
+
+                    <div className="text-center text-xs leading-relaxed space-y-2">
+                        <p>© {new Date().getFullYear()} FalconForge. Built for FIRST&reg; Tech Challenge teams.</p>
+                        {/*
+                          * Required, and not merely polite: FIRST's trademark guidelines ask
+                          * third-party tools to say this, and a coach's first question about an
+                          * unfamiliar tool is whether it is official.
+                          */}
+                        <p>
+                            FalconForge is an independent tool. It is <strong>not affiliated with,
+                            endorsed by, or sponsored by</strong> FIRST&reg;. FIRST&reg; and FIRST&reg;
+                            Tech Challenge are trademarks of For Inspiration and Recognition of
+                            Science and Technology (FIRST), which does not sponsor, support or
+                            endorse this product.
+                        </p>
+                        <p>Free during the 2026&ndash;27 beta.</p>
+                    </div>
+                </div>
             </footer>
         </div>
     );
