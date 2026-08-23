@@ -5,6 +5,7 @@ import { Mail, Lock, User, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { AgeClassification } from '../types';
 import { recordAttestation, SIGNUP_REQUIRED_ATTESTATIONS } from '../lib/attestations';
+import { friendlyAuthError } from '../lib/auth-error-copy';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 type SignupStep = 1 | 2;
@@ -36,7 +37,10 @@ export default function LoginPage() {
         try {
             if (mode === 'login') {
                 const { error } = await signInWithEmail(email, password);
-                if (error) setError(error.message);
+                // Two of GoTrue's messages are email-ceiling failures a coach cannot act on
+                // without being told to come back later (OPS-06). Everything else passes
+                // through unchanged.
+                if (error) setError(friendlyAuthError(error.message));
             } else if (mode === 'signup') {
                 // Validate inputs locally
                 if (!fullName.trim()) {
@@ -61,7 +65,7 @@ export default function LoginPage() {
             } else if (mode === 'forgot') {
                 const { error } = await resetPassword(email);
                 if (error) {
-                    setError(error.message);
+                    setError(friendlyAuthError(error.message));
                 } else {
                     setMessage('Password reset email sent!');
                 }
@@ -88,7 +92,7 @@ export default function LoginPage() {
                     signupError.message.toLowerCase().includes('already exists')) {
                     setError('An account with this email already exists. Please sign in instead.');
                 } else {
-                    setError(signupError.message);
+                    setError(friendlyAuthError(signupError.message));
                 }
                 return;
             }

@@ -9,13 +9,30 @@
  * the right amount of machinery, and it has the property a form does not: the reporter's address
  * comes with it, so somebody can actually reply.
  *
- * The build id rides along in the subject so a report is attached to a version rather than to
- * "last Tuesday". `BUILD_ID` is Vite's mode plus the package version — not a git SHA, because
- * the SHA is not available to the client at build time without wiring it through CI, and a
- * wrong-looking SHA is worse than an honest coarse one.
+ * WHAT THE MESSAGE CARRIES, AND WHY (OPS-03, OPS-05)
+ *
+ * It used to carry the reporter's prose and nothing else. `BUILD_ID` was `0.1.0` — a package
+ * version unchanged since January, identical across eighteen production deploys — so the subject
+ * line identified no build at all, under a comment claiming it attached the report to a version.
+ *
+ * The client already knows everything below; none of it needs a backend, and none of it is more
+ * than the email itself already reveals. It is the difference between "it's broken" and a
+ * reproduction:
+ *
+ *   - the build, now the commit SHA (OPS-03);
+ *   - the route, because "the app crashed" and "the board crashed" are different bugs;
+ *   - whether the device thought it was online, AND whether the server was actually answering —
+ *     the two are not the same question and SYNC-07 exists because they were conflated;
+ *   - how much work is queued or parked, which is the first thing to ask when somebody says
+ *     their scouting never uploaded;
+ *   - the team id, so the row can be found without a name-matching game over email.
+ *
+ * DELIBERATELY NOT INCLUDED: the user's name or email (the message carries them already), any
+ * team member's name, and anything from a task, report or checklist. A support address is not a
+ * place minors' data should arrive by accident.
  */
-const VERSION = '0.1.0';
-const BUILD_ID = `${VERSION}${import.meta.env.PROD ? '' : '-dev'}`;
+import { BUILD_LABEL } from './build-id';
+import { getServerReachability, describeLastContact } from './server-reachability';
 
 /*
  * A ROLE ADDRESS, NOT A PERSON'S.
@@ -36,20 +53,96 @@ const BUILD_ID = `${VERSION}${import.meta.env.PROD ? '' : '-dev'}`;
  */
 export const FEEDBACK_EMAIL = 'support@falcon-forge.com';
 
-export const FEEDBACK_MAILTO =
-    `mailto:${FEEDBACK_EMAIL}` +
-    `?subject=${encodeURIComponent(`FalconForge beta feedback (${BUILD_ID})`)}` +
-    `&body=${encodeURIComponent(
-        [
-            'What happened:',
-            '',
-            '',
-            'What you expected instead:',
-            '',
-            '',
-            'Anything else (which screen, whether you were online):',
-            '',
-            '',
-            `— sent from FalconForge ${BUILD_ID}`,
-        ].join('\n'),
-    )}`;
+/** What the app knows about itself when somebody presses "Send feedback". */
+export interface FeedbackContext {
+    /** The hash route, e.g. `#/app/board`. */
+    route: string;
+    /** `navigator.onLine` — what the DEVICE thinks. */
+    online: boolean;
+    /** Whether the server has actually been answering. See SYNC-07. */
+    server: string;
+    /** Changes queued for a push. */
+    pending: number;
+    /** Changes parked in the dead-letter store. */
+    failed: number;
+    /** The open team, if any. An id, never a name. */
+    teamId: string | null;
+}
+
+/**
+ * Gather it, never throwing.
+ *
+ * This runs while somebody is trying to report that something is broken. A context-gatherer
+ * that can itself fail turns "the feedback link did nothing" into the second bug of the
+ * evening, so every field degrades to a string rather than an exception.
+ */
+export function collectFeedbackContext(
+    counts: { pending: number; failed: number } = { pending: 0, failed: 0 },
+    teamId: string | null = null,
+): FeedbackContext {
+    let route = 'unknown';
+    let online = false;
+    try {
+        route = window.location.hash || '#/';
+        online = navigator.onLine;
+    } catch {
+        /* not a browser */
+    }
+
+    let server = 'unknown';
+    try {
+        const reachability = getServerReachability();
+        if (reachability.reachable === null) server = 'not contacted this session';
+        else if (reachability.reachable) server = `reachable (last answered ${describeLastContact(reachability)})`;
+        else server = 'NOT reachable';
+    } catch {
+        /* as above */
+    }
+
+    return { route, online, server, pending: counts.pending, failed: counts.failed, teamId };
+}
+
+/** The lines appended under the reporter's own words. */
+function contextLines(context: FeedbackContext): string[] {
+    return [
+        '',
+        '— — — — —',
+        'Sent from FalconForge. The lines below help find the problem;',
+        'they contain no names and nothing from your team’s work.',
+        `build: ${BUILD_LABEL}`,
+        `screen: ${context.route}`,
+        `device online: ${context.online ? 'yes' : 'no'}`,
+        `server: ${context.server}`,
+        `unsent changes: ${context.pending} queued, ${context.failed} parked`,
+        `team: ${context.teamId ?? 'none open'}`,
+    ];
+}
+
+/**
+ * The `mailto:` for a given moment.
+ *
+ * A function rather than the constant it used to be, because every field above is a fact about
+ * NOW — the route, the queue depth, whether the server is answering. A constant computed at
+ * module load would report the state the app was in when it started, which for a PWA that is
+ * never reloaded could be days ago.
+ */
+export function feedbackMailto(context: FeedbackContext): string {
+    const body = [
+        'What happened:',
+        '',
+        '',
+        'What you expected instead:',
+        '',
+        '',
+        'Anything else:',
+        '',
+        '',
+        ...contextLines(context),
+    ].join('\n');
+
+    return (
+        `mailto:${FEEDBACK_EMAIL}` +
+        `?subject=${encodeURIComponent(`FalconForge beta feedback (${BUILD_LABEL})`)}` +
+        `&body=${encodeURIComponent(body)}`
+    );
+}

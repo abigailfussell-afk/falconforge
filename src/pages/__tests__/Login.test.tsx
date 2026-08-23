@@ -91,6 +91,64 @@ describe('LoginPage', () => {
         });
     });
 
+    /**
+     * OPS-06 — the two failures that will happen on kickoff evening.
+     *
+     * Resend Free is 100 emails a day and a 20-member team costs ~23, so four teams onboarding
+     * on the same evening exhausts it; Supabase's own cap is 100/hour. Both arrived as a bare
+     * GoTrue sentence with no suggestion of what to do, in front of twenty students.
+     */
+    describe('email-ceiling failures say what to do (OPS-06)', () => {
+        const submitSignIn = () => {
+            render(<LoginPage />, { wrapper: TestWrapper });
+            fireEvent.change(screen.getByTestId('email-input'), { target: { value: 'coach@example.com' } });
+            fireEvent.change(screen.getByTestId('password-input'), { target: { value: 'password123' } });
+            fireEvent.submit(document.querySelector('form')!);
+        };
+
+        it('explains Resend’s daily ceiling and says when to come back', async () => {
+            mockSignInWithEmail.mockResolvedValueOnce({
+                error: new Error('Error sending confirmation email'),
+            });
+            submitSignIn();
+
+            const shown = await screen.findAllByText(/try again in an hour/i);
+            expect(shown.length).toBeGreaterThan(0);
+            // And it must say the failure is not the user's fault, because the raw string
+            // reads exactly like a rejected email address.
+            expect(document.body.textContent).toMatch(/not a problem with your details/i);
+            expect(
+                screen.queryByText('Error sending confirmation email'),
+                'the raw GoTrue string reached the screen',
+            ).toBeNull();
+        });
+
+        it('explains Supabase’s hourly cap', async () => {
+            mockSignInWithEmail.mockResolvedValueOnce({
+                error: new Error('email rate limit exceeded'),
+            });
+            submitSignIn();
+
+            const shown = await screen.findAllByText(/Too many emails have been sent/i);
+            expect(shown.length).toBeGreaterThan(0);
+            expect(document.body.textContent).toMatch(/nothing has been lost/i);
+        });
+
+        it('leaves every other message alone — the control', async () => {
+            // The mapping is a substring match on a string GoTrue could reword at any time.
+            // Passing anything unrecognised straight through means a rewording costs the user
+            // nothing they were not already getting, instead of a friendly sentence about the
+            // wrong problem.
+            mockSignInWithEmail.mockResolvedValueOnce({
+                error: new Error('Invalid login credentials'),
+            });
+            submitSignIn();
+
+            const shown = await screen.findAllByText('Invalid login credentials');
+            expect(shown.length).toBeGreaterThan(0);
+        });
+    });
+
     describe('Signup Mode', () => {
         it('switches to signup mode and validates step 1', async () => {
             render(<LoginPage />, { wrapper: TestWrapper });

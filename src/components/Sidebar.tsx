@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Sun, Moon, LogOut, User, ChevronDown, ArrowRightLeft, Menu, X, MessageSquare } from 'lucide-react';
 import SyncStatusIndicator from './SyncStatusIndicator';
-import { FEEDBACK_MAILTO } from '../lib/feedback';
+import { useFeedbackLink } from '../lib/use-feedback-link';
 import Wordmark from './Wordmark';
 import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
@@ -62,6 +62,9 @@ export default function Sidebar({
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
     const { user, isConfigured } = useAuth();
+    // Built from what the app knows now — route, queue depth, whether the server is
+    // answering — rather than from a constant fixed when the module loaded (OPS-05).
+    const feedbackLink = useFeedbackLink();
 
     const theme = useAppStore((s) => s.theme);
     const setTheme = useAppStore((s) => s.setTheme);
@@ -329,7 +332,7 @@ export default function Sidebar({
                                   */}
                                 <a
                                     data-testid="feedback-link"
-                                    href={FEEDBACK_MAILTO}
+                                    href={feedbackLink}
                                     className="touch-target p-2 text-slate-400 hover:text-forge-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                                     title="Send feedback about the beta"
                                     aria-label="Send feedback about the beta"

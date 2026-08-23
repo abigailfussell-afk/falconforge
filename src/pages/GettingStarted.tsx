@@ -10,7 +10,7 @@ import {
     ExternalLink,
 } from 'lucide-react';
 import SectionHeader from '../components/ui/SectionHeader';
-import { FEEDBACK_MAILTO } from '../lib/feedback';
+import { useFeedbackLink } from '../lib/use-feedback-link';
 import { pathFor } from '../lib/navigation';
 
 /**
@@ -33,6 +33,8 @@ import { pathFor } from '../lib/navigation';
  * `navigation.ts` exists at all.
  */
 export default function GettingStarted() {
+    const feedbackLink = useFeedbackLink();
+
     return (
         <div className="mx-auto max-w-3xl space-y-4 pb-8">
             <header>
@@ -214,7 +216,7 @@ export default function GettingStarted() {
                     you had is usually a page that needed writing.
                 </p>
                 <a
-                    href={FEEDBACK_MAILTO}
+                    href={feedbackLink}
                     className="mt-3 inline-flex items-center gap-2 rounded-lg bg-forge-600 px-3 py-2 text-sm font-medium text-white hover:bg-forge-700"
                 >
                     <ExternalLink size={16} aria-hidden="true" />

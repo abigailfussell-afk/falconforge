@@ -4,8 +4,24 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  /*
+   * WHICH COMMIT THIS BUNDLE IS (OPS-03).
+   *
+   * `feedback.ts` used to label every build `0.1.0` — a package version unchanged since
+   * January, carried by eighteen production deploys — under a comment saying the id exists so
+   * a report is attached to a version rather than to "last Tuesday".
+   *
+   * `GITHUB_SHA` is set by every GitHub Actions run, so a deployed bundle names the commit it
+   * was built from. A local build says `local` rather than inventing something version-shaped:
+   * see `src/lib/build-id.ts` for why an obviously partial answer beats a plausible wrong one.
+   */
+  const buildId = process.env.GITHUB_SHA?.slice(0, 7) || 'local';
+
   return {
     base: "/",
+    define: {
+      __BUILD_ID__: JSON.stringify(buildId),
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
