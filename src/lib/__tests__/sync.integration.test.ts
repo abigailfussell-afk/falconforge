@@ -7,17 +7,23 @@ import { db, queueForSync } from '../offline-db';
 import { supabaseSync } from '../supabase';
 import { useAuth } from '../auth';
 
-// Mock Supabase to test Sync Queue without network
+/*
+ * Mock Supabase to test the sync queue without a network.
+ *
+ * A hand-rolled query builder is a second, worse implementation of PostgREST, and this one has
+ * already drifted once: it stubbed `.gt()` while the code called `.gte()`, so the delta path
+ * had never run. The builder below therefore stubs every method the read path uses —
+ * `.order()`, `.limit()` and `.or()` are the pagination added for SYNC-01 — and a method it
+ * does NOT stub throws rather than returning undefined, so the next drift is a failure here
+ * instead of a silently skipped table.
+ */
 vi.mock('../supabase', () => {
     function createMockQuery() {
         const obj: any = {};
-        obj.select = vi.fn().mockReturnValue(obj);
-        obj.eq = vi.fn().mockReturnValue(obj);
-        obj.gte = vi.fn().mockReturnValue(obj);
-        obj.update = vi.fn().mockReturnValue(obj);
-        obj.delete = vi.fn().mockReturnValue(obj);
-        obj.upsert = vi.fn().mockReturnValue(obj);
-        
+        for (const method of ['select', 'eq', 'in', 'gte', 'or', 'order', 'limit', 'update', 'delete', 'upsert']) {
+            obj[method] = vi.fn().mockReturnValue(obj);
+        }
+
         // Ensure thenable resolves correctly
         obj.then = function (resolve: (value: any) => void) {
             resolve({ data: [], error: null });
@@ -25,11 +31,16 @@ vi.mock('../supabase', () => {
         };
         return obj;
     }
-    
+
     return {
         supabaseSync: {
             from: vi.fn(() => createMockQuery()),
         },
+        // The pull refuses to run without a signed-in user's token (SYNC-02). These tests are
+        // about the queue, so they get one.
+        resolveSyncAccessTokenAsync: vi.fn(async () => 'a-user-jwt'),
+        resolveSyncAccessToken: vi.fn(() => 'a-user-jwt'),
+        isAuthenticatedToken: vi.fn(() => true),
     };
 });
 
@@ -324,7 +335,11 @@ describe('sync.integration', () => {
                 const query: any = {
                     select: vi.fn().mockReturnThis(),
                     eq: vi.fn().mockReturnThis(),
+                    in: vi.fn().mockReturnThis(),
                     gte: vi.fn().mockReturnThis(),
+                    or: vi.fn().mockReturnThis(),
+                    order: vi.fn().mockReturnThis(),
+                    limit: vi.fn().mockReturnThis(),
                     upsert: vi.fn(),
                     update: vi.fn(),
                     delete: vi.fn(),

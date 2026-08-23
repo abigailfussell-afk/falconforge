@@ -10,9 +10,18 @@ vi.mock('../../lib/queries', () => ({
 }));
 
 // Mock the store
-vi.mock('../../lib/store', () => ({
-    useAppStore: vi.fn(),
-}));
+/*
+ * The store mock carries `getState`, because the planner reads it directly.
+ *
+ * `ensureSeasonFieldImage` fetches the field image once per season (SYNC-03) and reads the
+ * store to decide whether it already has one. A `vi.fn()` with no `getState` made that throw
+ * on every render — caught, so the tests stayed green while the effect under it never ran.
+ */
+const storeState = { seasons: [] as unknown[] };
+vi.mock('../../lib/store', () => {
+    const useAppStore = Object.assign(vi.fn(), { getState: () => storeState });
+    return { useAppStore };
+});
 
 // Mock D3 to avoid canvas issues in tests
 vi.mock('d3', () => ({

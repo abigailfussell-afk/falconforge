@@ -5,6 +5,7 @@ import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucid
 import { useAppStore, MatchPlan } from '../lib/store';
 import { useSeasonScope, useSeasonScoped } from '../lib/season-scope';
 import { useMatchPlansQuery } from '../lib/queries';
+import { ensureSeasonFieldImage } from '../lib/server-pull';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Modal from './ui/Modal';
@@ -40,6 +41,20 @@ const MatchPlanner: React.FC = () => {
   useMatchPlansQuery(currentTeamId);
 
   const currentSeason = getCurrentSeason();
+
+  /*
+   * The field image is not part of the season pull, and this is the screen that wants it.
+   *
+   * `field_image_data` is base64 in a column — up to ~670 KB of text — and it used to be
+   * fetched with every `seasons` read, which is every app open, whether or not anybody opened
+   * the match planner (SYNC-03). It is fetched once per season here instead; `undefined` in
+   * the store means "not fetched" and `''` means "this season has no image", so the default
+   * field is drawn immediately either way and the custom one replaces it when it lands.
+   */
+  useEffect(() => {
+    if (currentSeason?.id) ensureSeasonFieldImage(currentSeason.id).catch(console.warn);
+  }, [currentSeason?.id]);
+
   // Field image: can be Base64 data URL, full URL, or local file path
   const customFieldImage = currentSeason?.fieldImageData;
   const fieldImageSrc = customFieldImage

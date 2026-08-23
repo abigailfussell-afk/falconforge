@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, Plus, Trash2, X, Upload, AlertTriangle, Archive, ArchiveRestore, Sparkles } from 'lucide-react';
 import { useAppStore } from '../lib/store';
+import { ensureSeasonFieldImage } from '../lib/server-pull';
 import { suggestNextSeasonName } from '../lib/season-rules';
 import type { SeasonRolloverInput } from '../lib/slices/createSeasonSlice';
 import Button from './ui/Button';
@@ -60,7 +61,17 @@ const SeasonManager: React.FC = () => {
     const [editingSeasonId, setEditingSeasonId] = useState<string | null>(null);
     const [editSeasonName, setEditSeasonName] = useState('');
     const [editGameTitle, setEditGameTitle] = useState('');
-    const [editFieldImageData, setEditFieldImageData] = useState('');
+    /*
+     * NO LOCAL COPY OF THE FIELD IMAGE.
+     *
+     * There used to be an `editFieldImageData` state seeded from `season.fieldImageData` when
+     * the Edit panel opened. It was a second copy of a value the store already held, and the
+     * pull no longer sends `field_image_data` with every `seasons` read (SYNC-03) — so the
+     * copy would have been taken before the image arrived and never updated when it did,
+     * which reads on screen as "this season has no field image" for a season that has one.
+     * The panel reads the store, and the image appears when {@link ensureSeasonFieldImage}
+     * answers. One value, one owner (CLAUDE.md principle 9).
+     */
     const [deleteConfirmSeasonId, setDeleteConfirmSeasonId] = useState<string | null>(null);
     const [imageUploadError, setImageUploadError] = useState<string | null>(null);
     // Which blur-saved field just saved, for a transient inline "Saved" hint.
@@ -101,6 +112,18 @@ const SeasonManager: React.FC = () => {
 
     const clonableSubTeams = subTeams.filter((s) => s.seasonId === currentSeasonId);
 
+    /*
+     * Opening Edit is the moment this screen needs the column the pull leaves behind.
+     *
+     * Fetched here as well as in MatchPlanner because both show the image and neither implies
+     * the other: a coach can upload a field picture without ever opening the planner. Nothing
+     * re-fetches once the store has an answer, so the two call sites cost one request between
+     * them.
+     */
+    useEffect(() => {
+        if (editingSeasonId) ensureSeasonFieldImage(editingSeasonId).catch(console.warn);
+    }, [editingSeasonId]);
+
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, seasonId: string) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -129,7 +152,6 @@ const SeasonManager: React.FC = () => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result as string;
-                setEditFieldImageData(base64);
                 updateSeason(seasonId, { fieldImageData: base64 });
             };
             reader.readAsDataURL(file);
@@ -264,7 +286,6 @@ const SeasonManager: React.FC = () => {
                                             setEditingSeasonId(season.id);
                                             setEditSeasonName(season.name);
                                             setEditGameTitle(season.gameTitle || '');
-                                            setEditFieldImageData(season.fieldImageData || '');
                                             setImageUploadError(null);
                                         }
                                     }}
@@ -329,19 +350,16 @@ const SeasonManager: React.FC = () => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Field Image (for Match Planner)</label>
-                                    {editFieldImageData && (
+                                    {season.fieldImageData && (
                                         <div className="mb-2 relative">
                                             <img
-                                                src={editFieldImageData}
+                                                src={season.fieldImageData}
                                                 alt="Field preview"
                                                 className="w-full max-h-40 object-contain rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-900"
                                             />
                                             <IconButton
                                                 danger
-                                                onClick={() => {
-                                                    setEditFieldImageData('');
-                                                    updateSeason(season.id, { fieldImageData: '' });
-                                                }}
+                                                onClick={() => updateSeason(season.id, { fieldImageData: '' })}
                                                 className="absolute top-1 right-1 bg-white/80 dark:bg-slate-800/80"
                                                 title="Remove image"
                                             >
@@ -361,7 +379,7 @@ const SeasonManager: React.FC = () => {
                                         className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer hover:border-forge-400 hover:bg-forge-50 dark:hover:bg-forge-900/20 transition-colors"
                                     >
                                         <Upload size={18} />
-                                        <span className="text-sm font-medium">{editFieldImageData ? 'Replace Image' : 'Upload Field Image'}</span>
+                                        <span className="text-sm font-medium">{season.fieldImageData ? 'Replace Image' : 'Upload Field Image'}</span>
                                     </label>
                                     {imageUploadError && (
                                         <p className="text-xs text-red-500 mt-1">{imageUploadError}</p>

@@ -61,33 +61,80 @@ function isTokenExpired(token: string, bufferSec = 30): boolean {
     return payload.exp - bufferSec <= Date.now() / 1000;
 }
 
+/**
+ * The signed-in user's JWT for a sync request, or `null` when there is not one.
+ *
+ * `null` is the answer that matters, and it has to be distinguishable from the anon key.
+ * `supabaseSync`'s `accessToken` callback below still falls back to the anon key, because the
+ * PUSH path legitimately relies on that: a queued write sent with the anon key is refused
+ * with a 42501, which the classifier understands and the queue retries. That is a request
+ * that fails loudly.
+ *
+ * A PULL sent with the anon key does not fail. `anon` holds SELECT on every table, so
+ * PostgREST answers `200 []` -- and zero rows is how this read path detects a deletion, so a
+ * successful full pull replaced every collection with nothing and the device's offline copy
+ * was gone (SYNC-02). That is the absence-read-as-a-value class (`docs/failure-modes.md`
+ * section 4, B20) reaching every table at once.
+ *
+ * So the fallback stays where it is safe and the pull asks THIS function instead, refusing to
+ * run at all when it returns `null`. One resolver, two callers, one place that knows how the
+ * token is found.
+ *
+ * Returns `null` when: there is no stored session; the stored token has expired and the main
+ * client cannot mint a fresh one (a failed refresh returns `{session: null}` even for a
+ * retryable network error); or the token does not carry `role: 'authenticated'`.
+ */
+export function resolveSyncAccessToken(): string | null {
+    try {
+        if (!supabaseUrl) return null;
+        const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        const token = parsed?.access_token;
+        if (typeof token !== 'string' || !token) return null;
+        if (isTokenExpired(token)) return null;
+        return isAuthenticatedToken(token) ? token : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Does this JWT speak for a signed-in user?
+ *
+ * The anon key is a perfectly valid JWT -- it just carries `role: 'anon'`. Checking the claim
+ * rather than comparing against `supabaseAnonKey` means a DIFFERENT anon-ish token (a
+ * publishable key, a stale key from another project) is refused too.
+ */
+export function isAuthenticatedToken(token: string): boolean {
+    return decodeJwtPayload(token)?.role === 'authenticated';
+}
+
+/**
+ * The same question, having gone as far as asking the main client for a refresh.
+ *
+ * The fast path is synchronous and covers the overwhelming majority of pulls; this is what
+ * the pull calls, so an access token that expired while the tab was in the background is
+ * refreshed once rather than skipping a pull the user is waiting for.
+ */
+export async function resolveSyncAccessTokenAsync(): Promise<string | null> {
+    const fast = resolveSyncAccessToken();
+    if (fast) return fast;
+    try {
+        if (!supabase) return null;
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) return null;
+        return isAuthenticatedToken(token) ? token : null;
+    } catch {
+        return null;
+    }
+}
+
 export const supabaseSync: SupabaseClient<Database> | null = supabaseUrl && supabaseAnonKey
     ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
-        accessToken: async () => {
-            try {
-                const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-                const raw = localStorage.getItem(storageKey);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (parsed?.access_token) {
-                        // If the token is still valid, use it directly (fast path)
-                        if (!isTokenExpired(parsed.access_token)) {
-                            return parsed.access_token;
-                        }
-                        // Token expired — ask the main client for a refreshed session
-                        if (supabase) {
-                            const { data } = await supabase.auth.getSession();
-                            if (data?.session?.access_token) {
-                                return data.session.access_token;
-                            }
-                        }
-                    }
-                }
-            } catch {
-                // fall through
-            }
-            return supabaseAnonKey;
-        },
+        accessToken: async () => (await resolveSyncAccessTokenAsync()) ?? supabaseAnonKey,
         auth: {
             autoRefreshToken: false,
             persistSession: false,

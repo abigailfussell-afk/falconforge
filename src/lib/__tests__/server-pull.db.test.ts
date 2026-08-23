@@ -156,7 +156,17 @@ describe('pullFromServer', () => {
         await pullFromServer({ teamId: team.id, tables: ['tasks'], mode: 'full' });
 
         const meta = await getSyncMeta();
-        const cursor = meta.cursors[`${team.id}:tasks`];
+        /*
+         * The key carries the SEASON as well as the team (SYNC-01/03).
+         *
+         * The pull asks for one season at a time now, so a single `team:tasks` cursor would
+         * be a claim about rows it never requested: open the archived season next and its
+         * first pull would start from a timestamp none of its rows has, returning nothing,
+         * which is indistinguishable from a season with nothing in it. Spelled out here
+         * rather than derived from the code under test, so that changing the scheme has to
+         * be a deliberate edit to this line.
+         */
+        const cursor = meta.cursors[`${team.id}:tasks:season:${team.seasonId}`];
         expect(cursor, 'no cursor was written').toBeTruthy();
 
         const row = await svc.from('tasks').select('updated_at').eq('id', team.taskId).single();

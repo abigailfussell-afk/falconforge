@@ -3,10 +3,20 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import SeasonManager from '../SeasonManager';
 import { useAppStore } from '../../lib/store';
 
-// Mock the store
-vi.mock('../../lib/store', () => ({
-    useAppStore: vi.fn(),
-}));
+/*
+ * Mock the store — INCLUDING `getState`.
+ *
+ * `ensureSeasonFieldImage` reads the store directly, and a `vi.fn()` with no `getState`
+ * threw inside an async function, i.e. as an unhandled rejection: the run fails while every
+ * test reports passing (`docs/failure-modes.md` section 11). A mock that cannot represent
+ * what the code under test does is the same class as a mock returning `undefined` where the
+ * real API returns a promise.
+ */
+const storeState = { seasons: [] as unknown[] };
+vi.mock('../../lib/store', () => {
+    const useAppStore = Object.assign(vi.fn(), { getState: () => storeState });
+    return { useAppStore };
+});
 
 const season = (over: Record<string, unknown> = {}) => ({
     id: 's1',
@@ -29,8 +39,8 @@ describe('SeasonManager', () => {
         season({ id: 's2', name: 'Season 2', fieldImageData: 'data:image/png;base64,xxx' }),
     ];
 
-    /** Render with a store state, defaulting to an entitled team on an open season. */
-    const mountWith = (over: Record<string, unknown> = {}) => {
+    /** Point the mocked store at a state, without rendering anything. */
+    const setStore = (over: Record<string, unknown> = {}) => {
         (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector: (s: unknown) => unknown) =>
             selector({
                 seasons: mockSeasons,
@@ -48,6 +58,11 @@ describe('SeasonManager', () => {
                 ...over,
             }),
         );
+    };
+
+    /** Render with a store state, defaulting to an entitled team on an open season. */
+    const mountWith = (over: Record<string, unknown> = {}) => {
+        setStore(over);
         return render(<SeasonManager />);
     };
 
@@ -356,7 +371,7 @@ describe('SeasonManager', () => {
         });
 
         it('allows removing an image', () => {
-            mountWith();
+            const { rerender } = mountWith();
 
             fireEvent.click(screen.getAllByText('Edit')[1]);
             expect(screen.getByText('Replace Image')).toBeDefined();
@@ -364,7 +379,27 @@ describe('SeasonManager', () => {
             const removeButton = document.querySelector('button[title="Remove image"]')!;
             fireEvent.click(removeButton);
             expect(mockUpdateSeason).toHaveBeenCalledWith('s2', { fieldImageData: '' });
+
+            /*
+             * The panel reads the STORE, not a local copy of it, so the label follows the
+             * store — which the mock has to be told about, because a spy does not write one.
+             *
+             * The previous version of this assertion passed without this step, because the
+             * component kept its own `editFieldImageData` and cleared it on click. That made
+             * the check a statement about a `useState` call rather than about the season, and
+             * it would have gone on passing if `updateSeason` had stopped being called at
+             * all. It also could not survive the field image becoming a lazily-fetched column
+             * (SYNC-03): a copy taken when the panel opened would never learn the image had
+             * arrived.
+             */
+            setStore({
+                seasons: [mockSeasons[0], season({ id: 's2', name: 'Season 2', fieldImageData: '' })],
+            });
+            rerender(<SeasonManager />);
+
+            // The panel is still open — the label under it is what changed.
             expect(screen.getByText('Upload Field Image')).toBeDefined();
+            expect(screen.queryByText('Replace Image')).toBeNull();
         });
     });
 });
