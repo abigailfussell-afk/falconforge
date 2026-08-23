@@ -23,7 +23,8 @@
  * tests below pin both halves: that it asks when it should, and — the ones that matter — that
  * it never answers on its own.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
 
 const pulls = vi.hoisted(() => ({ entitlement: [] as string[], full: 0 }));
 
@@ -55,7 +56,8 @@ vi.mock('@/lib/offline-db', () => ({
 }));
 
 import { useAppStore } from '@/lib/store';
-import { pullChangesFromServer } from '@/lib/sync';
+import { useAuth } from '@/lib/auth';
+import { pullChangesFromServer, useSync, ENTITLEMENT_RECHECK_MS } from '@/lib/sync';
 import type { TeamEntitlement } from '@/lib/slices/createTeamSlice';
 
 const TEAM = 'team-1';
@@ -72,10 +74,20 @@ const entitlement = (over: Partial<TeamEntitlement> = {}): TeamEntitlement => ({
     ...over,
 });
 
+afterEach(() => {
+    vi.useRealTimers();
+});
+
+const mockUseAuth = vi.mocked(useAuth);
+
 beforeEach(() => {
     pulls.entitlement = [];
     pulls.full = 0;
     useAppStore.setState({ currentTeamId: TEAM, entitlement: null });
+    mockUseAuth.mockReturnValue({
+        session: { access_token: 't' },
+        isLoading: false,
+    } as unknown as ReturnType<typeof useAuth>);
 });
 
 const pull = () => pullChangesFromServer();
@@ -180,5 +192,67 @@ describe('the client clock asks a question and never answers one', () => {
         // The mocked `pullEntitlement` writes nothing, which is the point: with no reply from
         // the server the device's answer is unchanged, and the team keeps working.
         expect(useAppStore.getState().entitlement?.status).toBe('active');
+    });
+});
+
+describe('an app that is merely OPEN notices too', () => {
+    /*
+     * THE SECOND HALF, and the one the probe found. Wiring the re-ask into
+     * `pullChangesFromServer` alone is not enough: `sync()` runs only when
+     * `getPendingSyncCount() > 0`, so a client with an empty queue never pulls ANYTHING. A
+     * coach who has the board open and is not typing — which at a competition is most of the
+     * day — would go on being shown live New/Edit/Save controls until they queued something or
+     * reloaded the tab, and `license_grants` has no realtime subscription to tell them either.
+     *
+     * Watched failing with the interval effect removed: the queue stays empty, `sync()` never
+     * fires, and `pulls.entitlement` stays `[]` for ever.
+     */
+    it('re-asks on its own schedule with nothing queued', async () => {
+        vi.useFakeTimers();
+        useAppStore.setState({
+            entitlement: entitlement({ validUntil: new Date(Date.now() - HOUR).toISOString() }),
+        });
+
+        const { unmount } = renderHook(() => useSync());
+
+        // The effect asks once on mount, before any interval has elapsed — a coach who opens
+        // the tab after cover ended must not wait a minute to be told.
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(pulls.entitlement).toEqual([TEAM]);
+        expect(pulls.full, 'nothing was queued, so no sync should have run').toBe(0);
+
+        await act(async () => {
+            vi.advanceTimersByTime(ENTITLEMENT_RECHECK_MS);
+            await Promise.resolve();
+        });
+        expect(pulls.entitlement.length).toBeGreaterThan(1);
+
+        unmount();
+        vi.useRealTimers();
+    });
+
+    /*
+     * The interval must be a local question, not a poll of the server. Nothing here should
+     * reach the network for a team whose cover is still running — otherwise this is a request
+     * every sixty seconds, per device, for every team, for ever.
+     */
+    it('costs nothing while cover is still running', async () => {
+        vi.useFakeTimers();
+        useAppStore.setState({
+            entitlement: entitlement({ validUntil: new Date(Date.now() + 30 * 24 * HOUR).toISOString() }),
+        });
+
+        const { unmount } = renderHook(() => useSync());
+        await act(async () => {
+            vi.advanceTimersByTime(ENTITLEMENT_RECHECK_MS * 10);
+            await Promise.resolve();
+        });
+
+        expect(pulls.entitlement).toEqual([]);
+
+        unmount();
+        vi.useRealTimers();
     });
 });

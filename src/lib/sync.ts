@@ -63,6 +63,15 @@ export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
 export const MAX_SYNC_RETRIES = 5;
 
 /**
+ * How often an open app re-checks whether its own cover has run out.
+ *
+ * Not a poll of the server: see `reAskEntitlementIfCoverLooksOver`, which makes a request only
+ * when the device already believes cover has ended. This is how often that cheap local
+ * question is asked. A minute is well inside the time it takes to walk to the pit.
+ */
+export const ENTITLEMENT_RECHECK_MS = 60_000;
+
+/**
  * How long to wait before re-attempting a queue that still has work in it, indexed by how
  * many consecutive drains have failed (B19).
  *
@@ -217,6 +226,36 @@ export function useSync(): UseSyncResult {
         const interval = setInterval(() => void refreshQueueCounts(), 5000);
         return () => clearInterval(interval);
     }, [refreshQueueCounts]);
+
+    /*
+     * NOTICE OUR OWN LICENCE RUNNING OUT WHILE THE APP IS SIMPLY OPEN.
+     *
+     * `pullChangesFromServer` also calls this, which covers the case where there is queued
+     * work. It is not enough on its own, and finding out why is what
+     * `scripts/probe-queued-before-lapse.mjs` is for: `sync()` runs only when
+     * `getPendingSyncCount() > 0`, so a client with an empty queue never pulls ANYTHING. A
+     * coach who has the board open and is not typing — which at a competition is most of the
+     * day — would go on being shown live New/Edit/Save controls until they queued something or
+     * reloaded the tab, and `license_grants` has no realtime subscription to tell them either.
+     *
+     * A minute, not five seconds, because the answer this asks about changes at most once. And
+     * it is nearly always free: `reAskEntitlementIfCoverLooksOver` returns without a request
+     * unless the device ALREADY believes cover has ended, which for a licensed team is never,
+     * and it stops asking the moment the server says `read_only`.
+     */
+    useEffect(() => {
+        if (!authReady) return;
+
+        const check = () => {
+            if (!navigator.onLine) return;
+            const teamId = useAppStore.getState().currentTeamId;
+            if (teamId) void reAskEntitlementIfCoverLooksOver(teamId);
+        };
+
+        check();
+        const interval = setInterval(check, ENTITLEMENT_RECHECK_MS);
+        return () => clearInterval(interval);
+    }, [authReady]);
 
     // Auto-sync when coming back online, when pending changes increase, or when auth
     // becomes ready (e.g. after Ctrl+F5 token refresh completes). This is the fast path:
