@@ -59,50 +59,57 @@ position was "lose everything since somebody last remembered".
 **Two repository secrets, and until they exist the workflow goes red every night.** That is
 deliberate: a backup job that skips quietly is the failure this is meant to remove.
 
-**Status, 2026-08-23 (evening) — `main` is pushed, the workflow is registered, and the first run
-FAILED. One thing left, and it is in this document's own table below.**
+**Status, 2026-08-23 — WORKING. The first backup in this project's history exists.**
 
-There were two failures stacked on top of each other, and the second was hidden by the first.
+Run `32670045597`: **38 452 bytes of data, 17 `INSERT` statements**, encrypted on the runner and
+retained as a 30-day artifact. The tables in it are the ones a restore cannot rebuild —
+`auth.users`, `public.teams`, `team_members`, `platform_operators`, `user_attestations` — and the
+list is identical to the manual dump taken the same afternoon, which was verified by **restoring
+it** and applying all 14 pending migrations on top. The nightly runs at 07:10 UTC from here.
 
-**First: the workflow was not on GitHub.** `backup.yml` landed in Sprint 14, and `main` had not
-been pushed since `c1cec81` — so the file existed on Kevin's machine and nowhere GitHub could see
-it. `gh workflow list --all` returned only *CI*, *Deploy* and *pages-build-deployment*, and
+Getting there took three failures, and each is worth keeping because each looked like success
+from the outside.
+
+**1 — the workflow was not on GitHub at all.** `backup.yml` landed in Sprint 14, but `main` had
+not been pushed since `c1cec81`, so it existed on one laptop and nowhere GitHub could see it.
 `gh run list --workflow=backup.yml` answered `HTTP 404: workflow not found on the default
-branch`. It was not going red every night; it was not running at all, which is the quieter of the
-two failures and the one this workflow was written to make impossible. Fixed by pushing `main`
-(86 commits) after the 14 pending migrations were applied to the hosted project.
+branch`. It was not going red every night; it was not running at all — the quieter of the two
+failures, and the one this workflow was written to make impossible. Fixed by pushing `main` (86
+commits) once the 14 pending migrations had been applied to the hosted project.
 
-**Second, and this one is this document's fault.** With the workflow finally registered, the run
-was triggered by hand rather than waited for — which is precisely what `workflow_dispatch` is
-there for — and it failed in 30 seconds:
+**2 — the secret was the wrong kind of connection string, and this document said to make it
+that.** The first real run failed in 30 seconds:
 
 ```
-pg_dump: error: connection to server at "db.<ref>.supabase.co"
-  (2600:1f14:131e:fd01:beb5:3d0a:ea06:9c29), port 5432 failed: Network is unreachable
+pg_dump: error: connection to server at "db.<ref>.supabase.co" (2600:1f14:...), port 5432
+failed: Network is unreachable
 Your network does not support IPv6, which is required for direct connections to the database.
 ```
 
 **GitHub's hosted runners have no IPv6, and Supabase's direct database host is IPv6-only on the
-free tier.** So `db.<ref>.supabase.co` is not slow or flaky from Actions — it is unreachable,
-every time, for ever. And the secrets table below told Kevin to use exactly that: *"Use the direct
-connection, not the pooler."* He set the secret correctly according to the documentation, and the
-documentation was wrong.
+free tier** — so that address is not slow or flaky from Actions, it is unreachable, always. The
+secrets table below used to say *"Use the direct connection, not the pooler."* Kevin set the
+secret correctly according to the documentation; the documentation was wrong. It was half right,
+which is why it survived: `pg_dump` genuinely needs a session and the TRANSACTION pooler (6543)
+cannot give one. What it missed is the **session pooler on 5432** — IPv4 *and* session-mode.
+`backup.yml` now refuses in its first step if the URL is not a pooler string, before pulling a
+300 MB postgres image: 9 seconds and a named cause, against 34 seconds and an IPv6 error.
 
-The reasoning in that line was half right, which is why it survived: `pg_dump` genuinely does need
-a session, and the TRANSACTION pooler (6543) genuinely cannot give it one. What it missed is that
-Supabase also publishes a **session** pooler on **5432** — IPv4, session-mode, and exactly what
-`pg_dump` wants. "Pooler" was read as "transaction pooler" and the usable option was written out
-of existence.
+**3 — the size floor rejected a perfectly good backup, on the first run that ever reached it.**
+The check was `data.sql` must exceed 50 KB. Production's data half is **38 452 bytes**. Nothing
+was wrong with the dump; the floor was a guess made before anybody had measured the thing it was
+guarding, and the first time it ran it failed a real backup. A byte count is the wrong instrument
+twice over — it fails a small database that is perfectly backed up, and it passes a large one
+whose rows are missing but whose `SET`/`COMMENT` preamble is bulky, which is the failure it was
+written to catch. It now counts `INSERT` statements and requires `auth.users` and `public.teams`
+specifically: an account and a tenancy, the two things no amount of re-running rebuilds. The
+run summary carries those numbers, because "backup taken" is what thirty days of green would have
+looked like while the artifact restored an empty database.
 
-**What is left to do — Kevin's, because it carries the database password:** set `SUPABASE_DB_URL`
-to the **Session pooler** URI (Supabase Dashboard → Connect → Session pooler, port **5432**,
-host `aws-0-us-west-2.pooler.supabase.com`), then run the workflow by hand again. `backup.yml`
-now refuses in its first step, before pulling a 300 MB postgres image, if the URL is not a pooler
-string — so the next failure, if there is one, will name its own cause.
-
-Until that secret changes, **the recovery position is the manual dump taken on 2026-08-23**
-(`backups/falconforge-2026-08-23-1604.sql`), which was verified by restoring it and applying all
-14 migrations on top of it. See "Restoring from a nightly artifact" for the shape of that check.
+**Still not proven, and worth knowing:** nobody has decrypted an artifact and restored it. The
+manual dump was restored and is the evidence that the *content* is good; the artifact is the same
+content through `gpg`. Restoring one is the next thing to do — see "Restoring from a nightly
+artifact", and note the trap recorded there about `session_replication_role`.
 
 | Secret | What it is | Where to get it |
 |---|---|---|
