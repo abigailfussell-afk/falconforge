@@ -210,9 +210,19 @@ Asserting the class is present is what all nine of these would have passed. Prec
   "any approved member", so a **student** could create events and set anybody's attendance; and
   attendance SELECT was `is_team_member`, so every student could read every other student's
   record over the API — **and these are minors' records.**
+- **SEC-01** (assessment of 2026-08-22, fixed Sprint 10) — the same `can_manage_roster` that
+  Sprint 6 narrowed *on `teams`* was still admin-or-coach on `team_members`, with no column or
+  row restriction. So a coach could `PATCH team_members?role=eq.admin {"role":"student"}` and
+  then `PATCH` their own row to `admin`: **the whole nomination handshake bypassed in three
+  ordinary REST calls**, plus a `DELETE` variant that strands the team with no admin at all.
+  Reproduced as a seeded coach; 319 green assertions in `tenant-isolation.rls.db.test.ts` had
+  never tried a coach writing `role = 'admin'` or touching the admin's row. The narrowing is
+  `enforce_admin_membership_protection`, and the lesson is the one below stated a third time:
+  `can_manage_roster` is "may edit the roster", and it was made to answer "may you decide who
+  runs the team?" — a question that already had its own capability, `can_manage_billing`.
 
 The corollary the corpus proves twice: a security suite tests the attack shapes its author
-imagined. 180 and 261 green assertions said nothing about the shape nobody tried.
+imagined. 180, 261 and 319 green assertions said nothing about the shape nobody tried.
 
 **What to do.** An unblocking grant is a defect with a deadline, not a fix — write it narrow, or
 write the parking-lot item in the same commit. Policies name a **capability**, never a membership

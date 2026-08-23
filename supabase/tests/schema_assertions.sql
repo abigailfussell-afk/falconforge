@@ -673,8 +673,6 @@ BEGIN
     END IF;
 END $$;
 
-SELECT 'schema assertions passed' AS result;
-
 -- 23. NO SECURITY DEFINER FUNCTION JOINS THE ANON-EXECUTABLE SET BY ACCIDENT.
 --
 --     `20260819000000_revoke_anon_execute.sql` claims this property in its header -- "adding a
@@ -725,3 +723,66 @@ BEGIN
             offenders;
     END IF;
 END $$;
+
+-- 24. SEC-01 -- the admin's membership row is not an ordinary roster row.
+--
+--     `team_members_update_roster` / `_delete_roster` are `can_manage_roster`, i.e. admin OR
+--     COACH, over the whole row. A policy cannot say "not that column" or "not that row's
+--     role", so before Sprint 10 a coach could demote the admin, delete their row, or write
+--     `role = 'admin'` onto their own -- three ordinary REST calls, reproduced on the seeded
+--     stack. `enforce_admin_membership_protection` is what closes it.
+--
+--     THE TRIGGER NAME IS PART OF THE ASSERTION. BEFORE triggers fire in alphabetical order,
+--     and this one has to precede `enforce_member_role_eligibility_trigger` so the refusal is
+--     about authority (42501) rather than about whether the attacker happens to have an
+--     attestation (23514). Renaming it would silently swap which rule answers first.
+--
+--     Behavioural proof is `admin-membership-protection.rls.db.test.ts`, as the coach, over
+--     PostgREST -- see `docs/environment-divergences.md` section 5. This is the drift check.
+DO $$
+DECLARE
+    v_def text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'enforce_admin_membership_protection_trigger'
+          AND tgrelid = 'public.team_members'::regclass
+          AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION
+            'enforce_admin_membership_protection_trigger is missing from team_members -- a '
+            'coach can demote or delete the team admin over plain REST (SEC-01)';
+    END IF;
+
+    IF 'enforce_admin_membership_protection_trigger' >=
+       'enforce_member_role_eligibility_trigger' THEN
+        RAISE EXCEPTION
+            'the SEC-01 trigger no longer sorts before enforce_member_role_eligibility_trigger, '
+            'so the eligibility rule now answers the authority question first';
+    END IF;
+
+    v_def := pg_get_functiondef('public.enforce_admin_membership_protection()'::regprocedure);
+
+    IF position('falconforge.admin_transfer' IN v_def) = 0 THEN
+        RAISE EXCEPTION
+            'enforce_admin_membership_protection no longer honours the transaction-local '
+            'admin-transfer flag -- create_team_as_admin and the three transfer RPCs cannot work';
+    END IF;
+
+    -- Each of the four legitimate writers of `role = admin` must still raise the flag.
+    FOR v_def IN
+        SELECT pg_get_functiondef(p.oid)
+          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'public'
+           AND p.proname IN ('create_team_as_admin', 'transfer_team_admin',
+                             'accept_team_admin_nomination', 'operator_transfer_team_admin')
+    LOOP
+        IF position('falconforge.admin_transfer' IN v_def) = 0 THEN
+            RAISE EXCEPTION
+                'an admin-transfer RPC no longer sets the falconforge.admin_transfer flag, so '
+                'the SEC-01 trigger will refuse it: %', left(v_def, 120);
+        END IF;
+    END LOOP;
+END $$;
+
+SELECT 'schema assertions passed' AS result;
