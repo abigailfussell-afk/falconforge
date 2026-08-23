@@ -20,6 +20,8 @@ import { resolve, join } from 'node:path';
 
 const repoRoot = resolve(__dirname, '../../..');
 const read = (rel: string) => readFileSync(join(repoRoot, rel), 'utf8');
+/** Written once so a failure message can join a list without an inline escape. */
+const NL = String.fromCharCode(10);
 
 /**
  * Every .ts/.tsx file under a directory, recursively — except this one.
@@ -134,6 +136,101 @@ describe('the harness cannot quietly stop verifying', () => {
         const files = [...sourceFiles('src'), ...sourceFiles('e2e')];
         const { total, hits } = countMatches(files, /\b(?:describe|it|test)\.skip\b/g);
         expect(total, `skips:\n${hits.join('\n')}`).toBeLessThanOrEqual(1);
+    });
+});
+
+describe('every test asserts something', () => {
+    /*
+     * OPS-02 — seven tests with no assertion at all, and ~25 more with their assertion behind
+     * an `if`.
+     *
+     * `it('opens task details when clicking a task', () => { const el = screen.queryByText(...);
+     * if (el) { fireEvent.click(el); } })` passes whether or not the element exists, whether or
+     * not the click does anything, and whether or not the component still exists. Four of them
+     * were in the board's own suite — the screen a team uses at a competition.
+     *
+     * This is `docs/failure-modes.md` §2, the class that document calls the most dangerous
+     * because it manufactures confidence and hides every other class. The unit count is a
+     * number this project quotes in its own progress log, so a test that cannot fail inflates
+     * the one figure everybody reads.
+     *
+     * PARSING, NOT AST. A regex over `it(`/`test(` bodies, in the style of the ratchets above:
+     * no new dependency and no new CI step. The trade is that it counts braces rather than
+     * understanding them, and that a helper called INSTEAD of `expect` has to be named here —
+     * `denied()` in the season-lifecycle db tests is the one that exists. Both stated rather
+     * than hidden.
+     */
+    const ASSERTING = /\b(expect|assert|denied|expectDenied|expectRefused)\s*\(|\.rejects\b|\.resolves\b|toThrow/;
+
+    /** Every `it(...)` / `test(...)` body in a file, by brace-matching from the callback. */
+    const testBodies = (source: string): { title: string; body: string }[] => {
+        const out: { title: string; body: string }[] = [];
+        const opener = /\b(?:it|test)(?:\.\w+)?\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,/g;
+        for (const match of source.matchAll(opener)) {
+            const from = source.indexOf('{', (match.index ?? 0) + match[0].length);
+            if (from === -1) continue;
+            let depth = 0;
+            let to = from;
+            for (; to < source.length; to++) {
+                if (source[to] === '{') depth++;
+                else if (source[to] === '}' && --depth === 0) break;
+            }
+            out.push({ title: match[2], body: source.slice(from, to) });
+        }
+        return out;
+    };
+
+    const testFiles = () => sourceFiles('src').filter((f) => /\.(test|spec)\.tsx?$/.test(f));
+
+    it('has no test body without an assertion', () => {
+        const offenders: string[] = [];
+        for (const file of testFiles()) {
+            for (const { title, body } of testBodies(readFileSync(file, 'utf8'))) {
+                if (!ASSERTING.test(body)) {
+                    offenders.push(`${file.slice(repoRoot.length + 1)}  ${title}`);
+                }
+            }
+        }
+
+        const message =
+            'tests that assert nothing (OPS-02) - they pass whether the feature works or not:'
+            + NL + offenders.join(NL);
+        expect(offenders, message).toEqual([]);
+    });
+
+    /*
+     * The extractor has to actually find tests, or the check above is a very confident `[]`.
+     *
+     * This is the same trap the thing being measured fell into: a scan that matches nothing
+     * reports perfect health. `harness-invariants.test.ts` is excluded from `sourceFiles`, so
+     * the number below is every OTHER suite in the repo.
+     */
+    it('actually finds the tests it is checking', () => {
+        const counted = testFiles().reduce(
+            (n, f) => n + testBodies(readFileSync(f, 'utf8')).length,
+            0,
+        );
+        expect(counted, 'the test-body extractor matched almost nothing').toBeGreaterThan(500);
+    });
+
+    /*
+     * The softer half of the same finding: `if (element) { fireEvent.click(element) }`.
+     *
+     * These have an assertion somewhere, so the check above passes them — but the ACTION is
+     * conditional, so when the element stops existing the test quietly stops testing and stays
+     * green. Sprint 7's venue simulation is the cautionary version: it located
+     * `input[type=checkbox]`, matched nothing for its whole life, and reported success.
+     */
+    it('does not put an action behind an `if (element)` guard', () => {
+        const re = /if\s*\(\s*\w+\s*\)\s*\{[^}]*\bfireEvent\b/g;
+        const { total, hits } = countMatches(testFiles(), re);
+        /*
+         * TWO, not zero, and both are inside `describe.skip('Drawing actions')` in
+         * `MatchPlanner.test.tsx` — the repo's one recorded skip. Editing assertions inside a
+         * block nothing runs would be a change nobody could verify, which is the opposite of
+         * OPS-02's point. Un-skipping that block is what takes this to zero.
+         */
+        expect(total, `conditional actions:${NL}${hits.join(NL)}`).toBeLessThanOrEqual(2);
     });
 });
 

@@ -100,20 +100,27 @@ describe('PreMatchChecklist', () => {
         expect(mockStore.addChecklistItem).toHaveBeenCalledWith('Check camera mount');
     });
 
-    it('calls addChecklistItem when adding new item', () => {
+    it('puts the list into edit mode, where items can be added', () => {
+        /*
+         * OPS-02. This searched the buttons for one whose text contained "add" OR THAT HELD ANY
+         * `svg` — nearly every icon button on the page — and then did all of its work inside
+         * `if (addButton)` with no assertion. It never called `addChecklistItem`, despite its
+         * name, and it passed whether the checklist rendered or not.
+         *
+         * Adding an item is behind Edit, so that is what this asserts: the state change the
+         * screen actually has. The name changed with it, because a test named for a call it
+         * does not make is how the next reader is misled about what is covered.
+         */
         render(<PreMatchChecklist />);
 
-        // Look for add button or input
-        const addButtons = screen.getAllByRole('button');
-        const addButton = addButtons.find(btn =>
-            btn.textContent?.toLowerCase().includes('add') ||
-            btn.querySelector('svg')
-        );
+        fireEvent.click(screen.getByTestId('edit-checklist'));
 
-        if (addButton) {
-            fireEvent.click(addButton);
-            // After clicking add, there should be input or modal
-        }
+        expect(screen.getByTestId('reset-checklist')).toBeInTheDocument();
+        // Edit mode is what reveals the new-item field; view mode has no way to add one.
+        expect(screen.getByPlaceholderText('Add new item...')).toBeInTheDocument();
+        // ...and it withdraws the tick-off buttons, which is what makes it a MODE rather
+        // than an extra row.
+        expect(screen.queryAllByTestId('checklist-item-toggle')).toHaveLength(0);
     });
 
     it('displays progress indicator', () => {
@@ -128,16 +135,12 @@ describe('PreMatchChecklist', () => {
     it('has reset functionality', () => {
         render(<PreMatchChecklist />);
 
-        // Look for reset button
-        const buttons = screen.getAllByRole('button');
-        const resetButton = buttons.find(btn =>
-            btn.textContent?.toLowerCase().includes('reset') ||
-            btn.querySelector('[data-testid="reset"]')
-        );
-
-        if (resetButton) {
-            fireEvent.click(resetButton);
-            expect(mockStore.resetChecklist).toHaveBeenCalled();
-        }
+        /*
+         * OPS-02: the assertion used to sit inside `if (resetButton)`, and the search was for a
+         * button whose text contained "reset" or that held `[data-testid="reset"]` — the real
+         * id is `reset-checklist`, so it matched nothing and the expectation never ran.
+         */
+        fireEvent.click(screen.getByTestId('reset-checklist'));
+        expect(mockStore.resetChecklist).toHaveBeenCalled();
     });
 });

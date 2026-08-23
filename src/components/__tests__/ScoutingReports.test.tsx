@@ -119,37 +119,35 @@ describe('ScoutingReports', () => {
         expect(addButton).toBeDefined();
     });
 
-    it('opens form when clicking add button', () => {
+    it('opens the scouting form when "Scout a match" is clicked', () => {
+        /*
+         * OPS-02. This used to hunt the buttons for one whose text contained "scout" OR THAT
+         * CONTAINED ANY `svg` — which is nearly every icon button on the page — and then do
+         * everything inside `if (addButton)` with no assertion at all. It passed whether the
+         * form opened, opened on the wrong thing, or did not exist.
+         */
         render(<ScoutingReports />);
 
-        const buttons = screen.getAllByRole('button');
-        const addButton = buttons.find(btn =>
-            btn.textContent?.toLowerCase().includes('scout') ||
-            btn.querySelector('svg')
-        );
+        fireEvent.click(screen.getByTestId('scout-match'));
 
-        if (addButton) {
-            fireEvent.click(addButton);
-
-            // After clicking, form inputs should appear
-            // Wait for modal/form to open
-        }
+        expect(screen.getByText('New Scouting Report')).toBeDefined();
+        expect(screen.getByTestId('save-scouting-report')).toBeDefined();
     });
 
-    it('calls deleteScoutingReport when deleting', () => {
-        render(<ScoutingReports />);
-
-        // Find delete button (usually trash icon)
-        const deleteButtons = screen.getAllByRole('button').filter(btn =>
-            btn.querySelector('[class*="trash"]') ||
-            btn.getAttribute('aria-label')?.includes('delete')
-        );
-
-        if (deleteButtons.length > 0) {
-            fireEvent.click(deleteButtons[0]);
-            // Might need confirmation
-        }
-    });
+    /*
+     * OPS-02: `calls deleteScoutingReport when deleting` was DELETED rather than rewritten.
+     *
+     * It filtered buttons by `[class*="trash"]` or an aria-label containing "delete", matched
+     * none of them (the icon is an SVG child and the label is "Delete report"), and did all of
+     * its work inside `if (deleteButtons.length > 0)` — so it asserted nothing and never called
+     * the store.
+     *
+     * Rewriting it would have produced a fourth copy of something this file already tests
+     * properly three times: `shows delete confirmation modal when clicking trash icon`,
+     * `deletes report when confirming` and `cancels deletion when clicking Cancel`. One
+     * concept, one test (CLAUDE.md principle 9); a dead test's replacement is not automatically
+     * worth having.
+     */
 
     it('shows empty state when no reports', () => {
         (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => {
@@ -276,11 +274,12 @@ describe('ScoutingReports edit flow', () => {
         render(<ScoutingReports />);
 
         // Click on the first report card (the card with team #12345)
+        // `getByText` throws when the card is missing, so the click is unconditional —
+        // it used to sit inside `if (reportCard)`, which meant a renamed class silently
+        // turned this into a test of an unopened modal (OPS-02).
         const reportCard = screen.getByText('#12345').closest('div[class*="cursor-pointer"]');
-        expect(reportCard).not.toBeNull();
-        if (reportCard) {
-            fireEvent.click(reportCard);
-        }
+        expect(reportCard, 'the report card is no longer findable by that class').not.toBeNull();
+        fireEvent.click(reportCard!);
 
         // The edit modal should show "Edit Scouting Report" title
         expect(screen.getByText('Edit Scouting Report')).toBeDefined();
@@ -290,10 +289,12 @@ describe('ScoutingReports edit flow', () => {
         render(<ScoutingReports />);
 
         // Click on the first report card
+        // `getByText` throws when the card is missing, so the click is unconditional —
+        // it used to sit inside `if (reportCard)`, which meant a renamed class silently
+        // turned this into a test of an unopened modal (OPS-02).
         const reportCard = screen.getByText('#12345').closest('div[class*="cursor-pointer"]');
-        if (reportCard) {
-            fireEvent.click(reportCard);
-        }
+        expect(reportCard, 'the report card is no longer findable by that class').not.toBeNull();
+        fireEvent.click(reportCard!);
 
         // Team number should be populated
         const teamInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
@@ -304,10 +305,12 @@ describe('ScoutingReports edit flow', () => {
         render(<ScoutingReports />);
 
         // Click report card to open edit modal
+        // `getByText` throws when the card is missing, so the click is unconditional —
+        // it used to sit inside `if (reportCard)`, which meant a renamed class silently
+        // turned this into a test of an unopened modal (OPS-02).
         const reportCard = screen.getByText('#12345').closest('div[class*="cursor-pointer"]');
-        if (reportCard) {
-            fireEvent.click(reportCard);
-        }
+        expect(reportCard, 'the report card is no longer findable by that class').not.toBeNull();
+        fireEvent.click(reportCard!);
 
         // Click Save Report button
         const saveBtn = screen.getByText('Save Report');
@@ -353,14 +356,16 @@ describe('ScoutingReports delete confirmation', () => {
         const deleteButtons = screen.getAllByTitle('Delete report');
         fireEvent.click(deleteButtons[0]);
 
-        // Click the red "Delete" button in the modal
+        /*
+         * The red "Delete" in the modal. `expect(x).toBeDefined()` passes for `undefined`, so
+         * the old pair of that plus `if (confirmBtn)` could not fail if the button vanished —
+         * the assertion below would then have caught it, but only by accident (OPS-02).
+         */
         const confirmBtn = screen.getAllByRole('button').find(
             btn => btn.textContent === 'Delete' && btn.className.includes('bg-red')
         );
-        expect(confirmBtn).toBeDefined();
-        if (confirmBtn) {
-            fireEvent.click(confirmBtn);
-        }
+        expect(confirmBtn, 'no confirm button in the delete dialog').toBeTruthy();
+        fireEvent.click(confirmBtn!);
 
         expect(mockStore.deleteScoutingReport).toHaveBeenCalledWith('report-1');
     });

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SprintPlanning from '../SprintPlanning';
 import type { Task, TeamMember, SubTeam } from '../../types';
+// The app's own initials function, so a card and the sidebar cannot disagree about a person.
+import { getMemberInitials } from '../../lib/member-utils';
 
 // Mock the store
 vi.mock('../../lib/store', () => ({
@@ -191,7 +193,7 @@ describe('SprintPlanning', () => {
             expect(addButton).toBeDefined();
         });
 
-        it('opens task form when clicking add', () => {
+        it('opens the task form when New Item is clicked', () => {
             render(
                 <SprintPlanning
                     tasks={mockTasks}
@@ -201,16 +203,39 @@ describe('SprintPlanning', () => {
                 />
             );
 
-            const buttons = screen.getAllByRole('button');
-            const addButton = buttons.find(btn =>
-                btn.textContent?.toLowerCase().includes('add') ||
-                btn.querySelector('[class*="plus"]')
+            /*
+             * OPS-02. This used to search the buttons for one whose text contained "add" or
+             * that held a `[class*="plus"]` child, then do everything inside `if (addButton)`
+             * — with no assertion anywhere. The control it was looking for is called "New
+             * Item" and has a `data-testid`, so the search had been matching nothing, and the
+             * test passed whether the board rendered a form, a different form, or nothing at
+             * all.
+             */
+            fireEvent.click(screen.getByTestId('new-task-button'));
+
+            // The modal is the assertion: its title input is unique to the task form.
+            expect(screen.getByTestId('task-title-input')).toBeInTheDocument();
+            expect(screen.getByTestId('save-task')).toBeInTheDocument();
+        });
+
+        it('opens the form empty rather than on a task — the control', () => {
+            // Without this, "the modal is open" could be satisfied by clicking a card.
+            render(
+                <SprintPlanning
+                    tasks={mockTasks}
+                    teamMembers={mockTeamMembers}
+                    subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
+                />
             );
 
-            if (addButton) {
-                fireEvent.click(addButton);
-                // Form or modal should open
-            }
+            fireEvent.click(screen.getByTestId('new-task-button'));
+
+            // A new task opens with a deliberate placeholder, which the modal focuses and
+            // selects for overtyping — so the control is that it is not an EXISTING task.
+            const title = (screen.getByTestId('task-title-input') as HTMLInputElement).value;
+            expect(title).toBe('New Task');
+            expect(title).not.toBe('Build drivetrain');
         });
     });
 
@@ -225,10 +250,13 @@ describe('SprintPlanning', () => {
                 />
             );
 
-            const taskCard = screen.getByText('Build drivetrain');
-            fireEvent.click(taskCard);
+            fireEvent.click(screen.getByText('Build drivetrain'));
 
-            // Task detail modal/panel should open
+            // OPS-02: this clicked and asserted nothing. What makes it a DETAIL view rather
+            // than any modal is that it is loaded with that task.
+            expect((screen.getByTestId('task-title-input') as HTMLInputElement).value)
+                .toBe('Build drivetrain');
+            expect(screen.getByText('Activity & Comments')).toBeInTheDocument();
         });
 
         it('shows task type badge', () => {
@@ -259,13 +287,33 @@ describe('SprintPlanning', () => {
                 />
             );
 
-            // Should show assignee name or initials
-            // Look for member names or avatar indicators
+            /*
+             * OPS-02: the body of this test was two comments. It is worth having, because the
+             * assignee is what a card is READ for on a competition morning — so it now asserts
+             * the thing the comments described.
+             *
+             * `mockTasks[0]` is assigned to `member-1`, who is John Doe; the board renders
+             * initials on the card. `getMemberInitials` is the app's own function, used rather
+             * than a hardcoded "JD" so this cannot disagree with the sidebar about the same
+             * person (seven implementations of that once disagreed — failure-modes §1).
+             */
+            const assignee = mockTeamMembers[0];
+            expect(assignee.id).toBe(mockTasks[0].assignedTo);
+            expect(screen.getAllByText(getMemberInitials(assignee)).length).toBeGreaterThan(0);
         });
     });
 
     describe('Archive functionality', () => {
-        it('can switch to archived view', () => {
+        it('can switch to the archived view', () => {
+            /*
+             * OPS-02: `queryByText(/archive/i)` then `if (archiveButton) { click }`, with no
+             * assertion. A view switch that renders nothing, or a button that has been renamed,
+             * both left this green.
+             *
+             * `mockTasks` holds no archived task, so the archived view's EMPTY STATE is what
+             * proves the switch happened — and that is worth pinning in its own right:
+             * failure-modes §4 lists two missing empty states that reached a brand-new team.
+             */
             render(
                 <SprintPlanning
                     tasks={mockTasks}
@@ -275,11 +323,36 @@ describe('SprintPlanning', () => {
                 />
             );
 
-            // Look for archived view toggle
-            const archiveButton = screen.queryByText(/archive/i);
-            if (archiveButton) {
-                fireEvent.click(archiveButton);
-            }
+            fireEvent.click(screen.getByRole('button', { name: /archived/i }));
+
+            expect(screen.getByText(/no archived tasks/i)).toBeInTheDocument();
+            // ...and the board's columns are gone, so this is a different view rather than an
+            // extra panel.
+            expect(screen.queryByText('Build drivetrain')).not.toBeInTheDocument();
+        });
+
+        it('lists an archived task when there is one — the control', () => {
+            const archived = {
+                ...mockTasks[0],
+                id: 'task-archived',
+                title: 'Last season chassis',
+                status: 'Archived' as Task['status'],
+                archivedAt: 1000,
+            };
+
+            render(
+                <SprintPlanning
+                    tasks={[...mockTasks, archived]}
+                    teamMembers={mockTeamMembers}
+                    subTeams={mockSubTeams}
+                    currentMember={mockTeamMembers[0]}
+                />
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: /archived/i }));
+
+            expect(screen.getByText('Last season chassis')).toBeInTheDocument();
+            expect(screen.queryByText(/no archived tasks/i)).not.toBeInTheDocument();
         });
     });
 

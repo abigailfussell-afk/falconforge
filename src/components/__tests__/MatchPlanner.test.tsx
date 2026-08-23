@@ -121,31 +121,51 @@ describe('MatchPlanner', () => {
         expect(useMatchPlansQuery).toHaveBeenCalledWith('team-1');
     });
 
-    it('allows toggling drawing mode and colors', () => {
-        const { container } = render(<MatchPlanner />);
-        
-        // Find toggle drawing button (usually the first button in the toolbar)
-        const toggleBtn = container.querySelector('button[title*="Drawing"]');
-        expect(toggleBtn).toBeDefined();
-        
-        if (toggleBtn) {
-            fireEvent.click(toggleBtn);
-            // It should toggle, hard to assert state visually without exact classes, but it runs
-        }
-        
-        // Find color buttons
-        const redBtn = container.querySelector('.bg-red-500');
-        const blueBtn = container.querySelector('.bg-blue-500');
-        const greenBtn = container.querySelector('.bg-green-500');
-        const yellowBtn = container.querySelector('.bg-yellow-400');
-        expect(redBtn).toBeDefined();
-        
-        if (redBtn) fireEvent.click(redBtn);
-        if (blueBtn) fireEvent.click(blueBtn);
-        if (greenBtn) fireEvent.click(greenBtn);
-        if (yellowBtn) fireEvent.click(yellowBtn);
+    it('toggles drawing mode, and says which state it is in', () => {
+        /*
+         * OPS-02. Every action here used to sit behind `if (x)`, and both assertions were
+         * `expect(el).toBeDefined()` — which passes for `undefined`, since `undefined` IS
+         * defined as far as that matcher is concerned. So the test could not fail if the
+         * whole toolbar disappeared.
+         *
+         * The toggle's own `title` carries its state, which is the assertable thing: the
+         * component writes "Drawing ON (click to toggle)" or "Drawing OFF".
+         */
+        render(<MatchPlanner />);
+
+        const before = screen.getByTitle(/^Drawing (ON|OFF)/).getAttribute('title');
+        fireEvent.click(screen.getByTitle(/^Drawing (ON|OFF)/));
+        const after = screen.getByTitle(/^Drawing (ON|OFF)/).getAttribute('title');
+
+        expect(after, 'clicking the drawing toggle changed nothing').not.toBe(before);
     });
 
+    it('offers every pen colour, each one selectable', () => {
+        /*
+         * The colours were four `if (btn) fireEvent.click(btn)` lines with a single
+         * `toBeDefined()` between them — so a missing swatch was indistinguishable from a
+         * present one, and clicking did not have to do anything.
+         */
+        render(<MatchPlanner />);
+
+        for (const name of ['red', 'blue', 'green', 'yellow']) {
+            const swatch = screen.getByTitle(`Draw in ${name}`);
+            expect(swatch, `no swatch for ${name}`).toBeInTheDocument();
+            fireEvent.click(swatch);
+        }
+
+        // Selecting a colour must also turn drawing ON — picking a pen and then finding
+        // the canvas inert is an affordance that does nothing (failure-modes §8).
+        expect(screen.getByTitle(/^Drawing ON/)).toBeInTheDocument();
+    });
+
+    /*
+     * The SKIPPED suite below predates this work and stays skipped (it is the repo's one
+     * recorded skipped suite, in the plan's parking lot as "+2 skips"). Its two `if (svg)` guards are
+     * therefore left alone: editing assertions inside a block nothing runs would be a change
+     * nobody could verify, which is the opposite of the point of OPS-02. They are the reason
+     * the conditional-action ratchet has a ceiling of 2 rather than 0.
+     */
     describe.skip('Drawing actions', () => {
         it('handles pointer events for drawing', () => {
             const { container } = render(<MatchPlanner />);
