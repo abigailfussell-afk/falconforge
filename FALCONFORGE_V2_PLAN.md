@@ -60,7 +60,7 @@ battle-tested part of the codebase — protect it.
 | Schema freedom | **Greenfield.** No production data to preserve. Squash/rewrite migrations freely until the schema freeze (end of Sprint 3). After beta teams onboard, all changes are forward migrations. |
 | Beta deadline | **FTC kickoff, early September.** Stability, sync reliability, seasons, roles, and UI polish ship first; attendance UI, guardian UI, and Stripe land during the season. |
 | AI features | **Removed** to eliminate the per-use cost component. Full record of what they did + rebuild guidance: `docs/ai-features-reference.md`. |
-| Hosting | gh-pages + custom domain (falcon-forge.com), Supabase free tier, HashRouter. The only backend is Supabase (Postgres/Auth/Realtime/Edge Functions). **Reaffirmed 2026-08-16 — stay put through beta.** Leaving gh-pages means HashRouter → BrowserRouter, which touches every route, the e2e pack, the capture script and the QR poster URLs already going onto paper: a framework-shaped change three weeks from kickoff, deferred for the same reason as Tailwind v4. Revisit post-season. The triggers are CSP/security headers over minors' data, wanting the repo private (Pages on a private repo needs a paid GitHub plan), and per-branch preview deploys — **never traffic**, which will not come close to any limit. Supabase free → Pro is a billing toggle with no migration and no downtime; its trigger is the first paying customer (PITR, log retention beyond 1 day, no 7-day inactivity pause), i.e. Sprint 10. |
+| Hosting | gh-pages + custom domain (falcon-forge.com), Supabase free tier, HashRouter. The only backend is Supabase (Postgres/Auth/Realtime/Edge Functions). **Reaffirmed 2026-08-16 — stay put through beta.** Leaving gh-pages means HashRouter → BrowserRouter, which touches every route, the e2e pack, the capture script and the QR poster URLs already going onto paper: a framework-shaped change three weeks from kickoff, deferred for the same reason as Tailwind v4. Revisit post-season. The triggers are CSP/security headers over minors' data, wanting the repo private (Pages on a private repo needs a paid GitHub plan), and per-branch preview deploys — never traffic to *Pages*, which is unmetered for this size. **CORRECTED 2026-08-24 (SYNC-03, measured):** the sentence used to end "never traffic, which will not come close to any limit", and that was wrong about SUPABASE. Egress was measured at **863.8 KB per app open** for a mid-season team with a prior season — ~2.28 GB/month for one team at 15 devices × 6 opens/day — against a 5 GB free-tier allowance shared by every team, i.e. **two teams**. Sprint 11 took a warm open to 13.8 KB and the monthly figure to ~46 MB/team, so the wall has moved rather than been removed; the number to watch is the dashboard's egress, not the page views. Supabase free → Pro is a billing toggle with no migration and no downtime; its trigger is the first paying customer (PITR, log retention beyond 1 day, no 7-day inactivity pause), i.e. Sprint 10. |
 | Brand | Keep the logo and orange "forge" palette. The problem is scale/density, not identity. |
 
 ## 4. Current-state assessment (audited 2026-08-15)
@@ -809,7 +809,11 @@ each is deferred because it is scoped work rather than because it is unimportant
 - **Three uses of Node's clock remain in `e2e/meetings.spec.ts`** (lines 52, 156, 350). They
   survive only because they sit far from a day boundary, which is luck rather than design — the
   defect they resemble was green in US Central and red at UTC. Ratcheted at 3.
-- **The coverage thresholds are enforced by nothing.** `vitest.config.coverage.ts:57-62` sets
+- **The coverage thresholds are enforced by nothing — and are now also FAILING.** OPS-01
+  measured them roughly ten points below the configured floor, so turning the enforcement on
+  is no longer a no-op commit; it is a decision about whether to lower the floor or write the
+  tests. Package G owns it.
+- *(original entry follows)* **The coverage thresholds are enforced by nothing.** `vitest.config.coverage.ts:57-62` sets
   72/67/69/74 under a comment calling it "a ratchet, not an aspiration / never lower to get a
   build green", and **neither the Gate nor either workflow runs `test:coverage`**. It needs
   Docker (it composes the db project), so the cheap version is one step in `ci.yml`'s `schema`

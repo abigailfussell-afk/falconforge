@@ -31,8 +31,6 @@
   },
   "include": [
     "src",
-    "components",
-    "services",
     "*.ts",
     "*.tsx"
   ],

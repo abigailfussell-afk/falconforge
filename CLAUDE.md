@@ -16,7 +16,9 @@ records the removed AI features — do not reintroduce AI calls without reading 
 mined record of what has actually gone wrong across eight sprints — thirteen recurring classes,
 each with the commits. The headline: of the 34 fix commits in this repo, **13 were found by
 running the app, 3 by CI, 2 by reading a diff, 1 by production forensics, and approximately
-zero by the 592-test suite.** A green Gate is a precondition for being done. It is not evidence.
+zero by the test suite** — which was 592 tests when that was counted and is over 1,400 across
+the three suites now, which changes the ratio not at all. A green Gate is a precondition for
+being done. It is not evidence.
 
 ## Non-negotiable principles
 

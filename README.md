@@ -44,45 +44,55 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
 
 ## Quick Start
 
+There is no offline demo mode. The app needs a Supabase backend to do anything at all — with
+no credentials it renders "Supabase Not Configured" and stops, which `Login.test.tsx` asserts.
+So the fastest route from a fresh clone to a working app is the **local stack**, in Docker, and
+it is the one every contributor and every agent should use.
+
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
-- npm or pnpm
+- **Node.js ≥ 20.19** (`.nvmrc` pins the version; `engines` in `package.json` enforces it).
+  Vitest 4, jsdom 27 and `@vitejs/plugin-react` 5 all require it — v18 fails at install.
+- **Docker Desktop**, running. The local Supabase stack is containers.
+- The [Supabase CLI](https://supabase.com/docs/guides/cli), which ships as a devDependency
+  (pinned to CI's version — see `docs/environment-divergences.md` §6 for why the pin matters).
 
-### Installation
+### From a fresh clone to a running app
 
 ```bash
-# Install dependencies
 npm install
 
-# Start development server
+# Postgres, PostgREST, Auth, Realtime and Mailpit in Docker, every migration applied.
+# First run pulls images and takes a few minutes.
+npm run db:start
+
+# Point the app at that stack. See .env.example for the file this copies.
+cp .env.example .env.development.local
+
+# Seed the review data: five teams, 36 accounts, one password, every legal document accepted.
+npm run seed:review
+
 npm run dev
 ```
 
-The app will be available at `http://localhost:3000`
+The app is then at `http://localhost:3000`, and the seed prints the accounts and the shared
+password on the way out. `reviewer@falconforge.test` is an admin on a fully populated team and
+also a platform operator.
 
-## Running in Demo Mode
+> **`.env.local` points at PRODUCTION.** That is the file the deploy uses, and anything
+> inheriting ambient environment writes to the real database — which has been caught before
+> harm three separate times. Local work belongs in `.env.development.local`, and every
+> write-capable script passes its environment explicitly. See
+> [`docs/environment-divergences.md`](docs/environment-divergences.md) §2.
 
-By default, the app runs in **Demo Mode** without any cloud services:
-- All data is stored locally in your browser (localStorage + IndexedDB)
-- No account required
-- Works completely offline
-- Perfect for trying out the app
+## Pointing at a hosted Supabase project
 
-## Enabling Cloud Features (Optional)
+Only needed for a deploy, or to reproduce something that only happens against the hosted
+project.
 
-To enable cloud sync, authentication, and multi-device support:
-
-### 1. Set up Supabase
-
-1. Create a free account at [supabase.com](https://supabase.com)
-2. Create a new project
-3. Go to Project Settings > API
-4. Copy your Project URL and anon/public key
-
-### 2. Configure Environment
-
-Create/edit `.env.local` in the project root:
+1. Create a project at [supabase.com](https://supabase.com).
+2. Project Settings → API: copy the Project URL and the anon/public key.
+3. Put them in `.env.local`:
 
 ```env
 VITE_SUPABASE_URL=your_project_url
@@ -95,8 +105,13 @@ The schema lives in `supabase/migrations/` and is the source of truth — do not
 SQL in the dashboard. Apply it with the Supabase CLI:
 
 ```bash
-supabase link --project-ref <your-project-ref> && supabase db push
+supabase link --project-ref <your-project-ref>
+# ...then apply the migrations BY HAND, in order, from the SQL editor.
 ```
+
+> **`supabase db push` does not work on this project's migration history** and has not since
+> the Sprint 2 squash. `docs/beta-ops.md` and the plan's progress log both record it; the
+> deploy runbook in `.github/workflows/deploy.yml`'s header is the procedure to follow.
 
 For local development, `npm run db:start` brings up the whole stack (Postgres, PostgREST,
 Auth, Realtime) in Docker with every migration applied. `npm run db:verify` rebuilds it
@@ -114,12 +129,15 @@ licensing section of that document.
 > `organizations` schema. There is no `organizations` table; the tenant table is `teams`.
 > Following those instructions would have produced a database the app cannot talk to.
 
-### 4. Enable Auth Providers (Optional)
+### 4. Auth providers
 
-In Supabase Dashboard > Authentication > Providers:
-- Enable Google OAuth
-- Enable Microsoft OAuth (Azure)
-- Configure redirect URLs
+Email and password only. `signInWithGoogle` and `signInWithMicrosoft` exist in `auth.tsx` and
+**nothing calls them** — there is no button anywhere in the app. They are dead code kept
+deliberately (removing them is a decision about whether OAuth is ever coming), and this section
+used to tell you to configure providers that could not be reached.
+
+What DOES need configuring on a hosted project is transactional email: see
+[`docs/beta-ops.md`](docs/beta-ops.md) and [`docs/auth-email-templates.md`](docs/auth-email-templates.md).
 
 ## Building for Production
 
@@ -241,8 +259,10 @@ here, not into an ad-hoc transform.
 ## The design system
 
 Everything visual comes from `tailwind.config.js`. If you find yourself typing a square
-bracket, the token is missing — add it there rather than inline (there is exactly one
-arbitrary value left in `src/`, and it carries a comment explaining why it earns its place).
+bracket, the token is missing — add it there rather than inline. Two arbitrary values are
+left in `src/`, each with a comment earning its place, and `harness-invariants.test.ts` holds
+that count on a ratchet that may only go down — so this sentence cannot drift from the number
+again without a test going red.
 
 **The component kit** (`src/components/ui/`, Sprint 5.5) is the layer between the tokens and
 the views: `Button` (primary/secondary/danger, `busy` ties the spinner to the disable),
@@ -411,8 +431,10 @@ skipping — a security suite that passes with no database is worse than none.
 ### The smoke pack, and looking at the app
 
 ```bash
-npm run test:e2e   # six flows in a browser: register, invite/join/approve, offline→sync,
-                   # new season, scouting, checklist
+npm run test:e2e   # the smoke pack in a real browser against a real build:
+                   # 5 spec files, 21 tests — registration through the emailed link,
+                   # invite/join/approve, offline→sync, an offline cold boot,
+                   # meetings and check-in, new season, scouting, checklist
 npm run capture    # screenshots of every view at 375 / 768 / 1280
 npm run venue      # the competition simulation: offline for a session, then reconnect
 npm run seed:review  # the awkward licensing states (at capacity, lapsed, stranded)
@@ -462,7 +484,7 @@ falconforge/
 │   │       ├── useSchedule.ts # "this season's events, split at now" — one answer
 │   │       └── format.ts      # Dates and times, local, in one place
 │   └── test/db/               # Local-Postgres test harness + fixtures
-├── e2e/                       # Playwright smoke pack (helpers + seven specs)
+├── e2e/                       # Playwright smoke pack (helpers + 5 specs, 21 tests)
 ├── scripts/
 │   ├── seed-review-states.mjs # awkward licensing states, localhost only
 │   ├── seed-demo-team.mjs     # one ordinary populated team, localhost only
@@ -488,4 +510,12 @@ are ordered by hand, everything else ships on merge**.
 
 ## License
 
-MIT
+**Undecided, and deliberately not stated as MIT.** This file has said "MIT" since the first
+commit and there has never been a `LICENSE` file to match — so the claim was unenforceable in
+both directions.
+
+It needs a decision rather than a default: FalconForge is intended to be a paid product
+(plan §2), and MIT would let anyone run a competing instance of it. Until that decision is
+made, no licence is granted; the code is source-available for review, not for reuse.
+
+Tracked in `FALCONFORGE_V2_PLAN.md` §8 as a decision for Kevin.

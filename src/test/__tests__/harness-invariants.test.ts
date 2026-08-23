@@ -226,7 +226,9 @@ describe('the guidance describes the repo that exists', () => {
      */
     it('names only npm scripts that exist', () => {
         const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
-        const docs = ['CLAUDE.md', 'docs/failure-modes.md'];
+        // README included: it is the file a fresh clone follows first, and OPS-11 found six
+        // false claims in it — three of which a new contributor hits in the first ten minutes.
+        const docs = ['CLAUDE.md', 'docs/failure-modes.md', 'README.md'];
         const missing: string[] = [];
 
         for (const doc of docs) {
