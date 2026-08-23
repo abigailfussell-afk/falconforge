@@ -258,10 +258,10 @@ describe('same-team access works — the control that stops this suite being vac
         const eventId = (created as { id: string }).id;
 
         /*
-         * A STUDENT, deliberately, and this is D8 rather than an oversight. `can_manage_content`
-         * means "any approved member" and is recorded as a product decision; the case it exists
-         * for is precisely this one — a student correcting a surrogate at a venue while the
-         * coach is in the pit.
+         * A STUDENT, deliberately. `can_manage_content` means "any approved member", which D8
+         * answered (a) on 2026-08-23 — a product decision rather than an inherited default. The
+         * case it exists for is precisely this one: a student correcting a surrogate at a venue
+         * while the coach is in the pit.
          */
         const { data: match, error: matchErr } = await student
             .from('event_matches')

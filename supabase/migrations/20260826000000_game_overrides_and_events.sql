@@ -83,8 +83,8 @@ CREATE POLICY team_game_overrides_select ON team_game_overrides
 /*
  * WRITES ARE `can_manage_structure`, NOT `can_manage_content`.
  *
- * A patch changes the form every scout on the team types into, and D8 records that
- * `can_manage_content` means "any approved member" — so content permissions would let any
+ * A patch changes the form every scout on the team types into, and `can_manage_content` means
+ * "any approved member" (D8, decided (a) on 2026-08-23) — so content permissions would let any
  * student hide a field mid-competition for everybody. Structure is the capability that already
  * means "decides how the team is organised" (sub-teams, seasons), which is what this is.
  *
@@ -210,8 +210,9 @@ CREATE TABLE IF NOT EXISTS match_participants (
 -- --------------------------------------------------------------- RLS
 --
 -- Content tables, so the content capability and the two write gates every other one carries.
--- `can_manage_content` is "any approved member" per D8, recorded as deliberate: a student
--- correcting a surrogate at a venue is the case this is for.
+-- `can_manage_content` is "any approved member" — D8, answered (a) on 2026-08-23 and recorded
+-- as deliberate rather than inherited. A student correcting a surrogate at a venue, or a match
+-- number on a schedule that changed at lunchtime, is the case it is for.
 
 ALTER TABLE competition_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_matches ENABLE ROW LEVEL SECURITY;

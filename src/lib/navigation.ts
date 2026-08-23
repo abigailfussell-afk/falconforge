@@ -109,8 +109,8 @@ export const APP_VIEWS: AppView[] = [
      * Competitions (D2). Visible to everybody, like Meetings and for the same reason: "when do
      * we play, and against whom" is the whole of a student's interest in an event, and hiding
      * the nav item would leave them with no way to find out. Writes are gated by
-     * `can_manage_content`, which D8 records as "any approved member" — the case that rule
-     * exists for is a student correcting a surrogate at a venue.
+     * `can_manage_content`, which means "any approved member" (D8, answered (a) on 2026-08-23)
+     * — the case that rule exists for is a student correcting a surrogate at a venue.
      */
     { id: 'events', path: 'events', label: 'Competitions', icon: Trophy, inNav: true, requiresTeam: true },
     /*

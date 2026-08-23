@@ -224,7 +224,24 @@ delete any teammate's task, scouting report, match plan or checklist item.
 
 **Recommendation:** (a) for beta — record it as deliberate so it is not "fixed" by accident.
 
-**Decision:** _____________________________ (Kevin, ____-__-__)
+**Decision:** **(a) — keep as is** (Kevin, 2026-08-23). Any approved member, students included,
+may edit or delete any teammate's task, scouting report, match plan, checklist item and
+competition event. This is what `can_manage_content` has always meant and what the UI has always
+allowed; what changes is that it is now a decision rather than an accident, so it is not "fixed"
+by somebody who mistakes it for one.
+
+**Consequences:**
+- `can_manage_content` stays "any approved member", and the write policies on `tasks`,
+  `scouting_reports`, `match_plans`, `checklists` and Sprint 18's `competition_events`,
+  `event_matches` and `match_participants` are correct as they stand. No migration.
+- The case this is *for* is the one at a venue: a student correcting a surrogate, or fixing a
+  match number on a schedule that changed at lunchtime, while the coach is in the pit.
+- **The form patch is deliberately NOT under this rule.** `team_game_overrides` is
+  `can_manage_structure` (admin/coach), because a patch changes the form every scout on the team
+  types into — content permissions would let one student hide a field mid-competition for
+  everybody. That asymmetry is the reason this decision needed recording rather than assuming.
+- Revisit if a beta team reports a deletion they did not expect. Moving to (b) later is a
+  migration on live data, which is cheap now and is not cheap after September.
 
 ---
 
