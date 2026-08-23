@@ -8,6 +8,12 @@ interface SprintArchivedProps {
     getSubTeamName: (id: string) => string;
     getMemberName: (id: string) => string;
     restoreTask: (id: string) => void;
+    /**
+     * False on an archived SEASON, which is not the same thing as an archived task
+     * (FEAT-02) — this list is archived tasks within whichever season is open, and on a
+     * prior season the database refuses to un-archive them.
+     */
+    canEdit?: boolean;
 }
 
 const SprintArchived: React.FC<SprintArchivedProps> = ({
@@ -15,7 +21,8 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
     openTask,
     getSubTeamName,
     getMemberName,
-    restoreTask
+    restoreTask,
+    canEdit = true,
 }) => {
     const archivedTasks = tasks
         .filter(t => t.status === TaskStatus.Archived)
@@ -66,7 +73,10 @@ const SprintArchived: React.FC<SprintArchivedProps> = ({
                             <button
                                 type="button"
                                 onClick={() => restoreTask(task.id)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-forge-600 dark:text-forge-400 border border-forge-300 dark:border-forge-700 rounded-lg hover:bg-forge-50 dark:hover:bg-forge-900/20 transition"
+                                disabled={!canEdit}
+                                title={canEdit ? 'Restore this task' : 'This season is archived and read-only'}
+                                data-testid="restore-task"
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-forge-600 dark:text-forge-400 border border-forge-300 dark:border-forge-700 rounded-lg hover:bg-forge-50 dark:hover:bg-forge-900/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <RotateCcw size={14} />
                                 Restore

@@ -281,6 +281,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                         getSubTeamName={getSubTeamName}
                         getMemberName={getMemberName}
                         restoreTask={restoreTask}
+                        canEdit={canEdit}
                     />
                 )}
             </div>
@@ -298,6 +299,7 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                     onClose={() => setIsModalOpen(false)}
                     onAddComment={addComment}
                     onDeleteComment={deleteComment}
+                    canEdit={canEdit}
                 />
             )}
 

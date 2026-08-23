@@ -19,6 +19,16 @@ interface SprintTaskActivityProps {
     teamMembers: TeamMember[];
     onAddComment: (text: string) => void;
     onDeleteComment: (commentId: string) => void;
+    /**
+     * False on an archived season, where the database refuses the write (FEAT-02).
+     *
+     * The feed stays READABLE — browsing last season's decisions is the whole point of
+     * keeping it — and only the two controls that write are withdrawn. Before this, sending
+     * a comment on an archived task did nothing at all: the store's guard `console.warn`ed
+     * and the box cleared itself, which at a venue is indistinguishable from lost work
+     * (`docs/failure-modes.md` §8).
+     */
+    canEdit?: boolean;
 }
 
 const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
@@ -26,12 +36,13 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
     teamMembers,
     onAddComment,
     onDeleteComment,
+    canEdit = true,
 }) => {
     const [newComment, setNewComment] = useState('');
     const { profile, displayName, initials: userInitials } = useAuth();
 
     const submit = () => {
-        if (!newComment.trim()) return;
+        if (!canEdit || !newComment.trim()) return;
         onAddComment(newComment);
         setNewComment('');
     };
@@ -81,13 +92,23 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add a comment..."
+                    placeholder={canEdit ? 'Add a comment...' : 'This season is archived'}
                     className="field flex-1"
+                    disabled={!canEdit}
+                    title={canEdit ? undefined : 'This season is archived and read-only'}
+                    data-testid="comment-input"
                     onKeyDown={(e) => e.key === 'Enter' && submit()}
                 />
                 {/* `!px-2.5`: the sm recipe's px-3 would win the cascade over a plain px-2.5,
                     so the icon-only override needs the important modifier. */}
-                <Button size="sm" onClick={submit} disabled={!newComment.trim()} className="!px-2.5" title="Send comment">
+                <Button
+                    size="sm"
+                    onClick={submit}
+                    disabled={!canEdit || !newComment.trim()}
+                    className="!px-2.5"
+                    title={canEdit ? 'Send comment' : 'This season is archived and read-only'}
+                    data-testid="comment-send"
+                >
                     <Send size={18} />
                 </Button>
             </div>
@@ -116,8 +137,10 @@ const SprintTaskActivity: React.FC<SprintTaskActivityProps> = ({
                                         <IconButton
                                             danger
                                             onClick={() => onDeleteComment(event.id)}
+                                            disabled={!canEdit}
                                             className="p-1 text-xs gap-1"
-                                            title="Delete comment"
+                                            title={canEdit ? 'Delete comment' : 'This season is archived and read-only'}
+                                            data-testid="comment-delete"
                                         >
                                             <Trash2 size={12} /> Delete
                                         </IconButton>

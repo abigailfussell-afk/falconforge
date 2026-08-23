@@ -38,6 +38,16 @@ interface SprintTaskDetailProps {
     /** Comments persist immediately rather than waiting for Save. */
     onAddComment: (text: string) => void;
     onDeleteComment: (commentId: string) => void;
+    /**
+     * False on an archived season (FEAT-02).
+     *
+     * The modal still OPENS — reading last season's work is the use case archiving exists
+     * to serve — and every control that writes is disabled with the same sentence the rest
+     * of the app uses. It used to offer Save, Delete and Archive in full: the store refused
+     * with a `console.warn` and `saveTask` closed the modal anyway, so the edit vanished
+     * with nothing on screen to say why.
+     */
+    canEdit?: boolean;
 }
 
 const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
@@ -52,7 +62,10 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
     onClose,
     onAddComment,
     onDeleteComment,
+    canEdit = true,
 }) => {
+    /** The one place the archived reason is spelled, so the controls cannot disagree. */
+    const readOnlyReason = canEdit ? undefined : 'This season is archived and read-only';
     const newChecklistRef = useRef<HTMLInputElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,6 +89,8 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                             onChange={(e) => onChange({ ...task, title: e.target.value })}
                             placeholder="Task Title"
                             data-testid="task-title-input"
+                            disabled={!canEdit}
+                            title={readOnlyReason}
                             className="field text-base font-semibold"
                         />
                     </div>
@@ -85,7 +100,20 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/*
+                  * A FIELDSET, so "read-only" cannot drift (FEAT-02).
+                  *
+                  * `fieldset[disabled]` disables every form control inside it, including ones
+                  * added later — which is the difference between a rule and a list of eight
+                  * `disabled` props that a ninth field will not be added to
+                  * (`docs/failure-modes.md` §12). The feed inside stays readable; only its
+                  * controls go.
+                  *
+                  * `min-w-0` because a fieldset defaults to `min-width: min-content`, which
+                  * is the flex child that refuses to shrink and pushes a modal wider than its
+                  * container. Measured at 375px rather than assumed.
+                  */}
+                <fieldset disabled={!canEdit} className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
@@ -213,19 +241,32 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         teamMembers={teamMembers}
                         onAddComment={onAddComment}
                         onDeleteComment={onDeleteComment}
+                        canEdit={canEdit}
                     />
-                </div>
+                </fieldset>
 
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
                     <div className="flex gap-3">
                         {!isNewTask && (
-                            <Button variant="danger" onClick={onRequestDelete}>
+                            <Button
+                                variant="danger"
+                                onClick={onRequestDelete}
+                                disabled={!canEdit}
+                                title={readOnlyReason}
+                                data-testid="delete-task"
+                            >
                                 <Trash2 size={16} />
                                 Delete
                             </Button>
                         )}
                         {!isNewTask && task.status === TaskStatus.Done && (
-                            <Button variant="secondary" onClick={onArchive}>
+                            <Button
+                                variant="secondary"
+                                onClick={onArchive}
+                                disabled={!canEdit}
+                                title={readOnlyReason}
+                                data-testid="archive-task"
+                            >
                                 <Archive size={16} />
                                 Archive
                             </Button>
@@ -235,7 +276,12 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                         <Button variant="secondary" onClick={onClose}>
                             Cancel
                         </Button>
-                        <Button onClick={onSave} disabled={!task.title.trim()} data-testid="save-task">
+                        <Button
+                            onClick={onSave}
+                            disabled={!canEdit || !task.title.trim()}
+                            title={readOnlyReason}
+                            data-testid="save-task"
+                        >
                             Save Task
                         </Button>
                     </div>
