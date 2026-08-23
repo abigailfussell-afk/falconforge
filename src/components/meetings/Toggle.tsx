@@ -53,12 +53,32 @@ export default function Toggle({
                 disabled={disabled}
                 data-testid={testId}
                 onClick={() => onChange(!checked)}
-                // `p-0`: a <button> carries user-agent padding, and the knob is positioned
-                // from the content box, so the padding would offset it.
-                className={`relative h-5 w-9 shrink-0 p-0 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-forge-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800 ${
-                    checked ? on : 'bg-slate-300 dark:bg-slate-600'
-                }`}
+                /*
+                 * THE HIT AREA AND THE TRACK ARE NOT THE SAME BOX (WALK-A-10).
+                 *
+                 * They used to be: the <button> WAS the track, `h-5 w-9`. Then WALK-A-10's 32 px
+                 * floor in index.css matched `[role="switch"]` and stretched the button to 32 px
+                 * on touch — and because the knob is absolutely positioned from the CONTENT box,
+                 * the track became a 32 px pill with a 16 px knob adrift in it. Caught in a
+                 * screenshot at 375 px, not by a test: jsdom lays nothing out, so both versions
+                 * render identically there.
+                 *
+                 * The comment below is emphatic that the 36/16/2 arithmetic only works if all
+                 * three move together. This is the answer that lets neither budge: the button is
+                 * a transparent hit area free to grow to whatever the floor asks for, and the
+                 * track is an inner <span> that stays exactly 36x20 at every size.
+                 *
+                 * `p-0` still, and still for the original reason — user-agent button padding
+                 * would offset the track inside the hit area and put the focus ring somewhere
+                 * other than around the switch.
+                 */
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-transparent p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-forge-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800"
             >
+                <span
+                    className={`relative block h-5 w-9 rounded-full transition-colors ${
+                        checked ? on : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
                 {/*
                  * `left-0` is not decoration — without it the knob was never positioned at all.
                  *
@@ -74,11 +94,12 @@ export default function Toggle({
                  * which is what `translate-x-4` moves. Change any of the three and the other
                  * two have to move with it.
                  */}
-                <span
-                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-card transition-transform ${
-                        checked ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                />
+                    <span
+                        className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-card transition-transform ${
+                            checked ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                    />
+                </span>
             </button>
             {showLabel && (
                 <span id={labelId} className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</span>

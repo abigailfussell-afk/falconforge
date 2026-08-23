@@ -265,7 +265,7 @@ export default function Sidebar({
                                     <NavLink
                                         data-testid="edit-profile-button"
                                         to={pathFor('profile')}
-                                        className="text-2xs text-slate-500 hover:text-forge-600 dark:text-slate-400 dark:hover:text-forge-400 font-medium transition-colors"
+                                        className="inline-flex items-center text-2xs text-slate-500 hover:text-forge-600 dark:text-slate-400 dark:hover:text-forge-400 font-medium transition-colors"
                                     >
                                         Edit Profile
                                     </NavLink>
