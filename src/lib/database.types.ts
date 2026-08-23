@@ -1110,7 +1110,7 @@ export type Database = {
       }
       current_team_member_id: { Args: { p_team_id: string }; Returns: string }
       current_team_role: { Args: { p_team_id: string }; Returns: string }
-      get_user_team_ids: { Args: { p_user_id: string }; Returns: string[] }
+      get_user_team_ids: { Args: never; Returns: string[] }
       grant_team_license: {
         Args: {
           p_notes?: string

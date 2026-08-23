@@ -241,3 +241,76 @@ describe('the guardian PREDICATES keep their anon grant, deliberately', () => {
     });
 });
 
+describe('SEC-06 — the predicates are not a cross-tenant oracle at /rpc', () => {
+    /*
+     * `20260819000000_revoke_anon_execute.sql` left these granted, on the grounds that "they
+     * are not an API surface: they are called INSIDE the RLS policies". The second half is
+     * true and load-bearing (the block above is what keeps it true). The FIRST half was not:
+     * PostgREST publishes every function it can execute at `/rpc/<name>`, and three of these
+     * took an id rather than reading `auth.uid()`. Reproduced on the seeded stack with nothing
+     * but the anon key:
+     *
+     *     anon /rpc/get_user_team_ids    {"p_user_id": <someone>}  -> their team list
+     *     anon /rpc/team_can_write       {"p_team_id": <a team>}   -> true
+     *     anon /rpc/team_seats_remaining {"p_team_id": <a team>}   -> 0
+     *
+     * These are asserted BEHAVIOURALLY, as anon and as a member of another team, rather than
+     * over `pg_proc` — `docs/environment-divergences.md` §5 is the story of an ACL assertion
+     * approving a REVOKE that was a no-op.
+     */
+    it('anon cannot ask which teams somebody else is on', async () => {
+        // `Args: never` in the generated types is itself the fix landing: there is no
+        // argument form left to call. The cast is what lets the test try the OLD call anyway.
+        const { error } = await anon.rpc(
+            'get_user_team_ids',
+            { p_user_id: team.admin.id } as never,
+        );
+        expectRefused(error, 'get_user_team_ids(p_user_id)');
+    });
+
+    it('the caller-scoped form survives, and tells anon about nobody', async () => {
+        // It has to survive: `users_select_teammates` calls it, and a policy is evaluated as
+        // the calling role. An empty answer for a caller with no session is not information.
+        const { data, error } = await anon.rpc('get_user_team_ids');
+        expect(error, `get_user_team_ids() errored for anon: ${error?.message}`).toBeNull();
+        expect(data ?? []).toEqual([]);
+    });
+
+    it('anon cannot ask whether a team may write, or how many seats it has left', async () => {
+        expectRefused(
+            (await anon.rpc('team_can_write', { p_team_id: team.id })).error,
+            'team_can_write',
+        );
+        expectRefused(
+            (await anon.rpc('team_seats_remaining', { p_team_id: team.id })).error,
+            'team_seats_remaining',
+        );
+    });
+
+    it('nor can a signed-in member of a DIFFERENT team', async () => {
+        /*
+         * The half a revoke does not cover, and the half the finding's own evidence quotes:
+         * `full@`, an ordinary member of another team, got the same three answers. Revoking
+         * from anon alone would leave this, so the predicates ask about membership now.
+         */
+        const outsider = await fixtures.createTeam('anonexec-outsider');
+
+        const canWrite = await outsider.admin.client.rpc('team_can_write', { p_team_id: team.id });
+        expect(canWrite.data, "another team's licensing state leaked").toBe(false);
+
+        const seats = await outsider.admin.client.rpc('team_seats_remaining', {
+            p_team_id: team.id,
+        });
+        expect(seats.error?.code, "another team's seat count leaked").toBe('42501');
+
+        // The control. Both must still answer about the caller's OWN team, or the refusals
+        // above are satisfied by a function that answers nobody.
+        const own = await outsider.admin.client.rpc('team_can_write', { p_team_id: outsider.id });
+        expect(own.data, 'a member can no longer ask about their own team').toBe(true);
+
+        const ownSeats = await outsider.admin.client.rpc('team_seats_remaining', {
+            p_team_id: outsider.id,
+        });
+        expect(ownSeats.error).toBeNull();
+    });
+});

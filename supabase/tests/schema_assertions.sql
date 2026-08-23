@@ -616,6 +616,12 @@ BEGIN
         RAISE EXCEPTION 'can_manage_meetings returns NULL for a non-member (B25)';
     END IF;
 
+    -- Sprint 10. SEC-06 put `coalesce(auth.role() = 'service_role', false) OR ...` in front of
+    -- this one, and `auth.role()` is NULL on a connection with no JWT -- B25's exact shape.
+    IF team_can_write(v_nowhere) IS NULL THEN
+        RAISE EXCEPTION 'team_can_write returns NULL for a non-member (B25)';
+    END IF;
+
     IF can_manage_billing(v_nowhere) OR can_manage_roster(v_nowhere)
        OR can_manage_structure(v_nowhere) OR can_manage_content(v_nowhere)
        OR can_manage_meetings(v_nowhere) THEN
@@ -707,7 +713,12 @@ BEGIN
           'get_user_team_ids', 'current_team_role', 'current_team_member_id',
           'can_manage_billing', 'can_manage_content', 'can_manage_meetings',
           'can_manage_roster', 'can_manage_structure',
-          'team_can_write', 'team_seats_remaining', 'season_is_open', 'meeting_season_is_open',
+          -- SEC-06: `team_can_write` and `team_seats_remaining` LEFT this set in Sprint 10.
+          -- Neither is consulted by a policy an anonymous caller reaches (`team_can_write`
+          -- appears only in WRITE policies; `team_seats_remaining` in none), and both took a
+          -- team id, so at `/rpc` they answered a stranger's licensing questions. They are
+          -- revoked, so they must NOT reappear here -- assertion 23a below fails if they do.
+          'season_is_open', 'meeting_season_is_open',
           'meeting_checkin_opens', 'meeting_checkin_closes',
           'is_platform_operator', 'admin_nomination_ttl',
           -- Trigger functions: EXECUTE is checked when the trigger is created, not when it
@@ -817,6 +828,43 @@ BEGIN
         RAISE EXCEPTION
             'the managed_profiles read policy is no longer guardian-only (got: %)',
             coalesce(v_qual, '<none>');
+    END IF;
+END $$;
+
+
+-- 23a. SEC-06 -- and the two that LEFT the anon-executable set stay out of it.
+--
+--     Assertion 23 catches a function that silently JOINS the set. Nothing caught one rejoining
+--     it, and rejoining is one `GRANT EXECUTE ... TO authenticated, anon` away -- or one
+--     `CREATE OR REPLACE` in a migration written before the ACL was understood. These two were
+--     cross-tenant oracles at `/rest/v1/rpc`, reproduced with the anon key and no session.
+DO $$
+DECLARE
+    v_back text;
+BEGIN
+    SELECT string_agg(p.proname, ', ' ORDER BY p.proname) INTO v_back
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN ('team_can_write', 'team_seats_remaining')
+      AND has_function_privilege('anon', p.oid, 'EXECUTE');
+
+    IF v_back IS NOT NULL THEN
+        RAISE EXCEPTION
+            'anon can EXECUTE % again -- SEC-06 revoked it. A policy an anonymous caller '
+            'reaches must not depend on either of these; if one now does, say so here.', v_back;
+    END IF;
+
+    -- And the argument form of get_user_team_ids must stay gone: it answered about ANY user.
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = 'get_user_team_ids'
+          AND p.pronargs > 0
+    ) THEN
+        RAISE EXCEPTION
+            'get_user_team_ids takes an argument again -- at /rpc that is another user''s team '
+            'list for anyone holding the anon key (SEC-06)';
     END IF;
 END $$;
 
