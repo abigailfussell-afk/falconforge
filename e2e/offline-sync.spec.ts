@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail } from './helpers';
+import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail, waitForSync } from './helpers';
 
 /**
  * The venue flow, and the reason this project exists.
@@ -96,9 +96,18 @@ test.describe('offline and sync', () => {
         await context.setOffline(true);
         await page.reload();
 
-        // The shell came out of the precache and the store out of IndexedDB.
-        await expect(page.getByTestId('app-nav').or(page.getByTestId('mobile-menu-button')).first())
-            .toBeVisible({ timeout: 30_000 });
+        /*
+         * The shell came out of the precache and the store out of IndexedDB.
+         *
+         * The status indicator lives in the sidebar, so its presence IS the shell having
+         * rendered — and unlike `mobile-menu-button` it is visible at this project's width.
+         * (The first version of this line used `getByTestId('app-nav').or(mobile-menu-button)`
+         * and `.first()` resolved to the mobile button, which is `lg:hidden` here: a locator
+         * that matched an element nobody could see.)
+         */
+        const status = page.getByTestId('sync-status-text');
+        await expect(status).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByTestId('season-selector')).toBeVisible({ timeout: 15_000 });
 
         /*
          * The label. `navigator.onLine` is the reason this is worth asserting: read it here
@@ -106,8 +115,6 @@ test.describe('offline and sync', () => {
          * "the fix regressed".
          */
         const onLine = await page.evaluate(() => navigator.onLine);
-        const status = page.getByTestId('sync-status-text');
-        await expect(status).toBeVisible({ timeout: 15_000 });
 
         const label = (await status.textContent())?.trim() ?? '';
         expect(
