@@ -8,6 +8,8 @@ import { ArrowLeft, Loader2, Users, AlertCircle, CheckCircle, LogOut, UserPlus }
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../lib/store';
+import { getPendingSyncItems } from '../lib/offline-db';
+import { drainSyncQueue } from '../lib/sync';
 import { fetchGuardianData } from '../lib/server-pull';
 import { performSignOut } from '../lib/sign-out';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
@@ -23,6 +25,13 @@ export default function JoinTeam() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [profileCompleteError, setProfileCompleteError] = useState<string | null>(null);
+    /**
+     * True while the child's profile and consents are being pushed ahead of the join (SEC-15).
+     *
+     * Separate from `isLoading` because it is a different sentence to the person waiting: the
+     * join has not been attempted yet, and what is happening is theirs rather than the team's.
+     */
+    const [savingChild, setSavingChild] = useState(false);
 
     // Form state
     const [inviteCode, setInviteCode] = useState(urlCode || '');
@@ -85,6 +94,33 @@ export default function JoinTeam() {
         }
     }, [urlCode]);
 
+    /**
+     * Everything still queued for this child (SEC-15).
+     *
+     * `join_team_with_invite_for_child` refuses unless the profile exists SERVER-side and
+     * carries a `coppa_data_collection` consent — and both rows are written through the sync
+     * queue, so a guardian who adds a child and enters the code in the same sitting, which is
+     * exactly the flow plan section 3 describes, races the drain. The refusal they got was
+     * "This child has no consent on record", to a parent who had ticked the box ten seconds
+     * earlier. `docs/failure-modes.md` section 4: not-yet-arrived read as an answer, and the
+     * answer was about a legal record.
+     *
+     * Consents are matched through their `managedProfileId` rather than by id, because the
+     * queue holds the payload the store built and that is where the relationship lives.
+     */
+    /** The child's own name, for a sentence that is about them rather than about a record id. */
+    const childName = (profileId: string): string =>
+        managedProfiles.find((p) => p.id === profileId)?.fullName ?? 'your child';
+
+    const queuedRowsFor = async (profileId: string): Promise<number> => {
+        const items = await getPendingSyncItems();
+        return items.filter(
+            (i) =>
+                (i.tableName === 'managed_profiles' && i.recordId === profileId) ||
+                (i.tableName === 'guardian_consents' && i.data?.managedProfileId === profileId),
+        ).length;
+    };
+
     const joinTeam = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
 
@@ -102,6 +138,37 @@ export default function JoinTeam() {
         setError(null);
 
         try {
+            /*
+             * PUSH THE CHILD BEFORE ASKING THE SERVER ABOUT THEM (SEC-15).
+             *
+             * One drain, not a poll: `drainSyncQueue` pushes the queue in order and never
+             * throws, so either the two rows land or they are still queued afterwards. If they
+             * are still queued the server genuinely does not have them, and calling the RPC
+             * would produce a refusal that blames the guardian for something they did
+             * correctly. Saying so, and naming what to do, is the whole of the fix
+             * (`docs/failure-modes.md` section 8 — a refusal has to reach the person who can
+             * satisfy it).
+             *
+             * The drain is only awaited when there is something of THIS child's in the queue.
+             * A guardian joining with a child added last week has an empty queue and pays
+             * nothing for this.
+             */
+            if (joiningForProfileId && (await queuedRowsFor(joiningForProfileId)) > 0) {
+                setSavingChild(true);
+                await drainSyncQueue();
+                setSavingChild(false);
+
+                if ((await queuedRowsFor(joiningForProfileId)) > 0) {
+                    setError(
+                        `We could not save ${childName(joiningForProfileId)}’s profile to the server yet, ` +
+                        'so the team cannot be told about them. Check your connection and try again — ' +
+                        'nothing you entered has been lost.',
+                    );
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             /*
              * Two RPCs, one flow. `join_team_with_invite_for_child` verifies the caller is the
              * profile's guardian and that a `coppa_data_collection` consent exists, then writes
@@ -435,11 +502,28 @@ export default function JoinTeam() {
                             </button>
                             <button
                                 type="submit"
+                                data-testid="join-submit"
                                 disabled={isLoading || inviteCode.trim().length < 6}
                                 className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-forge-500 to-forge-600 text-white font-semibold py-3 px-4 rounded-xl hover:from-forge-600 hover:to-forge-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
+                                {/*
+                                  * A spinner is not an answer (SEC-15).
+                                  *
+                                  * The step before the join is pushing the child's profile and
+                                  * consents, which can take a moment on venue wifi, and a bare
+                                  * spinner leaves the guardian watching a button while the app
+                                  * does something they were never told about. Naming it also
+                                  * makes the error that can follow it make sense.
+                                  */}
                                 {isLoading ? (
-                                    <Loader2 size={18} className="animate-spin" />
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        {savingChild && (
+                                            <span data-testid="saving-child">
+                                                Saving {childName(joiningForProfileId)}’s profile…
+                                            </span>
+                                        )}
+                                    </>
                                 ) : (
                                     <>
                                         <UserPlus size={18} />
