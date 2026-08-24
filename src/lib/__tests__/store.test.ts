@@ -97,6 +97,59 @@ describe('AppStore', () => {
             store.deleteTask(taskId);
             expect(useAppStore.getState().tasks).toHaveLength(0);
         });
+
+        /**
+         * FEAT-03 — a draft's timeline reaches the stored task.
+         *
+         * `addTask` used to build a timeline containing "Task created" and nothing else,
+         * discarding anything the caller had. That is where a comment typed into a new task went.
+         */
+        it('keeps a timeline it was given, with "Task created" LAST', () => {
+            const store = useAppStore.getState();
+
+            store.addTask({
+                title: 'Replace the odometry pod',
+                description: '',
+                status: 'To Do',
+                type: 'Feature',
+                assignedTo: '',
+                department: '',
+                tags: [],
+                checklist: [],
+                timeline: [
+                    { id: 'c2', type: 'comment', authorId: 'member-1', content: 'newer', timestamp: 2 },
+                    { id: 'c1', type: 'comment', authorId: 'member-1', content: 'older', timestamp: 1 },
+                ],
+            });
+
+            const [task] = useAppStore.getState().tasks;
+            /*
+             * Order matters and is not decoration: the feed renders newest-first and every other
+             * writer PREPENDS, so the creation event is the OLDEST entry. Putting it first would
+             * date the task's creation after comments made before it existed.
+             */
+            expect(task.timeline.map((e) => e.content)).toEqual(['newer', 'older', 'Task created']);
+            expect(task.timeline[2].type).toBe('history');
+            expect(task.timeline[2].authorId).toBe('System');
+        });
+
+        it('still writes "Task created" when it is given no timeline', () => {
+            const store = useAppStore.getState();
+
+            store.addTask({
+                title: 'No comments',
+                description: '',
+                status: 'To Do',
+                type: 'Feature',
+                assignedTo: '',
+                department: '',
+                tags: [],
+                checklist: [],
+            });
+
+            const [task] = useAppStore.getState().tasks;
+            expect(task.timeline.map((e) => e.content)).toEqual(['Task created']);
+        });
     });
 
     describe('Checklist', () => {
