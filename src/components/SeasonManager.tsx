@@ -586,12 +586,24 @@ const SeasonManager: React.FC = () => {
                         <p className="text-slate-600 dark:text-slate-300 mb-2">
                             <strong>Warning:</strong> This will permanently delete the season <strong>"{seasons.find(s => s.id === deleteConfirmSeasonId)?.name}"</strong> and ALL associated data:
                         </p>
-                        <ul className="text-sm text-slate-500 dark:text-slate-400 list-disc list-inside mb-4">
+                        {/*
+                          * Seven lines, not five (FEAT-10).
+                          *
+                          * Meetings and attendance were missing from this list while the server's
+                          * cascade removed them anyway, so the dialog under-stated what the
+                          * button destroys — and attendance is the one item here that is a
+                          * RECORD of something that happened rather than a plan for something
+                          * that has not, which makes it the line a coach would most want to have
+                          * been told about.
+                          */}
+                        <ul data-testid="delete-season-effects" className="text-sm text-slate-500 dark:text-slate-400 list-disc list-inside mb-4">
                             <li>All tasks</li>
                             <li>All sub-team assignments</li>
                             <li>All scouting reports</li>
                             <li>All match plans</li>
                             <li>The pre-match checklist</li>
+                            <li>All meetings</li>
+                            <li>All attendance records for those meetings</li>
                         </ul>
                         <p className="text-red-600 dark:text-red-400 text-sm font-medium mb-6">This action cannot be undone. To keep the season’s history, archive it instead.</p>
                         <div className="flex justify-end gap-3">
