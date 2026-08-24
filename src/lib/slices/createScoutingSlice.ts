@@ -66,11 +66,14 @@ export const createScoutingSlice: SliceCreator<ScoutingSlice> = (set, get) => ({
         }));
         const report = get().scoutingReports.find((r) => r.id === id);
         if (report) {
-            queueForSync('scouting_reports', id, 'update', {
-                ...report,
-                ...updates,
-                teamId: get().currentTeamId,
-            }).catch(console.error);
+            queueForSync(
+                'scouting_reports',
+                id,
+                'update',
+                { ...report, ...updates, teamId: get().currentTeamId },
+                // The row before this edit (SYNC-06), in the payload's own shape.
+                existing ? { ...existing, teamId: get().currentTeamId } : undefined,
+            ).catch(console.error);
         }
     },
 

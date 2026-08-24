@@ -215,10 +215,18 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
 
         for (const meeting of next) {
             if (!affected.has(meeting.id)) continue;
-            queueForSync('meetings', meeting.id, 'update', {
-                ...meeting,
-                teamId: state.currentTeamId,
-            }).catch(console.error);
+            // `state.meetings` is the list from BEFORE `set({ meetings: next })` above, so this
+            // is the occurrence as it was — which is what the column diff is measured against
+            // (SYNC-06). One "this and all future" edit can touch a dozen occurrences and
+            // changes two fields on each.
+            const before = state.meetings.find((m) => m.id === meeting.id);
+            queueForSync(
+                'meetings',
+                meeting.id,
+                'update',
+                { ...meeting, teamId: state.currentTeamId },
+                before ? { ...before, teamId: state.currentTeamId } : undefined,
+            ).catch(console.error);
         }
     },
 
@@ -288,10 +296,13 @@ export const createMeetingSlice: SliceCreator<MeetingSlice> = (set, get) => ({
                 : [...s.meetingAttendance, record],
         }));
 
-        queueForSync('meeting_attendance', record.id, existing ? 'update' : 'create', {
-            ...record,
-            teamId: state.currentTeamId,
-        }).catch(console.error);
+        queueForSync(
+            'meeting_attendance',
+            record.id,
+            existing ? 'update' : 'create',
+            { ...record, teamId: state.currentTeamId },
+            existing ? { ...existing, teamId: state.currentTeamId } : undefined,
+        ).catch(console.error);
     },
 
     clearAttendance: (meetingId, teamMemberId) => {

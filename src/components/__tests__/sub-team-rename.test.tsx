@@ -80,6 +80,13 @@ describe('renameSubTeam (store)', () => {
             'st-1',
             'update',
             expect.objectContaining({ id: 'st-1', name: 'Programming', teamId: 'team-1' }),
+            /*
+             * ...and the row BEFORE the rename (SYNC-06). Without it the drain has nothing to
+             * diff against and falls back to pushing every column, which is the whole-row
+             * last-write-wins this project spent Sprint 25 removing — so the fifth argument is
+             * asserted rather than ignored with a looser matcher.
+             */
+            expect.objectContaining({ id: 'st-1', name: 'Programing', teamId: 'team-1' }),
         );
     });
 

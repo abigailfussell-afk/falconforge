@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useSync } from '../sync';
 import { mergeIntoStore } from '../server-pull';
 import { useAppStore } from '../store';
@@ -47,6 +47,9 @@ vi.mock('../supabase', () => {
 vi.mock('../auth', () => ({
     useAuth: vi.fn(),
 }));
+
+/** The module mock's `from`, typed once rather than cast at each use (the type-escape ratchet). */
+const fromSpy = () => supabaseSync!.from as unknown as ReturnType<typeof vi.fn>;
 
 describe('sync.integration', () => {
     beforeEach(async () => {
@@ -157,6 +160,243 @@ describe('sync.integration', () => {
             expect(store.subTeams[0].memberIds).toEqual(['u1', 'u2']);
         });
     });
+
+
+    /**
+     * SYNC-13 — what the user is TOLD about a long drain.
+     *
+     * The drain's own behaviour is covered against a real database in `sync-drain.db.test.ts`.
+     * This is the other half: a run that pushed some of the queue and then stalled must not be
+     * reported as a failure, because it is not one — the indicator's queue count already says
+     * what is left, in amber, and "Sync Error" in red over sixty successful pushes is the whole
+     * of what SYNC-13 was.
+     *
+     * The clock is a spy rather than a wait. `Date.now` is what `progressDeadline` reads, and the
+     * mocked query advances it, so "time passed during the request" is expressed where it
+     * actually passes rather than by sleeping.
+     */
+    describe('SYNC-13 — a stall that made progress is not a failure', () => {
+        /** Advance this from the mocked query to simulate a slow request. */
+        let clock = 0;
+
+        /**
+         * The module mock's own `from` implementation, put back afterwards.
+         *
+         * `vi.restoreAllMocks()` in the outer `afterEach` restores SPIES; it does not undo a
+         * `mockImplementation` set on a `vi.fn()` that a module factory created. Without this,
+         * the queries these tests install leak into every test that runs after them — which is
+         * how "processes queue operations" started failing with `expected 2 to be 0` while this
+         * block was being written, for reasons that had nothing to do with it.
+         */
+        let defaultFrom: Parameters<ReturnType<typeof fromSpy>['mockImplementation']>[0] | undefined;
+
+        beforeEach(() => {
+            clock = 0;
+            defaultFrom = fromSpy().getMockImplementation();
+            vi.spyOn(Date, 'now').mockImplementation(() => clock);
+        });
+
+        afterEach(() => {
+            if (defaultFrom) fromSpy().mockImplementation(defaultFrom);
+        });
+
+        const queryFor = (onWrite: (n: number) => { data: unknown; error: unknown }) => {
+            let writes = 0;
+            return (table: string) => {
+                const obj: any = {};
+                let isWrite = false;
+                for (const m of ['select', 'eq', 'in', 'gte', 'or', 'order', 'limit']) {
+                    obj[m] = vi.fn().mockReturnValue(obj);
+                }
+                /*
+                 * Keyed on the WRITE methods, not on a call counter.
+                 *
+                 * The first version counted every `then` in the run and made the first one
+                 * succeed — and the first one was not a push. Nothing in the drain announces
+                 * itself, so a counter over an unknown call order is a test asserting on the
+                 * order rather than on the behaviour: it reported `pushed: 0` and the assertion
+                 * failed for a reason that had nothing to do with SYNC-13.
+                 */
+                for (const m of ['update', 'delete', 'upsert', 'insert']) {
+                    obj[m] = vi.fn((...args: unknown[]) => {
+                        if (table === 'tasks') isWrite = true;
+                        void args;
+                        return obj;
+                    });
+                }
+                obj.then = function (resolve: (v: any) => void) {
+                    if (!isWrite) {
+                        resolve({ data: [], error: null });
+                        return obj;
+                    }
+                    resolve(onWrite(++writes));
+                    return obj;
+                };
+                return obj;
+            };
+        };
+
+        /**
+         * Every run pushes one item, then loses the whole budget at once.
+         *
+         * Odd writes land; even writes are refused and burn 31 seconds, which is over the budget,
+         * so the item after each refusal finds an expired deadline and the drain stops. Result:
+         * EVERY run stalls, and every run has pushed something — which is the shape the fix is
+         * about, held for every run rather than only the first.
+         *
+         * That last property is what makes the test stable. `useSync` re-arms its own retry
+         * schedule, so a mock that eventually produced a run pushing NOTHING would set the error
+         * state for a reason unrelated to what is being asserted, once in a while.
+         *
+         * The first version of this used 11-second refusals and never stalled at all — the
+         * successes in between kept resetting the budget — so the test passed with the fix
+         * REVERTED. Caught by the revert pass, which is the only thing that catches this.
+         */
+        const stallAfterOnePush = () => {
+            fromSpy().mockImplementation(
+                queryFor((n) => {
+                    if (n % 2 === 1) return { data: [], error: null };
+                    clock += 31_000;
+                    return { data: null, error: { message: 'gateway timeout' } };
+                }),
+            );
+        };
+
+        it('reports idle, not error, when the queue is only partly drained', async () => {
+            stallAfterOnePush();
+            for (let i = 0; i < 6; i++) {
+                await queueForSync('tasks', `slow-${i}`, 'create', {
+                    id: `slow-${i}`, teamId: 'test-team-123', seasonId: 'test-season-456',
+                });
+            }
+
+            /*
+             * WAIT FOR THE RUN THE HOOK STARTS ITSELF, rather than starting a second one.
+             *
+             * `useSync` auto-syncs on mount when the queue is non-empty, and `sync()` returns
+             * immediately if one is already in flight (`syncingRef`). So `await
+             * result.current.sync()` inside `act` resolves against a no-op while the real run is
+             * still going, and the assertion reads `'syncing'` — which is what this test did at
+             * first, and it looked exactly like the fix not working.
+             */
+            const { result, unmount } = renderHook(() => useSync());
+
+            // Something landed, so a run made progress — the precondition the assertion below is
+            // about, and asserting it first is what stops that assertion passing before the run
+            // has done anything at all.
+            await waitFor(async () => expect(await db.syncQueue.count()).toBeLessThan(6), {
+                timeout: 5_000,
+            });
+
+            /*
+             * SAMPLED, not read once. The error state is set at the END of a run and cleared at
+             * the START of the next, so a single read can land in the gap and pass against the
+             * defect. Half a second covers the first retry (3s backoff), so with the rule
+             * reverted at least one of these twenty samples is non-null.
+             */
+            const samples: (string | null)[] = [];
+            for (let i = 0; i < 20; i++) {
+                samples.push(result.current.error);
+                await new Promise((r) => setTimeout(r, 25));
+            }
+
+            expect(
+                samples.filter(Boolean),
+                'a partly-drained queue was reported as a failure',
+            ).toEqual([]);
+            expect(result.current.syncStatus).not.toBe('error');
+
+            unmount();
+        });
+
+        it('still reports an error when NOTHING could be pushed', async () => {
+            // Every request fails and each burns 11s. Nothing lands, so there is nothing to
+            // reassure anybody about and the red state is the honest one.
+            fromSpy().mockImplementation(
+                queryFor(() => {
+                    clock += 11_000;
+                    return { data: null, error: { message: 'gateway timeout' } };
+                }),
+            );
+
+            for (let i = 0; i < 6; i++) {
+                await queueForSync('tasks', `dead-${i}`, 'create', {
+                    id: `dead-${i}`, teamId: 'test-team-123', seasonId: 'test-season-456',
+                });
+            }
+
+            const { result, unmount } = renderHook(() => useSync());
+            await waitFor(
+                () => expect(result.current.error).toMatch(/no queued change could be pushed/i),
+                { timeout: 5_000 },
+            );
+
+            expect(result.current.syncStatus).toBe('error');
+
+            unmount();
+        });
+    });
+
+
+    /**
+     * SYNC-09 — the other tab is already draining, so this one does not.
+     *
+     * `sync-lock.test.ts` covers the helper. This is the assertion that the ENGINE uses it: a
+     * helper nothing calls is a gate with no door (`docs/failure-modes.md` §7, four sprints and
+     * seven instances), and the only way to know is to hold the lock and watch a sync decline
+     * to push.
+     */
+    describe('SYNC-09 — one drain at a time across tabs', () => {
+        afterEach(() => {
+            Reflect.deleteProperty(navigator, 'locks');
+        });
+
+        it('pushes nothing while another tab holds the sync lock', async () => {
+            // The real API hands the callback `null` under `ifAvailable` when the lock is held.
+            Object.defineProperty(navigator, 'locks', {
+                value: { request: vi.fn(async (_n: string, _o: unknown, cb: (l: unknown) => Promise<unknown>) => cb(null)) },
+                configurable: true,
+            });
+
+            await queueForSync('tasks', 'locked-out', 'create', {
+                id: 'locked-out', teamId: 'test-team-123', seasonId: 'test-season-456',
+            });
+
+            const { result, unmount } = renderHook(() => useSync());
+            await act(async () => {
+                await result.current.sync();
+            });
+
+            // The item is untouched: still queued, and never sent.
+            expect(await db.syncQueue.count()).toBe(1);
+            const [item] = await db.syncQueue.toArray();
+            expect(item.retryCount ?? 0, 'the locked-out tab spent a retry').toBe(0);
+
+            unmount();
+        });
+
+        it('pushes normally when the lock is free', async () => {
+            // The other half. A test that only ever holds the lock would pass against a sync
+            // that had simply stopped working.
+            Object.defineProperty(navigator, 'locks', {
+                value: { request: vi.fn(async (n: string, _o: unknown, cb: (l: unknown) => Promise<unknown>) => cb({ name: n })) },
+                configurable: true,
+            });
+
+            await queueForSync('tasks', 'lock-free', 'create', {
+                id: 'lock-free', teamId: 'test-team-123', seasonId: 'test-season-456',
+            });
+
+            const { result, unmount } = renderHook(() => useSync());
+            await act(async () => {
+                await result.current.sync();
+            });
+
+            expect(await db.syncQueue.count()).toBe(0);
+
+            unmount();
+        });
+    });
 
     describe('useSync hook operations', () => {
         it('processes queue operations (create, update, delete) and pulls from server', async () => {

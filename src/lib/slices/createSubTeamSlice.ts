@@ -76,10 +76,13 @@ export const createSubTeamSlice: SliceCreator<SubTeamSlice> = (set, get) => ({
         set((s: any) => ({
             subTeams: s.subTeams.map((t: SubTeam) => (t.id === id ? updated : t)),
         }));
-        queueForSync('sub_teams', id, 'update', {
-            ...updated,
-            teamId: state.currentTeamId,
-        }).catch(console.error);
+        queueForSync(
+            'sub_teams',
+            id,
+            'update',
+            { ...updated, teamId: state.currentTeamId },
+            { ...existing, teamId: state.currentTeamId },
+        ).catch(console.error);
     },
 
     removeSubTeam: (id: string) => {
@@ -110,11 +113,15 @@ export const createSubTeamSlice: SliceCreator<SubTeamSlice> = (set, get) => ({
 
                     const updatedSubTeam = { ...subTeam, memberIds: newMemberIds };
 
-                    // Queue sync for the team update
-                    queueForSync('sub_teams', subTeam.id, 'update', {
-                        ...updatedSubTeam,
-                        teamId: get().currentTeamId
-                    }).catch(console.error);
+                    // Queue sync for the team update. `subTeam` is the row before the
+                    // toggle — the map has not replaced it yet (SYNC-06).
+                    queueForSync(
+                        'sub_teams',
+                        subTeam.id,
+                        'update',
+                        { ...updatedSubTeam, teamId: get().currentTeamId },
+                        { ...subTeam, teamId: get().currentTeamId },
+                    ).catch(console.error);
 
                     return updatedSubTeam;
                 }

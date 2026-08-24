@@ -100,7 +100,8 @@ export const createEventSlice: SliceCreator<EventSlice> = (set, get) => ({
             ),
         }));
         const next = get().competitionEvents.find((e) => e.id === id);
-        if (next) queueForSync('competition_events', id, 'update', next).catch(console.error);
+        // `existing` is the row before this edit (SYNC-06).
+        if (next) queueForSync('competition_events', id, 'update', next, existing).catch(console.error);
     },
 
     deleteCompetitionEvent: (id) => {
@@ -161,7 +162,7 @@ export const createEventSlice: SliceCreator<EventSlice> = (set, get) => ({
             eventMatches: s.eventMatches.map((m) => (m.id === id ? { ...m, ...updates } : m)),
         }));
         const next = get().eventMatches.find((m) => m.id === id);
-        if (next) queueForSync('event_matches', id, 'update', next).catch(console.error);
+        if (next) queueForSync('event_matches', id, 'update', next, existing).catch(console.error);
     },
 
     deleteEventMatch: (id) => {
@@ -205,13 +206,15 @@ export const createEventSlice: SliceCreator<EventSlice> = (set, get) => ({
     },
 
     updateMatchParticipant: (id, updates) => {
+        // Read BEFORE the set, because the set is what makes it "before" (SYNC-06).
+        const existing = get().matchParticipants.find((p) => p.id === id);
         set((s) => ({
             matchParticipants: s.matchParticipants.map((p) =>
                 p.id === id ? { ...p, ...updates } : p,
             ),
         }));
         const next = get().matchParticipants.find((p) => p.id === id);
-        if (next) queueForSync('match_participants', id, 'update', next).catch(console.error);
+        if (next) queueForSync('match_participants', id, 'update', next, existing).catch(console.error);
     },
 
     deleteMatchParticipant: (id) => {

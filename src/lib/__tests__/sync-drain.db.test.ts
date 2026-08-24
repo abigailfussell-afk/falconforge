@@ -25,6 +25,7 @@ import {
     retrySyncFailures,
 } from '@/lib/offline-db';
 import { drainSyncQueue, processSyncItem, MAX_SYNC_RETRIES } from '@/lib/sync';
+import { progressDeadline } from '@/lib/timeout';
 import { pullFromServer } from '@/lib/server-pull';
 
 let fixtures: Fixtures;
@@ -82,7 +83,14 @@ describe('drainSyncQueue pushes to a real database', () => {
 
         const result = await drainSyncQueue();
 
-        expect(result).toEqual({ pushed: 1, retried: 0, deadLettered: 0, terminal: 0, cancelled: false });
+        /*
+         * `stalled` (SYNC-13) added to the expectation rather than the assertion loosened to
+         * `toMatchObject`. Sprint 25 changed `DrainResult`'s SHAPE, not its behaviour, and a
+         * whole-object `toEqual` cannot help noticing that — which is the point of writing it
+         * this way. Relaxing it here would trade a real property (no field is unexpectedly
+         * non-zero) for the convenience of never having to touch this line again.
+         */
+        expect(result).toEqual({ pushed: 1, retried: 0, deadLettered: 0, terminal: 0, cancelled: false, stalled: false });
         expect(await db.syncQueue.count()).toBe(0);
 
         const row = await svc.from('tasks').select('*').eq('id', task.id as string).single();
@@ -295,7 +303,7 @@ describe('cancellation (B6)', () => {
 
         const result = await drainSyncQueue({ cancelled: true });
 
-        expect(result).toEqual({ pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: true });
+        expect(result).toEqual({ pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: true, stalled: false });
         expect(await db.syncQueue.count()).toBe(1);
         const row = await svc.from('tasks').select('id').eq('id', task.id as string);
         expect(row.data).toEqual([]);
@@ -346,5 +354,133 @@ describe('processSyncItem', () => {
 
         const row = await svc.from('checklists').select('*').eq('team_id', team.id).eq('name', 'Pre-Match Checklist').single();
         expect(row.data!.items).toEqual([{ id: '1', text: 'Charge driver hub', checked: false }]);
+    });
+});
+/**
+ * SYNC-13 — a long drain that is working is not a failed one.
+ *
+ * The overall sync timeout used to cap drain-plus-pull at a flat thirty seconds. A device back
+ * from a day offline has a large queue and each item is a round trip; at the ~500 ms a venue
+ * connection manages, about sixty items fit. The rest was cancelled mid-way and the run reported
+ * "Sync failed" — having pushed sixty items successfully, and about to push sixty more. The user
+ * is told they have failed, over and over, for as long as the queue is longer than one window.
+ *
+ * The budget now measures IDLE time rather than total time, and only a successful push resets it.
+ * That draws the line the flat timeout could not: between a run that is SLOW and one that is
+ * STUCK. They want opposite treatment.
+ *
+ * THE CLOCK IS SCRIPTED, not raced. A test that waits thirty real seconds to prove a
+ * thirty-second budget is a test that gets skipped, and one that advances a clock from a Dexie
+ * hook is asserting on where in the drain that hook happens to fire — which is not the property
+ * under test and was wrong twice while this was written. `now()` returns the next value in a
+ * list, so each call site's reading is stated outright:
+ *
+ *     construction ->  reading 0        (`progressDeadline` starts its clock immediately)
+ *     item N:  expired()  ->  the next reading
+ *              progress() ->  the one after   (only on success)
+ *
+ * The constructor's reading is easy to forget and this test forgot it twice: without it every
+ * sequence is off by one and the drain pushes one item more than the script says. Written out
+ * because an off-by-one in a scripted clock does not look like an off-by-one — it looks like the
+ * behaviour being wrong.
+ *
+ * `docs/failure-modes.md` §10 is four sprints of defects from reading the wrong clock; the fix
+ * for a test is to own the clock rather than to sleep against it.
+ */
+describe('SYNC-13 — the drain is bounded by progress, not by the clock', () => {
+    /** A clock that returns the next scripted reading, then repeats the last one for ever. */
+    const scriptedClock = (readings: number[]) => {
+        let i = 0;
+        return () => readings[Math.min(i++, readings.length - 1)];
+    };
+
+    const queueTasks = async (n: number, prefix: string) => {
+        for (let i = 0; i < n; i++) {
+            const task = localTask({ title: `${prefix} ${i}` });
+            await queueForSync('tasks', task.id as string, 'create', task);
+        }
+    };
+
+    it('keeps draining for as long as pushes keep landing, however long that takes', async () => {
+        await queueTasks(5, 'Catch-up');
+
+        /*
+         * Five items, 25 seconds of gap between each success — 125 seconds in total, four times
+         * the flat budget that used to cancel this run after two items. No single gap reaches
+         * 30s, so nothing stalls.
+         */
+        const deadline = progressDeadline(30_000, scriptedClock([
+            0,                // construction
+            0, 0,             // item 0: expired at 0 (last 0), then progress sets last = 0
+            25_000, 25_000,   // item 1: 25s since the last success
+            50_000, 50_000,
+            75_000, 75_000,
+            100_000, 100_000,
+        ]));
+
+        const result = await drainSyncQueue({ cancelled: false, deadline });
+
+        expect(result.pushed, 'the drain gave up while it was still working').toBe(5);
+        expect(result.stalled).toBe(false);
+        expect(await db.syncQueue.count()).toBe(0);
+
+        const landed = await svc.from('tasks').select('title').like('title', 'Catch-up%');
+        expect(landed.data).toHaveLength(5);
+    });
+
+    it('spends the budget from the last SUCCESS, not from the start of the run', async () => {
+        await queueTasks(3, 'Mixed');
+
+        /*
+         * Two succeed 10 seconds apart, then 35 seconds pass with nothing landing. Total elapsed
+         * is 45s — over the old flat budget before the second item — and the drain gets to the
+         * third anyway, which is the whole change. It stops there because THAT gap is over 30.
+         */
+        const deadline = progressDeadline(30_000, scriptedClock([
+            0,                // construction
+            0, 0,             // item 0: pushes
+            10_000, 10_000,   // item 1: 10s later, pushes
+            45_000,           // item 2: 35s since the last success -> stalled, never attempted
+        ]));
+
+        const result = await drainSyncQueue({ cancelled: false, deadline });
+
+        expect(result.pushed).toBe(2);
+        expect(result.stalled).toBe(true);
+        expect(await db.syncQueue.count()).toBe(1);
+    });
+
+    it('stops when nothing has succeeded for the whole budget', async () => {
+        await queueTasks(3, 'Doomed');
+        // The budget is already spent when the run starts: nothing has succeeded, ever.
+        // Construction reads 0; the first `expired()` reads 31_000.
+        const deadline = progressDeadline(30_000, scriptedClock([0, 31_000]));
+
+        const result = await drainSyncQueue({ cancelled: false, deadline });
+
+        expect(result.stalled, 'the drain kept going with nothing succeeding').toBe(true);
+        expect(result.pushed).toBe(0);
+        /*
+         * AND IT STOPPED BEFORE TOUCHING ANYTHING. The check is before the item, so nothing
+         * spent a retry on a run that had already run out of budget — which matters because five
+         * retries is what stands between a coach's work and the dead-letter store.
+         */
+        expect(result.retried).toBe(0);
+        expect(result.deadLettered).toBe(0);
+        const queued = await getPendingSyncItems();
+        expect(queued).toHaveLength(3);
+        expect(queued.every((q) => (q.retryCount ?? 0) === 0)).toBe(true);
+    });
+
+    it('has no deadline at all when it is not given one', async () => {
+        // Every existing caller and every B-test passes a bare token. The drain must behave
+        // exactly as it always did for them — no budget, no stall, no new branch.
+        const task = localTask({ title: 'No deadline' });
+        await queueForSync('tasks', task.id as string, 'create', task);
+
+        const result = await drainSyncQueue({ cancelled: false });
+
+        expect(result.pushed).toBe(1);
+        expect(result.stalled).toBe(false);
     });
 });

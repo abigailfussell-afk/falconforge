@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Unmock realtime so we can test the real implementation
 vi.unmock('@/lib/realtime');
@@ -35,10 +35,17 @@ vi.mock('@/lib/supabase', () => ({
 // Realtime writes to the store through the shared read path, not through sync.ts (C3).
 const mockMergeIntoStore = vi.fn();
 const mockUpdateLocalDatabase = vi.fn();
+/*
+ * `fetchTeamData` is here because SYNC-04's resume calls it to close the gap the disconnection
+ * left. A factory mock throws when an omitted export is ACCESSED rather than when it is
+ * imported, so leaving it out would have been invisible until a test drove a resume.
+ */
+const mockFetchTeamData = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/server-pull', () => ({
     mergeIntoStore: (...args: any[]) => mockMergeIntoStore(...args),
     updateLocalDatabase: (...args: any[]) => mockUpdateLocalDatabase(...args),
+    fetchTeamData: (...args: any[]) => mockFetchTeamData(...args),
 }));
 
 vi.mock('@/lib/sync', () => ({
@@ -86,12 +93,27 @@ import {
     getRealtimeStatus,
     onRealtimeStatusChange,
     handleRealtimeDelete,
+    handleVisibilityChange,
+    resetVisibilityStateForTests,
+    HIDDEN_TEARDOWN_MS,
 } from '../realtime';
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
 
 // The queue is not this suite's subject: `getPendingRecordIds` is driven through the mock.
 vi.mock('@/lib/offline-db');
+
+/**
+ * The stubbed client's spies, typed once.
+ *
+ * The same escape-hatch cast was written five times while SYNC-04's tests were added, and the
+ * type-escape ratchet in `harness-invariants.test.ts` counts test files too — correctly, since a
+ * cast is a cast wherever it is. One `asSpy` keeps the count where it was.
+ *
+ * (And the ratchet counts COMMENTS, which is why this one describes the cast rather than
+ * quoting it. Discovered by writing the quote and watching the count go up by two.)
+ */
+const asSpy = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;
 
 describe('realtime', () => {
     beforeEach(() => {
@@ -151,7 +173,7 @@ describe('realtime', () => {
 
             setupRealtimeSubscription('team-123');
             // Should not create a new channel
-            expect((supabase!.channel as any).mock.calls.length).toBe(firstCallCount);
+            expect(asSpy(supabase!.channel).mock.calls.length).toBe(firstCallCount);
         });
 
         it('should teardown and re-subscribe when team changes', () => {
@@ -367,4 +389,116 @@ describe('realtime', () => {
             expect(listener).toHaveBeenCalledWith('disconnected');
         });
     });
+
+    /**
+     * SYNC-04 — a hidden tab gives up its socket.
+     *
+     * The constraint is CONNECTIONS, not messages. Supabase's free tier allows 200 concurrent
+     * realtime connections and a team meeting is 8–15 devices, so 15–25 teams meeting on the same
+     * evening saturates it; later joiners get `CHANNEL_ERROR` and fall back to the pull path,
+     * which is exactly the expensive path SYNC-03 exists to avoid. A phone in a pocket with the
+     * app still open is a connection nobody is reading.
+     *
+     * WHAT WOULD MAKE THESE FAIL: tearing down immediately rather than after the delay (the first
+     * test), never tearing down (the second), not reconnecting (the third), or reconnecting
+     * without closing the gap the disconnection left (the fourth). Each is a plausible way to
+     * write this and each is wrong in a different direction.
+     */
+    describe('SYNC-04 — hidden tabs release the socket', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            resetVisibilityStateForTests();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+            resetVisibilityStateForTests();
+        });
+
+        /** jsdom's `document.hidden` is read-only; this is how the platform is simulated. */
+        const setHidden = (hidden: boolean) => {
+            Object.defineProperty(document, 'hidden', { value: hidden, configurable: true });
+        };
+
+        it('does NOT tear down for an ordinary tab switch', () => {
+            setupRealtimeSubscription('team-123');
+            asSpy(supabase!.removeChannel).mockClear();
+
+            setHidden(true);
+            handleVisibilityChange(true);
+            vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS - 1);
+
+            expect(
+                supabase!.removeChannel,
+                'a tab switched away for under two minutes lost its socket',
+            ).not.toHaveBeenCalled();
+            expect(getRealtimeStatus()).not.toBe('disconnected');
+        });
+
+        it('tears down once the tab has been hidden for the whole delay', () => {
+            setupRealtimeSubscription('team-123');
+            asSpy(supabase!.removeChannel).mockClear();
+
+            setHidden(true);
+            handleVisibilityChange(true);
+            vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS);
+
+            expect(supabase!.removeChannel).toHaveBeenCalledTimes(1);
+            expect(getRealtimeStatus()).toBe('disconnected');
+        });
+
+        it('does not tear down if the tab came back before the timer fired', () => {
+            /*
+             * The timer is re-checked at fire time rather than trusting the flag it was armed
+             * with. `docs/failure-modes.md` §11 is four sprints of timers bound to the wrong
+             * moment — including one cleared by the very case it was meant to cover.
+             */
+            setupRealtimeSubscription('team-123');
+            asSpy(supabase!.removeChannel).mockClear();
+
+            setHidden(true);
+            handleVisibilityChange(true);
+            vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS / 2);
+
+            setHidden(false);
+            handleVisibilityChange(false);
+            vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS * 2);
+
+            expect(supabase!.removeChannel).not.toHaveBeenCalled();
+        });
+
+        it('reconnects and closes the gap when the tab comes back', () => {
+            setupRealtimeSubscription('team-123');
+            setHidden(true);
+            handleVisibilityChange(true);
+            vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS);
+            asSpy(supabase!.channel).mockClear();
+            mockFetchTeamData.mockClear();
+
+            setHidden(false);
+            handleVisibilityChange(false);
+
+            expect(supabase!.channel).toHaveBeenCalledWith('team-team-123');
+            /*
+             * And a pull, because nothing was listening while the socket was down. The periodic
+             * reconciliation would catch up eventually, and "eventually" is not what somebody who
+             * has just come back to the tab is looking at.
+             */
+            expect(mockFetchTeamData, 'came back to a stale board').toHaveBeenCalledWith('team-123');
+        });
+
+        it('does nothing on a resume that never suspended', () => {
+            // A tab that was only ever visible must not reconnect to a team it did not choose,
+            // or pull on every `visibilitychange` the browser happens to emit.
+            setupRealtimeSubscription('team-123');
+            asSpy(supabase!.channel).mockClear();
+            mockFetchTeamData.mockClear();
+
+            setHidden(false);
+            handleVisibilityChange(false);
+
+            expect(supabase!.channel).not.toHaveBeenCalled();
+            expect(mockFetchTeamData).not.toHaveBeenCalled();
+        });
+    });
 });

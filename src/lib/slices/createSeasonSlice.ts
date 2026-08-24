@@ -175,13 +175,15 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
     },
 
     updateSeason: (id, updates) => {
+        // Read BEFORE the set, because the set is what makes it "before" (SYNC-06).
+        const existing = get().seasons.find((s: Season) => s.id === id);
         set((state: any) => ({
             seasons: state.seasons.map((s: Season) => (s.id === id ? { ...s, ...updates } : s)),
         }));
 
         const season = get().seasons.find((s: Season) => s.id === id);
         if (season) {
-            queueForSync('seasons', id, 'update', season).catch(console.error);
+            queueForSync('seasons', id, 'update', season, existing).catch(console.error);
         }
     },
 

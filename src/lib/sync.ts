@@ -19,8 +19,10 @@ import {
 } from './sync-failure-classification';
 import { pullFromServer, pullEntitlement } from './server-pull';
 import { isServerAnswer, recordServerContact } from './server-reachability';
+import { withSyncLock } from './sync-lock';
 import {
     withTimeout,
+    progressDeadline,
     PER_QUERY_TIMEOUT_MS,
     OVERALL_SYNC_TIMEOUT_MS,
     type SyncToken,
@@ -290,28 +292,63 @@ export function useSync(): UseSyncResult {
         // withTimeout only rejects the outer promise -- the work inside keeps running (B6).
         // Without a cancellation flag, a timed-out run carried on mutating the queue and the
         // store while the next run started, so two loops raced over the same items.
-        const token: SyncToken = { cancelled: false };
+        const token: SyncToken = { cancelled: false, deadline: progressDeadline() };
 
         try {
-            // Overall sync timeout to prevent hanging forever
+            /*
+             * THE DRAIN IS BOUNDED BY PROGRESS, THE PULL BY THE CLOCK (SYNC-13).
+             *
+             * These are different shapes of work and the flat `withTimeout` around both treated
+             * them the same. A drain is N independent round trips, each already bounded by
+             * `PER_QUERY_TIMEOUT_MS`, and a long one that keeps succeeding is a device catching
+             * up after a day offline — precisely what this app exists to survive. A pull is one
+             * operation that either answers or hangs, so a wall-clock bound is the right
+             * instrument for it and the wrong one for the drain.
+             */
+            /*
+             * ONE TAB DRAINS AT A TIME (SYNC-09).
+             *
+             * `syncingRef` is per module instance and every tab is its own instance, so two tabs
+             * on the same team drained the same IndexedDB queue together — double retry counts
+             * (an item parked two failures early), double egress, and ties in the ordering key
+             * B1 exists to make strict. If the other tab holds the lock this returns `undefined`
+             * without running: that tab is draining the same queue, so there is nothing to wait
+             * for, and a queue of waiters would each then run a pointless empty drain.
+             *
+             * The PULL is deliberately outside the lock. Two tabs reading at once is wasteful
+             * and harmless — both honour `getPendingRecordIds()` — and holding a cross-tab lock
+             * across a read would let one tab's slow pull block the other tab's writes.
+             */
+            const drain = (await withSyncLock(() => drainSyncQueue(token))) ?? {
+                pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: true, stalled: false,
+            };
+
+            // Widen the retry backoff while pushes keep failing, and collapse it back the
+            // moment one succeeds. Counting drains rather than individual items keeps one
+            // permanently-broken record (which dead-letters after MAX_SYNC_RETRIES anyway)
+            // from slowing down everyone else's retries.
+            if (drain.retried > 0 && drain.pushed === 0) {
+                failedDrainsRef.current += 1;
+            } else {
+                failedDrainsRef.current = 0;
+            }
+
+            /*
+             * A stall that pushed NOTHING is a failure and says so. A stall that pushed
+             * something is a slow catch-up, and the queue count in the indicator already tells
+             * the truth about what is left — "N pending", amber, rather than "Sync Error", red.
+             * Reporting failure over work that succeeded is what SYNC-13 was.
+             */
+            if (drain.stalled && drain.pushed === 0) {
+                throw new Error(
+                    `Timeout: no queued change could be pushed in ${OVERALL_SYNC_TIMEOUT_MS}ms`,
+                );
+            }
+
             await withTimeout(
-                (async () => {
-                    const drain = await drainSyncQueue(token);
-
-                    // Widen the retry backoff while pushes keep failing, and collapse it
-                    // back the moment one succeeds. Counting drains rather than individual
-                    // items keeps one permanently-broken record (which dead-letters after
-                    // MAX_SYNC_RETRIES anyway) from slowing down everyone else's retries.
-                    if (drain.retried > 0 && drain.pushed === 0) {
-                        failedDrainsRef.current += 1;
-                    } else {
-                        failedDrainsRef.current = 0;
-                    }
-
-                    await pullChangesFromServer(token);
-                })(),
+                pullChangesFromServer(token),
                 OVERALL_SYNC_TIMEOUT_MS,
-                'Overall sync'
+                'Server pull',
             );
 
             setLastSyncTime(new Date());
@@ -407,6 +444,12 @@ export interface DrainResult {
     terminal: number;
     /** True if the run stopped early because its token was cancelled (B6). */
     cancelled: boolean;
+    /**
+     * True if the run stopped early because nothing succeeded for the whole idle budget
+     * (SYNC-13). Distinct from {@link cancelled}, which means somebody else abandoned the run —
+     * this one means the run abandoned itself, and the two want different things said about them.
+     */
+    stalled: boolean;
 }
 
 /**
@@ -435,7 +478,9 @@ function currentFailureContext(): SyncFailureContext {
  * from draining, and must not be lost either (B2).
  */
 export async function drainSyncQueue(token: SyncToken = { cancelled: false }): Promise<DrainResult> {
-    const result: DrainResult = { pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: false };
+    const result: DrainResult = {
+        pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: false, stalled: false,
+    };
 
     // Ordered by timestamp, NOT primary key — see getPendingSyncItems (B1).
     const queueItems = await getPendingSyncItems();
@@ -446,11 +491,25 @@ export async function drainSyncQueue(token: SyncToken = { cancelled: false }): P
             result.cancelled = true;
             return result;
         }
+        /*
+         * STOP ONLY WHEN NOTHING IS WORKING (SYNC-13).
+         *
+         * Checked before the item rather than after, so the budget is spent attempting work
+         * rather than noticing that it has run out. Items not reached stay queued with their
+         * retry counts untouched — the next run picks them up in the same order, which is B1's
+         * whole guarantee and the reason a partial drain is safe at all.
+         */
+        if (token.deadline?.expired()) {
+            result.stalled = true;
+            return result;
+        }
         try {
             await processSyncItem(item);
             // Remove from queue on success
             await db.syncQueue.delete(item.id);
             result.pushed++;
+            // A push that landed is the only thing that buys more time.
+            token.deadline?.progress();
         } catch (err) {
             /*
              * A refusal that no retry can satisfy is parked NOW, with its reason (B24).
@@ -556,8 +615,22 @@ async function pushSyncItem(item: SyncQueueItem): Promise<void> {
                 );
                 if (result.error) throw result.error;
             } else {
+                /*
+                 * ONLY WHAT THIS EDIT CHANGED (SYNC-06).
+                 *
+                 * `previousData` is absent for a queue entry written by an older bundle, and
+                 * for any caller that has not been given the pre-edit row yet — both fall back
+                 * to the whole row, which is what the engine has always sent. An empty diff
+                 * means the edit changed nothing the server can see, and pushing it would be a
+                 * round trip for no reason; the item is still removed from the queue by the
+                 * drain, which is correct, because there is nothing left to send.
+                 */
+                const diff = changedRemoteColumns(tableName, item.previousData, data);
+                const payload = diff ?? transformedData;
+                if (diff && Object.keys(diff).length === 0) break;
+
                 const result: any = await withTimeout(
-                    (async () => supabaseSync.from(table).update(transformedData as never).eq('id', recordId))(),
+                    (async () => supabaseSync.from(table).update(payload as never).eq('id', recordId))(),
                     PER_QUERY_TIMEOUT_MS,
                     `update ${tableName}`
                 );
@@ -576,6 +649,83 @@ async function pushSyncItem(item: SyncQueueItem): Promise<void> {
             break;
         }
     }
+}
+
+/**
+ * The columns this edit actually changed (SYNC-06).
+ *
+ * WHAT WAS WRONG. An `update` sent `toRemote(fullLocalRow)` — every column — with no
+ * precondition. So device A, offline, renames a task; device B moves the same task to Done; A
+ * reconnects and its stale `status` overwrites B's. Silent, invisible, and the loser never
+ * knows. A kanban board at a competition is precisely two people touching the same card, which
+ * is the case this app exists for.
+ *
+ * HOW THE DIFF IS TAKEN, and why it needs no new per-entity machinery. `toRemote` is a pure
+ * function of a row, so running it over the pre-edit row and over the post-edit row and keeping
+ * the columns that differ gives exactly the columns this edit touched — expressed in the
+ * server's key space, by the one transform that owns that mapping. No second key map to drift
+ * out of step with the first (`docs/failure-modes.md` §12), and no `toRemotePartial` on eleven
+ * entities to fall behind `toRemote`.
+ *
+ * `id` is always kept: PostgREST filters on it and a payload without it is meaningless. Anything
+ * the transform derives from the clock — `updated_at` — differs on every call and is therefore
+ * always included, which is what a touch should do.
+ *
+ * WHAT THIS MEANS FOR PRINCIPLE 3, worked out rather than assumed.
+ *
+ * CLAUDE.md: "every server read must honour `getPendingRecordIds()` — a refetch must never
+ * clobber un-synced local edits". A partial update changes what could be meant by "pending" for
+ * a row: only some of its FIELDS are un-synced now, so in principle a pull could take the
+ * server's version of every other field and be more correct than it is today.
+ *
+ * IT IS DELIBERATELY LEFT ALONE, and the reason is that the looser rule buys nothing and costs
+ * the guarantee. What the pending guard protects is the window between an edit and its push. In
+ * that window the local row is the user's own work in progress; letting a pull write half of it
+ * would mean a row on screen that is partly theirs and partly the server's, changing under them
+ * while they type — for a benefit measured in the seconds before the queue drains, since the
+ * moment the push lands the id leaves `getPendingRecordIds()` and the very next pull merges
+ * everything anyway. The stale-field window closes by itself.
+ *
+ * So the invariant is unchanged and stays exactly as strict as it was: an id with anything
+ * queued is skipped by the merge, whole. B3 and B8 are untouched, and their regression tests are
+ * green without modification — which is the evidence for this paragraph rather than the claim
+ * of it.
+ *
+ * NO PRECONDITION, DELIBERATELY. The assessment's "better" option was
+ * `.eq('updated_at', seenUpdatedAt)` with zero rows affected treated as a conflict. That is a
+ * second, larger change: it needs a conflict path, a re-pull, a re-apply and a decision about
+ * what the user is shown, and until that path exists a failed precondition would send the work
+ * round the retry ladder and into the dead-letter store — turning a silent field revert into a
+ * loud failure the coach cannot act on. Sending only the changed columns removes the reported
+ * defect outright for every case where two people edit DIFFERENT fields, which is the case that
+ * was reported. Two people editing the SAME field is still last-write-wins, and is written down
+ * as such in the sprint report rather than left to be discovered.
+ */
+export function changedRemoteColumns(
+    tableName: string,
+    previous: unknown,
+    next: unknown,
+): Record<string, unknown> | null {
+    if (previous === undefined || previous === null) return null;
+
+    const before = transformToSupabaseSchema(tableName, previous) as Record<string, unknown>;
+    const after = transformToSupabaseSchema(tableName, next) as Record<string, unknown>;
+    if (!before || !after) return null;
+
+    const diff: Record<string, unknown> = {};
+    for (const key of Object.keys(after)) {
+        // `id` is the filter, not a change; sending it in the SET list is harmless but noise.
+        if (key === 'id') continue;
+        /*
+         * JSON comparison, not `!==`. Several columns are objects — `data` on a scouting
+         * report, `checklist` and `timeline` on a task, `patch` on a game override — and
+         * reference equality would report every one of them as changed on every edit, which
+         * would make this function return the whole row and quietly do nothing at all.
+         */
+        if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) diff[key] = after[key];
+    }
+
+    return diff;
 }
 
 /**
