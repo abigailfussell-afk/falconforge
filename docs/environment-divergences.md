@@ -105,10 +105,19 @@ const rs = await navigator.serviceWorker.getRegistrations(); for (const r of rs)
 for (const k of await caches.keys()) await caches.delete(k);
 ```
 
-## 5. Schema assertions run as `postgres`, who has every privilege
+## 5. Schema assertions run as `postgres`, who is not the app and cannot be refused
 
-`supabase/tests/schema_assertions.sql` connects as the superuser, so it cannot see a permission
-gap. Sprint 2's migrations rebuilt a database **PostgREST could not read a single row of**
+`supabase/tests/schema_assertions.sql` connects as `postgres`, so it cannot see a permission gap.
+
+**Measured 2026-08-23, because this section used to say "the superuser" and that is not what
+`postgres` is.** On the local stack and on the hosted project alike, `postgres` has
+`rolsuper = f`; the superuser is `supabase_admin`. What makes it blind to a permission gap is not
+superuser status but `rolbypassrls = t` plus membership of `pg_read_all_data` — it is never
+refused by a policy and never refused a read. The distinction matters because the same
+measurement showed `postgres` can also set `session_replication_role` despite
+`has_parameter_privilege` returning false, via the `supautils` allow-list (`docs/beta-ops.md`,
+Backups): reasoning about what this role may do from its *attributes* gives the wrong answer in
+both directions. Sprint 2's migrations rebuilt a database **PostgREST could not read a single row of**
 (`permission denied for table teams`) and every assertion passed. It was invisible locally for a
 second reason too: the hosted project predates the change and already had the grants.
 
@@ -122,9 +131,14 @@ thing, be refused. Never assert the catalogue.
 
 Local and CI have disagreed twice: 2.77 vs 2.114 (newer CLI stopped auto-granting default
 privileges in `public`), and a harness that read stack status with a different binary than the
-one that started the stack. CI is pinned to `2.114.0` in both jobs; the devDependency must match.
+one that started the stack. CI is pinned to `2.114.0` in all three jobs (two in `ci.yml`, one in `backup.yml`); the
+devDependency is pinned to the same version **exactly**, with no caret, as of Sprint 22 — a
+caret is the same defect in slow motion, since `npm ci` honours the lockfile and `npm install`
+on a fresh clone does not.
 A note once claimed the pin existed when it did not, and the unpinned resolution went through
-the rate-limited GitHub API — taking CI red on a **docs-only** commit.
+the rate-limited GitHub API — taking CI red on a **docs-only** commit. That is why the claim is
+now a test rather than a note: `harness-invariants.test.ts` reads every `supabase/setup-cli`
+step's `version:` and the devDependency and requires all four to be the same string.
 
 ## 7. Clocks
 

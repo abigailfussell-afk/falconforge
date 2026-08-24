@@ -636,3 +636,71 @@ describe('the precached assets (OPS-08 / SYNC-12)', () => {
         );
     });
 });
+/**
+ * The Supabase CLI version is pinned in three places and they have to be the same one.
+ *
+ * OPS-15, and `docs/environment-divergences.md` §6 is the incident: local and CI have disagreed
+ * about the CLI version twice. Once the newer CLI stopped auto-granting default privileges in
+ * `public`, so the schema CI built was not the schema a developer built. Once a harness read the
+ * stack's status with a different binary than the one that started it. A third time a note in
+ * this repo CLAIMED the pin existed when it did not, and the unpinned resolution went through
+ * the rate-limited GitHub API and took CI red on a docs-only commit.
+ *
+ * Three `version:` lines under `supabase/setup-cli` across two workflows, plus the
+ * devDependency. A caret on the devDependency is the same defect in slow motion: `npm ci` honours
+ * the lockfile, `npm install` on a fresh clone does not, so the machine that ran `npm install`
+ * gets whatever is newest and CI keeps the pin.
+ *
+ * WHAT WOULD MAKE THIS FAIL: bumping any one of the four without the others.
+ */
+describe('the Supabase CLI is one version (OPS-15)', () => {
+    it('pins the devDependency exactly and matches every workflow', () => {
+        const pkg = JSON.parse(read('package.json')) as {
+            devDependencies: Record<string, string>;
+        };
+        const pinned = pkg.devDependencies.supabase;
+
+        expect(pinned, 'the supabase devDependency is gone').toBeTruthy();
+        expect(
+            /^\d+\.\d+\.\d+$/.test(pinned),
+            `supabase is "${pinned}" — a range floats on \`npm install\` while CI stays pinned`,
+        ).toBe(true);
+
+        const workflows = readdirSync(join(repoRoot, '.github/workflows'))
+            .filter((f) => f.endsWith('.yml'))
+            .map((f) => [f, read(`.github/workflows/${f}`)] as const);
+
+        const found: string[] = [];
+        for (const [name, text] of workflows) {
+            const lines = text.split(NL);
+            lines.forEach((line, i) => {
+                if (!line.includes('supabase/setup-cli')) return;
+                /*
+                 * Scan forward to the next STEP, not a fixed number of lines.
+                 *
+                 * The first version of this looked five lines ahead and reported MISSING for
+                 * both `ci.yml` steps, whose `version:` sits under a nine-line comment
+                 * explaining the pin. A check that reports a false failure is on its way to
+                 * being deleted, which is how at least eight steps in this repo's history
+                 * stopped verifying (`docs/failure-modes.md` §3).
+                 */
+                for (const next of lines.slice(i + 1)) {
+                    if (/^\s*- /.test(next)) break;
+                    const m = /^\s*version:\s*['"]?([\d.]+)['"]?\s*$/.exec(next);
+                    if (m) {
+                        found.push(`${name}:${m[1]}`);
+                        return;
+                    }
+                }
+                found.push(`${name}:MISSING`);
+            });
+        }
+
+        expect(found.length, 'no supabase/setup-cli steps found — did the workflows move?')
+            .toBeGreaterThan(0);
+        expect(
+            found.filter((f) => !f.endsWith(`:${pinned}`)),
+            `these setup-cli steps do not pin ${pinned}: ${found.join(', ')}`,
+        ).toEqual([]);
+    });
+});

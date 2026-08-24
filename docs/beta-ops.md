@@ -147,25 +147,74 @@ gpg --output restored.sql --decrypt backup-2026-09-01.sql.gpg
 psql "$DATABASE_URL" -f restored.sql
 ```
 
-**Step 3 has a trap that reports success.** The data half of the dump opens with
+### Rehearse it, and let the rehearsal count the rows
+
+```bash
+node scripts/restore-rehearsal.mjs --source-file backups/<a-combined-dump>.sql
+```
+
+The whole path, in the order `backup.yml` does it: check the dump has INSERTs for `auth.users`
+and `public.teams`, `gpg --symmetric --cipher-algo AES256`, shred the plaintext, decrypt, empty
+the **local** target, restore, then **count every table on both sides and diff them**. It exits
+non-zero if any table has fewer rows after the restore than the dump claimed before it.
+
+That last part is the point. Every failure this document records about restores exited 0: the
+schema-only dump exited 0, and so did the restore that produced 32 teams and no members. "psql
+finished" and "the data is back" are different claims and only one of them is worth having.
+
+**Run 2026-08-23**, against the production dump `backups/falconforge-2026-08-23-1604.sql`
+(167,833 bytes, 17 INSERT statements) restored into the local stack: **0 psql errors, 65 of 65
+rows recovered** — teams 2, seasons 2, team_members 3, sub_teams 10, tasks 2, meetings 29,
+checklists 2, invites 2, license_grants 4, platform_operators 1, user_attestations 6, users 2.
+
+The script's own first version reported "OK" over `0 expected / 65 restored`, because its dump
+parser was line-oriented and the CLI puts `VALUES` at the end of a line with the tuples on the
+lines after it. That is `docs/failure-modes.md` §2 — comparing zero to zero — inside the script
+written to stop exactly that. It now refuses to run if the dump plainly contains
+`INSERT INTO public.*` and the parser finds no rows in them.
+
+**Step 3 had a trap that reported success, and the trap did not reproduce on 2026-08-23.** The
+data half of the dump opens with
 
 ```sql
 SET session_replication_role = replica;
 ```
 
-which is `pg_dump`'s way of holding triggers and foreign keys off while rows load. **The
-`postgres` role on Supabase is not a superuser and is not allowed to set it** (`select usesuper
-from pg_user where usename = 'postgres'` → `f`). psql prints one `permission denied to set
-parameter` line in the middle of several hundred lines of output, carries on with every
-application trigger live, and **exits 0**.
+which is `pg_dump`'s way of holding triggers and foreign keys off while rows load. This document
+said the `postgres` role is not allowed to set it, and the earlier rehearsal measured the
+consequence: 32 teams and 32 seasons restored, `team_members`, `tasks`, `meetings`,
+`meeting_attendance` and `scouting_reports` all **0**, exit 0.
 
-Measured, on the local stack, restoring a real dump this way: `teams` 32 and `seasons` 32
-restored; `team_members`, `tasks`, `meetings`, `meeting_attendance` and `scouting_reports` all
-**0**. The first trigger to fire rejects the row ("The team admin must accept the terms of
-service…"), and every table with a foreign key to what it rejected fails after it. A restore that
-gives you the teams and none of their people, work, meetings or scouting — and calls it success.
+Re-measured on the current local image (PostgreSQL 17.6): `postgres` is still **not** a superuser
+(`rolsuper` = `f`) and `has_parameter_privilege('postgres','session_replication_role','SET')` is
+still **false** — and the `SET` **succeeds anyway**. The mechanism is `supautils`, the Supabase
+extension that gives one nominated role elevated GUC access:
 
-So disable the triggers yourself, as the table owner, which `postgres` is allowed to do:
+```bash
+docker exec -i supabase_db_falconforge psql -U postgres -d postgres   -tAc "select name, setting from pg_settings where name like 'supautils.privileged_role%'"
+# supautils.privileged_role                 | postgres
+# supautils.privileged_role_allowed_configs | ..., session_replication_role, ...
+```
+
+`session_replication_role` is on that allow-list, which is why `has_parameter_privilege` — which
+knows nothing about supautils — disagrees with what actually happens. On the **hosted** project
+the same allow-list contains it, but `supautils.privileged_role` is `supabase_privileged_role`
+rather than `postgres` (read on 2026-08-23 with `supabase db query --linked`); `postgres` is a
+member of that role, and whether membership is enough was **not** tested, because testing it means
+running a `SET` against production.
+
+**So keep the trigger-disable blocks below.** Not because the setting is refused — locally it is
+not — but because a restore that does not depend on a GUC permission works whichever way that
+question resolves, and because whatever produced the 32-teams-and-no-members result has not been
+explained. A restore is the wrong moment to be relying on a mechanism you cannot name.
+
+When the setting IS refused, the first trigger to fire rejects the row ("The team admin must
+accept the terms of service…"), and every table with a foreign key to what it rejected fails after
+it — a restore that gives you the teams and none of their people, work, meetings or scouting, and
+calls it success.
+
+So disable the triggers yourself, as the table owner, which `postgres` is allowed to do
+regardless. `scripts/restore-rehearsal.mjs` wraps the data half in exactly these two blocks:
 
 ```sql
 -- BEFORE loading the data half.
@@ -224,14 +273,22 @@ that actually bites.
 Run it as the service role or as `postgres`: every one of these tables is behind RLS, and a
 restore performed as an ordinary user silently writes nothing.
 
-**Rehearsed once, on 2026-08-23, against the local stack — and it is the reason two things above
-are written differently from how they were first written.** The rehearsal was: dump the local
-database, run it through the workflow's own steps (size check, `gpg --symmetric`, `shred` the
-plaintext), decrypt, and restore into an emptied database. It found the schema-only dump and the
-`session_replication_role` trap, in that order, neither of which was visible by reading.
+**Rehearsed twice on 2026-08-23, and it is the reason several things above are written
+differently from how they were first written.** The first rehearsal dumped the LOCAL database and
+ran it through the workflow's own steps; it found the schema-only dump and the
+`session_replication_role` behaviour, neither of which was visible by reading. The second ran
+`scripts/restore-rehearsal.mjs` over a dump of the **hosted** database taken the same day and
+recovered all 65 of its rows, table by table — which is the first time this project has compared
+what came back against what went in rather than reading psql's exit code.
 
 **What is still not rehearsed:** a restore of a real *hosted* artifact into a *new* Supabase
-project. The local stack provides the `auth`, `extensions` and `vault` schemas that Supabase
+project. Note also that the encrypted nightly artifact itself has never been decrypted outside
+the runner — the rehearsal encrypts and decrypts with a throwaway passphrase, so it proves the
+gpg round trip but not that `BACKUP_PASSPHRASE` opens the file in the artifact. Downloading one
+run's artifact and decrypting it once is fifteen minutes and is worth doing before a real
+incident asks for it.
+
+The local stack provides the `auth`, `extensions` and `vault` schemas that Supabase
 manages on a hosted project — restoring into a bare Postgres database instead fails on all three,
 so the local rehearsal cannot say anything about what a fresh project supplies. That last mile is
 in the plan's parking lot and needs a scratch project plus one real nightly artifact.
@@ -689,3 +746,219 @@ shown what the app looks like in use rather than an empty shell, and so screensh
 documentation do not have to be staged by hand.
 
 It refuses to run against anything but localhost, like `seed-review-states.mjs`.
+
+---
+
+## When a migration fails half-way
+
+The deploy ordering above says "apply it to the hosted project, verify, *then* merge". This is
+what to do when step 3 does not finish. There are no down scripts and there will not be: a down
+script is a second, untested code path that gets written when you are calm and run when you are
+not.
+
+**1. Find out what actually landed.** A Supabase migration file runs inside one transaction only
+if it says so. Every migration in `supabase/migrations/` opens with `BEGIN;` and closes with
+`COMMIT;` — check the one that failed before assuming it rolled itself back:
+
+```bash
+grep -c '^BEGIN;' supabase/migrations/<the-one-that-failed>.sql
+```
+
+With `BEGIN`/`COMMIT`, a failure part-way leaves the database untouched and the only repair is to
+the CLI's bookkeeping (step 3). Without it, statements before the failure have committed.
+
+**2. Read what the database thinks it has applied.**
+
+```bash
+supabase db query --linked "select version, name from supabase_migrations.schema_migrations order by version desc limit 5"
+```
+
+`supabase db query --linked` is read-only and is the safe way to ask production anything.
+
+**3. Resync the ledger if it disagrees with reality.** The CLI records a migration as applied
+before it knows whether it worked, so a failed one can leave a row claiming success — and the
+next `db push` will then skip it silently, which is worse than the failure.
+
+```bash
+# The migration did NOT apply, but the ledger says it did:
+supabase migration repair --status reverted <version> --linked
+# The migration DID apply, but the push died before recording it:
+supabase migration repair --status applied <version> --linked
+```
+
+`repair` only writes `supabase_migrations.schema_migrations`. It changes no schema and no data,
+which is exactly why it is safe and exactly why it must be told the truth.
+
+**4. If the schema is genuinely damaged, restore the dump you took in step 1 of the deploy
+ordering.** Full procedure under **Backups** above, including the trigger handling. Then
+`supabase migration repair --status reverted` for anything the restored dump predates, and
+re-insert the `platform_operators` row.
+
+**What NOT to do.** Do not `supabase db reset --linked`. It drops and rebuilds, this repo's
+migration history is squashed, and Sprint 3 and Sprint 4 are both in the plan's log because of it.
+
+---
+
+## A coach says their changes did not save (dead-letter triage)
+
+The sync engine never discards work: five failures move a queued write to a dead-letter store and
+the sync indicator offers "N changes didn't save / Retry". The thing to know before you start:
+
+> **The payloads are in the coach's own IndexedDB and nowhere else.** There is no server-side copy
+> of a write that never reached the server. You cannot look at them, and neither can anyone but
+> the person on that device, in that browser profile.
+
+**1. Ask for a screenshot of the sync indicator, expanded.** `ParkedChangesDialog` lists each
+parked item with its table, its action, and either a plain-language reason
+(`sync-failure-classification.ts`) or the raw database error when local state cannot explain it.
+The reason is the whole diagnosis:
+
+| What it says | What it means | What fixes it |
+|---|---|---|
+| The team's licence is read-only | `42501` and the device knows the entitlement lapsed | Extend the grant (below). Then Retry. |
+| That season is archived | `42501` against a closed season | The work belongs in the current season; it has to be re-entered there. |
+| A raw `new row violates row-level security policy` | `42501` the device cannot explain | Usually a **removed member** — check `team_members.status` for them. Re-approving them and hitting Retry lands the work. |
+| A `23503` / foreign key error | The parent row never synced, or was deleted elsewhere | Retry the parent first; the queue is ordered, so this is usually a symptom of the first failure in the list. |
+
+**2. Tell them to press Retry before anything else.** Most parked items are terminal only because
+of a condition that has since changed. Retry re-queues everything, in order.
+
+**3. If it must be recovered by hand**, the payload is visible to them, not to you: DevTools →
+Application → IndexedDB → `falconforge` → `syncDeadLetter`. Ask them to copy the `data` object out
+of the row and send it. Re-entering it in the app is almost always faster and always safer than
+writing it in with the service key — and a row written with the service key bypasses RLS, so a
+typo in `team_id` puts one team's work inside another's.
+
+**4. Do not tell them to sign out.** Sign-out clears the local database. Since SYNC-05 they get a
+confirmation naming the count, but the instinct to "log out and back in" is the one instruction
+that can actually destroy the work.
+
+---
+
+## Licence operations: extend, gift, dispute a seat count
+
+Every team gets **30 days automatically** at creation (D3), and the operator extends that to
+season length once the team number has been eyeballed. That extension is the normal path, not an
+exception.
+
+**Everything here is in the operator console** (`/app/operator`), and that is the interface to
+use: it writes through the audited `operator_*` RPCs, so `operator_actions` records who did what.
+SQL run by hand does not.
+
+| Situation | Where | What |
+|---|---|---|
+| A new team needs its season-length licence | Operator → Teams, sorted by `valid_until` | "Extend" on that team. |
+| A team says it has gone read-only | Operator → Teams, filter "expiring ≤ 30 days" | Check `valid_until`. If it has lapsed, extend; the client picks the new entitlement up on the next pull, and any parked writes retry. |
+| A gifted licence for a team that is not paying | Operator → Teams | Grant with an explicit end date. Every grant during the beta is a gift; there is no Stripe (D1). |
+| "We have more members than seats" | Operator → Teams | Beta grants are unlimited seats. If a seat count is set at all, it is a mistake — clear it rather than raising it. |
+
+**The seat count is not the licence.** `license_grants.seat_count` exists for the pricing model
+D1 has deferred until Stripe. A lapsed team is one whose `valid_until` has passed, and that is the
+only thing that turns writes off.
+
+**If the console cannot do it**, the RPCs are in `docs/v2-schema.md`. Two things to know before
+reaching for them: `platform_operators` ships empty and cannot be written through the API, so the
+operator identity must exist first; and an operator who has performed any audited action can
+never have their `auth.users` row deleted, because `operator_actions` must be able to name who
+acted.
+
+---
+
+## The team admin has left
+
+The admin is the one role a team cannot function without: they hold billing, invites and
+approvals, and there is exactly one per team.
+
+**Do the transfer FIRST, before any erasure.** `operator_erase_user` anonymises rather than
+deletes, so the row survives — but an anonymised admin is still the admin, and the team is then
+led by "Removed user".
+
+1. **Operator console → Teams → Transfer admin.** Pick the successor. `operator_transfer_team_admin`
+   moves the role without the two-party handshake, which is the point: the outgoing admin is gone
+   and cannot accept anything.
+2. **The successor must be 18 or over.** The RPC refuses a `13_to_17` account outright (D9) and
+   the picker no longer offers one. If a team's only remaining adult has left, the team needs a
+   new adult to sign up and join before the transfer can happen; there is no override, and that is
+   deliberate.
+3. **Then, if they have asked to be erased**, follow *Erasing a person's data* above. The order
+   matters and it is the whole reason this section exists.
+
+---
+
+## The site is down, or the project has paused
+
+Check in this order. Each step is cheap and rules out everything below it.
+
+**1. Is the page serving?** `curl -sI https://falcon-forge.com | head -1` → `200`. A GitHub Pages
+outage shows on [githubstatus.com](https://www.githubstatus.com/); there is nothing to do but
+wait, and the app is offline-capable for anyone who has already loaded it.
+
+**2. Is the database awake?**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$SUPABASE_URL/auth/v1/settings"
+```
+
+`200` means Supabase is up and answering. Anything else — or a long hang — is the likely cause of
+"nobody can log in".
+
+**Free-tier projects pause after 7 days with no activity** (OPS-09, accepted under D7). That is
+what an off-season looks like, and the symptom is exactly this: the site loads, the app renders,
+and every sign-in fails with an opaque error. Un-pausing is one button in the Supabase dashboard
+and takes a couple of minutes. The nightly backup counts as activity every day it runs, so this
+should not happen while the backup workflow is green — which is one more reason a red backup
+workflow is not something to leave for later.
+
+**3. Is it the bundle rather than the backend?** `npm run check:prod` fetches the live bundle and
+asserts what it should contain. A deploy that half-landed shows up here.
+
+**4. Is it one team rather than everybody?** A lapsed licence disables writes and shows a banner;
+that is a licence question, not an outage. See *Licence operations*.
+
+There is no uptime monitor. For a beta of a known handful of teams the honest position is that
+Kevin finds out when a coach says so; adding one is in the plan's parking lot with the trigger
+being the first team that is not a friend.
+
+---
+
+## Dependencies, and which findings are accepted
+
+`npm audit` is noisy and most of it never reaches a browser. The number that matters is
+`npm audit --omit=dev`, because the only thing this project ships is a static bundle.
+
+**Measured 2026-08-23:** 18 findings in total (1 low, 7 moderate, 8 high, 2 critical); **3 with
+`--omit=dev`**.
+
+**Fixed in Sprint 22:**
+
+- `react-router-dom` 6.30.3 → **6.30.6**, which closes `@remix-run/router`'s same-origin
+  open-redirect via a `//`-prefixed path.
+
+**Accepted, with reasons:**
+
+| Finding | Why it is accepted |
+|---|---|
+| **`ws` 8.18.3, high** (uninitialised memory disclosure; memory-exhaustion DoS) — via `@supabase/realtime-js` | **It is not in the bundle.** `ws` is realtime-js's *Node* transport; in a browser `WebSocketFactory` uses the platform's own `WebSocket`, and the built assets contain no `ws` internals at all (`grep -c 'Sec-WebSocket-Accept\|permessage-deflate' dist/assets/*.js` → 0 in all 34 files). The advisory is fixed in supabase-js ≥ 2.112, and taking that upgrade is a separate change — see below. |
+| **react-router 6.x, moderate** — open redirect via backslash in `<Link>`/`useNavigate` (GHSA-wrjc-x8rr-h8h6), and arbitrary constructor injection in `deserializeErrors()` during SSR hydration (GHSA-337j-9hxr-rhxg) | Neither has a fix inside 6.x; npm's remedy is react-router-dom 7, a breaking change that this app cannot take casually — it is a HashRouter app on GitHub Pages and the router touches every route, the e2e pack, the capture script and the QR poster URLs already going onto paper (plan §3). **The SSR one is not reachable at all**: there is no server rendering here, no `createStaticHandler`, no hydration. **The redirect one is not reachable either**, because a HashRouter assigns `location.hash` and a fragment cannot leave the origin — and `readReturnTo` now refuses a backslash anyway, so the app's one rule about attacker-controlled destinations does not rest on the router's behaviour. |
+| The 15 dev-only findings (`vitest` UI file read, `esbuild` dev server, `serialize-javascript` via `workbox-build`, `@babel/*`, `lodash`, `picomatch`, `brace-expansion`, `fast-uri`, `yaml`) | None runs anywhere but a developer's machine or a build step. `vitest --ui` is a script nobody runs in CI; the `esbuild` dev-server issue needs a browser pointed at a dev server, which is not how anything here is verified. |
+
+**Deliberately NOT taken: `@supabase/supabase-js` 2.89 → 2.112**, and the devDependency is now
+pinned exactly (`"2.89.0"`, no caret) so an `npm install` cannot take it by accident. 2.112's
+types parse the `select()` string at the type level, and the one data path builds that string at
+runtime from the entity registry, so the row type resolves to `never` and **six `tsc` errors
+appear in `sync.ts` and `server-pull.ts`** — the two files CLAUDE.md principle 2 says not to touch
+without the sync regression suite as the gate. Making them typecheck means either a `never`-shaped
+cast in the sync engine or a real refactor of the one read path. Both belong in a change of their
+own with the B1–B26 tests as its evidence, not in a dependency bump. The advisory it would have
+closed is the `ws` one, which does not ship.
+
+**The check, monthly, and it is two lines:**
+
+```bash
+npm audit --omit=dev          # this is the number that matters
+npm audit                     # for completeness; expect noise
+```
+
+If `--omit=dev` grows, the new row belongs in the table above with a reason, or the dependency
+gets updated. "19 findings" as a headline number is not information — which of them reach a
+browser is.
