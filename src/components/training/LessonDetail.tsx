@@ -181,10 +181,19 @@ export default function LessonDetail() {
                 className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card p-4"
             >
                 <SectionHeader icon={Users} title="Checkpoint" />
+                {/*
+                 * The label ONLY, not `CHECKPOINT_META.who` as well.
+                 *
+                 * Eight of the eleven labels already name the person — "A mentor signs this off
+                 * before you touch any build work" followed by "A mentor signs this off." is the
+                 * same sentence twice, which is what the first screenshots showed. The generic
+                 * line earns its place on the TRACK list, where there is no label and one row
+                 * has to say who acts; here the label is more specific and the button below
+                 * already differs by role.
+                 */}
                 <p className="text-sm text-slate-600 dark:text-slate-300">
                     {lesson.checkpoint.label}
                 </p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{checkpoint.who}</p>
 
                 <div className="mt-3">
                     <Button disabled data-testid="checkpoint-action">

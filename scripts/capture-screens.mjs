@@ -124,6 +124,34 @@ const VIEWS = [
         marker: 'text=Attendance summary',
     },
     { file: 'check-in-code', hash: '#/app/checkin', nav: null, marker: '[data-testid="code-display"]' },
+    /*
+     * Sprint 28. The Training stub's three levels, each with a MARKER, because all three sit
+     * under the same `nav: training` rail item and `aria-current` cannot tell them apart —
+     * the same trap the meetings routes hit on this script's first run.
+     *
+     * Track `onboarding` is one of the two that carry an outline; the empty state that six of
+     * the eight tracks show is captured from `mechanical`, because it is what most of the
+     * feature currently looks like and a screenshot of only the written track would flatter it.
+     */
+    { file: 'training', hash: '#/app/training', nav: 'training', marker: '[data-testid="outline-totals"]' },
+    {
+        file: 'training-track',
+        hash: '#/app/training/onboarding',
+        nav: 'training',
+        marker: '[data-testid="lesson-list"]',
+    },
+    {
+        file: 'training-track-empty',
+        hash: '#/app/training/mechanical',
+        nav: 'training',
+        marker: '[data-testid="track-empty"]',
+    },
+    {
+        file: 'training-lesson',
+        hash: '#/app/training/safety/B1',
+        nav: 'training',
+        marker: '[data-testid="checkpoint"]',
+    },
     { file: 'admin-console', hash: '#/app/admin', nav: 'admin' },
     /*
      * Sprint 9. The capture account is a coach who is ALSO a parent — the seeder gives
