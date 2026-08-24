@@ -34,6 +34,14 @@ A comprehensive management app for FIRST Tech Challenge (FTC) robotics teams. Fe
   own name and redeems it — and **keeps their place on the team and their whole attendance
   history**, because the roster row is repointed rather than replaced. The app never stores a
   date of birth, so this is triggered by a person and never by a date
+- **Training** *(preview)* - Eight tracks, from a rookie's first match to the mechanism they
+  want to build, each lesson carrying its objective, its hands-on task, what comes first and
+  who signs it off. One nav entry, two experiences: a student asks for a sign-off, a mentor or
+  coach gives one. **The lessons themselves are not written yet** — this is the shape they will
+  arrive into, and every screen says so. Two of the eight tracks are outlined; nothing on these
+  pages records progress. Training is also the one part of the app that does not belong to a
+  season, because skills belong to a person and the summer between seasons is when most
+  training happens
 - **Getting started** - An in-app help page (`#/app/help`) covering the admin's first five
   steps, what a student needs, how offline actually behaves and the guardian path for under-13s.
   It is the one view that does not require a team, because a coach who has not created one yet
@@ -338,6 +346,9 @@ those assertions are what stop it becoming two again.
 Some views are one nav entry with two experiences rather than a gate: **Meetings** is visible
 to everybody, because the schedule is the whole of a student's use of the feature, and the page
 renders the event manager or the read-only schedule depending on `can_manage_meetings`.
+**Training** works the same way — everybody sees the tracks, a mentor additionally sees the
+sign-off side — and the predicate behind both lives in `src/lib/roles.ts` rather than being
+spelled out twice.
 
 Views can be gated on a capability — `requiresManage` (admin or coach) and `requiresOperator`
 (the platform operator). Both are UX only: the routes render their own refusal for anyone who
