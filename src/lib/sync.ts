@@ -19,6 +19,7 @@ import {
 } from './sync-failure-classification';
 import { pullFromServer, pullEntitlement } from './server-pull';
 import { isServerAnswer, recordServerContact } from './server-reachability';
+import { withSyncLock } from './sync-lock';
 import {
     withTimeout,
     progressDeadline,
@@ -304,7 +305,23 @@ export function useSync(): UseSyncResult {
              * operation that either answers or hangs, so a wall-clock bound is the right
              * instrument for it and the wrong one for the drain.
              */
-            const drain = await drainSyncQueue(token);
+            /*
+             * ONE TAB DRAINS AT A TIME (SYNC-09).
+             *
+             * `syncingRef` is per module instance and every tab is its own instance, so two tabs
+             * on the same team drained the same IndexedDB queue together — double retry counts
+             * (an item parked two failures early), double egress, and ties in the ordering key
+             * B1 exists to make strict. If the other tab holds the lock this returns `undefined`
+             * without running: that tab is draining the same queue, so there is nothing to wait
+             * for, and a queue of waiters would each then run a pointless empty drain.
+             *
+             * The PULL is deliberately outside the lock. Two tabs reading at once is wasteful
+             * and harmless — both honour `getPendingRecordIds()` — and holding a cross-tab lock
+             * across a read would let one tab's slow pull block the other tab's writes.
+             */
+            const drain = (await withSyncLock(() => drainSyncQueue(token))) ?? {
+                pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: true, stalled: false,
+            };
 
             // Widen the retry backoff while pushes keep failing, and collapse it back the
             // moment one succeeds. Counting drains rather than individual items keeps one

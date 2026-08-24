@@ -334,6 +334,67 @@ describe('sync.integration', () => {
         });
     });
 
+
+    /**
+     * SYNC-09 — the other tab is already draining, so this one does not.
+     *
+     * `sync-lock.test.ts` covers the helper. This is the assertion that the ENGINE uses it: a
+     * helper nothing calls is a gate with no door (`docs/failure-modes.md` §7, four sprints and
+     * seven instances), and the only way to know is to hold the lock and watch a sync decline
+     * to push.
+     */
+    describe('SYNC-09 — one drain at a time across tabs', () => {
+        afterEach(() => {
+            Reflect.deleteProperty(navigator, 'locks');
+        });
+
+        it('pushes nothing while another tab holds the sync lock', async () => {
+            // The real API hands the callback `null` under `ifAvailable` when the lock is held.
+            Object.defineProperty(navigator, 'locks', {
+                value: { request: vi.fn(async (_n: string, _o: unknown, cb: (l: unknown) => Promise<unknown>) => cb(null)) },
+                configurable: true,
+            });
+
+            await queueForSync('tasks', 'locked-out', 'create', {
+                id: 'locked-out', teamId: 'test-team-123', seasonId: 'test-season-456',
+            });
+
+            const { result, unmount } = renderHook(() => useSync());
+            await act(async () => {
+                await result.current.sync();
+            });
+
+            // The item is untouched: still queued, and never sent.
+            expect(await db.syncQueue.count()).toBe(1);
+            const [item] = await db.syncQueue.toArray();
+            expect(item.retryCount ?? 0, 'the locked-out tab spent a retry').toBe(0);
+
+            unmount();
+        });
+
+        it('pushes normally when the lock is free', async () => {
+            // The other half. A test that only ever holds the lock would pass against a sync
+            // that had simply stopped working.
+            Object.defineProperty(navigator, 'locks', {
+                value: { request: vi.fn(async (n: string, _o: unknown, cb: (l: unknown) => Promise<unknown>) => cb({ name: n })) },
+                configurable: true,
+            });
+
+            await queueForSync('tasks', 'lock-free', 'create', {
+                id: 'lock-free', teamId: 'test-team-123', seasonId: 'test-season-456',
+            });
+
+            const { result, unmount } = renderHook(() => useSync());
+            await act(async () => {
+                await result.current.sync();
+            });
+
+            expect(await db.syncQueue.count()).toBe(0);
+
+            unmount();
+        });
+    });
+
     describe('useSync hook operations', () => {
         it('processes queue operations (create, update, delete) and pulls from server', async () => {
             // Setup pending sync operations
