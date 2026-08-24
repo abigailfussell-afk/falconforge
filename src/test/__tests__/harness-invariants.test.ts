@@ -70,7 +70,7 @@ describe('type-escape and token ratchets', () => {
      */
     it('holds the `as any` count at or below its recorded ceiling', () => {
         const { total, hits } = countMatches(sourceFiles('src'), /\bas any\b(?!\s+[a-z])/g);
-        expect(total, `as any sites:\n${hits.join('\n')}`).toBeLessThanOrEqual(55);
+        expect(total, `as any sites:\n${hits.join('\n')}`).toBeLessThanOrEqual(51);
     });
 
     /*
