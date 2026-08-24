@@ -248,10 +248,22 @@ export function loginWithReturnTo(path: string): string {
  * The value arrives from the URL, so it is attacker-controlled in the ordinary sense: a link
  * of the form `#/login?next=https://elsewhere.example` must not become an open redirect. Only
  * a single-slash-prefixed relative path is accepted, which excludes `//host` and any scheme.
+ *
+ * BACKSLASHES ARE REFUSED TOO (OPS-12, 2026-08-23). `GHSA-wrjc-x8rr-h8h6` is exactly this
+ * check's blind spot at the library level: browsers normalise a leading `/\` to `//`, so
+ * `next=/\evil.example` passes "starts with one slash" and resolves protocol-relative. The
+ * advisory has no fix inside react-router 6 — the remedy offered is v7, which for a HashRouter
+ * app on GitHub Pages is a framework-shaped change (plan section 3, hosting). It is not
+ * reachable here in the first place, because a HashRouter only ever assigns
+ * `window.location.hash` and a fragment cannot leave the origin whatever is in it. Refused
+ * anyway: this function is the app's ONE rule about where a URL parameter may send somebody,
+ * the "not reachable" half rests on the router type rather than on this rule, and the whole
+ * cost is one character class.
  */
 export function readReturnTo(search: string): string | null {
     const raw = new URLSearchParams(search).get(RETURN_TO_PARAM);
     if (!raw) return null;
     if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+    if (raw.includes(String.fromCharCode(92))) return null;
     return raw;
 }
