@@ -50,8 +50,7 @@ const SUB_TEAMS: SubTeam[] = [
 
 const task: Task = {
     id: 'task-1', title: 'Rebuild the intake', description: '',
-    status: 'To Do', type: 'Feature', assignedTo: '', department: 'subteam-1',
-    tags: [], checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1',
+    status: 'To Do', type: 'Feature', assignedTo: '', department: 'subteam-1', checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1',
 };
 
 const signedInAs = (member: TeamMember, name: string, initials: string) => {

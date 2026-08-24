@@ -65,7 +65,6 @@ const task: Task = {
     type: 'Bug',
     assignedTo: 'member-1',
     department: 'subteam-1',
-    tags: ['build', 'urgent'],
     checklist: [{ id: 'c1', text: 'Print bracket', completed: true }],
     timeline: [{ id: 'e1', type: 'comment', authorId: 'member-1', content: 'On it', timestamp: 1700 }],
     createdAt: 1000,

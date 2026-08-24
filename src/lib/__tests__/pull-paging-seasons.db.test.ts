@@ -333,7 +333,6 @@ describe('the B3 guard still holds with the pull scoped and paged', () => {
                     type: 'Feature',
                     assignedTo: '',
                     department: '',
-                    tags: [],
                     checklist: [],
                     timeline: [],
                     createdAt: Date.now(),

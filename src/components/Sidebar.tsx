@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { useAppStore } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { navViewsFor, pathFor } from '../lib/navigation';
+import { sprintProgress } from '../lib/sprint-progress';
 
 /**
  * The navigation, once.
@@ -84,8 +85,15 @@ export default function Sidebar({
     // `!!currentTeamId` — a guardian has none, and every team view would be an empty screen.
     const views = navViewsFor(canManageTeam, isOperator, isGuardian, !!currentTeamId);
 
-    const doneCount = tasks.filter((t) => t.status === 'Done').length;
-    const donePercent = tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0;
+    /*
+     * ONE definition of progress, shared with the dashboard (FEAT-09).
+     *
+     * This used to be `done / tasks.length`, which counts Backlog and Archived. The dashboard
+     * counted only the four in-sprint statuses, so archiving a finished task LOWERED this figure
+     * and left the dashboard's unchanged — two numbers on one screen moving in opposite
+     * directions from the same click.
+     */
+    const progress = sprintProgress(tasks);
 
     // Close the drawer whenever the route changes. This covers the nav links, the profile
     // link, and the Dashboard tiles that navigate from inside the main region — every one of
@@ -237,15 +245,15 @@ export default function Sidebar({
                     <div className="hide-when-short bg-slate-100 dark:bg-slate-700/60 rounded-lg px-3 py-2">
                         <div className="flex justify-between items-baseline text-xs text-slate-600 dark:text-slate-300">
                             <span className="font-medium">Tasks Done</span>
-                            <span className="font-bold tabular-nums">
-                                {doneCount}
-                                <span className="text-slate-400 dark:text-slate-300">/{tasks.length}</span>
+                            <span data-testid="sidebar-progress" className="font-bold tabular-nums">
+                                {progress.done}
+                                <span className="text-slate-400 dark:text-slate-300">/{progress.total}</span>
                             </span>
                         </div>
                         <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-1 mt-1.5">
                             <div
                                 className="bg-green-500 h-1 rounded-full transition-[width] duration-300"
-                                style={{ width: `${donePercent}%` }}
+                                style={{ width: `${progress.percent}%` }}
                             />
                         </div>
                     </div>

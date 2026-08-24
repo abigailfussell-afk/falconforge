@@ -26,7 +26,6 @@ describe('transformToSupabaseSchema', () => {
             status: 'In Progress',
             type: 'Feature',
             assignedTo: 'member-xyz',
-            tags: ['mechanical', 'urgent'],
             checklist: [{ id: 'item-1', text: 'Design CAD', completed: true }],
             timeline: [{ id: 'event-1', type: 'comment', authorId: 'user-1', content: 'Started', timestamp: 1234567890 }],
             dueDate: 1700000000000,
@@ -44,7 +43,6 @@ describe('transformToSupabaseSchema', () => {
             expect(row.assigned_to).toBe('member-xyz');
             expect(row.title).toBe('Build intake system');
             expect(row.status).toBe('In Progress');
-            expect(row.tags).toEqual(['mechanical', 'urgent']);
         });
 
         it('converts epoch millis to ISO strings for timestamp columns', () => {
@@ -83,7 +81,6 @@ describe('transformToSupabaseSchema', () => {
                 id: 't', teamId: 'team-1', title: 'Bare', status: 'Backlog', type: 'Feature',
             });
 
-            expect(row.tags).toEqual([]);
             expect(row.checklist).toEqual([]);
             expect(row.timeline).toEqual([]);
         });

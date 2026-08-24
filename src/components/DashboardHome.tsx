@@ -14,6 +14,7 @@ import EmptyState from './ui/EmptyState';
 import Button from './ui/Button';
 import { useAppStore, useStoreHydrated } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
+import { sprintProgress } from '../lib/sprint-progress';
 import { useAuth } from '../lib/auth';
 import { pathFor } from '../lib/navigation';
 import MeetingWidget from './meetings/MeetingWidget';
@@ -83,14 +84,16 @@ export default function DashboardHome() {
             ? 'returning'
             : 'new';
 
-    // Calculate sprint metrics
-    const doneCount = tasks.filter(t => t.status === 'Done').length;
-    const activeStatuses = ['To Do', 'In Progress', 'Testing', 'Done'];
-    const activeTotalCount = tasks.filter(t => activeStatuses.includes(t.status)).length;
+    /*
+     * ONE definition of progress, shared with the sidebar (FEAT-09). This side of the pair was
+     * the correct one and it stays the correct one; what changed is that there is now only one
+     * place that says what "in the sprint" means.
+     */
+    const progress = sprintProgress(tasks);
     const backlogCount = tasks.filter(t => t.status === 'Backlog').length;
 
     const stats = [
-        { label: 'Sprint Progress', value: `${doneCount} / ${activeTotalCount}`, icon: CheckSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', link: 'kanban' },
+        { label: 'Sprint Progress', value: `${progress.done} / ${progress.total}`, icon: CheckSquare, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', link: 'kanban' },
         { label: 'Backlog Items', value: backlogCount, icon: LayoutDashboard, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', link: 'kanban' },
         { label: 'Scouting Reports', value: scoutingReports.length, icon: ClipboardCheck, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20', link: 'scouting' },
         { label: 'Match Plans', value: matchPlans.length, icon: Gamepad2, color: 'text-forge-600', bg: 'bg-forge-50 dark:bg-forge-900/20', link: 'planner' },

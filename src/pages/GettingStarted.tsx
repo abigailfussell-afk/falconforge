@@ -149,7 +149,8 @@ export default function GettingStarted() {
                         <Link to={pathFor('kanban')} className="text-forge-600 underline dark:text-forge-400">
                             Sprint Planning
                         </Link>
-                        , grouped by sub-team. Drag a card as the work moves.
+                        , grouped by sub-team. Open a card and change its status as the work
+                        moves.
                     </li>
                     <li>
                         <strong className="text-slate-800 dark:text-slate-200">

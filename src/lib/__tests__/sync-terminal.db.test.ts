@@ -43,7 +43,6 @@ function localTask(overrides: Record<string, unknown> = {}) {
         type: 'Feature',
         assignedTo: '',
         department: '',
-        tags: [],
         checklist: [],
         timeline: [],
         createdAt: Date.now(),

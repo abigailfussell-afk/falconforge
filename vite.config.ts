@@ -149,10 +149,14 @@ export default defineConfig(() => {
       sourcemap: false,
       rollupOptions: {
         output: {
+          /*
+           * `charts: ['d3']` was here until Sprint 27. d3 had exactly one import — a drag
+           * behaviour bound to a class nothing rendered (FEAT-06) — so deleting that effect
+           * removed the dependency, and with it a 41 kB chunk nobody was loading anything from.
+           */
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
             supabase: ['@supabase/supabase-js'],
-            charts: ['d3'],
           },
         },
       },

@@ -48,7 +48,6 @@ const task = (over: Record<string, unknown> = {}): Task => ({
     checklist: [],
     timeline: [],
     createdAt: 1000,
-    tags: [],
     seasonId: 'season-1',
     ...over,
 });

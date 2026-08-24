@@ -108,7 +108,7 @@ describe('rollOverSeason', () => {
 
     it('starts the sprint board, scouting log and match planner empty', () => {
         useAppStore.setState({
-            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
+            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
             scoutingReports: [{ id: 'r1', teamNumber: '1', data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, seasonId: S1 }],
             matchPlans: [{ id: 'p1', title: 'Old', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1, seasonId: S1 }],
         });
@@ -261,15 +261,14 @@ describe('an archived season queues no writes', () => {
 
     it('refuses a new task', async () => {
         expect(useAppStore.getState().addTask({
-            title: 'Nope', description: '', type: 'Feature', assignedTo: '', department: '', tags: [],
-        })).toBeNull();
+            title: 'Nope', description: '', type: 'Feature', assignedTo: '', department: '',        })).toBeNull();
         expect(useAppStore.getState().tasks).toHaveLength(0);
         expect(await queued()).toHaveLength(0);
     });
 
     it('refuses to edit or delete an existing task in that season', async () => {
         useAppStore.setState({
-            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
+            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
         });
 
         useAppStore.getState().updateTask('t1', { title: 'Edited' });
@@ -332,7 +331,7 @@ describe('an archived season queues no writes', () => {
         useAppStore.setState({
             seasons: [season({ isArchived: true }), season({ id: 'season-2', name: 'Now' })],
             currentSeasonId: 'season-2',
-            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
+            tasks: [{ id: 't1', title: 'Old', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', checklist: [], timeline: [], createdAt: 1, seasonId: S1 }],
         });
 
         useAppStore.getState().updateTask('t1', { title: 'Edited' });
@@ -347,8 +346,8 @@ describe('deleteSeason cascades locally, the way the server does', () => {
         useAppStore.setState({
             seasons: [season(), season({ id: 'season-2', name: 'Other' })],
             tasks: [
-                { id: 't1', title: 'Doomed', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: S1 },
-                { id: 't2', title: 'Survivor', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', tags: [], checklist: [], timeline: [], createdAt: 1, seasonId: 'season-2' },
+                { id: 't1', title: 'Doomed', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', checklist: [], timeline: [], createdAt: 1, seasonId: S1 },
+                { id: 't2', title: 'Survivor', description: '', status: 'Done', type: 'Feature', assignedTo: '', department: '', checklist: [], timeline: [], createdAt: 1, seasonId: 'season-2' },
             ],
             scoutingReports: [{ id: 'r1', teamNumber: '1', data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, seasonId: S1 }],
             matchPlans: [{ id: 'p1', title: 'Doomed', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1, seasonId: S1 }],

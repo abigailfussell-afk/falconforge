@@ -41,8 +41,7 @@ const comment: TimelineEvent = {
 
 const doneTask: Task = {
     id: 'task-1', title: 'Rebuild the intake', description: 'notes',
-    status: 'Done', type: 'Feature', assignedTo: 'member-1', department: 'st-1',
-    tags: [], checklist: [{ id: 'x', text: 'Order parts', completed: false }],
+    status: 'Done', type: 'Feature', assignedTo: 'member-1', department: 'st-1', checklist: [{ id: 'x', text: 'Order parts', completed: false }],
     timeline: [comment], createdAt: 1000, seasonId: 'season-1',
 };
 

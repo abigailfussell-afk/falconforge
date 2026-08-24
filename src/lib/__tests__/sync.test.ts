@@ -62,7 +62,6 @@ describe('transformToSupabaseSchema', () => {
             type: 'Feature',
             assignedTo: 'member-1',
             department: 'programming',
-            tags: ['urgent'],
             checklist: [{ id: 'c1', text: 'item', completed: false }],
             timeline: [],
             createdAt: 1000,
@@ -81,7 +80,6 @@ describe('transformToSupabaseSchema', () => {
         expect(result.title).toBe('Test Task');
         expect(result.status).toBe('To Do');
         expect(result.due_date).toBeNull();
-        expect(result.tags).toEqual(['urgent']);
     });
 
     it('should transform scouting report camelCase to snake_case', () => {
@@ -183,7 +181,6 @@ describe('updateLocalDatabase', () => {
                     type: 'Feature' as const,
                     assignedTo: '',
                     department: '',
-                    tags: [],
                     checklist: [],
                     timeline: [],
                     createdAt: 1000,
@@ -208,7 +205,6 @@ describe('updateLocalDatabase', () => {
                 assigned_to: 'member-1',
                 team_id: 'test-team',
                 season_id: 'season-1',
-                tags: ['fix'],
                 checklist: [],
                 timeline: [],
                 created_at: '2026-01-01T00:00:00Z',

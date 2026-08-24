@@ -27,26 +27,6 @@ vi.mock('../../lib/server-pull', () => ({
 
 // d3 draws on a real canvas; this suite is about which store action Save calls. The shape
 // mirrors `MatchPlanner.test.tsx`'s mock — same component, same missing browser APIs.
-vi.mock('d3', () => ({
-    select: vi.fn(() => ({
-        attr: vi.fn().mockReturnThis(),
-        style: vi.fn().mockReturnThis(),
-        on: vi.fn().mockReturnThis(),
-        append: vi.fn().mockReturnThis(),
-        selectAll: vi.fn(() => ({
-            attr: vi.fn().mockReturnThis(),
-            style: vi.fn().mockReturnThis(),
-            on: vi.fn().mockReturnThis(),
-            call: vi.fn().mockReturnThis(),
-            remove: vi.fn().mockReturnThis(),
-        })),
-        remove: vi.fn().mockReturnThis(),
-        node: vi.fn(() => ({ getContext: vi.fn() })),
-        call: vi.fn().mockReturnThis(),
-    })),
-    drag: vi.fn(() => ({ on: vi.fn().mockReturnThis() })),
-}));
-
 // jsdom has no SVG geometry; the planner reads it on every pointer event.
 Object.defineProperty(SVGSVGElement.prototype, 'getScreenCTM', {
     value: vi.fn(() => ({ inverse: vi.fn(() => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 })) })),

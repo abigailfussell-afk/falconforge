@@ -1062,7 +1062,6 @@ export type Database = {
           season_id: string
           status: string
           sub_team_id: string | null
-          tags: string[]
           team_id: string
           timeline: Json
           title: string
@@ -1080,7 +1079,6 @@ export type Database = {
           season_id: string
           status?: string
           sub_team_id?: string | null
-          tags?: string[]
           team_id: string
           timeline?: Json
           title: string
@@ -1098,7 +1096,6 @@ export type Database = {
           season_id?: string
           status?: string
           sub_team_id?: string | null
-          tags?: string[]
           team_id?: string
           timeline?: Json
           title?: string
