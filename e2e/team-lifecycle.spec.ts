@@ -59,6 +59,13 @@ test.describe('team lifecycle', () => {
         await page.getByTestId('field-endGameNotes').fill('x'.repeat(500));
         await page.getByTestId('save-scouting-report').click();
 
+        /*
+         * The page opens on the TEAM SUMMARY now (P-02) — "who is good at what" is the question
+         * somebody opening a scouting page has, and forty cards do not answer it. This test is
+         * about a CARD's geometry, so it says so. The assertions below are unchanged.
+         */
+        await page.getByTestId('scout-view-cards').click();
+
         const card = page.getByTestId('scout-card').first();
         await expect(card).toBeVisible();
 

@@ -332,6 +332,10 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         // Undefined means "not recorded" -- never 0, which the CHECK constraint rejects (B18).
         match_number: r.matchNumber ?? null,
         event_name: r.eventName || null,
+        // NULL rather than '' or 0: "not noted" is a different fact from red, or from station
+        // one, and a CHECK constraint refuses both empty strings and zero anyway (P-02).
+        alliance: r.alliance ?? null,
+        station: r.station ?? null,
         created_by: r.createdBy || null,
         /*
          * THE PAYLOAD PASSES THROUGH, UNREAD (P-01 phase S).
@@ -353,6 +357,8 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         teamNumber: r.opponent_team_number,
         matchNumber: r.match_number ?? undefined,
         eventName: r.event_name || '',
+        alliance: (r.alliance as 'red' | 'blue' | null) ?? undefined,
+        station: r.station ?? undefined,
         /*
          * `?? {}` and no per-key defaults, which also retires P-01's named trap: the DECODE
          * form defaulted `rating` to 3 and this line defaulted it to 0, so a report saved

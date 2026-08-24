@@ -82,6 +82,20 @@ const mockStore = {
     gameOverrides: [],
 };
 
+/**
+ * Render, and switch to the individual-report cards (P-02).
+ *
+ * The page now opens on the TEAM SUMMARY, because "who is good at what" is the question somebody
+ * opening a scouting page has and forty cards do not answer it. Every test below that is about a
+ * CARD therefore has to say so — which is a behaviour change stated once here rather than a
+ * weakening: each of them still asserts exactly what it asserted, on the same markup.
+ */
+const renderCards = () => {
+    const result = render(<ScoutingReports />);
+    fireEvent.click(screen.getByTestId('scout-view-cards'));
+    return result;
+};
+
 describe('ScoutingReports', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -102,7 +116,7 @@ describe('ScoutingReports', () => {
     });
 
     it('displays existing scouting reports', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Should show team numbers from reports
         expect(screen.getByText(/12345/)).toBeDefined();
@@ -110,7 +124,7 @@ describe('ScoutingReports', () => {
     });
 
     it('shows match numbers in the list', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Match numbers should be visible
         const matchText = screen.getAllByText(/Match/i);
@@ -118,7 +132,7 @@ describe('ScoutingReports', () => {
     });
 
     it('displays rating stars', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Ratings should be shown (could be stars or numbers)
         // Look for rating indicators
@@ -180,7 +194,7 @@ describe('ScoutingReports', () => {
             return emptyStore;
         });
 
-        render(<ScoutingReports />);
+        renderCards();
 
         // Should show empty state message - check for the specific placeholder text
         const emptyState = screen.queryByText(/No scouting data yet/i) ||
@@ -206,7 +220,7 @@ describe('ScoutingReports', () => {
             return typeof selector === 'function' ? selector(state) : state;
         });
 
-        render(<ScoutingReports />);
+        renderCards();
 
         expect(screen.getByText(/12345/)).toBeDefined();
         expect(screen.queryByText(/99999/)).toBeNull();
@@ -221,7 +235,7 @@ describe('ScoutingReports', () => {
             return typeof selector === 'function' ? selector(state) : state;
         });
 
-        render(<ScoutingReports />);
+        renderCards();
 
         expect((screen.getByTestId('scout-match') as HTMLButtonElement).disabled).toBe(true);
         // The reports themselves are still listed — read-only, not hidden.
@@ -244,7 +258,7 @@ describe('ScoutingReport form validation', () => {
         // Regression (Sprint 5.5): saveScoutingReport used to early-return on an empty
         // team number with the button enabled — the tap did nothing, the modal stayed
         // open, and nothing explained why. A scout at a venue read that as lost work.
-        render(<ScoutingReports />);
+        renderCards();
 
         fireEvent.click(screen.getByTestId('scout-match'));
 
@@ -275,7 +289,7 @@ describe('ScoutingReport form validation', () => {
      */
     describe('refuses the values the walkthrough got in (WALK-A-06)', () => {
         const openForm = () => {
-            render(<ScoutingReports />);
+            renderCards();
             fireEvent.click(screen.getByTestId('scout-match'));
             return screen.getByTestId('save-scouting-report') as HTMLButtonElement;
         };
@@ -385,7 +399,7 @@ describe('ScoutingReport form validation', () => {
         // Regression (Sprint 5.5): the card was a bare div with onClick — not tabbable,
         // not Enter-activatable, so a pit crew on a Bluetooth keyboard could not open a
         // report at all.
-        render(<ScoutingReports />);
+        renderCards();
 
         const card = screen.getByText('#12345').closest('[role="button"]') as HTMLElement;
         expect(card).not.toBeNull();
@@ -408,7 +422,7 @@ describe('ScoutingReports edit flow', () => {
     });
 
     it('opens edit modal when clicking a report card', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Click on the first report card (the card with team #12345)
         // `getByText` throws when the card is missing, so the click is unconditional —
@@ -423,7 +437,7 @@ describe('ScoutingReports edit flow', () => {
     });
 
     it('populates form fields when opening edit modal', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Click on the first report card
         // `getByText` throws when the card is missing, so the click is unconditional —
@@ -439,7 +453,7 @@ describe('ScoutingReports edit flow', () => {
     });
 
     it('calls updateScoutingReport when saving an edited report', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Click report card to open edit modal
         // `getByText` throws when the card is missing, so the click is unconditional —
@@ -474,7 +488,7 @@ describe('ScoutingReports delete confirmation', () => {
     });
 
     it('shows delete confirmation modal when clicking trash icon', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Find and click a trash/delete button (they have title="Delete report")
         const deleteButtons = screen.getAllByTitle('Delete report');
@@ -487,7 +501,7 @@ describe('ScoutingReports delete confirmation', () => {
     });
 
     it('deletes report when confirming', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Open confirmation
         const deleteButtons = screen.getAllByTitle('Delete report');
@@ -508,7 +522,7 @@ describe('ScoutingReports delete confirmation', () => {
     });
 
     it('cancels deletion when clicking Cancel', () => {
-        render(<ScoutingReports />);
+        renderCards();
 
         // Open confirmation
         const deleteButtons = screen.getAllByTitle('Delete report');

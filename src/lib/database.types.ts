@@ -872,6 +872,7 @@ export type Database = {
       }
       scouting_reports: {
         Row: {
+          alliance: string | null
           created_at: string
           created_by: string | null
           data: Json
@@ -880,10 +881,12 @@ export type Database = {
           match_number: number | null
           opponent_team_number: string
           season_id: string
+          station: number | null
           team_id: string
           updated_at: string
         }
         Insert: {
+          alliance?: string | null
           created_at?: string
           created_by?: string | null
           data?: Json
@@ -892,10 +895,12 @@ export type Database = {
           match_number?: number | null
           opponent_team_number: string
           season_id: string
+          station?: number | null
           team_id: string
           updated_at?: string
         }
         Update: {
+          alliance?: string | null
           created_at?: string
           created_by?: string | null
           data?: Json
@@ -904,6 +909,7 @@ export type Database = {
           match_number?: number | null
           opponent_team_number?: string
           season_id?: string
+          station?: number | null
           team_id?: string
           updated_at?: string
         }
