@@ -13,7 +13,7 @@
  * both directions). The component tests then assert that the rendered list actually uses
  * them, because a correct helper with an unwired select is `docs/failure-modes.md` §7.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import OperatorConsole, { orderDirectory, daysUntil } from '../admin/OperatorConsole';
 import { deriveEntitlementState, EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
@@ -201,8 +201,31 @@ describe('daysUntil agrees with the licence banner', () => {
 });
 
 describe('the console actually uses them', () => {
+    /*
+     * THE COMPONENT READS THE REAL CLOCK, AND THE FIXTURES DO NOT.
+     *
+     * Every `valid_until` above is `inDays(n)` from the frozen `NOW`, but `OperatorConsole`
+     * dates its own rows from `Date.now()` (`directoryLoadedAt`). On 2026-08-23 those were the
+     * same instant and every assertion here passed; on 2026-08-24 the "3 days left" row
+     * rendered "2 days left" and this file went red on `main` without a single line changing.
+     *
+     * That is `docs/failure-modes.md` §10 in its purest form, and the file header already
+     * names it: the pure helpers take `now` as an ARGUMENT precisely so the boundary cases are
+     * pinned "rather than 'whenever the suite happens to run'". The component layer was the
+     * half that never got the same treatment — it cannot take `now` as an argument, so the
+     * clock has to be frozen around it instead.
+     *
+     * `shouldAdvanceTime` is required, not decorative: `waitFor` polls on real timers, and a
+     * fully frozen clock deadlocks `rendered()` rather than failing it.
+     */
     beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(NOW);
         mocks.directory = ALL as unknown as Record<string, unknown>[];
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     const rendered = async () => {
