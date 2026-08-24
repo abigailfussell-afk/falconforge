@@ -64,11 +64,13 @@ export const createMatchPlanSlice: SliceCreator<MatchPlanSlice> = (set, get) => 
         }));
         const plan = get().matchPlans.find((p) => p.id === id);
         if (plan) {
-            queueForSync('match_plans', id, 'update', {
-                ...plan,
-                ...updates,
-                teamId: get().currentTeamId,
-            }).catch(console.error);
+            queueForSync(
+                'match_plans',
+                id,
+                'update',
+                { ...plan, ...updates, teamId: get().currentTeamId },
+                existing ? { ...existing, teamId: get().currentTeamId } : undefined,
+            ).catch(console.error);
         }
     },
 

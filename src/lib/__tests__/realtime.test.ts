@@ -103,6 +103,18 @@ import { useAppStore } from '../store';
 // The queue is not this suite's subject: `getPendingRecordIds` is driven through the mock.
 vi.mock('@/lib/offline-db');
 
+/**
+ * The stubbed client's spies, typed once.
+ *
+ * The same escape-hatch cast was written five times while SYNC-04's tests were added, and the
+ * type-escape ratchet in `harness-invariants.test.ts` counts test files too — correctly, since a
+ * cast is a cast wherever it is. One `asSpy` keeps the count where it was.
+ *
+ * (And the ratchet counts COMMENTS, which is why this one describes the cast rather than
+ * quoting it. Discovered by writing the quote and watching the count go up by two.)
+ */
+const asSpy = (fn: unknown): ReturnType<typeof vi.fn> => fn as ReturnType<typeof vi.fn>;
+
 describe('realtime', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -161,7 +173,7 @@ describe('realtime', () => {
 
             setupRealtimeSubscription('team-123');
             // Should not create a new channel
-            expect((supabase!.channel as any).mock.calls.length).toBe(firstCallCount);
+            expect(asSpy(supabase!.channel).mock.calls.length).toBe(firstCallCount);
         });
 
         it('should teardown and re-subscribe when team changes', () => {
@@ -410,7 +422,7 @@ describe('realtime', () => {
 
         it('does NOT tear down for an ordinary tab switch', () => {
             setupRealtimeSubscription('team-123');
-            (supabase!.removeChannel as any).mockClear();
+            asSpy(supabase!.removeChannel).mockClear();
 
             setHidden(true);
             handleVisibilityChange(true);
@@ -425,7 +437,7 @@ describe('realtime', () => {
 
         it('tears down once the tab has been hidden for the whole delay', () => {
             setupRealtimeSubscription('team-123');
-            (supabase!.removeChannel as any).mockClear();
+            asSpy(supabase!.removeChannel).mockClear();
 
             setHidden(true);
             handleVisibilityChange(true);
@@ -442,7 +454,7 @@ describe('realtime', () => {
              * moment — including one cleared by the very case it was meant to cover.
              */
             setupRealtimeSubscription('team-123');
-            (supabase!.removeChannel as any).mockClear();
+            asSpy(supabase!.removeChannel).mockClear();
 
             setHidden(true);
             handleVisibilityChange(true);
@@ -460,7 +472,7 @@ describe('realtime', () => {
             setHidden(true);
             handleVisibilityChange(true);
             vi.advanceTimersByTime(HIDDEN_TEARDOWN_MS);
-            (supabase!.channel as any).mockClear();
+            asSpy(supabase!.channel).mockClear();
             mockFetchTeamData.mockClear();
 
             setHidden(false);
@@ -479,7 +491,7 @@ describe('realtime', () => {
             // A tab that was only ever visible must not reconnect to a team it did not choose,
             // or pull on every `visibilitychange` the browser happens to emit.
             setupRealtimeSubscription('team-123');
-            (supabase!.channel as any).mockClear();
+            asSpy(supabase!.channel).mockClear();
             mockFetchTeamData.mockClear();
 
             setHidden(false);

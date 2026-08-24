@@ -15,6 +15,19 @@ export interface SyncQueueItem {
     recordId: string;
     operation: 'create' | 'update' | 'delete';
     data: any;
+    /**
+     * The record as it was BEFORE this edit, for `update` only (SYNC-06).
+     *
+     * An update used to push every column of the local row, so a device that had been offline
+     * reverted every field a teammate had changed in the meantime — the whole row, not just the
+     * field the offline user touched. Keeping the pre-edit row lets the drain work out which
+     * columns actually changed and send only those.
+     *
+     * OPTIONAL, and absent means "send everything", which is what the engine has always done.
+     * Queue entries written by an older bundle are still in IndexedDB on a device that has not
+     * reloaded, and they must still push rather than throw.
+     */
+    previousData?: any;
     timestamp: number;
     retryCount: number;
     lastError?: string;
@@ -239,6 +252,10 @@ function nextQueueTimestamp(): number {
  *   - `update` after a pending `create`  -> keep the create, with the newer data. The
  *     server has never seen this record, so it still has to be an insert.
  *   - `update` after a pending `update`  -> replace it. Only the latest state matters.
+ *     ...and the collapsed entry keeps the EARLIEST `previousData` (SYNC-06), because the diff
+ *     the server needs is measured from the last state it saw, not from the state one edit ago.
+ *     Three edits to one task while offline are one push of everything those three edits
+ *     touched.
  *   - `delete` after a pending `create`  -> drop both. The server never saw it, so there
  *     is nothing to delete; sending a delete for an unknown id just fails and retries.
  *   - `delete` after a pending `update`  -> replace with the delete.
@@ -250,7 +267,12 @@ export async function queueForSync(
     tableName: string,
     recordId: string,
     operation: 'create' | 'update' | 'delete',
-    data: any
+    data: any,
+    /**
+     * The record as it was before this edit (SYNC-06). Only meaningful for `update`, and only
+     * used to work out which columns changed — see {@link SyncQueueItem.previousData}.
+     */
+    previousData?: any,
 ) {
     /*
      * ORDER IS FIXED HERE, AT CALL TIME — NOT INSIDE THE TRANSACTION.
@@ -288,6 +310,7 @@ export async function queueForSync(
                 recordId,
                 operation,
                 data,
+                ...(operation === 'update' && previousData !== undefined ? { previousData } : {}),
                 timestamp,
                 retryCount: 0,
             });
@@ -305,6 +328,22 @@ export async function queueForSync(
             return;
         }
 
+        /*
+         * The EARLIEST pre-edit state survives (SYNC-06).
+         *
+         * `first` is the oldest pending entry, so `first.previousData` is the record as the
+         * server last saw it. Taking the newest `previousData` instead would measure the diff
+         * from one edit ago and drop every column the earlier edits changed — which is the same
+         * silent field loss SYNC-06 is about, moved one layer down.
+         *
+         * Undefined when the oldest entry was a create (no previous state exists) or came from
+         * an older bundle, and undefined means "send everything", which is correct in both.
+         */
+        const collapsedOperation = hadCreate && operation !== 'delete' ? 'create' : operation;
+        const previous = collapsedOperation === 'update'
+            ? (first.previousData ?? previousData)
+            : undefined;
+
         // Collapse to a single entry carrying the latest data.
         await db.syncQueue.bulkDelete(pending.map((i) => i.id));
         await db.syncQueue.add({
@@ -312,8 +351,9 @@ export async function queueForSync(
             tableName,
             recordId,
             // A pending create stays a create -- the row still does not exist server-side.
-            operation: hadCreate && operation !== 'delete' ? 'create' : operation,
+            operation: collapsedOperation,
             data,
+            ...(previous !== undefined ? { previousData: previous } : {}),
             timestamp: first.timestamp,
             retryCount: 0,
         });

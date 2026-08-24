@@ -615,8 +615,22 @@ async function pushSyncItem(item: SyncQueueItem): Promise<void> {
                 );
                 if (result.error) throw result.error;
             } else {
+                /*
+                 * ONLY WHAT THIS EDIT CHANGED (SYNC-06).
+                 *
+                 * `previousData` is absent for a queue entry written by an older bundle, and
+                 * for any caller that has not been given the pre-edit row yet — both fall back
+                 * to the whole row, which is what the engine has always sent. An empty diff
+                 * means the edit changed nothing the server can see, and pushing it would be a
+                 * round trip for no reason; the item is still removed from the queue by the
+                 * drain, which is correct, because there is nothing left to send.
+                 */
+                const diff = changedRemoteColumns(tableName, item.previousData, data);
+                const payload = diff ?? transformedData;
+                if (diff && Object.keys(diff).length === 0) break;
+
                 const result: any = await withTimeout(
-                    (async () => supabaseSync.from(table).update(transformedData as never).eq('id', recordId))(),
+                    (async () => supabaseSync.from(table).update(payload as never).eq('id', recordId))(),
                     PER_QUERY_TIMEOUT_MS,
                     `update ${tableName}`
                 );
@@ -635,6 +649,83 @@ async function pushSyncItem(item: SyncQueueItem): Promise<void> {
             break;
         }
     }
+}
+
+/**
+ * The columns this edit actually changed (SYNC-06).
+ *
+ * WHAT WAS WRONG. An `update` sent `toRemote(fullLocalRow)` — every column — with no
+ * precondition. So device A, offline, renames a task; device B moves the same task to Done; A
+ * reconnects and its stale `status` overwrites B's. Silent, invisible, and the loser never
+ * knows. A kanban board at a competition is precisely two people touching the same card, which
+ * is the case this app exists for.
+ *
+ * HOW THE DIFF IS TAKEN, and why it needs no new per-entity machinery. `toRemote` is a pure
+ * function of a row, so running it over the pre-edit row and over the post-edit row and keeping
+ * the columns that differ gives exactly the columns this edit touched — expressed in the
+ * server's key space, by the one transform that owns that mapping. No second key map to drift
+ * out of step with the first (`docs/failure-modes.md` §12), and no `toRemotePartial` on eleven
+ * entities to fall behind `toRemote`.
+ *
+ * `id` is always kept: PostgREST filters on it and a payload without it is meaningless. Anything
+ * the transform derives from the clock — `updated_at` — differs on every call and is therefore
+ * always included, which is what a touch should do.
+ *
+ * WHAT THIS MEANS FOR PRINCIPLE 3, worked out rather than assumed.
+ *
+ * CLAUDE.md: "every server read must honour `getPendingRecordIds()` — a refetch must never
+ * clobber un-synced local edits". A partial update changes what could be meant by "pending" for
+ * a row: only some of its FIELDS are un-synced now, so in principle a pull could take the
+ * server's version of every other field and be more correct than it is today.
+ *
+ * IT IS DELIBERATELY LEFT ALONE, and the reason is that the looser rule buys nothing and costs
+ * the guarantee. What the pending guard protects is the window between an edit and its push. In
+ * that window the local row is the user's own work in progress; letting a pull write half of it
+ * would mean a row on screen that is partly theirs and partly the server's, changing under them
+ * while they type — for a benefit measured in the seconds before the queue drains, since the
+ * moment the push lands the id leaves `getPendingRecordIds()` and the very next pull merges
+ * everything anyway. The stale-field window closes by itself.
+ *
+ * So the invariant is unchanged and stays exactly as strict as it was: an id with anything
+ * queued is skipped by the merge, whole. B3 and B8 are untouched, and their regression tests are
+ * green without modification — which is the evidence for this paragraph rather than the claim
+ * of it.
+ *
+ * NO PRECONDITION, DELIBERATELY. The assessment's "better" option was
+ * `.eq('updated_at', seenUpdatedAt)` with zero rows affected treated as a conflict. That is a
+ * second, larger change: it needs a conflict path, a re-pull, a re-apply and a decision about
+ * what the user is shown, and until that path exists a failed precondition would send the work
+ * round the retry ladder and into the dead-letter store — turning a silent field revert into a
+ * loud failure the coach cannot act on. Sending only the changed columns removes the reported
+ * defect outright for every case where two people edit DIFFERENT fields, which is the case that
+ * was reported. Two people editing the SAME field is still last-write-wins, and is written down
+ * as such in the sprint report rather than left to be discovered.
+ */
+export function changedRemoteColumns(
+    tableName: string,
+    previous: unknown,
+    next: unknown,
+): Record<string, unknown> | null {
+    if (previous === undefined || previous === null) return null;
+
+    const before = transformToSupabaseSchema(tableName, previous) as Record<string, unknown>;
+    const after = transformToSupabaseSchema(tableName, next) as Record<string, unknown>;
+    if (!before || !after) return null;
+
+    const diff: Record<string, unknown> = {};
+    for (const key of Object.keys(after)) {
+        // `id` is the filter, not a change; sending it in the SET list is harmless but noise.
+        if (key === 'id') continue;
+        /*
+         * JSON comparison, not `!==`. Several columns are objects — `data` on a scouting
+         * report, `checklist` and `timeline` on a task, `patch` on a game override — and
+         * reference equality would report every one of them as changed on every edit, which
+         * would make this function return the whole row and quietly do nothing at all.
+         */
+        if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) diff[key] = after[key];
+    }
+
+    return diff;
 }
 
 /**

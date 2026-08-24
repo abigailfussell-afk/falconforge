@@ -163,7 +163,7 @@ export const createGuardianSlice: SliceCreator<GuardianSlice> = (set, get) => ({
         };
 
         set((s) => ({ managedProfiles: s.managedProfiles.map((p) => (p.id === id ? next : p)) }));
-        queueForSync('managed_profiles', id, 'update', next).catch(console.error);
+        queueForSync('managed_profiles', id, 'update', next, existing).catch(console.error);
     },
 
     /*

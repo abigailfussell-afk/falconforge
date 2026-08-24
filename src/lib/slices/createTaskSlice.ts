@@ -101,10 +101,15 @@ export const createTaskSlice: SliceCreator<TaskSlice> = (set, get) => ({
 
         const task = get().tasks.find((t: Task) => t.id === id);
         if (task) {
-            queueForSync('tasks', id, 'update', {
-                ...task,
-                teamId: get().currentTeamId
-            }).catch(console.error);
+            queueForSync(
+                'tasks',
+                id,
+                'update',
+                { ...task, teamId: get().currentTeamId },
+                // The row BEFORE this edit (SYNC-06), in the same shape as the payload so the
+                // two transform into comparable column sets.
+                existing ? { ...existing, teamId: get().currentTeamId } : undefined,
+            ).catch(console.error);
         }
     },
 

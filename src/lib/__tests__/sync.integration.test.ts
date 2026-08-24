@@ -48,6 +48,9 @@ vi.mock('../auth', () => ({
     useAuth: vi.fn(),
 }));
 
+/** The module mock's `from`, typed once rather than cast at each use (the type-escape ratchet). */
+const fromSpy = () => supabaseSync!.from as unknown as ReturnType<typeof vi.fn>;
+
 describe('sync.integration', () => {
     beforeEach(async () => {
         vi.clearAllMocks();
@@ -185,16 +188,16 @@ describe('sync.integration', () => {
          * how "processes queue operations" started failing with `expected 2 to be 0` while this
          * block was being written, for reasons that had nothing to do with it.
          */
-        let defaultFrom: unknown;
+        let defaultFrom: Parameters<ReturnType<typeof fromSpy>['mockImplementation']>[0] | undefined;
 
         beforeEach(() => {
             clock = 0;
-            defaultFrom = (supabaseSync!.from as any).getMockImplementation();
+            defaultFrom = fromSpy().getMockImplementation();
             vi.spyOn(Date, 'now').mockImplementation(() => clock);
         });
 
         afterEach(() => {
-            (supabaseSync!.from as any).mockImplementation(defaultFrom);
+            if (defaultFrom) fromSpy().mockImplementation(defaultFrom);
         });
 
         const queryFor = (onWrite: (n: number) => { data: unknown; error: unknown }) => {
@@ -250,7 +253,7 @@ describe('sync.integration', () => {
          * REVERTED. Caught by the revert pass, which is the only thing that catches this.
          */
         const stallAfterOnePush = () => {
-            (supabaseSync!.from as any).mockImplementation(
+            fromSpy().mockImplementation(
                 queryFor((n) => {
                     if (n % 2 === 1) return { data: [], error: null };
                     clock += 31_000;
@@ -309,7 +312,7 @@ describe('sync.integration', () => {
         it('still reports an error when NOTHING could be pushed', async () => {
             // Every request fails and each burns 11s. Nothing lands, so there is nothing to
             // reassure anybody about and the red state is the honest one.
-            (supabaseSync!.from as any).mockImplementation(
+            fromSpy().mockImplementation(
                 queryFor(() => {
                     clock += 11_000;
                     return { data: null, error: { message: 'gateway timeout' } };
