@@ -1,7 +1,7 @@
 # Sprint 22 — the September list
 
 **Branch:** `v2/sprint-22-september-list`
-**Commits:** `8fc2878..485c4c0` (eight), off `main` at `377b607`
+**Commits:** `8fc2878..2528a79` (nine), off `main` at `377b607`
 **Ratchets:** `as any` **55 → 55**, arbitrary Tailwind values **2 → 2**, `dark:text-slate-500`
 **0**, no `describe.skip`, no assertion-free tests. Coverage **68.64 / 61.41 / 64.25 / 70.51**
 against floors 68 / 60 / 63 / 70.
