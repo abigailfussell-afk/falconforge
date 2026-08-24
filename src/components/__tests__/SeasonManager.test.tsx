@@ -348,6 +348,35 @@ describe('SeasonManager', () => {
             expect(screen.queryByText('Delete Season?')).toBeNull();
         });
 
+        /**
+         * FEAT-10 — the dialog names everything the button destroys.
+         *
+         * It listed five things and left out meetings and their attendance, while the server's
+         * `ON DELETE CASCADE` removed both. Attendance is the one item on this list that is a
+         * RECORD of something that happened rather than a plan for something that has not,
+         * which makes it the line a coach would most want to have been told about.
+         *
+         * The list is read as a whole rather than probed for two new strings: an assertion for
+         * "All meetings" alone would still pass if the other five had been deleted.
+         */
+        it('names meetings and attendance among what will be destroyed', () => {
+            const { container } = mountWith();
+            fireEvent.click(container.querySelectorAll('.lucide-trash-2')[1].closest('button')!);
+
+            const effects = [...screen.getByTestId('delete-season-effects').querySelectorAll('li')]
+                .map((li) => li.textContent);
+
+            expect(effects).toEqual([
+                'All tasks',
+                'All sub-team assignments',
+                'All scouting reports',
+                'All match plans',
+                'The pre-match checklist',
+                'All meetings',
+                'All attendance records for those meetings',
+            ]);
+        });
+
         it('points at archiving as the non-destructive alternative', () => {
             const { container } = mountWith();
             fireEvent.click(container.querySelectorAll('.lucide-trash-2')[1].closest('button')!);

@@ -352,6 +352,23 @@ describe('deleteSeason cascades locally, the way the server does', () => {
             ],
             scoutingReports: [{ id: 'r1', teamNumber: '1', data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, seasonId: S1 }],
             matchPlans: [{ id: 'p1', title: 'Doomed', drawingData: null, notes: '', allianceTeam: '', partnerAutonomous: false, partnerPark: false, updatedAt: 1, seasonId: S1 }],
+            /*
+             * Meetings and attendance (FEAT-10). The fixture carries one of each in the doomed
+             * season AND one of each in the surviving one, because a cascade that deletes
+             * everything passes an assertion that only checks the doomed rows are gone.
+             *
+             * `meeting_attendance` has no `season_id` of its own — it hangs off its meeting —
+             * so `a2` is the row that proves the cascade walks the relationship rather than
+             * filtering on a field that is not there.
+             */
+            meetings: [
+                { id: 'm1', title: 'Doomed build night', description: '', location: '', eventType: 'team_meeting', publicCode: '', attendanceRequired: true, startsAt: 1, seasonId: S1, teamId: 'team-1', recurrenceRule: '', seriesId: '', createdBy: 'tm-9' },
+                { id: 'm2', title: 'Surviving build night', description: '', location: '', eventType: 'team_meeting', publicCode: '', attendanceRequired: true, startsAt: 1, seasonId: 'season-2', teamId: 'team-1', recurrenceRule: '', seriesId: '', createdBy: 'tm-9' },
+            ],
+            meetingAttendance: [
+                { id: 'a1', meetingId: 'm1', teamMemberId: 'tm-1', status: 'present', method: 'coach', notes: '', attestedBy: 'tm-9' },
+                { id: 'a2', meetingId: 'm2', teamMemberId: 'tm-1', status: 'present', method: 'coach', notes: '', attestedBy: 'tm-9' },
+            ],
         });
     });
 
@@ -371,6 +388,36 @@ describe('deleteSeason cascades locally, the way the server does', () => {
         expect(state.scoutingReports).toHaveLength(0);
         expect(state.matchPlans).toHaveLength(0);
         expect(state.checklistsBySeason[S1]).toBeUndefined();
+        /*
+         * FEAT-10. These two were absent from the cascade list while the docblock above it said
+         * the server removes meetings — and the server does. So the rows went from the database
+         * and stayed in the store, pointing at a season that exists nowhere.
+         */
+        expect(state.meetings.map((m) => m.id)).toEqual(['m2']);
+        expect(state.meetingAttendance.map((a) => a.id)).toEqual(['a2']);
+    });
+
+    it('queues the attendance delete BEFORE its meeting’s (FEAT-10)', async () => {
+        /*
+         * `meeting_attendance` references `meetings (id, team_id)`, so the child has to land
+         * first or it errors against a row that has already gone — and an error in the drain is
+         * a retry, five of them, and then a dead letter the coach cannot act on.
+         */
+        await db.syncQueue.clear();
+        useAppStore.getState().deleteSeason(S1);
+
+        const order = await queued();
+        const attendanceAt = order.findIndex((q) => q.table === 'meeting_attendance' && q.id === 'a1');
+        const meetingAt = order.findIndex((q) => q.table === 'meetings' && q.id === 'm1');
+        const seasonAt = order.findIndex((q) => q.table === 'seasons' && q.id === S1);
+
+        expect(attendanceAt, 'the attendance delete was never queued').toBeGreaterThanOrEqual(0);
+        expect(meetingAt, 'the meeting delete was never queued').toBeGreaterThanOrEqual(0);
+        expect(attendanceAt).toBeLessThan(meetingAt);
+        expect(meetingAt).toBeLessThan(seasonAt);
+
+        // And the surviving season's rows are not queued at all.
+        expect(order.filter((q) => q.id === 'm2' || q.id === 'a2')).toEqual([]);
     });
 
     it('moves the current season pointer off the deleted one', () => {

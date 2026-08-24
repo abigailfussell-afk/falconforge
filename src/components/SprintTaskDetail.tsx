@@ -217,16 +217,37 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Checklist</label>
                         <div className="space-y-2">
+                            {/*
+                              * REPLACED, NEVER MUTATED (FEAT-04).
+                              *
+                              * These two handlers used to be `const c = [...task.checklist];
+                              * c[idx].completed = ...` — a shallow copy of the ARRAY whose item
+                              * objects are still the store's, because the route adapter in
+                              * `App.tsx` copies the task and its timeline and not its checklist.
+                              * So ticking a box wrote straight into the store, which broke the
+                              * contract this component's own docblock states: "Draft edits.
+                              * Nothing is persisted until onSave."
+                              *
+                              * What that cost: Cancel could not revert. The tick stayed on
+                              * screen, it was never queued for sync, and it vanished on the next
+                              * pull or reload — so a student ticked "wiring checked", closed the
+                              * dialog, and the item silently un-ticked itself later, on their
+                              * device only. `docs/failure-modes.md` §8: the control acted, and
+                              * then unacted, and nothing said so.
+                              */}
                             {task.checklist.map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-2 group">
                                     <input
                                         type="checkbox"
                                         checked={item.completed}
-                                        onChange={(e) => {
-                                            const newChecklist = [...task.checklist];
-                                            newChecklist[idx].completed = e.target.checked;
-                                            onChange({ ...task, checklist: newChecklist });
-                                        }}
+                                        onChange={(e) =>
+                                            onChange({
+                                                ...task,
+                                                checklist: task.checklist.map((c, i) =>
+                                                    i === idx ? { ...c, completed: e.target.checked } : c,
+                                                ),
+                                            })
+                                        }
                                         className="w-5 h-5 rounded text-forge-600 accent-forge-600 focus:ring-forge-500 cursor-pointer"
                                     />
                                     <input
@@ -234,11 +255,14 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                                         type="text"
                                         value={item.text}
                                         placeholder="Enter checklist item..."
-                                        onChange={(e) => {
-                                            const newChecklist = [...task.checklist];
-                                            newChecklist[idx].text = e.target.value;
-                                            onChange({ ...task, checklist: newChecklist });
-                                        }}
+                                        onChange={(e) =>
+                                            onChange({
+                                                ...task,
+                                                checklist: task.checklist.map((c, i) =>
+                                                    i === idx ? { ...c, text: e.target.value } : c,
+                                                ),
+                                            })
+                                        }
                                         className="field py-1 flex-1"
                                     />
                                     <IconButton

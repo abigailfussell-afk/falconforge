@@ -140,6 +140,17 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                 tags: updatedTask.tags,
                 checklist: updatedTask.checklist,
                 dueDate: updatedTask.dueDate,
+                /*
+                 * The comments typed before the task existed (FEAT-03).
+                 *
+                 * This argument was simply absent, so `addTask` built a timeline containing
+                 * "Task created" and nothing else, and the comment the user had watched appear
+                 * in the feed was discarded by Save. The alternative the assessment offered —
+                 * hiding the comment box while the task is new — removes an affordance people
+                 * reasonably expect (the first thing said about a new task is usually WHY it
+                 * exists), so the value is threaded instead.
+                 */
+                timeline: updatedTask.timeline,
             });
         } else {
             // Use store's updateTask which includes sync
@@ -163,7 +174,11 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
             timeline: [comment, ...activeTask.timeline]
         };
         setActiveTask(updatedTask);
-        // Save comment immediately via store
+        /*
+         * A new task has no store row to update yet, so the comment rides in the draft and
+         * `saveTask` passes the whole timeline to `addTask` (FEAT-03). It used to ride in the
+         * draft and go no further.
+         */
         if (!isNewTask) {
             storeUpdateTask(updatedTask.id, { timeline: updatedTask.timeline });
         }

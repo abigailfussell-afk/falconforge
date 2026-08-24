@@ -1,5 +1,6 @@
 import type {
-    ChecklistItem, MatchPlan, ScoutingReport, Season, SubTeam, Task, TeamGameOverride,
+    ChecklistItem, MatchPlan, Meeting, MeetingAttendance, ScoutingReport, Season, SubTeam,
+    Task, TeamGameOverride,
 } from '../../types';
 import type { GamePatch } from '../game-definition';
 import { generateId, queueForSync } from '../offline-db';
@@ -216,6 +217,11 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
     deleteSeason: (id) => {
         const state = get();
 
+        // Computed once and used twice — by the attendance filter and as the meetings list.
+        const seasonMeetingIds = new Set<string>(
+            state.meetings.filter((m: Meeting) => m.seasonId === id).map((m: Meeting) => m.id),
+        );
+
         const cascade: Array<[table: string, ids: string[]]> = [
             ['tasks', state.tasks.filter((t: Task) => t.seasonId === id).map((t: Task) => t.id)],
             ['sub_teams', state.subTeams.filter((s: SubTeam) => s.seasonId === id).map((s: SubTeam) => s.id)],
@@ -223,6 +229,28 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
             ['match_plans', state.matchPlans.filter((p: MatchPlan) => p.seasonId === id).map((p: MatchPlan) => p.id)],
             // The checklist row id IS the season id (see `updateChecklist` in store.ts).
             ['checklists', state.checklistsBySeason[id] ? [id] : []],
+            /*
+             * MEETINGS AND ATTENDANCE (FEAT-10), which this list has been missing since it was
+             * written — while the docblock above has said all along that the server cascade
+             * removes meetings, and it does.
+             *
+             * So the rows went from the database and STAYED in the store: meetings pointing at
+             * a season id that exists nowhere, and attendance rows pointing at those meetings.
+             * They render in no season (every view filters on the current season), survive
+             * every pull (a full pull replaces a collection with what the server sent, and the
+             * server has never heard of them), and the case the ordered cascade exists for —
+             * a season created offline and deleted before it ever synced — left its meetings
+             * queued against a season the server will never have.
+             *
+             * ATTENDANCE FIRST. `meeting_attendance` references `meetings (id, team_id)`, so
+             * the child's delete has to land before the parent's or it errors against a row
+             * that has already gone. It has no `season_id` of its own — the one season-scoped
+             * table without one — so it is found through its meeting.
+             */
+            ['meeting_attendance', state.meetingAttendance
+                .filter((a: MeetingAttendance) => seasonMeetingIds.has(a.meetingId))
+                .map((a: MeetingAttendance) => a.id)],
+            ['meetings', [...seasonMeetingIds]],
         ];
 
         set((s: any) => {
@@ -235,6 +263,10 @@ export const createSeasonSlice: SliceCreator<SeasonSlice> = (set, get) => ({
                 subTeams: s.subTeams.filter((st: SubTeam) => st.seasonId !== id),
                 scoutingReports: s.scoutingReports.filter((r: ScoutingReport) => r.seasonId !== id),
                 matchPlans: s.matchPlans.filter((p: MatchPlan) => p.seasonId !== id),
+                meetings: s.meetings.filter((m: Meeting) => m.seasonId !== id),
+                meetingAttendance: s.meetingAttendance.filter(
+                    (a: MeetingAttendance) => !seasonMeetingIds.has(a.meetingId),
+                ),
                 checklistsBySeason,
                 currentSeasonId:
                     s.currentSeasonId === id

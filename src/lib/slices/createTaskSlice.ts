@@ -1,4 +1,4 @@
-import type { Task } from '../../types';
+import type { Task, TimelineEvent } from '../../types';
 import { generateId, queueForSync } from '../offline-db';
 import { canWriteToSeason } from '../season-rules';
 import type { SliceCreator } from './types';
@@ -15,7 +15,16 @@ export interface TaskSlice {
      * foreign key, so a task created without one could never be pushed, and creating it
      * locally anyway is how you get a board full of records that silently never sync.
      */
-    addTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'status' | 'checklist' | 'timeline' | 'seasonId'> & { status?: string, checklist?: any[] }) => string | null;
+    /**
+     * `timeline` is accepted, not just built (FEAT-03).
+     *
+     * A comment typed into a not-yet-saved task lived only in the modal's draft state: the
+     * component's `addComment` skipped the store while `isNewTask`, and `saveTask` passed no
+     * timeline, so `addTask` built a fresh one containing "Task created" and nothing else. The
+     * user typed a comment, watched it appear in the feed, pressed Save, reopened the task, and
+     * it was gone — with no error and nothing to retry.
+     */
+    addTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'status' | 'checklist' | 'timeline' | 'seasonId'> & { status?: string, checklist?: any[], timeline?: TimelineEvent[] }) => string | null;
     updateTask: (id: string, updates: Partial<Task>) => void;
     deleteTask: (id: string) => void;
 }
@@ -47,13 +56,23 @@ export const createTaskSlice: SliceCreator<TaskSlice> = (set, get) => ({
             status: (taskData.status as any) || 'Backlog',
             checklist: taskData.checklist || [],
             seasonId: state.currentSeasonId,
-            timeline: [{
-                id: generateId(),
-                type: 'history',
-                authorId: 'System',
-                content: 'Task created',
-                timestamp: Date.now()
-            }]
+            /*
+             * Anything the draft carried, then "Task created" (FEAT-03).
+             *
+             * LAST, not first: the feed renders newest-first and every other writer PREPENDS,
+             * so the creation event is the oldest entry and belongs at the end. Putting it at
+             * the front would date the task's creation after comments made before it existed.
+             */
+            timeline: [
+                ...(taskData.timeline ?? []),
+                {
+                    id: generateId(),
+                    type: 'history',
+                    authorId: 'System',
+                    content: 'Task created',
+                    timestamp: Date.now(),
+                },
+            ],
         };
 
         set((s: any) => ({
