@@ -29,6 +29,7 @@ import {
     registerAccount,
     unique,
     uniqueEmail,
+    uniqueTeamNumber,
 } from './helpers';
 
 test.describe('the team-number badge (WALK-B-07)', () => {
@@ -46,11 +47,15 @@ test.describe('the team-number badge (WALK-B-07)', () => {
         /*
          * Five digits, which is the longest FIRST issues and the case both old badges got wrong.
          *
-         * Passed explicitly: `createTeam` retries a collision when the number is left to it, and
-         * this spec asserts on the digits themselves, so a silent retry would have it check a
-         * different number than it rendered.
+         * Passed explicitly rather than left to `createTeam`: that helper retries a collision
+         * with a different number, and this spec asserts on the digits it rendered, so a silent
+         * retry would have it checking a number the app never showed.
+         *
+         * `uniqueTeamNumber()` and not a timestamp — Node's clock and Chromium's clock are two
+         * processes that share a timezone by coincidence, and `harness-invariants` ratchets
+         * against it (failure-modes §10). Its range is 50,000–94,999, so it is always 5 digits.
          */
-        const teamNumber = `3${String(Date.now()).slice(-4)}`;
+        const teamNumber = uniqueTeamNumber();
         expect(teamNumber, 'the number under test must be five digits').toHaveLength(5);
         await createTeam(page, { teamName: unique('Badge'), teamNumber });
 
