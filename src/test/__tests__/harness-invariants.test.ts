@@ -704,3 +704,46 @@ describe('the Supabase CLI is one version (OPS-15)', () => {
         ).toEqual([]);
     });
 });
+/**
+ * The unit and integration suites cannot reach a server (found in Sprint 26).
+ *
+ * Vite loads `.env.local` in every mode including `test`, and `.env.local` in this repo points at
+ * PRODUCTION. So `src/lib/supabase.ts` built a real client against the live project in every unit
+ * and integration run, and the sync tests pushed queued writes to it — refused by RLS, since
+ * there is no session, which is the only reason eight sprints went by without anyone noticing.
+ * `setup-integration.ts`'s own docblock asserted the opposite in so many words.
+ *
+ * `docs/environment-divergences.md` §2 records this class three times as a near miss and states
+ * the rule: every write-capable runner passes its environment EXPLICITLY. The two configs do
+ * that now; this is what stops the line being deleted as redundant.
+ *
+ * NOT the db config, which stubs the same two variables the other way — at the local stack, in
+ * `src/test/db/setup.ts`, deliberately and with a comment. A db test is supposed to reach a
+ * server; that is the whole of the difference.
+ *
+ * WHAT WOULD MAKE THIS FAIL: removing either `env` block, or pointing either at a real URL.
+ */
+describe('the test suites do not inherit production credentials', () => {
+    for (const config of ['vitest.config.ts', 'vitest.config.integration.ts']) {
+        it(`${config} empties the Supabase environment`, () => {
+            const source = read(config);
+            /*
+             * Read the VALUES, not just the presence of the keys. `VITE_SUPABASE_URL:
+             * process.env.SOMETHING` would satisfy a grep for the name and reintroduce the
+             * defect exactly — which is `docs/failure-modes.md` §2 in a config file.
+             */
+            for (const key of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']) {
+                expect(
+                    source,
+                    `${config} does not empty ${key}, so the suite inherits .env.local — which points at production`,
+                ).toContain(`${key}: ''`);
+            }
+        });
+    }
+
+    it('the db config is deliberately the other way round', () => {
+        // Stated as an assertion so the pair reads as one decision rather than two accidents.
+        const dbSetup = read('src/test/db/setup.ts');
+        expect(dbSetup).toContain("vi.stubEnv('VITE_SUPABASE_URL'");
+    });
+});
