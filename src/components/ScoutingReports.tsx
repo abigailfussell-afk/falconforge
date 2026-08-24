@@ -11,12 +11,15 @@ import {
 } from '../lib/scouting-validation';
 import { allFields, blankReportData } from '../lib/game-definition';
 import { resolveGameForSeason } from '../lib/games';
-import { Plus, Trophy, Trash2 } from 'lucide-react';
+import { Plus, Trophy, Trash2, Table2, LayoutGrid, Download, X } from 'lucide-react';
 import Button from './ui/Button';
 import Modal from './ui/Modal';
 import EmptyState from './ui/EmptyState';
 import ConfirmDialog from './ConfirmDialog';
 import SchemaForm from './scouting/SchemaForm';
+import TeamSummaryTable from './scouting/TeamSummaryTable';
+import { eventsIn } from '../lib/scouting-metrics';
+import { scoutingReportsToCsv, scoutingCsvFilename, downloadCsv } from '../lib/scouting-csv';
 
 /**
  * Scouting, rendered from the season's `GameDefinition` (P-01 phase S, D4(b)).
@@ -71,6 +74,55 @@ const ScoutingReports: React.FC = () => {
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [editingReportId, setEditingReportId] = useState<string | null>(null);
 
+    /**
+     * Summary or cards, and which event (P-02).
+     *
+     * SUMMARY IS THE DEFAULT. The cards answer "what did we write down"; the table answers "who
+     * is good at what", which is the question somebody opening this page has. A lead who wants
+     * the raw entries is one tap away, and a scout entering a report goes straight to the modal
+     * from either.
+     *
+     * The event filter is `null` for "everything this season". A team scouts several
+     * competitions in a season and comparing across them is usually wrong — a qualifier field
+     * is not a league field — but the filter is not forced, because a team's first event is also
+     * their only one and being asked to choose between one option is noise.
+     */
+    const [view, setView] = useState<'summary' | 'cards'>('summary');
+    const [eventFilter, setEventFilter] = useState<string | null>(null);
+    const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+
+    const events = useMemo(() => eventsIn(scoutingReports), [scoutingReports]);
+    const visibleReports = useMemo(
+        () =>
+            eventFilter === null
+                ? scoutingReports
+                : scoutingReports.filter((r) => (r.eventName?.trim() ?? '') === eventFilter),
+        [scoutingReports, eventFilter],
+    );
+    /** The selected team's reports, newest first — the detail under the table. */
+    const teamReports = useMemo(
+        () =>
+            selectedTeam === null
+                ? []
+                : [...visibleReports]
+                    .filter((r) => r.teamNumber?.trim() === selectedTeam)
+                    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)),
+        [visibleReports, selectedTeam],
+    );
+
+    /**
+     * The export, which is not a nicety.
+     *
+     * Every scouting workflow this competes with ends in a Sheet, and a lead who cannot get
+     * their data out will keep the Sheet and use the app for nothing. It exports WHAT IS ON
+     * SCREEN — the current event filter — because a button that silently exports more than the
+     * table shows is a file somebody will trust and be wrong about.
+     */
+    const exportCsv = () => {
+        const csv = scoutingReportsToCsv(visibleReports, game);
+        downloadCsv(scoutingCsvFilename(eventFilter, new Date()), csv);
+    };
+
     const [newScout, setNewScout] = useState<Partial<ScoutingReport>>(() => ({
         data: blankReportData(game),
     }));
@@ -123,6 +175,10 @@ const ScoutingReports: React.FC = () => {
                     ? newScout.matchNumber
                     : undefined,
             eventName: newScout.eventName || '',
+            // Undefined, not '' or 0 — "not noted" is a fact and the CHECK constraints refuse
+            // both of those anyway (P-02).
+            alliance: newScout.alliance,
+            station: newScout.station,
             data: newScout.data ?? {},
         };
 
@@ -143,6 +199,8 @@ const ScoutingReports: React.FC = () => {
             teamNumber: report.teamNumber,
             matchNumber: report.matchNumber,
             eventName: report.eventName,
+            alliance: report.alliance,
+            station: report.station,
             /*
              * DEFAULTS UNDERNEATH, THE REPORT'S OWN VALUES ON TOP.
              *
@@ -179,19 +237,155 @@ const ScoutingReports: React.FC = () => {
         <div className="h-full flex flex-col w-full">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h2 className="text-lg font-bold text-slate-800 dark:text-white">Scouting Reports</h2>
-                <Button
-                    data-testid="scout-match"
-                    onClick={() => { resetForm(); setEditingReportId(null); setIsScoutModalOpen(true); }}
-                    disabled={!canEdit}
-                    title={canEdit ? 'Scout a match' : editRefusalReason}
-                    className="px-2 md:px-4"
-                >
-                    <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Only when there is more than one event. A picker with one option asks a
+                        question that has no other answer. */}
+                    {events.length > 1 && (
+                        <select
+                            data-testid="scout-event-filter"
+                            aria-label="Filter by event"
+                            className="field py-1.5 w-auto"
+                            value={eventFilter ?? ''}
+                            onChange={(e) => {
+                                setEventFilter(e.target.value === '' ? null : e.target.value);
+                                setSelectedTeam(null);
+                            }}
+                        >
+                            <option value="">All events</option>
+                            {events.map((ev) => (
+                                <option key={ev.name} value={ev.name}>
+                                    {ev.name} ({ev.count})
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <button
+                            type="button"
+                            data-testid="scout-view-summary"
+                            onClick={() => setView('summary')}
+                            aria-pressed={view === 'summary'}
+                            title="Team summary"
+                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'summary' ? 'bg-forge-500 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                        >
+                            <Table2 size={15} /><span className="hidden sm:inline">Summary</span>
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="scout-view-cards"
+                            onClick={() => setView('cards')}
+                            aria-pressed={view === 'cards'}
+                            title="Individual reports"
+                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'cards' ? 'bg-forge-500 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                        >
+                            <LayoutGrid size={15} /><span className="hidden sm:inline">Reports</span>
+                        </button>
+                    </div>
+                    <Button
+                        variant="secondary"
+                        data-testid="scout-export-csv"
+                        onClick={exportCsv}
+                        disabled={visibleReports.length === 0}
+                        title={
+                            visibleReports.length === 0
+                                ? 'Nothing to export yet'
+                                : `Export ${visibleReports.length} report${visibleReports.length === 1 ? '' : 's'} as CSV`
+                        }
+                        className="px-2 md:px-3"
+                    >
+                        <Download size={18} /><span className="hidden md:inline">Export CSV</span>
+                    </Button>
+                    <Button
+                        data-testid="scout-match"
+                        onClick={() => { resetForm(); setEditingReportId(null); setIsScoutModalOpen(true); }}
+                        disabled={!canEdit}
+                        title={canEdit ? 'Scout a match' : editRefusalReason}
+                        className="px-2 md:px-4"
+                    >
+                        <Plus size={20} /><span className="hidden md:inline">Scout Match</span>
+                    </Button>
+                </div>
             </div>
 
+            {view === 'summary' && (
+                <div className="space-y-4 mb-4">
+                    <TeamSummaryTable
+                        reports={visibleReports}
+                        game={game}
+                        selectedTeam={selectedTeam}
+                        onSelectTeam={setSelectedTeam}
+                    />
+
+                    {selectedTeam !== null && (
+                        <div
+                            data-testid="team-detail"
+                            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 md:p-4"
+                        >
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                                    Team #{selectedTeam} — {teamReports.length} report{teamReports.length === 1 ? '' : 's'}
+                                </h3>
+                                <button
+                                    type="button"
+                                    data-testid="team-detail-close"
+                                    onClick={() => setSelectedTeam(null)}
+                                    aria-label="Close team detail"
+                                    className="touch-target p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <ul className="space-y-2">
+                                {teamReports.map((report) => (
+                                    <li key={report.id}>
+                                        {/* A real button: this row opens the report, and the
+                                            scouting cards were keyboard-unreachable for two
+                                            sprints for want of one (failure-modes §8). */}
+                                        <button
+                                            type="button"
+                                            data-testid="team-detail-report"
+                                            onClick={() => openEditModal(report)}
+                                            className="w-full text-left flex flex-wrap items-center gap-2 rounded-lg border border-slate-100 dark:border-slate-700 px-2.5 py-2 hover:border-forge-300 dark:hover:border-forge-600"
+                                        >
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 tabular-nums">
+                                                {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
+                                            </span>
+                                            {report.alliance && (
+                                                <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${report.alliance === 'red' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
+                                                    {report.alliance === 'red' ? 'Red' : 'Blue'}{report.station ? ` ${report.station}` : ''}
+                                                </span>
+                                            )}
+                                            {report.eventName && (
+                                                <span className="text-2xs text-slate-500 dark:text-slate-400 min-w-0 truncate">
+                                                    {report.eventName}
+                                                </span>
+                                            )}
+                                            <span className="ml-auto flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-slate-500 dark:text-slate-400">
+                                                {game.scoring.metrics.map((m) => (
+                                                    <span key={m.key} className="tabular-nums">
+                                                        {m.label} {show(report.data?.[m.field])}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/*
+              * CONDITIONAL, not `hidden`. A `display:none` grid keeps every card in the DOM and
+              * in the accessibility tree, so a screen reader reads the whole season twice and
+              * every `getByText` in the suite becomes ambiguous — which is how this was written
+              * first, and the test failures said "Found multiple elements" rather than anything
+              * about the feature.
+              */}
+            {view === 'cards' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                {scoutingReports.map(report => (
+                {visibleReports.map(report => (
                     /*
                      * The card opens the report for editing and CONTAINS a delete button, so
                      * it cannot itself be a <button> (buttons do not nest). role/tabIndex/
@@ -226,8 +420,23 @@ const ScoutingReports: React.FC = () => {
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 break-words">{report.eventName}</div>
                                 )}
                             </div>
-                            <div data-testid="scout-card-match" className="shrink-0 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300">
-                                {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
+                            <div className="shrink-0 flex flex-col items-end gap-1">
+                                <div data-testid="scout-card-match" className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    {report.matchNumber ? `Match ${report.matchNumber}` : 'No match #'}
+                                </div>
+                                {/* Only when it was noted. A badge reading "—" tells nobody
+                                    anything and takes the room a real one would need. */}
+                                {report.alliance && (
+                                    <div
+                                        data-testid="scout-card-alliance"
+                                        className={`px-2 py-0.5 rounded-md text-2xs font-bold ${report.alliance === 'red'
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}
+                                    >
+                                        {report.alliance === 'red' ? 'Red' : 'Blue'}
+                                        {report.station ? ` ${report.station}` : ''}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -284,7 +493,7 @@ const ScoutingReports: React.FC = () => {
                         ) : null}
                     </div>
                 ))}
-                {scoutingReports.length === 0 && (
+                {visibleReports.length === 0 && (
                     <div className="col-span-full bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
                         <EmptyState
                             icon={Trophy}
@@ -304,6 +513,7 @@ const ScoutingReports: React.FC = () => {
                     </div>
                 )}
             </div>
+            )}
 
             {deleteConfirmId && (
                 <ConfirmDialog
@@ -378,6 +588,58 @@ const ScoutingReports: React.FC = () => {
                                 {errors.matchNumber && (
                                     <p data-testid="scout-match-number-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.matchNumber}</p>
                                 )}
+                            </div>
+                        </div>
+
+                        {/*
+                          * WHERE, as well as who and when (P-02).
+                          *
+                          * Both optional and both a `select` with a blank first option, because
+                          * "not noted" is a real answer and the commonest one — a scout is
+                          * watching a match, not filling in a form, and every field that insists
+                          * is a reason for a report not to exist at all. `matchNumber` is
+                          * optional for the same reason and B18 is what happened when an
+                          * optional number was made to look mandatory.
+                          *
+                          * The station count comes from the GAME, not from a literal 2: FTC is
+                          * 2v2 and FRC is 3v3, and `match.allianceSize` is the number the events
+                          * entity already reads for exactly this.
+                          */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-alliance">Alliance</label>
+                                <select
+                                    id="scout-alliance"
+                                    data-testid="scout-alliance"
+                                    className="field"
+                                    value={newScout.alliance ?? ''}
+                                    onChange={e => setNewScout({
+                                        ...newScout,
+                                        alliance: e.target.value === '' ? undefined : (e.target.value as 'red' | 'blue'),
+                                    })}
+                                >
+                                    <option value="">Not noted</option>
+                                    <option value="red">Red</option>
+                                    <option value="blue">Blue</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-station">Station</label>
+                                <select
+                                    id="scout-station"
+                                    data-testid="scout-station"
+                                    className="field"
+                                    value={newScout.station ?? ''}
+                                    onChange={e => setNewScout({
+                                        ...newScout,
+                                        station: e.target.value === '' ? undefined : Number(e.target.value),
+                                    })}
+                                >
+                                    <option value="">Not noted</option>
+                                    {Array.from({ length: game.match.allianceSize }, (_, i) => i + 1).map((n) => (
+                                        <option key={n} value={n}>{n}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
 

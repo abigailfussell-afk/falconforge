@@ -174,6 +174,18 @@ export interface ScoutingReport {
   matchNumber?: number;
   eventName?: string;
   /**
+   * Which side of the field, and which driver station (P-02).
+   *
+   * BOTH OPTIONAL, for the same reason `matchNumber` is: a scout at a venue is watching a
+   * match, not filling in a form, and every required field is a reason for a report not to
+   * exist. They answer two questions a scouting lead actually asks — "were they better on red
+   * or blue?", since the field is not symmetric in most FTC games, and "which of these two rows
+   * is the one I watched?" when two scouts covered the same match.
+   */
+  alliance?: 'red' | 'blue';
+  /** 1-based. 1–2 for FTC, 1–3 for FRC — the game definition's `match.allianceSize` bounds it. */
+  station?: number;
+  /**
    * Everything the GAME defines, keyed by `GameField.key` (P-01 phase S).
    *
    * This used to be ten typed properties — `hasAutonomous`, `intakeType`, `parking` and the

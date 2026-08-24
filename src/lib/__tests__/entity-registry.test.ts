@@ -104,6 +104,11 @@ const scoutingReport: ScoutingReport = {
     teamNumber: '12345',
     matchNumber: 7,
     eventName: 'League Meet 2',
+    // Where on the field (P-02). Both optional, both round-tripped, and `station` is the case a
+    // `|| null` would have turned into "not noted" for station... which is why it is 2 here and
+    // why `alliance` is present: a sample that omits an optional field proves nothing about it.
+    alliance: 'blue',
+    station: 2,
     /*
       * The GAME's fields, in the jsonb bag (P-01 phase S). The registry no longer enumerates
       * these — `data` passes through opaque in both directions — which is what makes the
