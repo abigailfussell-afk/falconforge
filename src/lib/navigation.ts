@@ -6,6 +6,7 @@ import {
     ClipboardCheck,
     Gamepad2,
     Trophy,
+    GraduationCap,
     Settings,
     User,
     Gift,
@@ -92,6 +93,19 @@ export interface AppView {
      * forbids exactly that shape ("never renders the team as the child").
      */
     requiresTeam?: boolean;
+    /**
+     * This view reads no season-scoped data, so the archived-season banner does not belong
+     * above it.
+     *
+     * `ArchivedSeasonBanner`'s own comment said "every view is season-scoped, so every view
+     * needs this state" — true when it was written, and not true since `help`, `profile` and
+     * the guardian view arrived. Training made it visibly wrong: two amber banners stacked, one
+     * of them telling a student they cannot change anything BECAUSE the season is archived, on
+     * the one page a season never touches. Marked on the view rather than special-cased in the
+     * banner, for the same reason `requiresTeam` is (`docs/failure-modes.md` section 12): a
+     * hand-kept second list drifts from this one.
+     */
+    seasonFree?: boolean;
     /** Draw a separator above this item. Groups the board/competition tools apart. */
     startsGroup?: boolean;
 }
@@ -123,7 +137,24 @@ export const APP_VIEWS: AppView[] = [
      * in the app that separates a mentor from a student.
      */
     { id: 'meetings', path: 'meetings', label: 'Meetings', icon: CalendarDays, inNav: true, requiresTeam: true },
-    { id: 'guardian', path: 'guardian', label: 'My children', icon: Baby, inNav: true, requiresGuardian: true, startsGroup: true },
+    /*
+     * Training is visible to EVERYBODY and carries no season precondition beyond `requiresTeam`
+     * (D5).
+     *
+     * A rookie is the person the whole feature exists for, so hiding it behind a capability
+     * would hide it from its audience; a mentor sees the same nav entry and a different page,
+     * exactly as Meetings does.
+     *
+     * IT IS ALSO THE FIRST VIEW THAT OUTLIVES A SEASON. Skills belong to a person rather than
+     * to a season (`docs/assessment-2026-08/training-onboarding-design.md` section 2.2), and the
+     * summer between seasons is when a team actually trains — so this page must still be here,
+     * and still be readable, when the season is archived and the rest of the app has gone
+     * read-only. Nothing in the nav needed to change for that: `requiresTeam` is about the team,
+     * not the season. It is written down here because the next person to add a season
+     * precondition to the nav needs to know this one view must not get it.
+     */
+    { id: 'training', path: 'training', label: 'Training', icon: GraduationCap, inNav: true, requiresTeam: true, seasonFree: true },
+    { id: 'guardian', path: 'guardian', label: 'My children', icon: Baby, inNav: true, requiresGuardian: true, startsGroup: true, seasonFree: true },
     { id: 'admin', path: 'admin', label: 'Admin Settings', icon: Settings, inNav: true, requiresTeam: true, requiresManage: true, startsGroup: true },
     { id: 'operator', path: 'operator', label: 'Operator', icon: Gift, inNav: true, requiresTeam: true, requiresOperator: true },
     /*
@@ -135,7 +166,7 @@ export const APP_VIEWS: AppView[] = [
      * return empty and nothing of the "plausible-looking blank team" shape the guardian rules
      * above exist to prevent.
      */
-    { id: 'help', path: 'help', label: 'Getting started', icon: LifeBuoy, inNav: true, startsGroup: true },
+    { id: 'help', path: 'help', label: 'Getting started', icon: LifeBuoy, inNav: true, startsGroup: true, seasonFree: true },
     /*
      * Profile carries NO `requiresTeam` either, and for the same reason Help does not
      * (WALK-B-01).
@@ -146,7 +177,7 @@ export const APP_VIEWS: AppView[] = [
      * themselves and the "Edit Profile" link their own sidebar renders led to
      * "Welcome! Let's get you set up."
      */
-    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false },
+    { id: 'profile', path: 'profile', label: 'Edit Profile', icon: User, inNav: false, seasonFree: true },
 ];
 
 /** The view the app opens on, and what `/app` and `/dashboard` redirect to. */
@@ -177,6 +208,24 @@ export function pathNeedsTeam(pathname: string): boolean {
     return view ? view.requiresTeam === true : true;
 }
 
+
+/**
+ * Does the archived-season banner belong above this `/app/*` path?
+ *
+ * The banner explains why a season-scoped view is read-only. Above a view that reads no season
+ * at all it explains nothing and contradicts the page: Training is open in the off-season by
+ * design, and "this season is archived — read only" above it is simply a different subject.
+ *
+ * Unregistered paths (meeting detail, check-in) default to season-scoped, which is the safe
+ * direction: a missing banner on a read-only view is a user editing something that will be
+ * refused, while a spare banner is only noise.
+ */
+export function pathShowsSeasonBanner(pathname: string): boolean {
+    if (!pathname.startsWith(APP_ROOT)) return false;
+    const segment = pathname.slice(APP_ROOT.length).replace(/^\/+/, '').split('/')[0] ?? '';
+    const view = APP_VIEWS.find((v) => v.path === segment);
+    return view ? view.seasonFree !== true : true;
+}
 /**
  * The sidebar's list for a given user.
  *
