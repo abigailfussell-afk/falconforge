@@ -21,6 +21,7 @@ import { pullFromServer, pullEntitlement } from './server-pull';
 import { isServerAnswer, recordServerContact } from './server-reachability';
 import {
     withTimeout,
+    progressDeadline,
     PER_QUERY_TIMEOUT_MS,
     OVERALL_SYNC_TIMEOUT_MS,
     type SyncToken,
@@ -290,28 +291,47 @@ export function useSync(): UseSyncResult {
         // withTimeout only rejects the outer promise -- the work inside keeps running (B6).
         // Without a cancellation flag, a timed-out run carried on mutating the queue and the
         // store while the next run started, so two loops raced over the same items.
-        const token: SyncToken = { cancelled: false };
+        const token: SyncToken = { cancelled: false, deadline: progressDeadline() };
 
         try {
-            // Overall sync timeout to prevent hanging forever
+            /*
+             * THE DRAIN IS BOUNDED BY PROGRESS, THE PULL BY THE CLOCK (SYNC-13).
+             *
+             * These are different shapes of work and the flat `withTimeout` around both treated
+             * them the same. A drain is N independent round trips, each already bounded by
+             * `PER_QUERY_TIMEOUT_MS`, and a long one that keeps succeeding is a device catching
+             * up after a day offline — precisely what this app exists to survive. A pull is one
+             * operation that either answers or hangs, so a wall-clock bound is the right
+             * instrument for it and the wrong one for the drain.
+             */
+            const drain = await drainSyncQueue(token);
+
+            // Widen the retry backoff while pushes keep failing, and collapse it back the
+            // moment one succeeds. Counting drains rather than individual items keeps one
+            // permanently-broken record (which dead-letters after MAX_SYNC_RETRIES anyway)
+            // from slowing down everyone else's retries.
+            if (drain.retried > 0 && drain.pushed === 0) {
+                failedDrainsRef.current += 1;
+            } else {
+                failedDrainsRef.current = 0;
+            }
+
+            /*
+             * A stall that pushed NOTHING is a failure and says so. A stall that pushed
+             * something is a slow catch-up, and the queue count in the indicator already tells
+             * the truth about what is left — "N pending", amber, rather than "Sync Error", red.
+             * Reporting failure over work that succeeded is what SYNC-13 was.
+             */
+            if (drain.stalled && drain.pushed === 0) {
+                throw new Error(
+                    `Timeout: no queued change could be pushed in ${OVERALL_SYNC_TIMEOUT_MS}ms`,
+                );
+            }
+
             await withTimeout(
-                (async () => {
-                    const drain = await drainSyncQueue(token);
-
-                    // Widen the retry backoff while pushes keep failing, and collapse it
-                    // back the moment one succeeds. Counting drains rather than individual
-                    // items keeps one permanently-broken record (which dead-letters after
-                    // MAX_SYNC_RETRIES anyway) from slowing down everyone else's retries.
-                    if (drain.retried > 0 && drain.pushed === 0) {
-                        failedDrainsRef.current += 1;
-                    } else {
-                        failedDrainsRef.current = 0;
-                    }
-
-                    await pullChangesFromServer(token);
-                })(),
+                pullChangesFromServer(token),
                 OVERALL_SYNC_TIMEOUT_MS,
-                'Overall sync'
+                'Server pull',
             );
 
             setLastSyncTime(new Date());
@@ -407,6 +427,12 @@ export interface DrainResult {
     terminal: number;
     /** True if the run stopped early because its token was cancelled (B6). */
     cancelled: boolean;
+    /**
+     * True if the run stopped early because nothing succeeded for the whole idle budget
+     * (SYNC-13). Distinct from {@link cancelled}, which means somebody else abandoned the run —
+     * this one means the run abandoned itself, and the two want different things said about them.
+     */
+    stalled: boolean;
 }
 
 /**
@@ -435,7 +461,9 @@ function currentFailureContext(): SyncFailureContext {
  * from draining, and must not be lost either (B2).
  */
 export async function drainSyncQueue(token: SyncToken = { cancelled: false }): Promise<DrainResult> {
-    const result: DrainResult = { pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: false };
+    const result: DrainResult = {
+        pushed: 0, retried: 0, deadLettered: 0, terminal: 0, cancelled: false, stalled: false,
+    };
 
     // Ordered by timestamp, NOT primary key — see getPendingSyncItems (B1).
     const queueItems = await getPendingSyncItems();
@@ -446,11 +474,25 @@ export async function drainSyncQueue(token: SyncToken = { cancelled: false }): P
             result.cancelled = true;
             return result;
         }
+        /*
+         * STOP ONLY WHEN NOTHING IS WORKING (SYNC-13).
+         *
+         * Checked before the item rather than after, so the budget is spent attempting work
+         * rather than noticing that it has run out. Items not reached stay queued with their
+         * retry counts untouched — the next run picks them up in the same order, which is B1's
+         * whole guarantee and the reason a partial drain is safe at all.
+         */
+        if (token.deadline?.expired()) {
+            result.stalled = true;
+            return result;
+        }
         try {
             await processSyncItem(item);
             // Remove from queue on success
             await db.syncQueue.delete(item.id);
             result.pushed++;
+            // A push that landed is the only thing that buys more time.
+            token.deadline?.progress();
         } catch (err) {
             /*
              * A refusal that no retry can satisfy is parked NOW, with its reason (B24).
