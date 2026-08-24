@@ -340,8 +340,8 @@ describe('Dashboard Navigation', () => {
             ],
             currentSeasonId: 'season-1',
             tasks: [
-                { id: 't-now', title: 'Rebuild the intake', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
-                { id: 't-old', title: 'LAST SEASON drivetrain', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 900, tags: [], seasonId: 'season-0' },
+                { id: 't-now', title: 'Rebuild the intake', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1' },
+                { id: 't-old', title: 'LAST SEASON drivetrain', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 900, seasonId: 'season-0' },
             ],
         });
 

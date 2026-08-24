@@ -24,7 +24,6 @@ const archivedTask = (over: Partial<Task> = {}): Task => ({
     type: TaskType.Feature,
     assignedTo: 'member-1',
     department: 'subteam-1',
-    tags: [],
     checklist: [],
     timeline: [],
     createdAt: 1_700_000_000_000,

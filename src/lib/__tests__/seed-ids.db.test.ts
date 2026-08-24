@@ -186,7 +186,6 @@ describe('everything a new team starts with can be edited and pushed', () => {
                 department: subTeam.id,
                 teamId: teamA.teamId,
                 seasonId: teamA.seasonId,
-                tags: [],
                 checklist: [],
                 timeline: [],
             },

@@ -96,7 +96,6 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
             type: TaskType.Feature,
             assignedTo: teamMembers[0]?.id || '',
             department: subTeams[0]?.id || '',
-            tags: [],
             checklist: [],
             timeline: [],
             createdAt: Date.now(),
@@ -137,7 +136,6 @@ const SprintPlanning: React.FC<SprintPlanningProps> = ({
                 type: updatedTask.type,
                 assignedTo: updatedTask.assignedTo,
                 department: updatedTask.department,
-                tags: updatedTask.tags,
                 checklist: updatedTask.checklist,
                 dueDate: updatedTask.dueDate,
                 /*

@@ -23,29 +23,6 @@ vi.mock('../../lib/store', () => {
     return { useAppStore };
 });
 
-// Mock D3 to avoid canvas issues in tests
-vi.mock('d3', () => ({
-    select: vi.fn(() => ({
-        attr: vi.fn().mockReturnThis(),
-        style: vi.fn().mockReturnThis(),
-        on: vi.fn().mockReturnThis(),
-        append: vi.fn().mockReturnThis(),
-        selectAll: vi.fn(() => ({
-            attr: vi.fn().mockReturnThis(),
-            style: vi.fn().mockReturnThis(),
-            on: vi.fn().mockReturnThis(),
-            call: vi.fn().mockReturnThis(),
-            remove: vi.fn().mockReturnThis(),
-        })),
-        remove: vi.fn().mockReturnThis(),
-        node: vi.fn(() => ({ getContext: vi.fn() })),
-        call: vi.fn().mockReturnThis(),
-    })),
-    drag: vi.fn(() => ({
-        on: vi.fn().mockReturnThis(),
-    })),
-}));
-
 // Mock SVG methods that JSDOM doesn't support
 Object.defineProperty(SVGSVGElement.prototype, 'getScreenCTM', {
     value: vi.fn(() => ({

@@ -68,7 +68,6 @@ describe('sync.integration', () => {
                     type: 'Feature',
                     assignedTo: '',
                     department: '',
-                    tags: [],
                     checklist: [],
                     timeline: [],
                     createdAt: 1000,

@@ -17,8 +17,8 @@ describe('DashboardHome', () => {
         // Default mock state for store matching the component's expectations
         useAppStore.setState({
             tasks: [
-                { id: '1', title: 'Task 1', description: '', assignedTo: '', status: 'To Do', department: 'Build', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
-                { id: '2', title: 'Task 2', description: '', assignedTo: '', status: 'Done', department: 'Programming', type: 'Bug', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
+                { id: '1', title: 'Task 1', description: '', assignedTo: '', status: 'To Do', department: 'Build', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1' },
+                { id: '2', title: 'Task 2', description: '', assignedTo: '', status: 'Done', department: 'Programming', type: 'Bug', checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1' },
             ],
             scoutingReports: [
                 { id: '1', teamNumber: '123', matchNumber: 1, data: { hasAutonomous: true, autoScore: 10, intakeType: 'Automatic', autoAim: true, farShooting: false, shotsTaken: 5, shotsMissed: 1, parking: 'No Park', rating: 4, endGameNotes: '' }, createdAt: 2000, seasonId: 'season-1' },
@@ -85,8 +85,8 @@ describe('DashboardHome', () => {
     it('renders recent activity in descending chronological order', () => {
         useAppStore.setState({
             tasks: [
-                { id: 't1', title: 'Oldest Task', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, tags: [], seasonId: 'season-1' },
-                { id: 't2', title: 'Newest Task', description: '', assignedTo: '', status: 'In Progress', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 5000, tags: [], seasonId: 'season-1' },
+                { id: 't1', title: 'Oldest Task', description: '', assignedTo: '', status: 'To Do', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 1000, seasonId: 'season-1' },
+                { id: 't2', title: 'Newest Task', description: '', assignedTo: '', status: 'In Progress', department: '', type: 'Feature', checklist: [], timeline: [], createdAt: 5000, seasonId: 'season-1' },
             ],
             scoutingReports: [
                 { id: 's1', teamNumber: '999', matchNumber: 1, data: { hasAutonomous: false, autoScore: 0, intakeType: 'No Intake', autoAim: false, farShooting: false, shotsTaken: 0, shotsMissed: 0, parking: 'No Park', rating: 3, endGameNotes: '' }, createdAt: 3000, seasonId: 'season-1' },

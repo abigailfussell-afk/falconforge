@@ -39,7 +39,6 @@ describe('Store → Sync Queue Integration', () => {
                 status: 'To Do',
                 type: 'Feature',
                 assignedTo: 'member-1',
-                tags: ['urgent', 'test'],
                 department: 'programming',
                 checklist: [{ id: 'item-1', text: 'Sub-task', completed: false }],
             });
@@ -75,7 +74,6 @@ describe('Store → Sync Queue Integration', () => {
                 type: 'Feature',
                 assignedTo: 'member-1',
                 department: 'build',
-                tags: [],
                 checklist: [],
             });
 
@@ -117,7 +115,6 @@ describe('Store → Sync Queue Integration', () => {
                 type: 'Bug',
                 assignedTo: 'member-1',
                 department: 'build',
-                tags: [],
                 checklist: [],
             });
 
@@ -341,7 +338,6 @@ describe('Store → Sync Queue Integration', () => {
                 type: 'Feature',
                 assignedTo: '',
                 department: 'build',
-                tags: [],
                 checklist: [],
             });
 
@@ -352,7 +348,6 @@ describe('Store → Sync Queue Integration', () => {
                 type: 'Bug',
                 assignedTo: '',
                 department: 'programming',
-                tags: [],
                 checklist: [],
             });
 

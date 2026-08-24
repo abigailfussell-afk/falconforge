@@ -157,7 +157,6 @@ export interface Task {
   type: TaskType;
   assignedTo: string; // TeamMember ID
   department: string; // SubTeam ID
-  tags: string[];
   checklist: { id: string; text: string; completed: boolean }[];
   timeline: TimelineEvent[];
   createdAt: number;

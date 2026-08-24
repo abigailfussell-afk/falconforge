@@ -64,7 +64,6 @@ const storeTask = (): Task => ({
     type: 'Feature',
     assignedTo: 'member-1',
     department: 'subteam-1',
-    tags: [],
     checklist: [
         { id: 'c1', text: 'Wiring checked', completed: false },
         { id: 'c2', text: 'Belts tensioned', completed: false },

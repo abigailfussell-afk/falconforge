@@ -1,6 +1,5 @@
 import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 import React, { useRef, useEffect, useState } from 'react';
-import * as d3 from 'd3';
 import { resolveGameForSeason } from '../lib/games';
 import { Pen, Save, Trash2, Undo, Redo, FolderOpen, X, CheckCircle } from 'lucide-react';
 import { useAppStore, MatchPlan } from '../lib/store';
@@ -182,29 +181,21 @@ const MatchPlanner: React.FC = () => {
     setIsLoadModalOpen(false);
   };
 
-  // Setup D3 drawing logic
-  useEffect(() => {
-    if (!svgRef.current) return;
-
-    const svg = d3.select(svgRef.current);
-
-    // Drag logic for objects (simple circles representing robots)
-    const drag = d3.drag<SVGCircleElement, unknown>()
-      .on("start", function (_event) {
-        d3.select(this).raise().attr("stroke", "white").attr("stroke-width", 3);
-      })
-      .on("drag", function (event) {
-        if (!isDrawingEnabled) {
-          d3.select(this).attr("cx", event.x).attr("cy", event.y);
-        }
-      })
-      .on("end", function (_event) {
-        d3.select(this).attr("stroke", "white").attr("stroke-width", 2);
-      });
-
-    svg.selectAll(".draggable-robot").call(drag as any);
-
-  }, [isDrawingEnabled]);
+  /*
+   * THE DRAGGABLE ROBOTS ARE GONE (FEAT-06).
+   *
+   * There was a d3 drag behaviour here, bound to `.draggable-robot`, and no element with that
+   * class has ever been rendered — the whole effect ran on every `isDrawingEnabled` change and
+   * selected nothing. It carried three of the app's remaining escape-hatch casts and it was the
+   * ONLY use of d3 in the codebase, so deleting it also removed the dependency and the 41 kB
+   * chunk `vite.config.ts` was carving out for it.
+   *
+   * The assessment offered a second option — implement robot and game-piece tokens from the game
+   * definition and bind them to this. That is P-01 phase M and is not scheduled, and code kept
+   * against a feature nobody has committed to is `docs/failure-modes.md` section 7 pointing the
+   * other way: a door with no gate. It can be written when there is something to bind it to,
+   * from the game definition, which is where the tokens would come from anyway.
+   */
 
   // Convert client coordinates to viewBox coordinates
   const getViewBoxCoords = (e: React.PointerEvent) => {
@@ -230,7 +221,7 @@ const MatchPlanner: React.FC = () => {
     if (!coords) return;
 
     setCurrentPath(`M ${coords.x} ${coords.y}`);
-    (svg as any).setPointerCapture(e.pointerId);
+    svg.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -250,7 +241,7 @@ const MatchPlanner: React.FC = () => {
     setPaths([...paths, { d: currentPath, stroke: color, width: 3 }]);
     setUndoHistory([]);
     setCurrentPath('');
-    if (svgRef.current) (svgRef.current as any).releasePointerCapture(e.pointerId);
+    if (svgRef.current) svgRef.current.releasePointerCapture(e.pointerId);
   };
 
   const handleUndo = () => {

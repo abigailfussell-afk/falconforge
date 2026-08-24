@@ -42,7 +42,6 @@ describe('AppStore', () => {
                 type: 'Feature',
                 assignedTo: 'member-1',
                 department: 'programming',
-                tags: ['urgent'],
                 checklist: [],
             });
 
@@ -63,7 +62,6 @@ describe('AppStore', () => {
                 type: 'Feature',
                 assignedTo: 'member-1',
                 department: 'programming',
-                tags: [],
                 checklist: [],
             });
 
@@ -87,7 +85,6 @@ describe('AppStore', () => {
                 type: 'Bug',
                 assignedTo: 'member-1',
                 department: 'build',
-                tags: [],
                 checklist: [],
             });
 
@@ -114,7 +111,6 @@ describe('AppStore', () => {
                 type: 'Feature',
                 assignedTo: '',
                 department: '',
-                tags: [],
                 checklist: [],
                 timeline: [
                     { id: 'c2', type: 'comment', authorId: 'member-1', content: 'newer', timestamp: 2 },
@@ -143,7 +139,6 @@ describe('AppStore', () => {
                 type: 'Feature',
                 assignedTo: '',
                 department: '',
-                tags: [],
                 checklist: [],
             });
 
@@ -323,8 +318,7 @@ describe('AppStore', () => {
                 tasks: [
                     {
                         id: 'task-1', title: 'Dirty', description: '', status: 'To Do' as const,
-                        type: 'Feature' as const, assignedTo: '', department: '', tags: [],
-                        checklist: [], timeline: [], createdAt: 1000, seasonId: SEASON_ID,
+                        type: 'Feature' as const, assignedTo: '', department: '',                        checklist: [], timeline: [], createdAt: 1000, seasonId: SEASON_ID,
                     },
                 ],
                 scoutingReports: [

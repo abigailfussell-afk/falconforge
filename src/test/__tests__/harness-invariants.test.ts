@@ -70,7 +70,7 @@ describe('type-escape and token ratchets', () => {
      */
     it('holds the `as any` count at or below its recorded ceiling', () => {
         const { total, hits } = countMatches(sourceFiles('src'), /\bas any\b(?!\s+[a-z])/g);
-        expect(total, `as any sites:\n${hits.join('\n')}`).toBeLessThanOrEqual(55);
+        expect(total, `as any sites:\n${hits.join('\n')}`).toBeLessThanOrEqual(51);
     });
 
     /*
@@ -745,5 +745,58 @@ describe('the test suites do not inherit production credentials', () => {
         // Stated as an assertion so the pair reads as one decision rather than two accidents.
         const dbSetup = read('src/test/db/setup.ts');
         expect(dbSetup).toContain("vi.stubEnv('VITE_SUPABASE_URL'");
+    });
+});
+/**
+ * The help page describes the app that exists (FEAT-07).
+ *
+ * `GettingStarted.tsx` told every new student "Drag a card as the work moves." The board has no
+ * drag-and-drop, has never had any, and there is no DnD dependency in `package.json` — cards are
+ * `<button onClick={openTask}>`. So the first instruction the product gives a fourteen-year-old
+ * on day one is one they cannot follow, and the conclusion available to them is that they are
+ * doing it wrong.
+ *
+ * This is the same class as the landing-page ratchet above and the same class as `SIGNUP_
+ * REQUIRED_ATTESTATIONS` (`docs/failure-modes.md` §7): a claim with nothing behind it, which
+ * nothing fails over because nothing evaluates a sentence.
+ *
+ * SOURCE-LEVEL, DELIBERATELY. A rendering test would assert that the new words are present, which
+ * is satisfied by adding them and leaving the old ones. This asserts that the CLAIM is absent
+ * from the file, which is the property that was violated.
+ *
+ * WHAT WOULD MAKE THIS FAIL: writing "drag" into the help page again — including in the innocent
+ * form, "drag the card to Done", which is exactly how it would come back.
+ */
+describe('the help page describes the board that exists (FEAT-07)', () => {
+    it('does not promise drag-and-drop', () => {
+        const source = read('src/pages/GettingStarted.tsx');
+        /*
+         * Word-boundary matched, so `dragon` or a css class would not trip it, and case
+         * insensitive because the sentence that started this was capitalised.
+         */
+        const hits = [...source.matchAll(/\bdrag\w*/gi)].map((m) => m[0]);
+        expect(
+            hits,
+            'the help page promises drag-and-drop; the board has none and no DnD dependency exists',
+        ).toEqual([]);
+    });
+
+    it('and no drag-and-drop dependency has quietly appeared either', () => {
+        /*
+         * The other direction, and the reason this is two tests. If somebody adds DnD, the claim
+         * above becomes TRUE and this ratchet becomes wrong — so the failure should name that
+         * rather than sending the next person to delete a word from a sentence that is now
+         * accurate.
+         */
+        const pkg = JSON.parse(read('package.json')) as {
+            dependencies: Record<string, string>;
+            devDependencies: Record<string, string>;
+        };
+        const names = [...Object.keys(pkg.dependencies), ...Object.keys(pkg.devDependencies)];
+        const dnd = names.filter((n) => /dnd|drag/i.test(n));
+        expect(
+            dnd,
+            'a drag-and-drop library was added — the help page may now say "drag", and this ratchet should go',
+        ).toEqual([]);
     });
 });

@@ -66,7 +66,6 @@ function localTask(overrides: Record<string, unknown> = {}) {
         type: 'Feature',
         assignedTo: '',
         department: '',
-        tags: ['build'],
         checklist: [],
         timeline: [],
         createdAt: Date.now(),
@@ -98,13 +97,12 @@ describe('drainSyncQueue pushes to a real database', () => {
         expect(row.data!.title).toBe('Tune the shooter');
         expect(row.data!.team_id).toBe(team.id);
         expect(row.data!.season_id).toBe(team.seasonId);
-        expect(row.data!.tags).toEqual(['build']);
     });
 
     it('round-trips a task back through the pull unchanged', async () => {
         // The registry's round-trip property, but with Postgres in the middle: column
         // types, defaults and triggers all get a say.
-        const task = localTask({ dueDate: Date.UTC(2026, 2, 1), tags: ['build', 'urgent'] });
+        const task = localTask({ dueDate: Date.UTC(2026, 2, 1) });
         await queueForSync('tasks', task.id as string, 'create', task);
         await drainSyncQueue();
 
@@ -114,7 +112,6 @@ describe('drainSyncQueue pushes to a real database', () => {
         expect(pulled.title).toBe(task.title);
         expect(pulled.description).toBe(task.description);
         expect(pulled.status).toBe('To Do');
-        expect(pulled.tags).toEqual(['build', 'urgent']);
         expect(pulled.dueDate).toBe(Date.UTC(2026, 2, 1));
         expect(pulled.seasonId).toBe(team.seasonId);
     });

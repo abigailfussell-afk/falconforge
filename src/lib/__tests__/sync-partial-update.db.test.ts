@@ -71,7 +71,6 @@ const task = (over: Record<string, unknown> = {}) => ({
     type: 'Feature',
     assignedTo: '',
     department: '',
-    tags: [],
     checklist: [],
     timeline: [],
     createdAt: 1_000,
