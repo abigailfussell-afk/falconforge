@@ -51,6 +51,9 @@ const GettingStarted = lazy(() => import('./pages/GettingStarted'));
  * never downloads the roster, the summary or the calendar.
  */
 const MeetingsPage = lazy(() => import('./components/meetings/MeetingsPage'));
+const TrainingHome = lazy(() => import('./components/training/TrainingHome'));
+const TrackDetail = lazy(() => import('./components/training/TrackDetail'));
+const LessonDetail = lazy(() => import('./components/training/LessonDetail'));
 const EventDetail = lazy(() => import('./components/meetings/EventDetail'));
 const AttendanceRoster = lazy(() => import('./components/meetings/AttendanceRoster'));
 const AttendanceSummary = lazy(() => import('./components/meetings/AttendanceSummary'));
@@ -270,6 +273,15 @@ function App() {
                      */}
                     <Route path="checkin" element={<CheckIn />} />
                     <Route path="checkin/:code" element={<CheckIn />} />
+                    {/*
+                     * Training (D5). Three levels: the tracks, one track's lessons, one lesson.
+                     * The lesson route is the deep-linkable one -- a mentor sends "read B1" as a
+                     * link -- which is why every Training screen carries the stub banner rather
+                     * than only the index.
+                     */}
+                    <Route path="training" element={<TrainingHome />} />
+                    <Route path="training/:trackId" element={<TrackDetail />} />
+                    <Route path="training/:trackId/:lessonId" element={<LessonDetail />} />
                     <Route path="planner" element={<MatchPlanner />} />
                     <Route path="events" element={<CompetitionEvents />} />
                     <Route path="profile" element={<EditProfile />} />

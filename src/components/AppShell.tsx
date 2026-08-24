@@ -6,7 +6,7 @@ import { useSeasonScoped } from '../lib/season-scope';
 import { isActiveMember } from '../lib/member-utils';
 import { setupRealtimeSubscription, teardownRealtimeSubscription } from '../lib/realtime';
 import { fetchTeamData, fetchGuardianData, fetchSeasonData } from '../lib/server-pull';
-import { pathNeedsTeam } from '../lib/navigation';
+import { pathNeedsTeam, pathShowsSeasonBanner } from '../lib/navigation';
 import { supabaseSync } from '../lib/supabase';
 import {
     performSignOut,
@@ -15,6 +15,7 @@ import {
     type UnsyncedWork,
 } from '../lib/sign-out';
 import { getRealtimeStatus } from '../lib/realtime';
+import { isMentorOrAbove } from '../lib/roles';
 import Sidebar from './Sidebar';
 import ArchivedSeasonBanner from './ArchivedSeasonBanner';
 import LicenceBanner from './LicenceBanner';
@@ -137,8 +138,14 @@ export default function AppShell() {
     );
     const currentUserRole = currentMember?.role;
     const canManageTeam = currentUserRole === 'admin' || currentUserRole === 'coach';
-    // `can_manage_meetings` server-side. Mentors run the schedule; they do not run the roster.
-    const canManageMeetings = canManageTeam || currentUserRole === 'mentor';
+    /*
+     * `can_manage_meetings` server-side. Mentors run the schedule; they do not run the roster.
+     *
+     * The SET is shared with Training's sign-off rule, so the predicate lives in `lib/roles.ts`
+     * and the two capabilities keep their own names — they coincide today and are not the same
+     * question (see `isMentorOrAbove`).
+     */
+    const canManageMeetings = isMentorOrAbove(currentUserRole);
 
     /*
      * Platform-operator status, asked of the database rather than inferred.
@@ -282,6 +289,8 @@ export default function AppShell() {
         };
     }, [currentTeamId]);
 
+    const showsSeasonBanner = pathShowsSeasonBanner(location.pathname);
+
     const context: AppShellContext = {
         teamMembers,
         subTeams,
@@ -361,7 +370,12 @@ export default function AppShell() {
                          */}
                         <AppUpdatePrompt />
                         <OfflineBanner />
-                        <ArchivedSeasonBanner />
+                        {/*
+                         * Not above a view that reads no season. `pathShowsSeasonBanner` asks the
+                         * view definition rather than listing paths here, so a season-free view
+                         * added later cannot forget to say so twice.
+                         */}
+                        {showsSeasonBanner && <ArchivedSeasonBanner />}
                         <LicenceBanner />
                         <div className="flex-1 min-h-0">
                             {/*

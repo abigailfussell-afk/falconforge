@@ -187,7 +187,6 @@ async function main() {
                 type: 'Feature',
                 sub_team_id: subTeamIds[group],
                 assigned_to: memberIds[STUDENTS[index % STUDENTS.length][0]],
-                tags: [],
                 checklist: [],
                 timeline: [],
                 // A spread of due dates, including two in the past, so the dashboard's

@@ -10,7 +10,14 @@
  * kind of change that historically drifted the rail and the drawer apart.
  */
 import { describe, it, expect } from 'vitest';
-import { APP_VIEWS, navViewsFor, pathFor, APP_ROOT, DEFAULT_VIEW_PATH } from '../navigation';
+import {
+    APP_VIEWS,
+    navViewsFor,
+    pathFor,
+    pathShowsSeasonBanner,
+    APP_ROOT,
+    DEFAULT_VIEW_PATH,
+} from '../navigation';
 
 describe('capability gating', () => {
     it('hides the admin view from a member who cannot manage the team', () => {
@@ -137,5 +144,36 @@ describe('a guardian has no team, and the nav must survive that', () => {
 
     it('defaults to having a team, so existing callers are unchanged', () => {
         expect(navViewsFor(false).map((v) => v.id)).toContain('dashboard');
+    });
+});
+
+describe('the archived-season banner belongs above season-scoped views only', () => {
+    /*
+     * `ArchivedSeasonBanner` used to render above every `/app/*` view, on the stated grounds
+     * that every view is season-scoped. That stopped being true when `help`, `profile` and the
+     * guardian view arrived, and Training made it visible: two amber banners stacked, the upper
+     * one telling a student they cannot change anything BECAUSE the season is archived, on the
+     * one page a season never touches.
+     */
+    it('keeps it off the views that read no season', () => {
+        expect(pathShowsSeasonBanner('/app/training')).toBe(false);
+        expect(pathShowsSeasonBanner('/app/training/safety/B1')).toBe(false);
+        expect(pathShowsSeasonBanner('/app/help')).toBe(false);
+        expect(pathShowsSeasonBanner('/app/profile')).toBe(false);
+        expect(pathShowsSeasonBanner('/app/guardian')).toBe(false);
+    });
+
+    it('keeps it on the season-scoped ones', () => {
+        expect(pathShowsSeasonBanner('/app/board')).toBe(true);
+        expect(pathShowsSeasonBanner('/app/scouting')).toBe(true);
+        expect(pathShowsSeasonBanner('/app/dashboard')).toBe(true);
+    });
+
+    it('defaults an unregistered path to season-scoped', () => {
+        // Meeting detail and check-in have no view entry. A spare banner is noise; a missing
+        // one is somebody editing what will be refused.
+        expect(pathShowsSeasonBanner('/app/meetings/abc-123')).toBe(true);
+        expect(pathShowsSeasonBanner('/app/checkin/0842')).toBe(true);
+        expect(pathShowsSeasonBanner('/login')).toBe(false);
     });
 });
