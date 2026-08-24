@@ -12,7 +12,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { useAppStore } from './store';
-import { mergeIntoStore, updateLocalDatabase } from './server-pull';
+import { mergeIntoStore, updateLocalDatabase, fetchTeamData } from './server-pull';
 import { getPendingRecordIds } from './offline-db';
 import { findEntity, SYNCED_ENTITIES } from './entity-registry';
 
@@ -114,6 +114,7 @@ export function setupRealtimeSubscription(teamId: string): void {
 
     currentTeamId = teamId;
     setStatus('connecting');
+    bindVisibility();
 
     const ch = supabase.channel(`team-${teamId}`);
 
@@ -210,4 +211,97 @@ export function teardownRealtimeSubscription(): void {
     channel = null;
     currentTeamId = null;
     setStatus('disconnected');
+}
+
+// ---------------------------------------------------------------------------
+// Hidden tabs give up their socket (SYNC-04)
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a tab stays hidden before it releases its WebSocket.
+ *
+ * Two minutes, not two seconds: switching to another tab to look something up is the common
+ * case and re-handshaking for it would cost more than it saves, on the connection least able to
+ * afford it. Two minutes is long enough that ordinary tab-switching never triggers it and short
+ * enough that a laptop left open in the pits for an afternoon is not holding a connection all
+ * day.
+ *
+ * THE CONSTRAINT THIS IS ABOUT IS CONNECTIONS, NOT MESSAGES. Supabase's free tier allows 200
+ * concurrent realtime connections; a team meeting is 8–15 devices, so 15–25 teams meeting on the
+ * same weekday evening saturates it and later joiners get `CHANNEL_ERROR`. The app degrades to
+ * the pull path, which works — and which is exactly the expensive path SYNC-03 exists to avoid.
+ * A phone in a pocket with the app still open is a connection nobody is reading.
+ */
+export const HIDDEN_TEARDOWN_MS = 120_000;
+
+let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+/** The team to reconnect to when the tab comes back. Set only by a visibility teardown. */
+let suspendedTeamId: string | null = null;
+
+function clearHiddenTimer() {
+    if (hiddenTimer !== null) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+    }
+}
+
+/**
+ * Called on `visibilitychange`. Exported so a test can drive it without a real document.
+ *
+ * RESUBSCRIBE FIRST, THEN PULL, and the order is the whole correctness of this. A change that
+ * lands between the pull and the subscribe would be in neither: too late for the read, too early
+ * for the socket. Subscribing first makes the overlap a duplicate rather than a hole, and a
+ * duplicate is free — `mergeIntoStore` is idempotent and honours `getPendingRecordIds()`.
+ */
+export function handleVisibilityChange(hidden: boolean): void {
+    if (hidden) {
+        if (!channel || !currentTeamId) return;
+        const teamId = currentTeamId;
+        clearHiddenTimer();
+        hiddenTimer = setTimeout(() => {
+            hiddenTimer = null;
+            // Re-checked at fire time, not captured: the tab may have come back and gone away
+            // again, or signed out, in the two minutes since. `docs/failure-modes.md` §11 is
+            // four sprints of timers bound to the wrong moment.
+            if (typeof document !== 'undefined' && !document.hidden) return;
+            if (!channel) return;
+            suspendedTeamId = teamId;
+            teardownRealtimeSubscription();
+        }, HIDDEN_TEARDOWN_MS);
+        return;
+    }
+
+    clearHiddenTimer();
+    if (!suspendedTeamId) return;
+
+    const teamId = suspendedTeamId;
+    suspendedTeamId = null;
+    setupRealtimeSubscription(teamId);
+    /*
+     * And close the gap the disconnection left. Nothing was listening while the socket was
+     * down, so the store is as stale as the last pull — the periodic reconciliation would catch
+     * up eventually, and "eventually" is not what somebody who has just come back to the tab is
+     * looking at.
+     */
+    void fetchTeamData(teamId).catch(console.error);
+}
+
+let visibilityBound = false;
+
+/** Bind the listener once. Idempotent, because `setupRealtimeSubscription` may run many times. */
+function bindVisibility(): void {
+    if (visibilityBound || typeof document === 'undefined') return;
+    visibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+        handleVisibilityChange(document.hidden);
+    });
+}
+
+/**
+ * Reset the visibility state. For tests only — module state outlives a test file otherwise, and
+ * a suspended team id left behind makes the next test reconnect to a team it never chose.
+ */
+export function resetVisibilityStateForTests(): void {
+    clearHiddenTimer();
+    suspendedTeamId = null;
 }
