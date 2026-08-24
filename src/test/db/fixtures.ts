@@ -355,6 +355,17 @@ export class Fixtures {
             role: 'student',
             status: 'approved',
             full_name: `${label} child`,
+            /*
+             * The CHILD's name and the GUARDIAN's email, which is the pair
+             * `join_team_with_invite_for_child` actually writes.
+             *
+             * This fixture omitted the email, so every test using it worked against a managed
+             * row that production never produces — and SEC-16, whose whole subject is that
+             * denormalised address going stale, had nothing to go stale. A fixture that does
+             * not match the row the app writes is `docs/environment-divergences.md` in
+             * miniature: the thing under test is not the thing that ships.
+             */
+            email: account.email,
         });
 
         return {
