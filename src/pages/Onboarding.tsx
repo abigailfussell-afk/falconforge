@@ -10,6 +10,7 @@ import { fetchGuardianData } from '../lib/server-pull';
 import { APP_ROOT, readReturnTo } from '../lib/navigation';
 import { readInviteCode } from '../lib/pending-invite';
 import ClaimCodeForm from '../components/guardian/ClaimCodeForm';
+import TeamBadge from '../components/ui/TeamBadge';
 import { CompleteProfileForm } from '../components/auth/CompleteProfileForm';
 import type { Team, AgeClassification } from '../types';
 
@@ -440,12 +441,15 @@ export default function Onboarding() {
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${currentTeamId === team.id
-                                                ? 'bg-forge-500/30 text-forge-400'
-                                                : 'bg-slate-600 text-slate-300'
-                                                }`}>
-                                                {team.teamNumber ? `#${team.teamNumber.slice(-3)}` : team.name.charAt(0)}
-                                            </div>
+                                            <TeamBadge
+                                                teamNumber={team.teamNumber}
+                                                teamName={team.name}
+                                                size="md"
+                                                className={currentTeamId === team.id
+                                                    ? 'bg-forge-500/30 text-forge-400'
+                                                    : 'bg-slate-600 text-slate-300'}
+                                                textClassName="text-sm"
+                                            />
                                             <div className="text-left">
                                                 <p className="font-semibold">{team.name}</p>
                                                 {team.teamNumber && (

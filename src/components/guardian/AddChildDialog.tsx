@@ -7,6 +7,7 @@ import {
 } from '../../lib/attestations';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
+import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 
 /**
  * Add a child, and give the consents for them, in one sitting.
@@ -20,6 +21,14 @@ import Button from '../ui/Button';
  *
  * NO DATE OF BIRTH. There is no field for one and there is no column behind it — section 3,
  * and `20260822000000_guardian_schema_cleanup.sql`. The app never knows anyone's age.
+ *
+ * THE NAME HAS A LENGTH (WALK-B-10). It did not: the walkthrough entered a 142-character emoji
+ * name and it was accepted, stored and rendered in full on the coach's pending list, the roster,
+ * the join screen's "Who is joining?" select and every guardian sentence naming the child. The
+ * column now carries the same 120-character CHECK as the other eight name columns
+ * (`20260830000000_walk_b10_child_name_length.sql`), and this input carries the client half of
+ * that pair — without it the guardian meets the limit as a sync that failed rather than as a
+ * field that stopped taking characters.
  */
 export default function AddChildDialog({ onClose }: { onClose: () => void }) {
     const { user } = useAuth();
@@ -80,6 +89,7 @@ export default function AddChildDialog({ onClose }: { onClose: () => void }) {
                     <input
                         id="child-name"
                         className="field w-full"
+                        maxLength={TITLE_MAX_LENGTH}
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         autoComplete="off"

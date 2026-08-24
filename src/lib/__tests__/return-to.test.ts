@@ -57,6 +57,24 @@ describe('reading a destination back', () => {
         expect(readReturnTo('?next=//evil.example/steal')).toBeNull();
     });
 
+    it('REFUSES a backslash-prefixed URL (GHSA-wrjc-x8rr-h8h6)', () => {
+        /*
+         * The bypass of the check above. Browsers normalise a leading `/\` to `//`, so
+         * `/\evil.example` starts with exactly one slash and still resolves protocol-relative
+         * — which is why the advisory exists at all, against a library whose own guard had the
+         * same shape as ours. react-router 6 has no fix; v7 is a breaking change this app is
+         * not taking before kickoff (OPS-12).
+         *
+         * Not reachable through THIS app, because a HashRouter assigns `location.hash` and a
+         * fragment cannot leave the origin. Refused anyway: the unreachability is a property of
+         * the router, and this function is where the rule about attacker-controlled
+         * destinations is supposed to live.
+         */
+        const bs = String.fromCharCode(92);
+        expect(readReturnTo(`?next=${encodeURIComponent('/' + bs + 'evil.example')}`)).toBeNull();
+        expect(readReturnTo(`?next=${encodeURIComponent('/app' + bs + bs + 'evil.example')}`)).toBeNull();
+    });
+
     it('refuses anything that is not rooted', () => {
         expect(readReturnTo('?next=app/checkin/0842')).toBeNull();
         expect(readReturnTo('?next=javascript:alert(1)')).toBeNull();

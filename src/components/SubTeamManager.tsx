@@ -1,6 +1,6 @@
 import { TITLE_MAX_LENGTH } from '../lib/text-limits';
 import React, { useState } from 'react';
-import { Layers, Plus, Trash2, Check } from 'lucide-react';
+import { Layers, Plus, Trash2, Check, Pencil, X } from 'lucide-react';
 import { SubTeam, TeamMember } from '../types';
 import { useAppStore } from '../lib/store';
 import { useAccessState } from '../lib/entitlement';
@@ -17,8 +17,20 @@ interface SubTeamManagerProps {
 const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, getMemberDisplayName }) => {
     const [newSubTeamName, setNewSubTeamName] = useState('');
     const [editingSubTeamId, setEditingSubTeamId] = useState<string | null>(null);
+    /**
+     * Which sub-team is being renamed, and the draft (FEAT-14).
+     *
+     * Draft state, not a write-through to the store: this is a text field, and committing every
+     * keystroke would queue a sync push per character. Escape and the Cancel button therefore
+     * have something to discard — which is the half `SprintTaskDetail` got wrong for checklists
+     * (FEAT-04, next sprint), where Cancel could not revert because the edits had already
+     * mutated the store's own objects.
+     */
+    const [renamingId, setRenamingId] = useState<string | null>(null);
+    const [renameDraft, setRenameDraft] = useState('');
 
     const storeAddSubTeam = useAppStore((state) => state.addSubTeam);
+    const storeRenameSubTeam = useAppStore((state) => state.renameSubTeam);
     const storeRemoveSubTeam = useAppStore((state) => state.removeSubTeam);
     const storeToggleMemberInSubTeam = useAppStore((state) => state.toggleMemberInSubTeam);
     // A prior season's sub-teams and their assignments are history. `season_is_open` gates
@@ -30,6 +42,21 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
             storeAddSubTeam(newSubTeamName.trim());
             setNewSubTeamName('');
         }
+    };
+
+    const startRename = (id: string, currentName: string) => {
+        setRenamingId(id);
+        setRenameDraft(currentName);
+    };
+
+    const cancelRename = () => {
+        setRenamingId(null);
+        setRenameDraft('');
+    };
+
+    const commitRename = (id: string) => {
+        storeRenameSubTeam(id, renameDraft);
+        cancelRename();
     };
 
     return (
@@ -78,8 +105,65 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                     {subTeams.map((subTeam) => (
                         <div key={subTeam.id} className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
                             <div className="flex flex-wrap justify-between items-center gap-2 px-2.5 py-2 bg-slate-50 dark:bg-slate-700/50">
-                                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 min-w-0 truncate">{subTeam.name}</h4>
-                                <div className="flex gap-1.5 items-center shrink-0">
+                                {renamingId === subTeam.id ? (
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            maxLength={TITLE_MAX_LENGTH}
+                                            value={renameDraft}
+                                            onChange={(e) => setRenameDraft(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') commitRename(subTeam.id);
+                                                // Escape discards, which is the whole reason the
+                                                // draft is local state rather than the store.
+                                                if (e.key === 'Escape') cancelRename();
+                                            }}
+                                            aria-label={`Rename ${subTeam.name}`}
+                                            data-testid="rename-sub-team-input"
+                                            /*
+                                             * No `text-sm` here, deliberately. It was written
+                                             * and measured at 16px in a real browser: `.field`
+                                             * carries the iOS zoom floor and outranks a utility,
+                                             * so the class was in the DOM doing nothing — which
+                                             * is `docs/failure-modes.md` §5's whole subject.
+                                             */
+                                            className="field flex-1 min-w-0 py-1"
+                                        />
+                                        <IconButton
+                                            data-testid="rename-sub-team-save"
+                                            onClick={() => commitRename(subTeam.id)}
+                                            disabled={!renameDraft.trim()}
+                                            title={renameDraft.trim() ? 'Save name' : 'Enter a name'}
+                                            className="touch-target"
+                                            aria-label="Save name"
+                                        >
+                                            <Check size={16} />
+                                        </IconButton>
+                                        <IconButton
+                                            data-testid="rename-sub-team-cancel"
+                                            onClick={cancelRename}
+                                            title="Cancel rename"
+                                            className="touch-target"
+                                            aria-label="Cancel rename"
+                                        >
+                                            <X size={16} />
+                                        </IconButton>
+                                    </div>
+                                ) : (
+                                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 min-w-0 truncate">{subTeam.name}</h4>
+                                )}
+                                <div className={`flex gap-1.5 items-center shrink-0 ${renamingId === subTeam.id ? 'hidden' : ''}`}>
+                                    <IconButton
+                                        data-testid="rename-sub-team"
+                                        onClick={() => startRename(subTeam.id, subTeam.name)}
+                                        disabled={!canEdit}
+                                        title={canEdit ? 'Rename sub-team' : editRefusalReason}
+                                        className="touch-target"
+                                        aria-label={`Rename ${subTeam.name}`}
+                                    >
+                                        <Pencil size={15} />
+                                    </IconButton>
                                     <button
                                         onClick={() => setEditingSubTeamId(editingSubTeamId === subTeam.id ? null : subTeam.id)}
                                         disabled={!canEdit}

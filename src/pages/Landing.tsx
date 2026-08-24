@@ -275,7 +275,7 @@ export default function LandingPage() {
                 {/* Moving Background Screensaver */}
                 <div
                     className="absolute inset-0 z-0 opacity-40 animate-pan-bg mix-blend-lighten"
-                    style={{ backgroundImage: `url('${import.meta.env.BASE_URL}hero_bg.png')` }}
+                    style={{ backgroundImage: `url('${import.meta.env.BASE_URL}hero_bg.webp')` }}
                 ></div>
 
                 {/* Background Effects Gradient Overlay */}

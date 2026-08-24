@@ -7,6 +7,7 @@ export interface SubTeamSlice {
     subTeams: SubTeam[];
     setSubTeams: (subTeams: SubTeam[]) => void;
     addSubTeam: (name: string) => void;
+    renameSubTeam: (id: string, name: string) => void;
     removeSubTeam: (id: string) => void;
     toggleMemberInSubTeam: (subTeamId: string, teamMemberId: string) => void;
 }
@@ -44,6 +45,40 @@ export const createSubTeamSlice: SliceCreator<SubTeamSlice> = (set, get) => ({
         queueForSync('sub_teams', newSubTeam.id, 'create', {
             ...newSubTeam,
             teamId: currentTeamId
+        }).catch(console.error);
+    },
+
+    /**
+     * Rename a sub-team in place (FEAT-14).
+     *
+     * There was no way to do this. A typo in "Programing" meant deleting the sub-team and
+     * making a new one, and deleting it takes its member assignments with it — so the cost of
+     * a one-character mistake was re-assigning everybody on the team.
+     *
+     * The name is trimmed here rather than only at the input, because this is the store's
+     * contract and the input is not the only thing that could ever call it. An empty or
+     * unchanged name is a no-op: queueing an update that changes nothing would still be a
+     * push, a round trip and a coalesce, and on venue wifi that is not free.
+     */
+    renameSubTeam: (id: string, name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        const state = get();
+        const existing = state.subTeams.find((t: SubTeam) => t.id === id);
+        if (!existing) return;
+        // Same guard as every other write here: a prior season's sub-teams are history, and
+        // `season_is_open` refuses the UPDATE server-side regardless.
+        if (!canWriteToSeason(state.seasons, existing.seasonId, 'renameSubTeam')) return;
+        if (existing.name === trimmed) return;
+
+        const updated: SubTeam = { ...existing, name: trimmed };
+        set((s: any) => ({
+            subTeams: s.subTeams.map((t: SubTeam) => (t.id === id ? updated : t)),
+        }));
+        queueForSync('sub_teams', id, 'update', {
+            ...updated,
+            teamId: state.currentTeamId,
         }).catch(console.error);
     },
 

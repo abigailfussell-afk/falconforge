@@ -29,9 +29,24 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 
-const MIGRATION = 'supabase/migrations/20260827000000_title_length_limits.sql';
+/*
+ * TWO migrations now, and the test reads both.
+ *
+ * Sprint 19 capped eight columns in one file. Sprint 22 found the ninth — `managed_profiles`
+ * .full_name, the column a guardian types a CHILD'S name into — and capped it in a second file,
+ * because the first has been applied to production and a migration that has run is not edited.
+ *
+ * Reading both and requiring the union to equal `CAPPED` is what makes the second file
+ * discoverable: had this test kept reading only the first, adding the ninth column would have
+ * needed the list here changed anyway, and the failure would have said "no CHECK expressions
+ * found" rather than "you capped a column the list does not know about".
+ */
+const MIGRATIONS = [
+    'supabase/migrations/20260827000000_title_length_limits.sql',
+    'supabase/migrations/20260830000000_walk_b10_child_name_length.sql',
+];
 
-/** Every `title`/`name` column in the public schema, as of the Sprint 19 migration. */
+/** Every `title`/`name` column in the public schema, as of the Sprint 22 migration. */
 const CAPPED = [
     ['tasks', 'title'],
     ['meetings', 'title'],
@@ -41,9 +56,10 @@ const CAPPED = [
     ['match_plans', 'title'],
     ['competition_events', 'name'],
     ['teams', 'name'],
+    ['managed_profiles', 'full_name'],
 ] as const;
 
-const sql = readFileSync(MIGRATION, 'utf8');
+const sql = MIGRATIONS.map((m) => readFileSync(m, 'utf8')).join(String.fromCharCode(10));
 
 describe('WALK-A-11: the title limit is one number, not two', () => {
     it('states the same limit in the migration as in TITLE_MAX_LENGTH', () => {
@@ -55,7 +71,7 @@ describe('WALK-A-11: the title limit is one number, not two', () => {
         const limits = [...sql.matchAll(/char_length\(btrim\([a-z_]+\)\)\s*<=\s*(\d+)/g)].map((m) =>
             Number(m[1]),
         );
-        expect(limits.length, 'no CHECK expressions found — did the migration move?').toBe(
+        expect(limits.length, 'no CHECK expressions found — did a migration move?').toBe(
             CAPPED.length,
         );
         for (const limit of limits) expect(limit).toBe(TITLE_MAX_LENGTH);
@@ -96,6 +112,7 @@ describe('the inputs that write those columns carry the same cap', () => {
         'src/components/MatchPlanner.tsx',
         'src/components/meetings/EventFormModal.tsx',
         'src/components/events/CompetitionEvents.tsx',
+        'src/components/guardian/AddChildDialog.tsx',
     ];
 
     it.each(INPUTS)('%s caps its title input at TITLE_MAX_LENGTH', (file) => {

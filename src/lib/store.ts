@@ -303,7 +303,24 @@ export const useAppStore = create<AppState>()(
  * or too long on a laptop.
  */
 export function useStoreHydrated(): boolean {
-    const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
+    /*
+     * `persist?`, and `true` when it is absent.
+     *
+     * zustand's persist middleware attaches `store.persist` only when its storage resolves to
+     * something. `createJSONStorage(() => indexedDBStorage)` returns undefined if
+     * `indexedDBStorage` is undefined — which is exactly what happens under a test file whose
+     * inline `vi.mock` of `offline-db` omits that export — and then the middleware silently
+     * degrades to a plain store with no `.persist` at all. Reading `.hasHydrated()` off it
+     * threw, and the throw landed in whatever component asked, taking the whole route into its
+     * error boundary. Five test files carry that mock shape today, so the first component to
+     * call this hook on a commonly-rendered screen found it (Sprint 22, DashboardHome).
+     *
+     * `true` rather than `false` is the honest answer and not a convenience: with no persistence
+     * configured there is nothing coming back from storage, so waiting for it would be waiting
+     * forever. `false` would leave every caller permanently in its loading state, which is the
+     * failure mode that is hard to see rather than the one that is loud.
+     */
+    const [hydrated, setHydrated] = useState(() => useAppStore.persist?.hasHydrated() ?? true);
 
     useEffect(() => {
         if (hydrated) return;

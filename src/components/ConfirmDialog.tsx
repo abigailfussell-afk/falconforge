@@ -32,8 +32,17 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => (
     // stacked: confirmations are raised FROM other modals (z-50), so this sits above them.
     <Modal label={title} width="sm" stacked onClose={onCancel}>
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">{title}</h3>
-        <p className="text-slate-600 dark:text-slate-300 mb-6">{message}</p>
+        {/*
+          * `break-words` on both (WALK-B-10).
+          *
+          * Every confirmation in the app interpolates a user-typed value into these two strings
+          * — a child's name, a member's name, a season's name — inside the app's NARROWEST
+          * modal (`width="sm"`). A 120-character name with no spaces in it is now the longest
+          * thing that can arrive here, and without this it renders past the modal's edge and
+          * takes the buttons with it.
+          */}
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2 break-words">{title}</h3>
+        <p className="text-slate-600 dark:text-slate-300 mb-6 break-words">{message}</p>
         <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={onCancel} data-testid={cancelTestId}>
                 {cancelLabel}

@@ -63,9 +63,22 @@ it is the one every contributor and every agent should use.
 
 - **Node.js ≥ 20.19** (`.nvmrc` pins the version; `engines` in `package.json` enforces it).
   Vitest 4, jsdom 27 and `@vitejs/plugin-react` 5 all require it — v18 fails at install.
-- **Docker Desktop**, running. The local Supabase stack is containers.
+- **Docker Desktop**, running. The local Supabase stack is containers, and more of this repo
+  depends on it than is obvious: `npm run db:start`, `db:reset`, `db:verify`, `test:db`,
+  `test:rls`, `test:coverage`, `seed:review`, `seed:demo`, the Playwright pack, and
+  `npm run gate:db`. Only `npm run gate` — lint, unit, integration, build — runs without it.
 - The [Supabase CLI](https://supabase.com/docs/guides/cli), which ships as a devDependency
-  (pinned to CI's version — see `docs/environment-divergences.md` §6 for why the pin matters).
+  **pinned to an exact version** (2.114.0, no caret), the same one CI installs.
+  `src/test/__tests__/harness-invariants.test.ts` fails if the workflows and the devDependency
+  disagree. See `docs/environment-divergences.md` §6 for the two occasions they did.
+
+  > **If you already have a `supabase` on your PATH, it will be used in preference to this
+  > one.** `src/test/db/globalSetup.ts` tries PATH before `npx`, deliberately, because in CI the
+  > stack is started by `supabase/setup-cli` and the same binary should read its status. On a
+  > second machine that means a globally installed CLI of a different version reads the status of
+  > a stack the pinned one created — which is how a harness once disagreed with itself about
+  > whether the stack was running. `supabase --version` should say 2.114.0, or there should be no
+  > `supabase` on your PATH at all.
 
 ### From a fresh clone to a running app
 
