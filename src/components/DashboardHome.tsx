@@ -56,15 +56,28 @@ export default function DashboardHome() {
      * deliberately NOT one of them: every team is seeded with eight checklist items at
      * creation (B20), so counting it would make every team look used from the first second.
      *
-     * HYDRATING IS NOT EMPTY (§4). Before IndexedDB has rehydrated, every collection is `[]`,
-     * which is indistinguishable from a brand-new team — so a returning coach would be told
-     * how to get started for the first few hundred milliseconds of every cold open. While the
-     * store is still loading the header says neither thing.
+     * HYDRATING IS NOT EMPTY, AND NEITHER IS PULLING (§4). Two different kinds of "not yet",
+     * and the first version of this fix only handled one.
+     *
+     *   - Before IndexedDB has rehydrated, every collection is `[]`.
+     *   - On a device that has never seen this team — a new laptop, a cleared browser, the
+     *     shared pit tablet — rehydration finishes instantly with nothing in it and the data
+     *     arrives from the SERVER a moment later.
+     *
+     * The second was found by running the app, not by the five tests written for the first:
+     * signing in on a cold device and sampling the header every 100 ms showed the new-team copy
+     * at 102 ms and "Welcome back" at 212 ms. A tenth of a second on localhost is a wink; the
+     * same window on venue wifi is the whole of a coach's first impression, and what it says is
+     * "Nothing has been added yet" to a team with a season of work in it.
+     *
+     * `isLoading` is set for the duration of `fetchTeamData` (`server-pull.ts`), so it is the
+     * pull's own signal rather than a timer or a guess.
      */
     const hydrated = useStoreHydrated();
+    const isPulling = useAppStore((s) => s.isLoading);
     const hasAnyWork =
         tasks.length > 0 || scoutingReports.length > 0 || matchPlans.length > 0;
-    const greetingState: 'loading' | 'new' | 'returning' = !hydrated
+    const greetingState: 'loading' | 'new' | 'returning' = !hydrated || isPulling
         ? 'loading'
         : hasAnyWork
             ? 'returning'

@@ -69,6 +69,7 @@ beforeEach(() => {
         checklistsBySeason: {},
         seasons: [SEASON],
         currentSeasonId: 'season-1',
+        isLoading: false,
     });
 });
 
@@ -116,6 +117,30 @@ describe('the dashboard greeting', () => {
         await waitFor(() =>
             expect(screen.getByTestId('dashboard-greeting').textContent).toContain('Welcome back'),
         );
+    });
+
+    it('says neither thing while the first server pull is still running', async () => {
+        /*
+         * THE SECOND KIND OF "NOT YET", and the one the first version of this fix missed.
+         *
+         * On a device that has never seen this team, rehydration finishes instantly with
+         * nothing in it and the data arrives from the server a moment later. Measured in a real
+         * browser against a real build: the new-team copy at 102 ms, "Welcome back" at 212 ms.
+         * Five tests were green over that, because every one of them had the store already
+         * populated by the time it rendered — which is what `docs/failure-modes.md` §2 means by
+         * a test satisfied by the state the defect also produces.
+         *
+         * `isLoading` is set for the whole of `fetchTeamData`.
+         */
+        useAppStore.setState({ isLoading: true });
+        renderDashboard();
+
+        const greeting = screen.getByTestId('dashboard-greeting');
+        expect(greeting.textContent).not.toContain('Welcome back');
+        expect(screen.getByTestId('dashboard-greeting-sub').textContent).not.toMatch(
+            /getting-started/i,
+        );
+        expect(screen.queryByRole('button', { name: /getting-started guide/i })).toBeNull();
     });
 
     it('says neither thing while the store is still rehydrating', async () => {

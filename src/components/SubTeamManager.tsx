@@ -121,7 +121,14 @@ const SubTeamManager: React.FC<SubTeamManagerProps> = ({ subTeams, teamMembers, 
                                             }}
                                             aria-label={`Rename ${subTeam.name}`}
                                             data-testid="rename-sub-team-input"
-                                            className="field flex-1 min-w-0 py-1 text-sm"
+                                            /*
+                                             * No `text-sm` here, deliberately. It was written
+                                             * and measured at 16px in a real browser: `.field`
+                                             * carries the iOS zoom floor and outranks a utility,
+                                             * so the class was in the DOM doing nothing — which
+                                             * is `docs/failure-modes.md` §5's whole subject.
+                                             */
+                                            className="field flex-1 min-w-0 py-1"
                                         />
                                         <IconButton
                                             data-testid="rename-sub-team-save"
