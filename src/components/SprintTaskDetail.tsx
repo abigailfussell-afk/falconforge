@@ -139,168 +139,194 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                   * is the flex child that refuses to shrink and pushes a modal wider than its
                   * container. Measured at 375px rather than assumed.
                   */}
-                <fieldset disabled={!canEdit} className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor={`${fieldId}-type`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
-                            <select
-                                id={`${fieldId}-type`}
-                                value={task.type}
-                                onChange={(e) => onChange({ ...task, type: e.target.value as TaskType })}
-                                className="field"
-                            >
-                                <option value={TaskType.Feature}>Feature</option>
-                                <option value={TaskType.Bug}>Bug</option>
-                            </select>
+                {/*
+                  * THE SCROLL CONTAINER IS A DIV, AND THE FIELDSET IS INSIDE IT.
+                  *
+                  * `overflow-y-auto` used to sit on the <fieldset> itself, and a fieldset is not
+                  * a scroll container in Chromium — it lays its children out in an anonymous box
+                  * and simply refuses to scroll. It still REPORTS an overflowing `scrollHeight`,
+                  * which is what made this so hard to see.
+                  *
+                  * Measured on a Pixel 5 profile with the old markup: clientHeight 480,
+                  * scrollHeight 765, and setting `scrollTop = 99999` left `scrollTop` at **0**.
+                  * The Description textarea sat at y 546-674 inside a fieldset ending at 605 —
+                  * permanently unreachable, which is exactly what was reported: "I still can't
+                  * physically scroll down in the modal."
+                  *
+                  * THE FIRST ATTEMPT TO VERIFY THIS PASSED OVER THE DEFECT. It asserted
+                  * `scrollHeight > clientHeight` and called that "canScroll: true" — but that
+                  * property says the CONTENT overflows, not that the ELEMENT scrolls, and both
+                  * are true of the broken version. `docs/failure-modes.md` §2. The honest check
+                  * is to set `scrollTop` and see whether it moves, which is what the regression
+                  * test now does.
+                  *
+                  * The fieldset stays, because `disabled` on it is what makes every control
+                  * inside read-only in one attribute. It just no longer owns the scrolling.
+                  */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <fieldset disabled={!canEdit} className="min-w-0 p-4 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor={`${fieldId}-type`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Type</label>
+                                <select
+                                    id={`${fieldId}-type`}
+                                    value={task.type}
+                                    onChange={(e) => onChange({ ...task, type: e.target.value as TaskType })}
+                                    className="field"
+                                >
+                                    <option value={TaskType.Feature}>Feature</option>
+                                    <option value={TaskType.Bug}>Bug</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor={`${fieldId}-status`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
+                                <select
+                                    id={`${fieldId}-status`}
+                                    data-testid="task-status-select"
+                                    value={task.status}
+                                    onChange={(e) => onChange({ ...task, status: e.target.value as TaskStatus })}
+                                    className="field"
+                                >
+                                    {STATUS_COLUMNS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    {task.status === TaskStatus.Archived && (
+                                        <option value={TaskStatus.Archived}>Archived</option>
+                                    )}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor={`${fieldId}-subteam`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Sub-Team</label>
+                                <select
+                                    id={`${fieldId}-subteam`}
+                                    value={task.department}
+                                    onChange={(e) => onChange({ ...task, department: e.target.value })}
+                                    className="field"
+                                >
+                                    {subTeams.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor={`${fieldId}-assignee`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Assigned To</label>
+                                <select
+                                    id={`${fieldId}-assignee`}
+                                    value={task.assignedTo}
+                                    onChange={(e) => onChange({ ...task, assignedTo: e.target.value })}
+                                    className="field"
+                                >
+                                    <option value="">Unassigned</option>
+                                    {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m)}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor={`${fieldId}-due`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Due Date</label>
+                                <input
+                                    id={`${fieldId}-due`}
+                                    type="date"
+                                    value={toDateInputValue(task.dueDate)}
+                                    onChange={(e) => onChange({ ...task, dueDate: e.target.valueAsNumber })}
+                                    className="field"
+                                />
+                            </div>
                         </div>
+
                         <div>
-                            <label htmlFor={`${fieldId}-status`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Status</label>
-                            <select
-                                id={`${fieldId}-status`}
-                                data-testid="task-status-select"
-                                value={task.status}
-                                onChange={(e) => onChange({ ...task, status: e.target.value as TaskStatus })}
-                                className="field"
-                            >
-                                {STATUS_COLUMNS.map(s => <option key={s} value={s}>{s}</option>)}
-                                {task.status === TaskStatus.Archived && (
-                                    <option value={TaskStatus.Archived}>Archived</option>
-                                )}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor={`${fieldId}-subteam`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Sub-Team</label>
-                            <select
-                                id={`${fieldId}-subteam`}
-                                value={task.department}
-                                onChange={(e) => onChange({ ...task, department: e.target.value })}
-                                className="field"
-                            >
-                                {subTeams.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor={`${fieldId}-assignee`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Assigned To</label>
-                            <select
-                                id={`${fieldId}-assignee`}
-                                value={task.assignedTo}
-                                onChange={(e) => onChange({ ...task, assignedTo: e.target.value })}
-                                className="field"
-                            >
-                                <option value="">Unassigned</option>
-                                {teamMembers.map(m => <option key={m.id} value={m.id}>{getMemberDisplayName(m)}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor={`${fieldId}-due`} className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Due Date</label>
-                            <input
-                                id={`${fieldId}-due`}
-                                type="date"
-                                value={toDateInputValue(task.dueDate)}
-                                onChange={(e) => onChange({ ...task, dueDate: e.target.valueAsNumber })}
-                                className="field"
+                            <label htmlFor={`${fieldId}-description`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Description / Notes</label>
+                            <textarea
+                                id={`${fieldId}-description`}
+                                value={task.description}
+                                onChange={(e) => onChange({ ...task, description: e.target.value })}
+                                className="field h-32"
+                                placeholder="Describe the task, paste meeting minutes, or log bug details..."
                             />
                         </div>
-                    </div>
 
-                    <div>
-                        <label htmlFor={`${fieldId}-description`} className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Description / Notes</label>
-                        <textarea
-                            id={`${fieldId}-description`}
-                            value={task.description}
-                            onChange={(e) => onChange({ ...task, description: e.target.value })}
-                            className="field h-32"
-                            placeholder="Describe the task, paste meeting minutes, or log bug details..."
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Checklist</label>
-                        <div className="space-y-2">
-                            {/*
-                              * REPLACED, NEVER MUTATED (FEAT-04).
-                              *
-                              * These two handlers used to be `const c = [...task.checklist];
-                              * c[idx].completed = ...` — a shallow copy of the ARRAY whose item
-                              * objects are still the store's, because the route adapter in
-                              * `App.tsx` copies the task and its timeline and not its checklist.
-                              * So ticking a box wrote straight into the store, which broke the
-                              * contract this component's own docblock states: "Draft edits.
-                              * Nothing is persisted until onSave."
-                              *
-                              * What that cost: Cancel could not revert. The tick stayed on
-                              * screen, it was never queued for sync, and it vanished on the next
-                              * pull or reload — so a student ticked "wiring checked", closed the
-                              * dialog, and the item silently un-ticked itself later, on their
-                              * device only. `docs/failure-modes.md` §8: the control acted, and
-                              * then unacted, and nothing said so.
-                              */}
-                            {task.checklist.map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 group">
-                                    <input
-                                        type="checkbox"
-                                        checked={item.completed}
-                                        onChange={(e) =>
-                                            onChange({
-                                                ...task,
-                                                checklist: task.checklist.map((c, i) =>
-                                                    i === idx ? { ...c, completed: e.target.checked } : c,
-                                                ),
-                                            })
-                                        }
-                                        className="w-5 h-5 rounded text-forge-600 accent-forge-600 focus:ring-forge-500 cursor-pointer"
-                                    />
-                                    <input
-                                        ref={idx === task.checklist.length - 1 ? newChecklistRef : null}
-                                        type="text"
-                                        value={item.text}
-                                        placeholder="Enter checklist item..."
-                                        onChange={(e) =>
-                                            onChange({
-                                                ...task,
-                                                checklist: task.checklist.map((c, i) =>
-                                                    i === idx ? { ...c, text: e.target.value } : c,
-                                                ),
-                                            })
-                                        }
-                                        className="field py-1 flex-1"
-                                    />
-                                    <IconButton
-                                        danger
-                                        onClick={() => {
-                                            const newChecklist = task.checklist.filter((_, i) => i !== idx);
-                                            onChange({ ...task, checklist: newChecklist });
-                                        }}
-                                        className="p-1"
-                                        title="Delete item"
-                                    >
-                                        <Trash2 size={14} />
-                                    </IconButton>
-                                </div>
-                            ))}
-                            <button
-                                onClick={() => {
-                                    onChange({ ...task, checklist: [...task.checklist, { id: Date.now().toString(), text: '', completed: false }] });
-                                    setTimeout(() => {
-                                        newChecklistRef.current?.focus();
-                                    }, 50);
-                                }}
-                                className="text-sm text-forge-600 dark:text-forge-400 font-medium hover:underline flex items-center gap-1"
-                            >
-                                <Plus size={14} /> Add Checklist Item
-                            </button>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Checklist</label>
+                            <div className="space-y-2">
+                                {/*
+                                  * REPLACED, NEVER MUTATED (FEAT-04).
+                                  *
+                                  * These two handlers used to be `const c = [...task.checklist];
+                                  * c[idx].completed = ...` — a shallow copy of the ARRAY whose item
+                                  * objects are still the store's, because the route adapter in
+                                  * `App.tsx` copies the task and its timeline and not its checklist.
+                                  * So ticking a box wrote straight into the store, which broke the
+                                  * contract this component's own docblock states: "Draft edits.
+                                  * Nothing is persisted until onSave."
+                                  *
+                                  * What that cost: Cancel could not revert. The tick stayed on
+                                  * screen, it was never queued for sync, and it vanished on the next
+                                  * pull or reload — so a student ticked "wiring checked", closed the
+                                  * dialog, and the item silently un-ticked itself later, on their
+                                  * device only. `docs/failure-modes.md` §8: the control acted, and
+                                  * then unacted, and nothing said so.
+                                  */}
+                                {task.checklist.map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 group">
+                                        <input
+                                            type="checkbox"
+                                            checked={item.completed}
+                                            onChange={(e) =>
+                                                onChange({
+                                                    ...task,
+                                                    checklist: task.checklist.map((c, i) =>
+                                                        i === idx ? { ...c, completed: e.target.checked } : c,
+                                                    ),
+                                                })
+                                            }
+                                            className="w-5 h-5 rounded text-forge-600 accent-forge-600 focus:ring-forge-500 cursor-pointer"
+                                        />
+                                        <input
+                                            ref={idx === task.checklist.length - 1 ? newChecklistRef : null}
+                                            type="text"
+                                            value={item.text}
+                                            placeholder="Enter checklist item..."
+                                            onChange={(e) =>
+                                                onChange({
+                                                    ...task,
+                                                    checklist: task.checklist.map((c, i) =>
+                                                        i === idx ? { ...c, text: e.target.value } : c,
+                                                    ),
+                                                })
+                                            }
+                                            className="field py-1 flex-1"
+                                        />
+                                        <IconButton
+                                            danger
+                                            onClick={() => {
+                                                const newChecklist = task.checklist.filter((_, i) => i !== idx);
+                                                onChange({ ...task, checklist: newChecklist });
+                                            }}
+                                            className="p-1"
+                                            title="Delete item"
+                                        >
+                                            <Trash2 size={14} />
+                                        </IconButton>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => {
+                                        onChange({ ...task, checklist: [...task.checklist, { id: Date.now().toString(), text: '', completed: false }] });
+                                        setTimeout(() => {
+                                            newChecklistRef.current?.focus();
+                                        }, 50);
+                                    }}
+                                    className="text-sm text-forge-600 dark:text-forge-400 font-medium hover:underline flex items-center gap-1"
+                                >
+                                    <Plus size={14} /> Add Checklist Item
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <SprintTaskActivity
-                        timeline={task.timeline}
-                        teamMembers={teamMembers}
-                        onAddComment={onAddComment}
-                        onDeleteComment={onDeleteComment}
-                        canEdit={canEdit}
-                        refusalReason={refusalReason}
-                    />
-                </fieldset>
+                        <SprintTaskActivity
+                            timeline={task.timeline}
+                            teamMembers={teamMembers}
+                            onAddComment={onAddComment}
+                            onDeleteComment={onDeleteComment}
+                            canEdit={canEdit}
+                            refusalReason={refusalReason}
+                        />
+                    </fieldset>
+                </div>
 
                 <div className="shrink-0 p-4 border-t border-slate-100 dark:border-slate-700 flex justify-between bg-slate-100 dark:bg-slate-700">
                     <div className="flex gap-3">
