@@ -241,8 +241,24 @@ function App() {
                 <Route path="/legal/community" element={<CommunityGuidelines />} />
 
                 {/* Onboarding routes - require auth */}
-                <Route path="/onboarding" element={user ? <Onboarding /> : <Navigate to="/" replace />} />
-                <Route path="/create-team" element={user ? <CreateTeam /> : <Navigate to="/" replace />} />
+                {/*
+                  * `SignInFirst`, not `<Navigate to="/" replace />` — and the difference is a
+                  * diagnosed intermittent failure, not a tidy-up.
+                  *
+                  * `registration.spec.ts` failed about 1 run in 24, always on the
+                  * email-confirmation path, always with the same screenshot: the onboarding
+                  * picker instead of the create-team wizard. A momentarily falsy `user` sent the
+                  * coach to `/`, which bounces a signed-in user to `/app`, which for a user with
+                  * no team IS the picker. A control probe signing in normally and issuing the
+                  * same immediate `goto('/#/create-team')` reached the wizard 12/12, which is
+                  * what ruled out contention.
+                  *
+                  * So the destination was being discarded on the one journey every team takes
+                  * exactly once — `docs/failure-modes.md` §14, and the same shape `SignInFirst`
+                  * was written for four routes below.
+                  */}
+                <Route path="/onboarding" element={user ? <Onboarding /> : <SignInFirst />} />
+                <Route path="/create-team" element={user ? <CreateTeam /> : <SignInFirst />} />
                 <Route path="/join/:code?" element={<JoinTeam />} />
 
                 {/*
