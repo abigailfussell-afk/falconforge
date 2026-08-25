@@ -1,0 +1,33 @@
+FalconForge — All Rights Reserved
+
+Copyright (c) 2026 Kevin Fussell. All rights reserved.
+
+This repository is made publicly readable so that the people who use FalconForge,
+and anyone evaluating it, can inspect how it works — particularly how it handles
+the data of under-18 team members. Public visibility is not a grant of rights.
+
+No licence is granted. Without prior written permission from the copyright holder
+you may not copy, modify, merge, publish, distribute, sublicense, sell, host, or
+create derivative works from any part of this software, whether or not you charge
+for it.
+
+Two things are explicitly permitted:
+
+  1. Reading the source, and quoting short excerpts of it for the purpose of
+     review, security research, commentary, or teaching.
+
+  2. Privately reporting a security issue you find by doing so, to
+     support@falcon-forge.com. Reports made in good faith are welcome and will
+     not be treated as a breach of these terms.
+
+Third-party dependencies are covered by their own licences, which are unaffected
+by this file and are not superseded by it.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For licensing enquiries: support@falcon-forge.com

@@ -544,12 +544,17 @@ are ordered by hand, everything else ships on merge**.
 
 ## License
 
-**Undecided, and deliberately not stated as MIT.** This file has said "MIT" since the first
-commit and there has never been a `LICENSE` file to match — so the claim was unenforceable in
-both directions.
+**All rights reserved.** See [`LICENSE`](LICENSE). Decided 2026-08-24, after this file had
+claimed MIT since the first commit with no `LICENSE` file to match — a claim that was
+unenforceable in both directions.
 
-It needs a decision rather than a default: FalconForge is intended to be a paid product
-(plan §2), and MIT would let anyone run a competing instance of it. Until that decision is
-made, no licence is granted; the code is source-available for review, not for reuse.
+FalconForge is intended to be a paid product (plan §2), and MIT would have let anyone run a
+competing instance of it. So the repository stays **publicly readable and not licensed for
+reuse**: you may read the source and quote short excerpts for review, security research,
+commentary or teaching, and you may report a security issue privately to
+support@falcon-forge.com without that being treated as a breach. Everything else — copying,
+modifying, hosting, redistributing — needs written permission.
 
-Tracked in `FALCONFORGE_V2_PLAN.md` §8 as a decision for Kevin.
+Public visibility is deliberate rather than incidental: this application holds data about
+under-18 team members, and how it handles that should be inspectable by the people it
+affects.
