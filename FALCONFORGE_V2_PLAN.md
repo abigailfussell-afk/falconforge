@@ -453,7 +453,11 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 **Discovered / parking lot:**
 
 *From Sprint 29 and the 2026-08-24 production release (`v2/sprint-29-quick-wins`):*
-- **GitHub is forcing `actions/checkout@v4` and `actions/setup-node@v4` onto Node 24, and says so
+- **✅ FIXED 2026-08-24 (Kevin's call: bump now, on a green build).** All nine uses across `ci.yml`,
+  `deploy.yml` and `backup.yml` are `@v5`. Done deliberately rather than reactively, because
+  `setup-node` is what the Gate runs inside — the failure, when the shim is finally dropped, would
+  otherwise arrive on a commit that changed nothing and look like that commit's fault.
+  Was: **GitHub is forcing `actions/checkout@v4` and `actions/setup-node@v4` onto Node 24, and says so
   on every run.** Both CI and Deploy carry the annotation "Node.js 20 is deprecated… being forced
   to run on Node.js 24". Nothing is failing and the deploy is green, which is exactly why it is
   worth writing down: the runners are already executing something other than what the workflow
@@ -692,7 +696,20 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   because it is what leaves the fixture teams behind in the entry above, and because a Gate
   that dies at a random point is indistinguishable from a Gate that found something.
 
-- **White on `forge-600` fails AA on the primary button of every screen, and the fix is a
+- **✅ DECIDED AND DONE 2026-08-24 — PRIMARY MOVES TO `forge-700`, HOVER TO `forge-800`.** **Kevin, 2026-08-24.**
+  The ramp itself is unchanged; every white-on-orange surface shifts one stop darker, so 3.55:1
+  becomes **5.18:1**. **It was not one recipe.** `Button.tsx` held the primary variant and TEN other
+  places hand-rolled the same button — meetings (×5), the checklist, both training screens,
+  CreateTeam and GettingStarted — so changing the component alone would have left the failure on
+  most screens while looking fixed. Three further surfaces were white on `forge-500` (~2.9:1),
+  *worse* than the pair this decision was about, including the landing page's "Register a Team"
+  CTA and CreateTeam's submit, whose hover went LIGHTER. The 4×4 checkbox at `Landing.tsx:671`
+  keeps `forge-600`: it holds an icon, and WCAG's non-text bar is 3:1, which 3.55:1 already clears.
+  **The probe's exemption is deleted, not left unused**, which is the half that makes this stick —
+  an exemption outliving its cause is worse than no check, because it goes on excusing the exact
+  pair it names. Verified by axe: **zero owned violations across 9 scans**, and reverting one line
+  produces 7 `color-contrast` failures and a red probe, where yesterday it was green.
+  Was: **White on `forge-600` fails AA on the primary button of every screen, and the fix is a
   brand decision rather than an accessibility chore.** Measured by axe on the built app in dark
   mode: `#ffffff` on `#ea580c` at 13px is **3.55:1** against a 4.5:1 requirement, and it is the
   most-repeated contrast failure in the app by node count — seven of the nine Sprint 19 scans hit
@@ -755,7 +772,12 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   the next four times" is how a defect gets ignored for a season.
 
 *From Sprint 17 — D3 + WALK-B-03/04/05/09/11, `v2/sprint-17-onboarding-gate` (2026-08-23):*
-- **"Routes to request to join" was interpreted, and Kevin should confirm the reading.** D3
+- **✅ CONFIRMED 2026-08-24 — THE SHIPPED READING STANDS.** **Kevin, 2026-08-24.** A coach claiming a taken
+  number is shown which team holds it and sent to `/join`; they still need an invite code from that
+  team's admin. `request_to_join_team` is NOT being built: it is a second join path (which D3
+  forbids) and it would let anyone attach a pending row to any team by guessing five digits — B21's
+  shape with a number in place of the uuid. No code change; recorded so the question is closed
+  rather than re-asked. Was: **"Routes to request to join" was interpreted, and Kevin should confirm the reading.** D3
   says a coach claiming a taken number "routes to request to join, reusing the existing pending
   membership status and join RPC. Do not write a second join path." What shipped is a screen
   naming the team that holds the number and a button to the existing `/join` page — so the
@@ -913,13 +935,26 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 *From Package D of the August 2026 assessment — Sprint 13, `v2/sprint-13-beta-logistics`
 (2026-08-23):*
-- **The licence is undecided and now says so.** README claimed MIT from the first commit with
+- **✅ DECIDED 2026-08-24 — PROPRIETARY, ALL RIGHTS RESERVED.** **Kevin, 2026-08-24.** `LICENSE` now exists and
+  the README section matches it. The repository stays publicly READABLE and not licensed for reuse:
+  reading and short quotation for review, security research, commentary or teaching are explicitly
+  permitted, as is reporting a security issue privately — everything else needs written permission.
+  Public visibility is deliberate rather than left over: this application holds data about under-18
+  team members, and how it handles that should be inspectable by the people it affects.
+  Was: **The licence is undecided and now says so.** README claimed MIT from the first commit with
   no `LICENSE` file to match, so the claim was unenforceable in both directions. It needs a
   decision rather than a default: FalconForge is intended to be paid (§2), and MIT would let
   anyone run a competing instance. Until then the README says no licence is granted and the
   code is source-available for review. **Kevin's call**, and it should be made before the
   repo is shown to a beta cohort.
-- **The `docs/beta-ops.md` trigger text still waits on D7.** Package D's note says D7 gates it;
+- **✅ DONE 2026-08-24, and this entry was half stale.** D7 was NOT blank — `decisions.md` has
+  carried the answer since 2026-08-23 ("stay on Pages and Supabase free through the beta; move when
+  Stripe goes in"), re-confirmed by Kevin today. What was actually missing is the runbook text, and
+  `beta-ops.md` now has a **"When to move off the free tiers"** section stating the single trigger
+  — the first paid licence — rather than thresholds nobody is measuring. Both halves in one place:
+  Pages→Cloudflare (its ToS excludes commercial SaaS, so the hosting move and the first payment are
+  the same event) and Free→Pro, with the 7-day pause and 1-day log retention named as accepted
+  rather than solved. Was: **The `docs/beta-ops.md` trigger text still waits on D7.** Package D's note says D7 gates it;
   D7 is blank. The specific edits waiting are the two the decisions file proposes — adding
   "first paid licence" as a hard Cloudflare trigger (GitHub Pages' ToS excludes commercial
   SaaS) and moving Supabase Pro's trigger from "first paying customer" to "first real team
@@ -1079,7 +1114,12 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   anything, with a message that does not explain why. The honest fix is for the season the team
   was just created with to be selected from the create-team response rather than waited for, which
   is the same shape as Sprint 7 seeding the store from the create-team write.
-- **The under-18 nomination handshake is still open, and it is now unblocked.** §3's fix — the
+- **✅ DECIDED 2026-08-24 — THE HARD REFUSAL STAYS.** **Kevin, 2026-08-24.** `nominate_team_admin` continues to
+  refuse a `13_to_17` account outright. A student who has genuinely turned 18 corrects it on the
+  profile screen — which records the `age_18_plus` attestation — and can then be nominated. One
+  extra step, and the attestation trail stays intact, which is the thing that matters if it is ever
+  questioned. The refusal already points at the screen that fixes it. No code change.
+  Was: **The under-18 nomination handshake is still open, and it is now unblocked.** §3's fix — the
   successor confirms "I am 18 or older" on the screen where they accept the terms — was
   impossible before B27, because any correction reverted on the next boot. It is also no longer
   the only path: the profile control fixes the same staleness for the coach and mentor roles,
@@ -1118,7 +1158,10 @@ rather than by reading the templates:*
   `https://falcon-forge.com` and that is where a real user should land — but it is the one auth
   flow that ignores `authRedirectUrl()`, the helper written precisely so no flow grows its own
   answer. Worth one line and a test when the `token_hash` route above is built.
-- **⬜ The dashboard's Redirect URL allow-list is stale and nobody would notice.** It holds
+- **⬜ DECIDED 2026-08-24, ACTION STILL KEVIN'S (dashboard, not repo).** **Kevin, 2026-08-24.** Clean it to the
+  single entry `https://falcon-forge.com/`, dropping the dead `github.io` and `localhost:3000`
+  entries — both of which carry the `/auth/callback` path that is the Sprint 9 defect preserved as
+  configuration. **This is the one decision from today's set that no commit can carry out.** Was: **The dashboard's Redirect URL allow-list is stale and nobody would notice.** It holds
   `https://abigailfussell-afk.github.io/falconforge/auth/callback` (that origin 301s to the apex
   now, and `base` is `/`, so it can never match) and `http://localhost:3000/auth/callback` (dev
   targets the **local** stack per `.env.development.local`, so the hosted project never sees it).
@@ -1130,7 +1173,11 @@ rather than by reading the templates:*
 
 *From writing the data-erasure runbook (2026-08-18), found by running the SQL rather than by
 reading the schema:*
-- **🔴 `DELETE FROM team_members` is impossible for almost any real member, and four
+- **⏸ ACCEPTED 2026-08-24 — KEEP THE DOCUMENTED WORKAROUND.** **Kevin, 2026-08-24.** A migration touching five
+  constraints on a frozen schema, for a code path nothing takes: the UI sets `status = 'removed'`
+  and the runbook releases each reference with a single-column UPDATE first, which works and is
+  measured. Downgraded from 🔴 to accepted — it is a latent schema inaccuracy, not a live defect.
+  Revisit if anything ever needs a real member delete. Was: **`DELETE FROM team_members` is impossible for almost any real member, and four
   `ON DELETE SET NULL` actions can never fire.** `team_members` is referenced by five COMPOSITE
   foreign keys — `tasks(assigned_to, team_id)`, `meetings(created_by, team_id)`,
   `scouting_reports(created_by, team_id)`, `meeting_attendance(attested_by, team_id)` and
@@ -1245,7 +1292,10 @@ reading the schema:*
   team. Cosmetic. **Reviewed 2026-08-17 and deliberately left**, along with the item below —
   both are live-with-able and worth revisiting once beta teams have actually used the flow,
   rather than being guessed at now.
-- **`ReAttestationPrompt` fires for a guardian**, asking them to re-accept documents they
+- **⏸ DEFERRED TO LEGAL REVIEW 2026-08-24, deliberately.** **Kevin, 2026-08-24.** Suppressing it needs a rule for
+  what a guardian-only account is legally expected to accept, and that is a question for the pending
+  legal review rather than something to settle by writing code — consent records are the last thing
+  to guess at. Mildly annoying for guardians in beta; nothing is wrong. Was: **`ReAttestationPrompt` fires for a guardian**, asking them to re-accept documents they
   accepted for their children minutes earlier. The prompt is about the SIGNER's own
   attestations and is behaving correctly; whether a guardian-only account should be asked at
   all is a product question, not a bug. **Left open 2026-08-17**: suppressing it needs a rule
@@ -1332,7 +1382,12 @@ each is deferred because it is scoped work rather than because it is unimportant
   build green", and **neither the Gate nor either workflow runs `test:coverage`**. It needs
   Docker (it composes the db project), so the cheap version is one step in `ci.yml`'s `schema`
   job, which already has the stack up. Either wire it or stop calling it a ratchet.
-- **Nothing typechecks at commit time, and this retrospective proved it on itself.**
+- **✅ FIXED 2026-08-24 (Kevin's call: yes, take the ~10s).** `.lintstagedrc.mjs` runs
+  `tsc --noEmit` before `vitest related`. **The function form, exactly as this entry predicted** —
+  lint-staged appends staged filenames, and `tsc` given explicit files ignores `tsconfig.json`
+  entirely (no `paths`, no `jsx`, no `strict`), so the command form does not check less, it checks
+  something else and reports phantom errors. The `lint-staged` key moved out of `package.json` so
+  there is one config and not two. Was: **Nothing typechecks at commit time, and this retrospective proved it on itself.**
   `.husky/pre-commit` runs `lint-staged`, which runs `vitest related --run` and nothing else —
   no typecheck, no lint. Vitest does not typecheck either, so a commit in this very branch
   landed with `TaskType.Build` in a new test file (the enum has only `Feature` and `Bug`); it
@@ -1478,7 +1533,11 @@ work above; both verified by reading the code, neither fixed):*
   and 1i both draw the distinction; if nothing uses it by the end of the season, delete it.
 
 *From Sprint 7:*
-- **ROTATED 2026-08-22 by Kevin.** The credential in git history is now dead; scrubbing history
+- **✅ CLOSED 2026-08-24 — HISTORY STAYS AS IT IS.** **Kevin, 2026-08-24.** The credential is already dead, so
+  scrubbing protects nothing that is not already protected, while rewriting history across 29
+  branches would invalidate every clone and every commit SHA this §8 log references — a real cost
+  against a benefit of roughly zero. The repo also stays public, which the new proprietary licence
+  is written to accommodate rather than contradict. Was: **ROTATED 2026-08-22 by Kevin.** The credential in git history is now dead; scrubbing history
   remains optional and remains Kevin's call, and making the repo private would not have fixed it.
   Was: **A real account's password was committed to a PUBLIC repository and is still in git
   history.** `.agent/rules/coding-rules.md` and two `.agent/skills/*/SKILL.md` files carried
@@ -1618,7 +1677,10 @@ work above; both verified by reading the code, neither fixed):*
   elsewhere. Sprint 6 owns that screen and should say "transfer the admin role instead".
 - **`checklistTemplates` still has no management UI** (carried from Sprint 4 — Sprint 5
   did not add one; the checklist page gained an empty state, not a template manager).
-- **Tailwind v4 re-deferred, now post-beta.** Kevin's call at Sprint 5 kickoff: v4 renames
+- **✅ CLOSED 2026-08-24 — STAYING ON v3, NOT "DEFERRED".** **Kevin, 2026-08-24.** Stronger than the
+  recommendation, and deliberately so: v3 is not going anywhere, the app has a working token layer,
+  and calling this "post-beta" for a third sprint running made it read as pending work that was
+  never going to be scheduled. Revisit only if a v4-only feature is actually wanted. Was: **Tailwind v4 re-deferred, now post-beta.** Kevin's call at Sprint 5 kickoff: v4 renames
   or drops utilities this markup uses and changes the default border colour and ring
   width, which is a framework migration on top of a token pass three weeks from kickoff.
   The token layer landing in v3 does not make v4 harder later.

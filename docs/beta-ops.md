@@ -885,6 +885,37 @@ led by "Removed user".
 
 ---
 
+## When to move off the free tiers
+
+**One trigger, not a set of thresholds: the first paid licence.** (D7, Kevin 2026-08-23,
+re-confirmed 2026-08-24.) Everything below hangs off that single event, deliberately — the
+alternative was a set of measured limits, and nobody is measuring them.
+
+**GitHub Pages → Cloudflare, at the first paid licence.** This is the half that is not a
+preference. GitHub Pages' terms of service exclude commercial SaaS offerings. A *free* beta is
+defensibly outside that; a paid product served from Pages is not. So the hosting move and the
+first payment are the same event, and doing either one alone is the mistake — shipping Stripe on
+Pages breaches the terms, and moving hosting before there is revenue spends money and a weekend
+on nothing. The migration itself is planned in `docs/cloudflare-migration-plan.md`, which stays a
+plan until this fires.
+
+**Supabase Free → Pro, at the same moment.** The Free plan gives no backups you should rely on,
+a 7-day inactivity pause, and 1-day log retention. The nightly backup workflow is what makes
+accepting those survivable through the beta — a paused project is recoverable, an unbacked-up one
+is not — so the honest statement is that Free is acceptable *because* the backup exists, not
+because the limits are comfortable.
+
+**What is accepted, not solved, until then:** the 7-day pause (OPS-09) — see the section below
+for what it looks like when it bites — and 1-day log retention, which means a production incident
+older than a day cannot be investigated from logs at all.
+
+**What would move this trigger earlier:** a beta team storing something that would be genuinely
+painful to lose beyond what one nightly artifact covers, or an incident where 1-day log retention
+actually prevented an answer. Neither has happened; if one does, it belongs here as a dated line
+rather than as a general worry.
+
+---
+
 ## The site is down, or the project has paused
 
 Check in this order. Each step is cheap and rules out everything below it.

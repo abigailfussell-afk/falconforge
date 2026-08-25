@@ -23,9 +23,9 @@ jobs:
     name: Typecheck, test, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -75,7 +75,7 @@ jobs:
     name: Schema rebuilds from migrations, and enforces isolation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: supabase/setup-cli@v1
         with:
@@ -118,7 +118,7 @@ jobs:
       #
       # In the same job as `supabase start` because these need that stack. There is no
       # skip-if-absent path: if the database is missing, `npm run test:db` fails.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -144,7 +144,7 @@ jobs:
     name: Smoke pack drives the built app in a browser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: supabase/setup-cli@v1
         with:
@@ -165,7 +165,7 @@ jobs:
       - name: Start local stack (applies all migrations)
         run: supabase start
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm

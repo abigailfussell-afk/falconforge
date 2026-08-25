@@ -312,7 +312,7 @@ export default function CreateTeam() {
                             <button
                                 onClick={() => navigate('/join')}
                                 data-testid="taken-go-join"
-                                className="w-full flex items-center justify-center gap-2 bg-forge-600 hover:bg-forge-500 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                                className="w-full flex items-center justify-center gap-2 bg-forge-700 hover:bg-forge-800 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                             >
                                 <KeyRound size={18} />
                                 Join with an invite code

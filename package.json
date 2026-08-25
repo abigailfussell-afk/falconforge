@@ -82,10 +82,5 @@
     "vite-plugin-pwa": "^0.17.4",
     "vitest": "^4.0.17",
     "workbox-window": "^7.0.0"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "vitest related --run"
-    ]
   }
 }

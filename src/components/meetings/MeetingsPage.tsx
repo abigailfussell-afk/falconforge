@@ -83,7 +83,7 @@ export default function MeetingsPage() {
                         <Link
                             to="/app/checkin"
                             data-testid="enter-code"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-700"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-forge-700 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-800"
                         >
                             <KeyRound size={15} />
                             Enter code

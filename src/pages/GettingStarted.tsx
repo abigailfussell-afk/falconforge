@@ -250,7 +250,7 @@ export default function GettingStarted() {
                 </p>
                 <a
                     href={feedbackLink}
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-forge-600 px-3 py-2 text-sm font-medium text-white hover:bg-forge-700"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-forge-700 px-3 py-2 text-sm font-medium text-white hover:bg-forge-800"
                 >
                     <ExternalLink size={16} aria-hidden="true" />
                     Email support

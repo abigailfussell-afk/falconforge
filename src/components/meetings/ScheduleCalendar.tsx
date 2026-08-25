@@ -148,7 +148,7 @@ export default function ScheduleCalendar({ interactive = false }: ScheduleCalend
                             <p
                                 className={`mb-1 text-xs font-semibold ${
                                     isNow
-                                        ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-forge-500 text-white'
+                                        ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-forge-700 text-white'
                                         : inMonth
                                           ? 'text-slate-500 dark:text-slate-400'
                                           : 'text-slate-300 dark:text-slate-600'

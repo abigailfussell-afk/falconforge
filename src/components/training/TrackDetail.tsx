@@ -38,7 +38,7 @@ export default function TrackDetail() {
 
             <header>
                 <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-forge-600 text-base font-bold text-white">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-forge-700 text-base font-bold text-white">
                         {track.code}
                     </span>
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">

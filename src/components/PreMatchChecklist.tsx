@@ -180,7 +180,7 @@ const PreMatchChecklist: React.FC = () => {
                                 <button
                                     data-testid="checklist-empty-add"
                                     onClick={() => setIsEditingChecklist(true)}
-                                    className="touch-target gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-forge-600 text-white hover:bg-forge-700 transition-colors"
+                                    className="touch-target gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-forge-700 text-white hover:bg-forge-800 transition-colors"
                                 >
                                     Add the first item
                                 </button>

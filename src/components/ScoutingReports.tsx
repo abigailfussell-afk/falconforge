@@ -266,7 +266,7 @@ const ScoutingReports: React.FC = () => {
                             onClick={() => setView('summary')}
                             aria-pressed={view === 'summary'}
                             title="Team summary"
-                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'summary' ? 'bg-forge-500 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'summary' ? 'bg-forge-700 text-white' : 'text-slate-600 dark:text-slate-300'}`}
                         >
                             <Table2 size={15} /><span className="hidden sm:inline">Summary</span>
                         </button>
@@ -276,7 +276,7 @@ const ScoutingReports: React.FC = () => {
                             onClick={() => setView('cards')}
                             aria-pressed={view === 'cards'}
                             title="Individual reports"
-                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'cards' ? 'bg-forge-500 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                            className={`touch-target px-2.5 flex items-center gap-1 text-xs font-medium ${view === 'cards' ? 'bg-forge-700 text-white' : 'text-slate-600 dark:text-slate-300'}`}
                         >
                             <LayoutGrid size={15} /><span className="hidden sm:inline">Reports</span>
                         </button>

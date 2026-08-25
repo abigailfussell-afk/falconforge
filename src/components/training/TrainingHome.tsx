@@ -82,7 +82,7 @@ export default function TrainingHome() {
                                 className="group flex flex-col gap-2 bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card hover:shadow-raised hover:border-forge-500/50 transition-all"
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forge-600 text-sm font-bold text-white">
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forge-700 text-sm font-bold text-white">
                                         {track.code}
                                     </span>
                                     <h3 className="flex-1 text-sm font-bold text-slate-800 dark:text-white">

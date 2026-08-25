@@ -103,7 +103,7 @@ function CoachCard({ meetingId, now }: { meetingId: string; now: number }) {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                         <Link
                             to={`/app/meetings/${next.id}`}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-700"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-forge-700 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-800"
                         >
                             <QrIcon size={14} />
                             Show QR
@@ -190,7 +190,7 @@ function StudentCard({
                         // `OpenCheckIns` card is the fast path, and it asks for the code.
                         <Link
                             to="/app/checkin"
-                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-700"
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-forge-700 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-800"
                         >
                             <QrIcon size={14} />
                             Enter code to check in
