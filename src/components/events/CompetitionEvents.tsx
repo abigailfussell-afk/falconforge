@@ -197,7 +197,23 @@ export default function CompetitionEvents() {
                                             : 'border-slate-200 bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-700/50'
                                     }`}
                                 >
-                                    <span className="block truncate font-semibold text-slate-800 dark:text-white">
+                                    {/*
+                                      * `line-clamp-2`, not `truncate`. Measured at 375px: this
+                                      * box is 239px and a real event name is 529px, so one line
+                                      * rendered "FIRST Tech Challenge Michig…" — which does not
+                                      * distinguish two Michigan events, and identifying the
+                                      * event is the only job this row has. Two lines fit the
+                                      * distinguishing part; the clamp still bounds the row so a
+                                      * 120-character name cannot push the list apart.
+                                      *
+                                      * NO `block` HERE, and it is not redundant styling — it is
+                                      * load-bearing. `line-clamp-2` sets `display: -webkit-box`,
+                                      * and Tailwind emits `.block{display:block}` LATER in the
+                                      * stylesheet, so the two cancel and the clamp silently does
+                                      * nothing. Written with `block` first and caught by counting
+                                      * the rendered lines: three, not two.
+                                      */}
+                                    <span className="line-clamp-2 font-semibold text-slate-800 dark:text-white">
                                         {event.name}
                                     </span>
                                     <span className="block text-xs text-slate-500 dark:text-slate-400">
@@ -228,10 +244,23 @@ export default function CompetitionEvents() {
                 )}
 
                 {/* Manual creation, always available. D2's substrate. */}
+                {/*
+                  * `basis-full sm:basis-0` on the name, for the THIRD time in this codebase.
+                  *
+                  * Same trap as the roster row and the same reason it looks safe: the container
+                  * is `flex-wrap`, the name is `min-w-0 flex-1`. But `flex-1` is `flex: 1 1 0%`,
+                  * so the name's HYPOTHETICAL size is zero, while the code (`w-32 shrink-0`) and
+                  * the date (`w-auto shrink-0`, a native picker) are rigid. Everything therefore
+                  * "fits" on one line, the wrap never triggers, and the only compressible item
+                  * absorbs the whole deficit.
+                  *
+                  * Measured at 375px: the event name — the one field that is required — rendered
+                  * about 60px wide and showed "Ev".
+                  */}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                     <input
                         data-testid="new-event-name"
-                        className="field min-w-0 flex-1"
+                        className="field min-w-0 basis-full sm:basis-0 flex-1"
                         placeholder="Event name"
                         maxLength={TITLE_MAX_LENGTH}
                         value={newName}
