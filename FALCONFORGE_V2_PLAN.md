@@ -452,6 +452,38 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From Sprint 30 — three mobile defects Kevin found on a phone, `v2/sprint-30-mobile-modals`
+(2026-08-24):*
+- **🔴 `npm run gate` silently repoints `dist/` at PRODUCTION, and I nearly reviewed the
+  hosted database because of it.** The Gate ends in `npm run build`, which is `vite build` with no
+  `--mode`, so it loads `.env.local` — and `.env.local` is production, deliberately. Any
+  `vite preview` afterwards is therefore serving a bundle wired to the real project. Caught here
+  only because a seeded local account failed to log in: the build had reached production's GoTrue
+  and correctly told me the account did not exist. **A login attempt hit production before the
+  cause was found.** This is `docs/environment-divergences.md` §8's shape with a new cause — that
+  entry blames a `test:e2e` run for the same outcome, and the Gate does it far more often. Cheap
+  fixes, none taken yet: have `capture`/probe scripts assert the bundle's Supabase ref before
+  measuring anything (`probe-*.mjs` already refuse to ROUTE to `*.supabase.co`, which is a
+  different guard and did not help), or give the Gate its own output directory so `dist/` is never
+  ambiguous. The strongest version is for the preview server to refuse to start on a
+  production-wired bundle unless asked.
+- **The Competitions schedule is an edit form with no read-only view, and that is most of why the
+  page is "unusable" on a phone.** Every match renders as a phase `<select>`, a number input, and
+  four team-number/team-name/surrogate rows — 12 matches is **168 form controls** and roughly
+  4,200px of vertical form at 375px. There is no way to simply LOOK at your schedule, which is the
+  thing a coach does at a venue between matches. The layout defects in it are fixed; this is a
+  design decision and belongs to whoever owns D2's next pass. The honest shape is a compact read
+  view with an explicit edit affordance, not a denser form.
+- **Nothing in this repo can observe a mobile URL bar, and two of this sprint's three defects
+  lived in that gap.** `max-h-modal` was `85vh` for as long as it existed, under a comment
+  describing `dvh`; headless Chromium at 375×812 has no URL bar, so the two units are identical
+  there and Playwright measured the modal at 690.2px inside 812px with nothing below the fold.
+  Both new ratchets in `harness-invariants.test.ts` are source-level for exactly this reason, and
+  they are weaker than a measurement. Closing the gap properly means a real device or a service
+  that emulates one; `docs/environment-divergences.md` §10 already records that the `mobile` e2e
+  project is Chromium wearing an iPhone's metrics rather than WebKit, and this is the same debt
+  showing up in a second form.
+
 *From Sprint 29 and the 2026-08-24 production release (`v2/sprint-29-quick-wins`):*
 - **✅ FIXED 2026-08-24 (Kevin's call: bump now, on a green build).** All nine uses across `ci.yml`,
   `deploy.yml` and `backup.yml` are `@v5`. Done deliberately rather than reactively, because
