@@ -870,4 +870,38 @@ describe('mobile defects no runtime check in this repo can reach', () => {
             'a bordered band painted dark:bg-slate-900 is the page colour — it reads as the modal fading through',
         ).toEqual([]);
     });
+    it('no <fieldset> is asked to be a scroll container', () => {
+        /*
+         * A `<fieldset>` is not a scroll container in Chromium: it lays its children out in an
+         * anonymous box and refuses to scroll. It still REPORTS an overflowing `scrollHeight`,
+         * which is what makes this so easy to miss — the obvious check,
+         * `scrollHeight > clientHeight`, is TRUE of the broken version, and the first attempt to
+         * verify this defect duly reported "canScroll: true" over a task modal whose Description
+         * field could not be reached at all.
+         *
+         * Measured on a Pixel 5 profile before the fix: clientHeight 480, scrollHeight 765, and
+         * setting `scrollTop = 99999` left `scrollTop` at 0.
+         *
+         * `scripts/probe-modal-scroll.mjs` is the real proof — it sets `scrollTop` and asserts it
+         * MOVED. This ratchet exists because that probe needs Docker and a built bundle, while
+         * the Gate runs everywhere: keep the cheap check close to the code and the expensive one
+         * for behaviour.
+         *
+         * Put `overflow` on a wrapping div and leave the fieldset for its `disabled` semantics,
+         * which is the one thing it is genuinely good at.
+         */
+        const files = sourceFiles('src').filter((f) => !f.includes('__tests__'));
+        const offenders: string[] = [];
+        for (const f of files) {
+            for (const m of readFileSync(f, 'utf8').matchAll(/<fieldset[^>]*>/g)) {
+                if (/overflow-(y-|x-)?(auto|scroll)/.test(m[0])) {
+                    offenders.push(`${f.slice(repoRoot.length + 1)}  ${m[0].slice(0, 100)}`);
+                }
+            }
+        }
+        expect(
+            offenders,
+            'a <fieldset> cannot scroll in Chromium — put overflow on a wrapping div instead',
+        ).toEqual([]);
+    });
 });
