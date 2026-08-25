@@ -84,16 +84,6 @@ export const ADMIN_TRANSFER_REQUIRED_ATTESTATIONS: AttestationType[] = [
 ];
 
 /**
- * Attestations required for a member joining an existing team: none.
- *
- * Empty on purpose rather than by omission — signup already collected privacy and guidelines,
- * and asking again at join time would be a second consent for the same thing. Kept as a named
- * constant so the join flow states that it asks for nothing, instead of the question never
- * having been considered.
- */
-export const MEMBER_REQUIRED_ATTESTATIONS: AttestationType[] = [];
-
-/**
  * Has this user accepted the CURRENT version of everything in `types`?
  *
  * The version split is deliberate and documented in the Sprint 6 migration: the DATABASE asks
