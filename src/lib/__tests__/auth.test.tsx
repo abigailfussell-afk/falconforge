@@ -2,7 +2,7 @@ import React from 'react';
 import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { AuthProvider, useAuth } from '../auth';
+import { AuthProvider, useAuth, authRedirectUrl } from '../auth';
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
 import { PROFILE_CACHE_KEY } from '../profile-cache';
@@ -120,6 +120,12 @@ describe('auth.tsx', () => {
       email: 'test@test.com',
       password: 'pwd',
       options: {
+        // Signup was the ONE auth flow building its confirmation link from Site URL alone, so a
+        // confirmation started from localhost or the github.io origin sent the user to
+        // production. Asserted here as the exact value rather than "some string", because the
+        // helper is the point: recovery, OAuth and the email-change round trip all pass this
+        // same one so that no flow can grow its own answer.
+        emailRedirectTo: authRedirectUrl(),
         data: {
           full_name: 'John Doe',
           age_classification: null,

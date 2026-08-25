@@ -490,6 +490,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email,
             password,
             options: {
+                /*
+                 * The one auth flow that was building its link from Site URL and Site URL only.
+                 *
+                 * Recovery, OAuth and the email-change round trip all pass `authRedirectUrl()` —
+                 * the helper exists precisely so that no flow grows its own answer — and signup
+                 * did not, so a confirmation started from `localhost` or the `github.io` origin
+                 * sent the user to production.
+                 *
+                 * CORRECT BY ACCIDENT rather than broken, which is why it survived: Site URL is
+                 * `https://falcon-forge.com` and that IS where a real user should land. It stops
+                 * being correct the moment anyone confirms a signup from anywhere else, which is
+                 * every local run of the registration flow.
+                 */
+                emailRedirectTo: authRedirectUrl(),
                 data: {
                     full_name: fullName,
                     age_classification: ageClassification || null,
