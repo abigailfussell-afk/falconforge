@@ -12,7 +12,7 @@ import {
     formatCode,
     parseCode,
 } from '../../lib/meetings';
-import { getMemberDisplayName } from '../../lib/member-utils';
+import { getMemberDisplayName, getMemberInitials } from '../../lib/member-utils';
 import { useSchedule, useMemberAttendance } from './useSchedule';
 import { formatClock, formatFullDate, formatTimeRange } from './format';
 import Button from '../ui/Button';
@@ -341,12 +341,19 @@ export default function CheckIn() {
                 {currentMember && (
                     <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
                         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-forge-100 dark:bg-forge-900/40 text-xs font-bold text-forge-600 dark:text-forge-300">
-                            {getMemberDisplayName(currentMember)
-                                .split(/\s+/)
-                                .map((part) => part[0])
-                                .join('')
-                                .slice(0, 2)
-                                .toUpperCase()}
+                            {/*
+                              * The NINTH implementation of initials in this repo, and it
+                              * disagreed with the canonical one. `member-utils` takes the FIRST
+                              * and LAST initial; this took the first two words. "Mary Jane
+                              * Watson" is `MW` on the roster and was `MJ` here — and the
+                              * check-in avatar and the roster avatar are two screens a coach
+                              * can have open at once.
+                              *
+                              * `getMemberDisplayName` was already imported from that module in
+                              * this very file, so the copy was never even saving an import.
+                              * CLAUDE.md principle 9.
+                              */}
+                            {getMemberInitials(currentMember)}
                         </span>
                         <div className="min-w-0">
                             <p className="truncate text-sm font-bold text-slate-800 dark:text-white">

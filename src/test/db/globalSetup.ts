@@ -62,6 +62,78 @@ function readStackEnv(): Record<string, string> {
     return env;
 }
 
+/**
+ * The team-number range `fixtures.ts` allocates from, and nothing else does.
+ *
+ * `nextFixtureTeamNumber()` counts up from 30000, so every db-fixture team is 30001-39999.
+ * Verified disjoint from every other producer before this sweep was written, because a sweep
+ * that took out a developer's own data would be far worse than the problem it solves:
+ * `seed-review-states.mjs` uses four-digit numbers (9000, 4321, 7777, 2468, 9099) plus 12345,
+ * `seed-demo-team.mjs` uses 14822, and the e2e pack's `uniqueTeamNumber()` draws from
+ * 50000-95000.
+ */
+const FIXTURE_TEAM_NUMBER_PATTERN = '^3[0-9]{4}$';
+
+/**
+ * Delete fixture teams a previous run did not live long enough to clean up.
+ *
+ * `Fixtures.cleanup()` only runs if the process REACHES it. Kill a run part-way — Ctrl-C, a CI
+ * timeout, an OOM, or the exit-127 death this repo has been chasing — and its teams survive at
+ * 30001, 30002… The next run's very first `createTeam` then fails
+ * `duplicate key value violates unique constraint "teams_program_number_unique"` and takes
+ * TWENTY SUITES down with an error about the fixture rather than about the test. Observed twice
+ * while closing Sprint 19.
+ *
+ * And it is self-sustaining: the collided run also dies before its own cleanup, so the state
+ * persists until someone runs `db:verify` or deletes the rows by hand. Sweeping here breaks that
+ * cycle, which is the half the alternative fix (a random per-run base) does not do.
+ *
+ * The fixture comment says the numbering exists so a shared number cannot "take the whole of
+ * `tenant-isolation` down with an error about the fixture". Leftovers are how it did anyway.
+ *
+ * FAILS LOUDLY. A sweep that swallowed its own error would hand the run right back to the
+ * duplicate-key cascade, with one more layer of indirection between the symptom and the cause.
+ */
+function sweepOrphanedFixtureTeams(): void {
+    /*
+     * `psql` through the running container, rather than adding a Postgres client to this file:
+     * `db:assert` already reaches the database exactly this way, so there is one mechanism here
+     * and not two. The container name is fixed by `supabase/config.toml`'s `project_id`.
+     *
+     * THE SQL GOES ON STDIN, NOT IN AN ARGUMENT, and the first version of this got it wrong in
+     * the way `docs/environment-divergences.md` warns about. With `shell: true` on Windows the
+     * pattern `^3[0-9]{4}$` is handed to cmd, which treats `^` as its escape character and `$`
+     * as its own — psql then received a mangled statement and answered
+     * `syntax error at or near "DELETE"`. `-f -` with the statement piped in never touches a
+     * shell parser, which is exactly why `db:assert` is written that way.
+     *
+     * `shell` is therefore false as well. `docker` is a real .exe on PATH, so `execFileSync`
+     * finds it without one.
+     */
+    const sql = `DELETE FROM teams WHERE team_number ~ '${FIXTURE_TEAM_NUMBER_PATTERN}';`;
+    try {
+        const out = execFileSync(
+            'docker',
+            ['exec', '-i', 'supabase_db_falconforge', 'psql', '-U', 'postgres', '-d', 'postgres',
+                '-v', 'ON_ERROR_STOP=1', '-tA', '-f', '-'],
+            { encoding: 'utf8', input: sql, stdio: ['pipe', 'pipe', 'pipe'] },
+        );
+        const removed = Number((/DELETE (\d+)/.exec(out) ?? [])[1] ?? 0);
+        if (removed > 0) {
+            console.warn(
+                `[globalSetup] swept ${removed} orphaned fixture team(s) left by an interrupted run. ` +
+                'If this number is never zero, something is killing the db suite before cleanup.',
+            );
+        }
+    } catch (err) {
+        throw new Error(
+            'Could not sweep orphaned fixture teams. The db suite will fail on a duplicate team ' +
+            'number if any are left over; clear them with `npm run db:reset`.\n' +
+            (err instanceof Error ? err.message : String(err)),
+        );
+    }
+}
+
 export default function setup() {
     const env = readStackEnv();
 
@@ -79,4 +151,6 @@ export default function setup() {
     process.env.SUPABASE_SERVICE_ROLE_KEY = env.SERVICE_ROLE_KEY;
     process.env.SUPABASE_DB_URL = env.DB_URL;
     process.env.SUPABASE_JWT_SECRET = env.JWT_SECRET;
+
+    sweepOrphanedFixtureTeams();
 }

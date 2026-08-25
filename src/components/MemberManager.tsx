@@ -528,8 +528,36 @@ export default function MemberManager({ teamId, teamMembers, onMembersChange }: 
                                 className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg"
                             >
                                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center">
+                                    {/*
+                                      * `basis-full sm:basis-0` is the whole fix, and the class it
+                                      * replaces looked like it already handled this.
+                                      *
+                                      * The row is `flex-wrap`, so it reads as safe. It is not. The
+                                      * controls beside this column (`role` select + Seated toggle)
+                                      * are a flex container with the default `min-width: auto`,
+                                      * which resolves to their max-content width — they will not
+                                      * shrink below ~249px. This column carried `flex-1`, i.e.
+                                      * `flex: 1 1 0%`, so its HYPOTHETICAL size is 0: the two
+                                      * children therefore always "fit" on one line, the wrap never
+                                      * triggers, and this column absorbs the entire deficit alone.
+                                      *
+                                      * Measured at 375px before the fix: this column 32px against
+                                      * a 293px row, the member's name 18px wide with 204px of text
+                                      * in it, and the 32px avatar rendered THREE pixels across.
+                                      * One character of a name was visible.
+                                      *
+                                      * A basis of 100% below `sm` gives the name a line of its own
+                                      * and pushes the controls onto the next one, which is what
+                                      * `flex-wrap` was there to do all along.
+                                      */}
+                                    <div className="flex items-center gap-3 min-w-0 basis-full sm:basis-0 flex-1">
+                                        {/*
+                                          * `shrink-0` because this is a fixed 32px circle, not a
+                                          * flexible one. Without it the avatar is compressible and
+                                          * was measured at 3px wide — a squashed ellipse behind an
+                                          * icon that no longer fitted inside it.
+                                          */}
+                                        <div className="w-8 h-8 shrink-0 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center">
                                             {getRoleIcon(member.role)}
                                         </div>
                                         <div className="min-w-0">
