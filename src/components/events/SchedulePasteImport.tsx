@@ -56,7 +56,7 @@ export default function SchedulePasteImport({
 
     return (
         <Modal label="Import a schedule" width="dialog" className="flex flex-col overflow-hidden" onClose={onCancel}>
-            <div className="border-b border-slate-200 bg-slate-50 p-4 text-lg font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <div className="border-b border-slate-200 bg-slate-50 p-4 text-lg font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-700/50 dark:text-white">
                 Import a schedule
             </div>
 
@@ -259,7 +259,7 @@ export default function SchedulePasteImport({
                 )}
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/50">
                 <Button variant="secondary" onClick={onCancel} data-testid="paste-cancel">
                     <X size={15} /> Cancel
                 </Button>
