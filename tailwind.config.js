@@ -168,8 +168,27 @@ export default {
         table: '36rem',
       },
       maxHeight: {
-        /** A modal's body. Leaves room for the browser chrome and a phone's URL bar. */
-        modal: '85vh',
+        /**
+         * A modal's body.
+         *
+         * `dvh`, NOT `vh`, and the difference is the whole bug. This was `85vh` under a comment
+         * saying it "leaves room for the browser chrome and a phone's URL bar" — which is exactly
+         * what `vh` does not do. `vh` resolves against the LARGE viewport, the one you get with
+         * the URL bar hidden, so on a phone with the bar showing, 85vh is measured against a
+         * taller viewport than the one you can actually see. A tall modal's footer — the row with
+         * Save and Cancel on it — lands under the browser chrome, and the panel is
+         * `overflow-hidden`, so there is nothing to scroll to reach it.
+         *
+         * `dvh` tracks the viewport that is actually visible, which is what the original comment
+         * was describing.
+         *
+         * INVISIBLE TO EVERY CHECK WE HAVE, which is why it survived: a desktop Chromium resized
+         * to 375x812 has no URL bar, so `vh` and `dvh` are identical there and the modal fits
+         * perfectly. Playwright measured it at 690.2px inside 812px with nothing below the fold.
+         * Same shape as the `pointer: coarse` artefact in `docs/failure-modes.md` §11 — the
+         * measurement environment cannot exhibit the defect, so the probe reports health.
+         */
+        modal: '85dvh',
         /** A scrollable list inside a panel, before it takes over the page. */
         panel: '30rem',
       },
