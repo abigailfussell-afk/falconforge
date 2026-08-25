@@ -34,20 +34,23 @@ const AXE = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 const OWNED = new Set(['select-name', 'button-name', 'color-contrast', 'label', 'aria-input-field-name']);
 
 /**
- * PARKED, and named rather than filtered.
+ * THE PARKED COLOUR PAIR IS GONE, BECAUSE THE DECISION IT WAS WAITING ON WAS MADE.
  *
- * White on `forge-600` (#ea580c) measures 3.55:1 at 13 px, which fails AA — and it is the
- * PRIMARY action button on every screen, so it is the single most-repeated contrast failure in
- * the app. It is also the brand orange (CLAUDE.md principle 8), and WALK-A-09's evidence names
- * three ratios of which this is not one: it is a new discovery, so under the sprint rules it
- * goes to the plan's §8 parking lot with its numbers rather than into this diff.
+ * This used to hold `/foreground color: #ffffff, background color: #ea580c/` — white on
+ * `forge-600`, measured at 3.55:1 against a 4.5:1 bar, on the primary action button of every
+ * screen. It was excused rather than filtered because the forge ramp is Kevin's call under
+ * CLAUDE.md principle 8, not an agent's, and Sprint 19 had no mandate to change the brand.
  *
- * Listed here BY ITS MEASURED COLOUR PAIR rather than by rule id, so that parking the button
- * cannot also park the secondary-text failures this sprint does own — they share the rule id
- * `color-contrast` and nothing else. The probe still prints it every run; what it does not do
- * is fail on it.
+ * Kevin decided on 2026-08-24: primary moves to `forge-700` (#c2410c, 5.18:1) and hover to
+ * `forge-800`. So the exemption is DELETED rather than kept-and-unused.
+ *
+ * That distinction is the whole point. An exemption left in place after its cause is fixed is
+ * strictly worse than no check at all: it goes on silently excusing the exact pair it names, so
+ * a regression back to `bg-forge-600 text-white` would keep this probe green while reintroducing
+ * the most-repeated contrast failure the app has ever had. `color-contrast` is in `OWNED`, so
+ * with this removed the pair now FAILS the probe, which is what makes the decision enforced
+ * rather than merely applied.
  */
-const PARKED_CONTRAST = /foreground color: #ffffff, background color: #ea580c/;
 
 /**
  * 32 px, not 44. `touch-target` promises 44 and is opt-in for PRIMARY actions; the walkthrough
@@ -109,19 +112,10 @@ try {
                 })),
             }));
         });
-        // Split the parked colour pair off BEFORE counting, and keep it so it still prints.
-        const parked = [];
-        const owned = result
-            .filter((v) => OWNED.has(v.id))
-            .map((v) => {
-                const keep = v.nodes.filter((n) => !PARKED_CONTRAST.test(n.summary));
-                parked.push(...v.nodes.filter((n) => PARKED_CONTRAST.test(n.summary)));
-                return { ...v, nodes: keep };
-            })
-            .filter((v) => v.nodes.length > 0);
+        // Nothing is excused any more; every owned violation counts. See the note above.
+        const owned = result.filter((v) => OWNED.has(v.id) && v.nodes.length > 0);
         const other = result.filter((v) => !OWNED.has(v.id));
         const count = owned.reduce((n, v) => n + v.nodes.length, 0);
-        if (parked.length) log(`\n[axe] ${label}: ${parked.length} PARKED (white on forge-600, §8)`);
         log(`\n[axe] ${label}: ${count} node(s) across ${owned.length} owned rule(s)` +
             (other.length ? `; ${other.length} other rule(s): ${other.map((v) => `${v.id}x${v.nodes.length}`).join(', ')}` : ''));
         for (const v of owned) {
@@ -129,7 +123,7 @@ try {
             for (const n of v.nodes.slice(0, 8)) log(`      ${n.target}\n         ${n.summary}`);
             if (v.nodes.length > 8) log(`      ...and ${v.nodes.length - 8} more`);
         }
-        return { label, owned, other, count, parked: parked.length };
+        return { label, owned, other, count };
     };
 
     // ============================================================ 1. routes, dark, desktop

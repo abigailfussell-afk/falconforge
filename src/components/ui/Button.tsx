@@ -15,7 +15,7 @@ type Variant = 'primary' | 'secondary' | 'danger';
 type Size = 'md' | 'sm';
 
 const variantClasses: Record<Variant, string> = {
-    primary: 'bg-forge-600 text-white font-semibold shadow-card enabled:hover:bg-forge-700',
+    primary: 'bg-forge-700 text-white font-semibold shadow-card enabled:hover:bg-forge-800',
     secondary:
         'text-slate-600 dark:text-slate-300 font-medium enabled:hover:bg-slate-100 dark:enabled:hover:bg-slate-700',
     danger: 'bg-red-600 text-white font-medium enabled:hover:bg-red-700',

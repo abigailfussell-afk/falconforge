@@ -268,7 +268,7 @@ function ScheduleRow({
                 ) : state === 'open' && meeting.publicCode ? (
                     <Link
                         to="/app/checkin"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-forge-600 px-2.5 py-1.5 font-semibold text-white hover:bg-forge-700"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-forge-700 px-2.5 py-1.5 font-semibold text-white hover:bg-forge-800"
                     >
                         <QrIcon size={13} />
                         Enter code

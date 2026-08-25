@@ -305,7 +305,7 @@ export default function EventDetail() {
                             <div className="mt-3 grid grid-cols-1 gap-2">
                                 <Link
                                     to={`/app/meetings/${meeting.id}/poster`}
-                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-forge-600 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-700"
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-forge-700 px-3 py-2 text-sm font-semibold text-white shadow-card hover:bg-forge-800"
                                 >
                                     <Printer size={15} />
                                     Print poster

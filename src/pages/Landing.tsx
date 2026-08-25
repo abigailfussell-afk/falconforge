@@ -684,7 +684,7 @@ export default function LandingPage() {
                                         </div>
                                         <div className="p-3 bg-slate-900 border-t border-slate-700 flex justify-end gap-2">
                                             <div className="px-3 py-1.5 text-slate-300 rounded text-xs">Cancel</div>
-                                            <div className="px-4 py-1.5 bg-forge-600 text-white rounded text-xs font-medium animate-scouting-btn shadow-lg shadow-forge-500/20">Save Report</div>
+                                            <div className="px-4 py-1.5 bg-forge-700 text-white rounded text-xs font-medium animate-scouting-btn shadow-lg shadow-forge-500/20">Save Report</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1021,7 +1021,7 @@ export default function LandingPage() {
 
                             <button
                                 onClick={() => navigate('/login?mode=signup')}
-                                className="w-full py-4 bg-forge-500 hover:bg-forge-600 text-white rounded-xl font-bold transition-colors"
+                                className="w-full py-4 bg-forge-700 hover:bg-forge-800 text-white rounded-xl font-bold transition-colors"
                             >
                                 Register a Team
                             </button>
