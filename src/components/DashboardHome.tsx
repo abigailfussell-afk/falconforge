@@ -171,17 +171,30 @@ export default function DashboardHome() {
                         onClick={() => goTo(stat.link)}
                         className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card text-left hover:shadow-raised hover:border-forge-300 dark:hover:border-forge-600 transition-all"
                     >
-                        <div className="flex items-center gap-2 mb-1.5">
+                        {/*
+                          * THE VALUE SHARES THE LABEL'S COLUMN, and that is the fix rather than a
+                          * tidy-up. The value used to be a sibling of the icon+label ROW, so it
+                          * started at the tile's padding edge while the label started after the
+                          * icon. Measured at 375px: label left 60px, value left 25px — the number
+                          * hanging 35px to the left of the words describing it, which is what
+                          * "the numbers feel really far to the left" is.
+                          *
+                          * `items-start` keeps the icon at the top rather than centring it against
+                          * a column that is now two elements tall.
+                          */}
+                        <div className="flex items-start gap-2">
                             <div className={`${stat.bg} ${stat.color} p-1.5 rounded-md shrink-0`}>
                                 <stat.icon size={15} />
                             </div>
-                            {/* Wraps rather than truncates. `truncate` here clipped "SPRINT
-                                PROGRESS" and "SCOUTING REPORTS" to "SPRINT PROGR…" on a 375px
-                                phone in the two-column grid — a label you cannot read is worse
-                                than a tile one line taller. */}
-                            <span className="text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-tight">{stat.label}</span>
+                            <div className="min-w-0">
+                                {/* Wraps rather than truncates. `truncate` here clipped "SPRINT
+                                    PROGRESS" and "SCOUTING REPORTS" to "SPRINT PROGR…" on a 375px
+                                    phone in the two-column grid — a label you cannot read is worse
+                                    than a tile one line taller. */}
+                                <span className="block text-2xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-tight">{stat.label}</span>
+                                <div className="mt-1 text-xl font-bold text-slate-900 dark:text-white tabular-nums">{stat.value}</div>
+                            </div>
                         </div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">{stat.value}</div>
                     </button>
                 ))}
             </div>
