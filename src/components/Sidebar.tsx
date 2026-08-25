@@ -264,21 +264,43 @@ export default function Sidebar({
                                 <div className="w-7 h-7 bg-forge-100 dark:bg-forge-900/50 rounded-full flex items-center justify-center shrink-0">
                                     <User size={14} className="text-forge-600 dark:text-forge-400" />
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p
+                                {/*
+                                  * THE NAME AND "EDIT PROFILE" ARE ONE CONTROL, not a label with a
+                                  * link under it — and the reason is the 32px touch floor, not
+                                  * taste.
+                                  *
+                                  * `index.css` puts `min-height: 32px` on every `a[href]` under
+                                  * `pointer: coarse` (WALK-A-10), so on a phone the old inline
+                                  * "Edit Profile" link was a 32px box around 11px of text, stacked
+                                  * under a 16px name. Measured on a Pixel 5 profile: name box 16px,
+                                  * link box 32px, column 48px against a 28px avatar. The avatar was
+                                  * centred against that column EXACTLY — `avatarCentre -
+                                  * columnCentre` measured 0 — and it still read as uncentred,
+                                  * because the name's text sits at the top of its box while the
+                                  * link's text is centred in a box twice as tall. Geometrically
+                                  * right, visually wrong.
+                                  *
+                                  * Exempting the link from the floor was the other option and it is
+                                  * the wrong one: it would shrink a real tap target to fix an
+                                  * appearance. Making the whole block the link keeps the floor,
+                                  * removes the mismatched pair, and makes the person's name tappable
+                                  * — a bigger target than the words "Edit Profile" ever were.
+                                  */}
+                                <NavLink
+                                    data-testid="edit-profile-button"
+                                    to={pathFor('profile')}
+                                    className="flex-1 min-w-0 flex flex-col justify-center leading-tight group"
+                                >
+                                    <span
                                         data-testid="user-display-name"
-                                        className="text-xs font-bold text-slate-900 dark:text-white truncate"
+                                        className="block text-xs font-bold text-slate-900 dark:text-white truncate"
                                     >
                                         {user.user_metadata?.full_name || user.email}
-                                    </p>
-                                    <NavLink
-                                        data-testid="edit-profile-button"
-                                        to={pathFor('profile')}
-                                        className="inline-flex items-center text-2xs text-slate-500 hover:text-forge-600 dark:text-slate-400 dark:hover:text-forge-400 font-medium transition-colors"
-                                    >
+                                    </span>
+                                    <span className="block text-2xs text-slate-500 group-hover:text-forge-600 dark:text-slate-400 dark:group-hover:text-forge-400 font-medium transition-colors">
                                         Edit Profile
-                                    </NavLink>
-                                </div>
+                                    </span>
+                                </NavLink>
                                 <button
                                     data-testid="sign-out-button"
                                     onClick={onSignOut}

@@ -105,7 +105,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
 
     return (
         <Modal label="Task details" width="wide" className="flex flex-col overflow-hidden" onClose={onClose}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <div className="shrink-0 p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-100 dark:bg-slate-700">
                     <div className="flex-1 mr-4">
                         <input
                             ref={titleInputRef}
@@ -302,7 +302,7 @@ const SprintTaskDetail: React.FC<SprintTaskDetailProps> = ({
                     />
                 </fieldset>
 
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex justify-between bg-slate-50 dark:bg-slate-900/50">
+                <div className="shrink-0 p-4 border-t border-slate-100 dark:border-slate-700 flex justify-between bg-slate-100 dark:bg-slate-700">
                     <div className="flex gap-3">
                         {!isNewTask && (
                             <Button

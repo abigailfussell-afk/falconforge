@@ -3,7 +3,21 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!--
+      `interactive-widget=resizes-content` is load-bearing on Android, not decoration.
+
+      The default is `resizes-visual`: when the soft keyboard opens, the VISUAL viewport
+      shrinks but the LAYOUT viewport does not — and `dvh` follows the layout viewport. So a
+      modal sized `85dvh` stays at full height while the keyboard covers the bottom third of
+      the screen, putting its footer (Save, Cancel) underneath the keyboard with the body
+      still scrolling behind it. Reported from a phone on 2026-08-25 with the task title
+      input focused, which is exactly when the keyboard is up.
+
+      `resizes-content` makes the layout viewport — and therefore `dvh` — shrink with the
+      keyboard, so the modal re-sizes to what is actually visible and its footer stays on
+      screen. Desktop is unaffected: there is no interactive widget to resize.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <meta name="theme-color" content="#ea580c" />
   <meta name="description"
     content="FalconForge - Sprint planning, scouting, and match planning for FIRST Tech Challenge teams" />
