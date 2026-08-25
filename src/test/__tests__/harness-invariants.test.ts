@@ -800,3 +800,74 @@ describe('the help page describes the board that exists (FEAT-07)', () => {
         ).toEqual([]);
     });
 });
+
+/*
+ * TWO RATCHETS FOR DEFECTS NOTHING ELSE IN THIS REPO CAN SEE.
+ *
+ * Both were reported by Kevin from a phone on 2026-08-24, and both are invisible to every
+ * automated check that exists here — not because the checks are weak, but because the
+ * measurement environment structurally cannot exhibit them. `docs/failure-modes.md` §11 is the
+ * same shape: a desktop Chromium resized to 375px does not match `pointer: coarse`, so the
+ * touch-target pass measured a media query that was switched off.
+ *
+ * Source-level assertions are the honest tool when the runtime cannot reach the defect. They
+ * are weaker than a measurement and they are stated as ratchets, not as proof.
+ */
+describe('mobile defects no runtime check in this repo can reach', () => {
+    it('a modal is sized in DYNAMIC viewport units, not `vh`', () => {
+        /*
+         * `vh` resolves against the LARGE viewport — the one with the phone's URL bar hidden. So
+         * `max-height: 85vh` on a phone WITH the bar showing is measured against a taller
+         * viewport than the one the user can see, and a tall modal's footer (the row carrying
+         * Save and Cancel) lands under the browser chrome. The panel is `overflow-hidden`, so
+         * there is nothing to scroll to reach it.
+         *
+         * WHY NO BROWSER TEST COVERS THIS: headless Chromium at 375x812 has no URL bar, so `vh`
+         * and `dvh` are identical there. Playwright measured the panel at 690.2px inside 812px
+         * with nothing below the fold — a perfect green reading of a broken screen.
+         *
+         * The token's own comment said it "leaves room for the browser chrome and a phone's URL
+         * bar", which is exactly what `vh` does not do. The comment described `dvh` and the
+         * value said `vh` for as long as the token has existed.
+         */
+        const cfg = read('tailwind.config.js');
+        const modal = /modal:\s*'([^']+)'/.exec(cfg);
+        expect(modal, '`maxHeight.modal` is gone from tailwind.config.js').not.toBeNull();
+        expect(
+            modal![1],
+            'a modal sized in `vh` is cut off on a phone showing its URL bar; use `dvh`',
+        ).toMatch(/dvh$/);
+    });
+
+    it('no modal header or footer is painted the page background colour', () => {
+        /*
+         * In dark mode the page background is `slate-900`. A modal band painted
+         * `dark:bg-slate-900` at FULL OPACITY is therefore exactly the colour of the page behind
+         * it — and the overlay is only `bg-black/50`, so the page shows through at half strength
+         * and the band reads as transparent. Kevin's words were "some strange fade through at the
+         * top", and measuring it gave header `rgb(15, 23, 42)` against page `rgb(15, 23, 42)`.
+         *
+         * WHY NO TEST COVERS THIS: jsdom applies no stylesheet, and axe only judges TEXT contrast
+         * — white text on slate-900 passes comfortably. Nothing was ever going to notice that the
+         * band and the page agreed.
+         *
+         * The alpha variants (`dark:bg-slate-900/50`, `/40`) are deliberately NOT matched here.
+         * Over a `slate-800` panel those blend to a recessed band that is distinct from the page,
+         * which is a legitimate treatment; full opacity is the defect.
+         */
+        const banded = sourceFiles('src/components').filter((f) => !f.includes('__tests__'));
+        const offenders: string[] = [];
+        for (const f of banded) {
+            for (const line of readFileSync(f, 'utf8').split('\n')) {
+                if (!/border-[bt]\b/.test(line)) continue;
+                if (/dark:bg-slate-900(?![/\d])/.test(line)) {
+                    offenders.push(`${f.slice(repoRoot.length + 1)}  ${line.trim().slice(0, 90)}`);
+                }
+            }
+        }
+        expect(
+            offenders,
+            'a bordered band painted dark:bg-slate-900 is the page colour — it reads as the modal fading through',
+        ).toEqual([]);
+    });
+});
