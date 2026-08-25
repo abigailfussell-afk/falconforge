@@ -531,7 +531,7 @@ const ScoutingReports: React.FC = () => {
                     className="overflow-hidden flex flex-col"
                     onClose={() => setIsScoutModalOpen(false)}
                 >
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 font-bold text-lg text-slate-900 dark:text-white">
                         {editingReportId ? 'Edit Scouting Report' : 'New Scouting Report'}
                         {/* Which game's form this is. Not decoration: a team that has just rolled
                             over has two seasons a click apart with different fields, and a form
@@ -686,7 +686,7 @@ const ScoutingReports: React.FC = () => {
                             </p>
                         )}
                     </div>
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                         <Button variant="secondary" onClick={() => setIsScoutModalOpen(false)}>Cancel</Button>
                         {/* The modal still OPENS on an archived season — "full history
                             backward" means a past report stays readable. Only saving is
