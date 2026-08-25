@@ -454,6 +454,22 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 *From Sprint 30 — three mobile defects Kevin found on a phone, `v2/sprint-30-mobile-modals`
 (2026-08-24):*
+- **`AppShell` is `flex h-screen ... overflow-hidden`, which is the modal bug applied to every
+  screen.** `h-screen` is `100vh`, the same large-viewport unit that put a task modal's Save button
+  under the browser chrome — and here it is paired with `overflow-hidden`, so on a phone showing
+  its URL bar the shell is taller than the visible area with nothing to scroll. Found while
+  sweeping for other `vh` usage after fixing `max-h-modal`; **not a regression**, it has been this
+  way since the shell was written. **Kevin's call, 2026-08-24: park it.** Two reasons it was not
+  folded into Sprint 30 — it changes the height model of every route rather than one dialog, and
+  it cannot be verified here for exactly the reason the modal defect could not be (no headless
+  browser has a URL bar), so a wrong fix would be wrong everywhere and silently. The cheap version
+  is `h-dvh`; whether that is SUFFICIENT depends on whether the sidebar and content panes rely on
+  the fixed height, which is the thing to measure first. Useful sequencing: see whether the `dvh`
+  modal fix actually resolved the reported symptom on a real phone before touching this, because
+  if it did not, this is the more likely cause.
+  The `min-h-screen` uses (`App.tsx`, `CreateTeam`, `JoinTeam`, and the other full-page gradients)
+  are deliberately NOT included: a *minimum* height lets content grow and the page scroll normally,
+  so those over-paint a background by a few percent and clip nothing.
 - **🔴 `npm run gate` silently repoints `dist/` at PRODUCTION, and I nearly reviewed the
   hosted database because of it.** The Gate ends in `npm run build`, which is `vite build` with no
   `--mode`, so it loads `.env.local` — and `.env.local` is production, deliberately. Any
