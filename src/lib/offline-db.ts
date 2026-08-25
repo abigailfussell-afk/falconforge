@@ -381,6 +381,44 @@ export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
 }
 
 /**
+ * Turn whatever was thrown into a sentence worth storing.
+ *
+ * `String(error)` on a PostgREST refusal gives `"[object Object]"`, and that is what every
+ * dead-lettered change in this application has recorded for every server refusal there is —
+ * verified by reading IndexedDB on a parked change after cutting the network:
+ * `{ tableName: "tasks", operation: "create", retryCount: 1, lastError: "[object Object]" }`.
+ *
+ * The cause is that supabase-js throws the PostgREST error OBJECT (`throw result.error` in
+ * `sync.ts`), and a `PostgrestError` is a plain `{ message, code, details, hint }` — never an
+ * `Error` instance. So the `instanceof Error` arm misses and `String()` stringifies an object.
+ *
+ * IT REACHES NO USER TODAY, which is why it survived: `ParkedChangesDialog` renders
+ * `terminalReason` or a generic sentence, deliberately. It matters for **SYNC-10**, whose whole
+ * design is shipping this record to Kevin so he can see why a device is stuck — it would ship
+ * `"[object Object]"` and the feature would be worth nothing.
+ *
+ * `code` is kept alongside the message because the message alone is often the generic half
+ * ("new row violates row-level security policy") while the code says which class of refusal it
+ * was. Both are what a debugger actually wants at the point they are looking at this at all.
+ */
+function describeSyncError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === 'object') {
+        const e = error as { message?: unknown; code?: unknown };
+        if (typeof e.message === 'string' && e.message) {
+            return typeof e.code === 'string' && e.code ? `${e.message} (${e.code})` : e.message;
+        }
+        // No `message` at all — JSON is still infinitely better than "[object Object]".
+        try {
+            return JSON.stringify(error);
+        } catch {
+            /* circular; fall through to String() below */
+        }
+    }
+    return String(error ?? 'Unknown error');
+}
+
+/**
  * Park a change that cannot be pushed, instead of deleting it.
  *
  * The queue entry is removed so the drain can make progress, but the change itself is
@@ -400,7 +438,7 @@ export async function moveToDeadLetter(
         await db.syncFailures.put({
             ...item,
             failedAt: Date.now(),
-            lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+            lastError: describeSyncError(error),
             ...(terminalReason ? { terminalReason } : {}),
         });
         await db.syncQueue.delete(item.id);
