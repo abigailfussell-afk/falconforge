@@ -301,7 +301,15 @@ SCRATCH_URL='postgresql://postgres.<scratch-ref>:<password>@aws-0-<region>.poole
 
 # 4. Restore, capturing everything. Do NOT pipe this to /dev/null: the failure mode this
 #    document keeps recording is a restore that reports success while dropping rows.
-psql "$SCRATCH_URL" -f restored.sql 2>&1 | tee restore.log
+# `psql` IS PROBABLY NOT ON YOUR PATH, and you do not need to install it.
+# Found on the first real run (2026-08-29): Git Bash on this machine has gpg but no psql. The
+# running Supabase container has psql 17.6 and outbound network, so use that. It also resolves
+# the hosted pooler fine — checked, not assumed.
+#
+# `-f -` with `< restored.sql` pipes the SQL through STDIN rather than putting it in an
+# argument, so it never meets a shell parser. That is not fussiness: a `^` in a regex was eaten
+# by cmd on this repo four days earlier and psql answered `syntax error at or near "DELETE"`.
+docker exec -i supabase_db_falconforge psql "$SCRATCH_URL" -f - < restored.sql 2>&1 | tee restore.log
 grep -ci '^ERROR' restore.log
 ```
 
