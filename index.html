@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <!--
+      `interactive-widget=resizes-content` is load-bearing on Android, not decoration.
+
+      The default is `resizes-visual`: when the soft keyboard opens, the VISUAL viewport
+      shrinks but the LAYOUT viewport does not — and `dvh` follows the layout viewport. So a
+      modal sized `85dvh` stays at full height while the keyboard covers the bottom third of
+      the screen, putting its footer (Save, Cancel) underneath the keyboard with the body
+      still scrolling behind it. Reported from a phone on 2026-08-25 with the task title
+      input focused, which is exactly when the keyboard is up.
+
+      `resizes-content` makes the layout viewport — and therefore `dvh` — shrink with the
+      keyboard, so the modal re-sizes to what is actually visible and its footer stays on
+      screen. Desktop is unaffected: there is no interactive widget to resize.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#ea580c" />
+  <meta name="description"
+    content="FalconForge - Sprint planning, scouting, and match planning for FIRST Tech Challenge teams" />
+  <meta property="og:image" content="/icon-512.png" />
+  <meta name="apple-mobile-web-app-title" content="FalconForge" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>FalconForge</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/falcon_logo.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+
+  <!--
+    No font <link> here on purpose. Inter is self-hosted and bundled (src/styles/fonts.css),
+    so it is precached with the rest of the app and renders on a cold offline start. This is
+    where a render-blocking `fonts.googleapis.com` stylesheet and two preconnects used to
+    sit — the same cross-origin-dependency defect Sprint 1 removed the Tailwind CDN for, and
+    doubly wasted because `font-sans` overrode the result so the downloaded font never
+    rendered.
+  -->
+  <script type="module" crossorigin src="/assets/index-D4d7iTBp.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-DwBFl82a.js">
+  <link rel="modulepreload" crossorigin href="/assets/supabase-CRHRt2Ih.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-BWBHlbK4.css">
+<link rel="manifest" href="/manifest.webmanifest"></head>
+
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+  <div id="root"></div>
+</body>
+
+</html>

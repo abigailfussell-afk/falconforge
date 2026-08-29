@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>FalconForge</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0f172a;
+        color: #94a3b8;
+        font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+        padding: 1.5rem;
+      }
+      a { color: #fb923c; }
+    </style>
+    <script>
+      /*
+       * GitHub Pages serves this file for any path it does not have, and FalconForge is a
+       * HashRouter app, so every real route lives after a '#'. Without this, a link a coach
+       * pastes into a group chat -- falcon-forge.com/app/board -- gets Pages' own 404 page and
+       * the app never boots at all: React Router's catch-all cannot run because nothing loaded.
+       *
+       * The fix is not simply "serve index.html here". That boots the app at path /app/board
+       * with NO hash, so the router sees '/' and drops the visitor at the landing page, having
+       * quietly discarded where they were going. Translating the path into the hash route is
+       * what makes the link actually arrive.
+       *
+       * Two cases are deliberately NOT redirected:
+       *
+       *   - A URL that already has a hash. It only needed the server-side 404 undone; appending
+       *     a second route to it would corrupt it. Password recovery depends on this -- the
+       *     implicit grant returns its token in the fragment, and rewriting that fragment is
+       *     precisely the bug Sprint 9 fixed in the redirect URL.
+       *   - Anything ending in a file extension. That is a genuinely missing asset, not a
+       *     route, and redirecting it converts a clear 404 into a confusing bounce to the app.
+       */
+      (function () {
+        var l = window.location;
+        var base = l.origin + '/';
+
+        if (l.hash) {
+          l.replace(base + l.hash);
+          return;
+        }
+
+        var path = l.pathname.replace(/^\/+/, '');
+
+        if (/\.[a-zA-Z0-9]+$/.test(path)) {
+          return; // a missing file — let the message below stand
+        }
+
+        l.replace(base + '#/' + path + l.search);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>
+      That file isn’t here. <a href="/">Open FalconForge</a>
+    </p>
+  </body>
+</html>
