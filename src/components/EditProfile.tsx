@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Save, Edit3, X, CalendarCheck, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Save, Edit3, X, CalendarCheck, CheckCircle, AlertCircle, Mail } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { recordAttestation } from '../lib/attestations';
 import Button from './ui/Button';
@@ -30,7 +30,7 @@ import IconButton from './ui/IconButton';
  * moment it matters rather than years earlier.
  */
 const EditProfile = () => {
-    const { user, updateProfile, isConfigured, ageClassification, isOffline, updateAgeClassification } = useAuth();
+    const { user, updateProfile, updateEmail, isConfigured, ageClassification, isOffline, updateAgeClassification } = useAuth();
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [editDisplayName, setEditDisplayName] = useState('');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -40,6 +40,57 @@ const EditProfile = () => {
     const [isSavingAge, setIsSavingAge] = useState(false);
     const [ageError, setAgeError] = useState<string | null>(null);
     const [ageRaised, setAgeRaised] = useState(false);
+    const [isEditingEmail, setIsEditingEmail] = useState(false);
+    const [editEmail, setEditEmail] = useState('');
+    const [isSavingEmail, setIsSavingEmail] = useState(false);
+    const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    /**
+     * Ask GoTrue to send a confirmation to the NEW address.
+     *
+     * Nothing changes here on success, and the copy must not pretend otherwise: the address is
+     * swapped only when the link is followed. That is the behaviour you want — a typo leaves the
+     * account reachable at the OLD address rather than stranding it at one nobody reads — but it
+     * makes "Saved" an outright lie, so this says what was sent and where.
+     */
+    const handleSaveEmail = async () => {
+        const next = editEmail.trim();
+        setEmailMessage(null);
+
+        /*
+         * Two client-side refusals, both about saying something USEFUL rather than about
+         * security — GoTrue validates the address itself and is the authority.
+         *
+         * The shape check is deliberately loose (`something@something.something`). A stricter
+         * regex rejects addresses that are perfectly valid, and the failure mode is a coach who
+         * cannot enter their own school address and has no idea why.
+         */
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) {
+            setEmailMessage({ type: 'error', text: 'That does not look like an email address.' });
+            return;
+        }
+        if (next.toLowerCase() === (user?.email ?? '').toLowerCase()) {
+            setEmailMessage({ type: 'error', text: 'That is already your email address.' });
+            return;
+        }
+
+        setIsSavingEmail(true);
+        const { error, pending } = await updateEmail(next);
+        setIsSavingEmail(false);
+
+        if (error) {
+            setEmailMessage({ type: 'error', text: error.message });
+            return;
+        }
+
+        setEmailMessage({
+            type: 'success',
+            // Naming the address matters: "check your email" is useless to somebody who has just
+            // typed the wrong one, and this is the last moment they can notice.
+            text: `Confirmation sent to ${pending ?? next}. Your address changes when you follow that link — until then, this account still uses ${user?.email ?? 'your current address'}.`,
+        });
+        setIsEditingEmail(false);
+    };
 
     const handleSaveProfile = async () => {
         if (!editDisplayName.trim()) return;
@@ -164,6 +215,122 @@ const EditProfile = () => {
                         </Button>
                     )}
                 </div>
+            </div>
+
+            {/*
+              * EMAIL ADDRESS.
+              *
+              * This screen edited the name and the age classification and nothing else, so
+              * changing an address meant asking Kevin — and there was no runbook entry for that
+              * either. It matters most for a GUARDIAN: under §3 a managed child has no login, so
+              * the guardian's address is the ONLY contactable address the team holds for that
+              * child. SEC-16 made the server carry the change onto every child's roster row, so
+              * the capability was complete and unreachable.
+              */}
+            <div
+                data-testid="email-change"
+                className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-3 md:p-4 mb-6"
+            >
+                <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+                    <Mail className="text-forge-600" size={24} />
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Email address</h3>
+                </div>
+
+                {emailMessage && (
+                    <div
+                        data-testid="email-message"
+                        role="status"
+                        className={`mb-4 flex items-start gap-2 rounded-lg p-3 text-sm ${
+                            emailMessage.type === 'success'
+                                ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300'
+                                : 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                        }`}
+                    >
+                        {emailMessage.type === 'success' ? (
+                            <CheckCircle size={16} className="mt-0.5 shrink-0" />
+                        ) : (
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                        )}
+                        <span>{emailMessage.text}</span>
+                    </div>
+                )}
+
+                {isEditingEmail ? (
+                    <div className="space-y-3">
+                        <div>
+                            <label
+                                className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1"
+                                htmlFor="new-email"
+                            >
+                                New email address
+                            </label>
+                            <input
+                                id="new-email"
+                                data-testid="new-email-input"
+                                type="email"
+                                autoComplete="email"
+                                className="field"
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                disabled={isSavingEmail}
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            We will email the new address to confirm it. Nothing changes until you
+                            follow that link.
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                data-testid="save-email"
+                                onClick={handleSaveEmail}
+                                disabled={isSavingEmail || isOffline || !editEmail.trim()}
+                                title={isOffline ? 'Changing your email needs a connection' : undefined}
+                            >
+                                <Save size={16} />
+                                {isSavingEmail ? 'Sending…' : 'Send confirmation'}
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                data-testid="cancel-email"
+                                onClick={() => {
+                                    setIsEditingEmail(false);
+                                    setEmailMessage(null);
+                                }}
+                                disabled={isSavingEmail}
+                            >
+                                <X size={16} />
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+                            <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                                Current
+                            </p>
+                            {/* `break-all`, not `truncate`: an address you cannot read in full is
+                                no use on the screen where you are deciding whether to change it. */}
+                            <p className="break-all text-sm text-slate-700 dark:text-slate-200">
+                                {user?.email ?? 'Not set'}
+                            </p>
+                        </div>
+                        <Button
+                            variant="secondary"
+                            data-testid="edit-email"
+                            onClick={() => {
+                                setEditEmail('');
+                                setEmailMessage(null);
+                                setIsEditingEmail(true);
+                            }}
+                            disabled={isOffline}
+                            title={isOffline ? 'Changing your email needs a connection' : undefined}
+                        >
+                            <Edit3 size={16} />
+                            Change
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {(ageClassification === '13_to_17' || ageRaised) && (

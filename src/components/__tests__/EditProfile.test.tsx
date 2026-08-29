@@ -17,6 +17,7 @@ import { MemoryRouter } from 'react-router-dom';
 import EditProfile from '../EditProfile';
 
 const mockAuth = vi.fn();
+const mockUpdateEmail = vi.fn();
 const mockRecord = vi.fn();
 const mockUpdateAge = vi.fn();
 const calls: string[] = [];
@@ -34,6 +35,7 @@ function auth(overrides: Record<string, unknown> = {}) {
         isOffline: false,
         ageClassification: '13_to_17',
         updateProfile: vi.fn().mockResolvedValue({ error: null }),
+        updateEmail: mockUpdateEmail,
         updateAgeClassification: mockUpdateAge,
         ...overrides,
     };
@@ -137,5 +139,111 @@ describe('raising it', () => {
         renderProfile({ isOffline: true });
         const button = screen.getByRole('button', { name: /i've turned 18/i }) as HTMLButtonElement;
         expect(button.disabled).toBe(true);
+    });
+});
+
+/*
+ * CHANGING YOUR EMAIL ADDRESS.
+ *
+ * This screen edited a name and an age classification and nothing else, so an address change
+ * meant asking Kevin. It matters most for a GUARDIAN: a managed child has no login of their own,
+ * so the guardian's address is the only contactable one the team holds for that child, and
+ * SEC-16 had already made the server carry a change onto every child's roster row — the
+ * capability was complete and unreachable.
+ *
+ * THE THING THESE TESTS PROTECT IS THE COPY as much as the call. GoTrue swaps the address only
+ * when the emailed link is followed, so a screen that says "Saved" is lying at the exact moment
+ * a typo is still recoverable.
+ */
+describe('EditProfile — email address', () => {
+    it('shows the current address and offers to change it', () => {
+        renderProfile();
+
+        expect(screen.getByTestId('email-change').textContent).toContain('nell@example.test');
+        expect(screen.getByTestId('edit-email')).toBeTruthy();
+    });
+
+    it('sends a confirmation and says WHERE, without claiming the change happened', async () => {
+        mockUpdateEmail.mockResolvedValue({ error: null, pending: 'new@example.test' });
+        renderProfile();
+
+        fireEvent.click(screen.getByTestId('edit-email'));
+        fireEvent.change(screen.getByTestId('new-email-input'), {
+            target: { value: 'new@example.test' },
+        });
+        fireEvent.click(screen.getByTestId('save-email'));
+
+        await waitFor(() => expect(mockUpdateEmail).toHaveBeenCalledWith('new@example.test'));
+
+        const message = await screen.findByTestId('email-message');
+        // Names the destination: "check your email" is useless to somebody who just typed the
+        // wrong address, and this is the last moment they can notice.
+        expect(message.textContent).toContain('new@example.test');
+        // And does NOT claim it is done — the old address is still the account's.
+        expect(message.textContent).toContain('nell@example.test');
+        expect(message.textContent?.toLowerCase()).not.toContain('saved');
+    });
+
+    it('refuses an address that is not an address, before calling the server', async () => {
+        renderProfile();
+
+        fireEvent.click(screen.getByTestId('edit-email'));
+        fireEvent.change(screen.getByTestId('new-email-input'), { target: { value: 'nope' } });
+        fireEvent.click(screen.getByTestId('save-email'));
+
+        expect((await screen.findByTestId('email-message')).textContent).toContain(
+            'does not look like an email address',
+        );
+        expect(mockUpdateEmail).not.toHaveBeenCalled();
+    });
+
+    it('refuses the address the account already has, case-insensitively', async () => {
+        // Not pedantry: GoTrue accepts this and emails a confirmation for a change to nothing,
+        // which reads as a broken feature.
+        renderProfile();
+
+        fireEvent.click(screen.getByTestId('edit-email'));
+        fireEvent.change(screen.getByTestId('new-email-input'), {
+            target: { value: 'NELL@example.test' },
+        });
+        fireEvent.click(screen.getByTestId('save-email'));
+
+        expect((await screen.findByTestId('email-message')).textContent).toContain(
+            'already your email address',
+        );
+        expect(mockUpdateEmail).not.toHaveBeenCalled();
+    });
+
+    it('surfaces the server’s own refusal rather than a generic one', async () => {
+        // "Email address already registered" is the case a real user hits, and it is actionable
+        // only if they are told which one it was.
+        mockUpdateEmail.mockResolvedValue({
+            error: { message: 'A user with this email address has already been registered' },
+            pending: null,
+        });
+        renderProfile();
+
+        fireEvent.click(screen.getByTestId('edit-email'));
+        fireEvent.change(screen.getByTestId('new-email-input'), {
+            target: { value: 'taken@example.test' },
+        });
+        fireEvent.click(screen.getByTestId('save-email'));
+
+        expect((await screen.findByTestId('email-message')).textContent).toContain(
+            'already been registered',
+        );
+    });
+
+    it('cannot be started offline, and says why rather than failing on tap', () => {
+        /*
+         * This is the one control on this screen that CANNOT be queued. Everything else in the
+         * app is offline-first, so a disabled button with no reason reads as a bug — the exact
+         * shape Sprint 5.5 fixed elsewhere.
+         */
+        renderProfile({ isOffline: true });
+
+        const button = screen.getByTestId('edit-email') as HTMLButtonElement;
+        expect(button.disabled).toBe(true);
+        expect(button.title).toBe('Changing your email needs a connection');
     });
 });
