@@ -40,6 +40,7 @@ describe('AdminSettings', () => {
             signOut: vi.fn(),
             resetPassword: vi.fn(),
             updateProfile: vi.fn(),
+            updateEmail: vi.fn(),
             updateAgeClassification: vi.fn(),
             isConfigured: true,
             isSigningOut: false,

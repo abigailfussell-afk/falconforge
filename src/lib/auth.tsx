@@ -92,6 +92,14 @@ interface AuthContextType extends AuthState {
     signOut: () => Promise<void>;
     resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
     updateProfile: (fullName: string) => Promise<{ error: AuthError | null }>;
+    /**
+     * Start an email change. Returns once the confirmation has been SENT, not applied.
+     *
+     * `pending` is the address the link was sent to, so the caller can say which inbox to go
+     * and look in — "check your email" is useless advice to somebody who just typed the wrong
+     * address.
+     */
+    updateEmail: (email: string) => Promise<{ error: AuthError | null; pending: string | null }>;
     updateAgeClassification: (classification: AgeClassification) => Promise<{ error: AuthError | null; success: boolean }>;
 }
 
@@ -606,6 +614,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
     }, []);
 
+    /**
+     * Change the account's email address.
+     *
+     * WHY THIS EXISTS AT ALL. `supabase.auth.updateUser` was called in exactly two places and
+     * neither touched `email`, so nobody could change their address without asking Kevin, and
+     * there was no runbook entry for that either. It matters most for a GUARDIAN: under §3 a
+     * managed child has no login of their own, so the guardian's address is the ONLY
+     * contactable address the team has for that child. SEC-16 made the server side carry an
+     * address change onto every child's roster row — `sync_user_to_team_members`, covered by
+     * `profile-mirror.db.test.ts` through both the `public.users` and `auth.users` paths — so
+     * the capability has been complete and unreachable.
+     *
+     * NOTHING CHANGES UNTIL THE LINK IS FOLLOWED. GoTrue emails the new address and only swaps
+     * it on confirmation, which is the behaviour you want: a typo leaves the account reachable
+     * at the old address instead of stranding it at one nobody reads. So this returns "sent",
+     * never "done", and the UI must not claim otherwise.
+     *
+     * `emailRedirectTo` goes through `authRedirectUrl()` like every other flow. That helper
+     * exists precisely so no flow grows its own answer — signup was the one that had, and it
+     * sent confirmations from localhost to production until it was fixed.
+     */
+    const updateEmail = useCallback(async (email: string) => {
+        if (!supabase) {
+            return {
+                error: { message: 'Supabase not configured' } as AuthError,
+                pending: null,
+            };
+        }
+
+        const next = email.trim();
+        const { data, error } = await supabase.auth.updateUser(
+            { email: next },
+            { emailRedirectTo: authRedirectUrl() },
+        );
+
+        /*
+         * DELIBERATELY NOT touching local state on success. The address has not changed yet —
+         * only a confirmation has been sent — and writing it into the cached profile would show
+         * the user an address they cannot yet receive mail at, which is the one thing this
+         * screen must not get wrong. `handle_new_user` mirrors the real change into
+         * `public.users` when GoTrue applies it, and the next auth event brings it here.
+         */
+        return { error, pending: error ? null : (data.user?.new_email ?? next) };
+    }, []);
+
     const updateAgeClassification = useCallback(async (classification: AgeClassification) => {
         if (!supabase) return { error: { message: 'Supabase not configured' } as AuthError, success: false };
 
@@ -649,6 +702,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         resetPassword,
         updateProfile,
+        updateEmail,
         updateAgeClassification,
     };
 
