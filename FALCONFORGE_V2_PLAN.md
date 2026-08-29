@@ -456,6 +456,20 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From Sprint 35 — the email-change screen, `v2/sprint-35-email-change` (2026-08-29):*
+- **Sprint 29's fixture sweep clears leftover TEAMS and not leftover USERS, and the review seed is
+  what discovers that.** `globalSetup` sweeps `team_number ~ '^3[0-9]{4}$'` before a db run, which
+  fixed the duplicate-team cascade. Today `npm run seed:review` refused with "11 of 47 seeded
+  accounts have no privacy_and_guidelines@2.0 row" — and all 11 were uuid-shaped `@falconforge.test`
+  fixture users left behind by db-test runs, not accounts the seed created. Two separate faults
+  meeting: fixture USERS leak the same way teams did, and **the seed's assertion counts every row in
+  `auth.users` rather than the 36 it owns**, so any leftover breaks a seed that is working perfectly.
+  The obvious extension of the sweep is not free: `operator_actions_operator_user_id_fkey` is NO
+  ACTION by design, so an operator fixture that performed an audited action cannot be deleted at all
+  — a user sweep has to skip those or anonymise them, which is the shape `operator_erase_user`
+  already uses. `npm run db:reset` remains the documented remedy and is what unblocked this.
+  Cheapest honest fix is the seed scoping its own assertion to the accounts it created.
+
 *From Sprint 30 — three mobile defects Kevin found on a phone, `v2/sprint-30-mobile-modals`
 (2026-08-24):*
 - **`AppShell` is `flex h-screen ... overflow-hidden`, which is the modal bug applied to every
@@ -600,7 +614,16 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   a broadcast-based design are both on the table.
 
 *From Sprint 24 — the guardian edges, `v2/sprint-24-guardian-edges` (2026-08-23):*
-- **There is no in-app way for anybody to change their email address.** `EditProfile` edits the
+- **✅ FIXED 2026-08-29 (Sprint 35).** `auth.updateEmail()` plus an "Email address" card in Edit
+  Profile. The parking lot's reading was exactly right — a missing SCREEN, not a missing capability:
+  `profile-mirror.db.test.ts` already proved the server carries an email change into `public.users`,
+  and SEC-16 carries it onto every child's roster row. **The copy is the reviewable part**: GoTrue
+  swaps the address only when the emailed link is followed, so the message names the destination AND
+  says the account still uses the old address until then. "Saved" would be a lie told at the exact
+  moment a typo is still recoverable, and the test goes red against it. Local state is deliberately
+  NOT updated on success for the same reason. Offline the control is disabled with a stated reason —
+  the one thing on that screen which cannot be queued. Six tests, one watched failing; verified in a
+  browser at 393px. Was: **There is no in-app way for anybody to change their email address.** `EditProfile` edits the
   name and the age classification; `supabase.auth.updateUser` is called in exactly two places
   (`auth.tsx:573` for the age classification, `ResetPassword.tsx:67` for a password) and neither
   touches `email`. So a guardian whose address changes — which is the whole premise of SEC-16's
