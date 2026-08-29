@@ -955,7 +955,17 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   because `main` deploys to production — and which is why an agent could not simply do it.
   The same fact retires the "run the workflow once by hand" item that Sprint 16 was asked to
   close: there is nothing on GitHub to run.
-- **⚠️ STILL OPEN, BUT NO LONGER BLOCKED — re-checked 2026-08-24.** The dependency this entry
+- **⚠️ STILL OPEN — but the runbook now exists (2026-08-29).** `docs/beta-ops.md` has a
+  **"The last mile: a REAL artifact into a NEW hosted project"** section: what to download, a
+  scratch project rather than production, the exact commands, a verdict for each error class it
+  anticipates, the row counts to compare against production, and a REST call afterwards — because
+  "the bytes arrived" and "PostgREST can read them" are different claims, and this project has
+  already had a schema that looked perfect and answered `permission denied for table teams`.
+  **It is marked UNREHEARSED in its own first paragraph**, derived from the local rehearsal and from
+  reading `backup.yml`, and it tells the reader to correct it in the same sitting if reality
+  disagrees — because a runbook asserting confidence it has not earned is the exact failure this
+  §8 keeps recording. **What remains is Kevin running it once**, which needs a scratch project on
+  his account; roughly an hour. Was: **STILL OPEN, BUT NO LONGER BLOCKED — re-checked 2026-08-24.** The dependency this entry
   names ("it waits on a real nightly artifact, and the workflow that would produce one is not on
   GitHub") is gone: the workflow is on GitHub and a scheduled run succeeded this morning. What
   remains is exactly the sentence in the heading and nothing more — a HOSTED artifact into a NEW
