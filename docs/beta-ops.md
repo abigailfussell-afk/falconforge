@@ -245,19 +245,41 @@ select (select count(*) from teams) teams, (select count(*) from team_members) m
 
 ### The last mile: a REAL artifact into a NEW hosted project
 
-**This is the one restore claim in this document that has never been executed, and it is the one
-that matters.** Everything above was rehearsed into the *local* stack, which is not the thing you
-would be restoring into on the worst day. The local stack hands you `auth`, `extensions`,
-`storage` and `vault` already built, because the Supabase CLI creates them; the same dump into a
-bare Postgres produced **29 errors**. A fresh hosted project provides those schemas too, but *its*
-versions, owned by *its* roles — and nobody has watched this dump land on one.
+**REHEARSED 2026-08-29, and it worked.** This was the one restore claim in this document that had
+never been executed. Everything above it was rehearsed into the *local* stack, which is not the
+thing you would be restoring into on the worst day.
 
-So the purpose of this section is to be run **once**, deliberately, before a competition rather
-than during one. Roughly an hour.
+**The run.** Nightly artifact from workflow run `33254246987` (2026-08-29 13:08 UTC), decrypted
+and restored into a fresh free-tier Supabase project.
 
-**Everything below is derived from the local rehearsal and from reading `backup.yml` — not from a
-hosted run.** Treat the expected-error list as a starting hypothesis, and write down what actually
-happened. If it disagrees with this section, the section is wrong.
+| | |
+|---|---|
+| psql errors | **0** |
+| Rows recovered | **65 of 65**, every table matching production exactly |
+| `auth.users` / `teams` | 2 / 2 — the two nothing can rebuild |
+| PostgREST on the restored project | **200**, empty body (RLS refusing anon: correct) |
+
+Full comparison against production, read the same hour: `auth.users` 2, `public.users` 2, `teams`
+2, `team_members` 3, `seasons` 2, `tasks` 3, `meetings` 29, `license_grants` 4,
+`platform_operators` 1 — identical on both sides.
+
+**Two things this run corrected in this very section**, which is why it was worth running with
+somebody watching: the `CREATE TABLE` count is **23**, not the 24 written here (`team_entitlement`
+is a VIEW, and 23 tables + 1 view is the "24 public tables" §8 records); and **`psql` is not on
+Git Bash's PATH on this machine at all**, so the command below now goes through the Supabase
+container, which has psql 17.6 and outbound network.
+
+**What this run did NOT establish.** The restore ran WITHOUT the trigger-disable blocks below and
+still recovered every row — so on the hosted project either `SET session_replication_role =
+replica` succeeded (`postgres` is a member of `supabase_privileged_role`, and membership being
+enough had never been tested) or no trigger would have rejected these particular rows. **Those are
+different facts and this run cannot tell them apart**, because production currently holds 2 teams
+and 3 members. The 32-teams-and-no-members failure happened on a much larger dataset. So keep the
+blocks below: they cost nothing, they work as table owner regardless, and a restore is the wrong
+moment to be relying on a mechanism you cannot name.
+
+Re-run this when the shape of the data changes materially — a real beta cohort is exactly such a
+change.
 
 #### What you need
 

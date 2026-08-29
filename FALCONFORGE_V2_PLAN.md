@@ -955,7 +955,24 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   because `main` deploys to production — and which is why an agent could not simply do it.
   The same fact retires the "run the workflow once by hand" item that Sprint 16 was asked to
   close: there is nothing on GitHub to run.
-- **⚠️ STILL OPEN — but the runbook now exists (2026-08-29).** `docs/beta-ops.md` has a
+- **✅ DONE 2026-08-29 — REHEARSED, AND IT WORKED. The first proven recovery in this project's
+  history.** Nightly artifact `33254246987` (13:08 UTC) decrypted and restored into a fresh free-tier
+  Supabase project: **0 psql errors, 65 of 65 rows**, every table identical to production read the
+  same hour (`auth.users` 2, `users` 2, `teams` 2, `team_members` 3, `seasons` 2, `tasks` 3,
+  `meetings` 29, `license_grants` 4, `platform_operators` 1), and **PostgREST answering 200** on the
+  restored project with an empty body — RLS refusing an anonymous caller, which is the boundary
+  working. That last check is the one row counts cannot make: this project has had a schema that
+  looked perfect and answered `permission denied for table teams`.
+  **The run corrected its own runbook twice**, which is the argument for running these with somebody
+  watching: the expected `CREATE TABLE` count is 23 and not 24 (`team_entitlement` is a VIEW), and
+  `psql` is not on Git Bash's PATH here at all — the command now goes through the Supabase container.
+  Both were wrong in the direction that costs most: one makes a healthy backup look short, the other
+  stops you dead just after decrypting a production dump.
+  **What it did NOT settle**: the restore ran without the trigger-disable blocks and still recovered
+  everything, so either `SET session_replication_role = replica` succeeds on hosted or no trigger
+  would have refused these particular rows — different facts, and 2 teams and 3 members cannot tell
+  them apart. The blocks stay. **Re-run after a real beta cohort lands**, since that is exactly the
+  change in data shape this cannot speak for. Was: **STILL OPEN — but the runbook now exists (2026-08-29).** `docs/beta-ops.md` has a
   **"The last mile: a REAL artifact into a NEW hosted project"** section: what to download, a
   scratch project rather than production, the exact commands, a verdict for each error class it
   anticipates, the row counts to compare against production, and a REST call afterwards — because
