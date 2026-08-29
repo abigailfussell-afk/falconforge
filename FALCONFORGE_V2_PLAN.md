@@ -458,8 +458,33 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From Sprint 36 — Gate reliability, `v2/sprint-36-gate-reliability` (2026-08-29):*
+- **The exit-127 death did not reproduce, and the documented lead is wrong.** Four consecutive
+  clean `gate:db` runs today (672 db + 418 rls each). The entry chasing this points at
+  `globalSetup`'s `shell: true` spawn on the strength of a `DEP0190` warning — but **`globalSetup`
+  runs ONCE, at startup**, and cannot explain a death "at a different suite each time". Whatever
+  this is, it is downstream of there, and the next person should not spend the day on that spawn.
+  The fixture leaks it was blamed for are now swept, so if it recurs the symptom will be cleaner.
+  Worth re-reading only when somebody actually observes it again, with the output captured.
+- **One local database, and anything touching it concurrently interferes.** Planting test rows
+  while a `gate:db` run was in flight produced a baseline of 20 "leftover" fixture users that were
+  really that run's live fixtures — an experiment measuring another process. The e2e pack already
+  had to learn this (its worker cap is load-bearing, Sprint 7). There is no guard: nothing stops two
+  things using the stack at once, and the failure looks like data rather than contention.
+
 *From Sprint 35 — the email-change screen, `v2/sprint-35-email-change` (2026-08-29):*
-- **Sprint 29's fixture sweep clears leftover TEAMS and not leftover USERS, and the review seed is
+- **✅ FIXED 2026-08-29 (Sprint 36), both halves.** `globalSetup` sweeps fixture USERS as well as
+  teams, skipping and COUNTING the ones `operator_actions` pins rather than dying on the first —
+  that FK is NO ACTION by design, since an audit entry must name who made it. Both sweeps go through
+  one `psql()` helper now instead of two copies of the same `docker exec`. And the seed's assertion
+  reads the accounts it created rather than the whole `users` table.
+  **A new fact, worse than the entry assumed: they leak from SUCCESSFUL runs too.** `cleanup()` calls
+  `deleteUser` without checking the result, so it fails silently on anything still referenced — 11
+  were left behind by two clean `gate:db` runs. Unlike teams they collide with nothing, so they cause
+  no failures and simply accumulate until something else trips over them.
+  **And the sweep's first version reported a plausible lie**: written as one statement, the
+  `count(remaining)` beside a `DELETE` sees the pre-delete snapshot, so it said 14 after sweeping 2
+  of 14. Caught only by planting known leftovers and checking the arithmetic. Was: **Sprint 29's fixture sweep clears leftover TEAMS and not leftover USERS, and the review seed is
   what discovers that.** `globalSetup` sweeps `team_number ~ '^3[0-9]{4}$'` before a db run, which
   fixed the duplicate-team cascade. Today `npm run seed:review` refused with "11 of 47 seeded
   accounts have no privacy_and_guidelines@2.0 row" — and all 11 were uuid-shaped `@falconforge.test`
