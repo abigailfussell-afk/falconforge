@@ -280,11 +280,17 @@ gpg --output restored.sql --decrypt backup-<date>.sql.gpg
 # 2. Look at it before you run it. Both halves must be present: `backup.yml` concatenates
 #    schema.sql and data.sql, and a dump with no INSERTs restores an empty database.
 #
-#    THE NUMBERS TO COMPARE AGAINST LIVE IN §8, NOT HERE, because they move with the schema.
-#    The 2026-08-23 production release recorded 24 public tables, and the first green backup
-#    recorded 17 INSERT statements over 38,452 bytes. Four migrations have landed since and
-#    none of them adds a table. If what you see is far below either, stop — that is the
-#    finding, and it is what backup.yml's own INSERT check exists to catch.
+#    EXPECT 23 AND 17 — and the 23 is worth explaining, because the obvious number is wrong.
+#
+#    Kevin ran this on 2026-08-29 against the nightly artifact and got exactly those. The §8
+#    production-release row says "19 -> 24 public tables", and this runbook said 24 until that
+#    run: `team_entitlement` is a VIEW, so a schema dump emits CREATE VIEW for it, not CREATE
+#    TABLE. 23 tables + 1 view = the 24 in §8. `grep -c 'CREATE TABLE'` is therefore correct at
+#    23, and a runbook expecting 24 would have made a healthy backup look one table short.
+#
+#    These move with the schema. If what you see is far BELOW either, stop — that is the
+#    finding, and it is what backup.yml's own INSERT check exists to catch. If it is one or two
+#    above, a migration has landed since this line was written; check §8 rather than assuming.
 grep -c 'CREATE TABLE' restored.sql          # schema half
 grep -c '^INSERT INTO ' restored.sql         # data half
 grep -o '^INSERT INTO "[a-z_]*"\."[a-z_]*"' restored.sql | sort -u
