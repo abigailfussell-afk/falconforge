@@ -18,7 +18,7 @@ import EmptyState from './ui/EmptyState';
 import ConfirmDialog from './ConfirmDialog';
 import SchemaForm from './scouting/SchemaForm';
 import TeamSummaryTable from './scouting/TeamSummaryTable';
-import { eventsIn } from '../lib/scouting-metrics';
+import { eventKeyOf, eventsIn } from '../lib/scouting-metrics';
 import { scoutingReportsToCsv, scoutingCsvFilename, downloadCsv } from '../lib/scouting-csv';
 
 /**
@@ -92,11 +92,27 @@ const ScoutingReports: React.FC = () => {
     const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
     const events = useMemo(() => eventsIn(scoutingReports), [scoutingReports]);
+
+    /*
+     * The team's own competition events, for the form's picker — season-scoped like everything
+     * else on this screen, so last season's events cannot be attached to this season's scouting.
+     */
+    const seasonEvents = useSeasonScoped(useAppStore((s) => s.competitionEvents));
+    /*
+     * FILTERED BY THE GROUP KEY, not by the typed label.
+     *
+     * `eventsIn` groups by `competition_events` id when a report has one and by a NORMALISED
+     * label otherwise, so comparing the raw `eventName` here would select a subset of the group
+     * the dropdown just offered — pick "League Meet 1" and the reports somebody typed as
+     * "League meet 1" would vanish from a filter that claims to be showing that event.
+     *
+     * The type checker cannot see this: both sides are strings and it compiles either way.
+     */
     const visibleReports = useMemo(
         () =>
             eventFilter === null
                 ? scoutingReports
-                : scoutingReports.filter((r) => (r.eventName?.trim() ?? '') === eventFilter),
+                : scoutingReports.filter((r) => eventKeyOf(r) === eventFilter),
         [scoutingReports, eventFilter],
     );
     /** The selected team's reports, newest first — the detail under the table. */
@@ -120,7 +136,13 @@ const ScoutingReports: React.FC = () => {
      */
     const exportCsv = () => {
         const csv = scoutingReportsToCsv(visibleReports, game);
-        downloadCsv(scoutingCsvFilename(eventFilter, new Date()), csv);
+        /*
+         * The DISPLAY name, not the filter key. `eventFilter` holds a group key now —
+         * `id:<uuid>` or `name:league meet 1` — and passing that here would put the prefix, or a
+         * raw uuid, into the filename of a file a lead opens in a spreadsheet and keeps.
+         */
+        const label = events.find((ev) => ev.key === eventFilter)?.name ?? null;
+        downloadCsv(scoutingCsvFilename(label, new Date()), csv);
     };
 
     const [newScout, setNewScout] = useState<Partial<ScoutingReport>>(() => ({
@@ -175,6 +197,7 @@ const ScoutingReports: React.FC = () => {
                     ? newScout.matchNumber
                     : undefined,
             eventName: newScout.eventName || '',
+            seasonEventId: newScout.seasonEventId,
             // Undefined, not '' or 0 — "not noted" is a fact and the CHECK constraints refuse
             // both of those anyway (P-02).
             alliance: newScout.alliance,
@@ -199,6 +222,9 @@ const ScoutingReports: React.FC = () => {
             teamNumber: report.teamNumber,
             matchNumber: report.matchNumber,
             eventName: report.eventName,
+            // Without this, opening a linked report and saving it would drop the link and
+            // silently move that report into a free-text group of its own.
+            seasonEventId: report.seasonEventId,
             alliance: report.alliance,
             station: report.station,
             /*
@@ -252,9 +278,17 @@ const ScoutingReports: React.FC = () => {
                             }}
                         >
                             <option value="">All events</option>
+                            {/*
+                              * VALUE is the group key, TEXT is the label. They differ: the key
+                              * may be a `competition_events` id the scout never sees, and the
+                              * label is whichever spelling the most reports used. Keying the
+                              * React list on `ev.key` as well, since two groups can legitimately
+                              * display the same name — a linked event and a free-text one that
+                              * happens to match.
+                              */}
                             {events.map((ev) => (
-                                <option key={ev.name} value={ev.name}>
-                                    {ev.name} ({ev.count})
+                                <option key={ev.key} value={ev.key}>
+                                    {ev.name || 'Unnamed event'} ({ev.count})
                                 </option>
                             ))}
                         </select>
@@ -645,14 +679,66 @@ const ScoutingReports: React.FC = () => {
 
                         <div>
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase" htmlFor="scout-event-name">Event</label>
-                            <input
-                                id="scout-event-name"
-                                data-testid="scout-event-name"
-                                type="text"
-                                className="field"
-                                value={newScout.eventName || ''}
-                                onChange={e => setNewScout({ ...newScout, eventName: e.target.value })}
-                            />
+                            {/*
+                              * A PICKER WHEN THE TEAM HAS EVENTS, THE TEXT BOX WHEN IT DOES NOT.
+                              *
+                              * Choosing from `competition_events` records the event by IDENTITY,
+                              * so no amount of retyping can split one competition into two
+                              * summaries — which is what free text alone had been doing.
+                              *
+                              * The free-text option is NOT a legacy path and is never removed:
+                              * a scout at an event the coach has not entered yet must still be
+                              * able to record what they saw, and a picker with no escape would
+                              * be a gate with no door on the one screen used under time
+                              * pressure (`docs/failure-modes.md` §7). Selecting "Another event"
+                              * clears the link and hands back the input.
+                              */}
+                            {seasonEvents.length > 0 ? (
+                                <>
+                                    <select
+                                        id="scout-event-name"
+                                        data-testid="scout-event-picker"
+                                        className="field"
+                                        value={newScout.seasonEventId ?? ''}
+                                        onChange={(e) => {
+                                            const id = e.target.value;
+                                            const chosen = seasonEvents.find((ev) => ev.id === id);
+                                            setNewScout({
+                                                ...newScout,
+                                                seasonEventId: id || undefined,
+                                                // The label follows the choice, so a report is
+                                                // still readable if its event is later deleted —
+                                                // the FK nulls the link and leaves this behind.
+                                                eventName: chosen ? chosen.name : newScout.eventName,
+                                            });
+                                        }}
+                                    >
+                                        <option value="">Another event (type it below)</option>
+                                        {seasonEvents.map((ev) => (
+                                            <option key={ev.id} value={ev.id}>{ev.name}</option>
+                                        ))}
+                                    </select>
+                                    {!newScout.seasonEventId && (
+                                        <input
+                                            data-testid="scout-event-name"
+                                            type="text"
+                                            className="field mt-2"
+                                            placeholder="Event name"
+                                            value={newScout.eventName || ''}
+                                            onChange={(e) => setNewScout({ ...newScout, eventName: e.target.value })}
+                                        />
+                                    )}
+                                </>
+                            ) : (
+                                <input
+                                    id="scout-event-name"
+                                    data-testid="scout-event-name"
+                                    type="text"
+                                    className="field"
+                                    value={newScout.eventName || ''}
+                                    onChange={e => setNewScout({ ...newScout, eventName: e.target.value })}
+                                />
+                            )}
                         </div>
 
                         {/* ...and everything the GAME defines. */}

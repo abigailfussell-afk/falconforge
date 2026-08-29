@@ -559,7 +559,20 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
   cheap half is making them `tsc`-visible or type-checking the row literals against
   `database.types.ts`; the expensive half is running them, which needs Docker.
 *From Sprint 26 — scouting that answers questions, `v2/sprint-26-scouting` (2026-08-23):*
-- **`scouting_reports.event_name` is still free text, and the summary's event filter groups on
+- **✅ FIXED 2026-08-29 (Sprint 34).** `season_event_id` on `scouting_reports`, a **composite** FK
+  `(season_event_id, team_id) REFERENCES competition_events (id, team_id)` — a single-column reference
+  to `id` would let one team's report point at another team's event, which is B21's shape. Proved by
+  swapping the local constraint to single-column: the cross-tenant test fails and nothing else does.
+  `ON DELETE SET NULL (season_event_id)`, the per-column form, because the whole-key form cannot fire
+  at all when `team_id` is NOT NULL — the trap this schema already carries on five constraints.
+  **Two halves, neither sufficient alone**: `eventsIn` groups by identity when present and by a
+  NORMALISED label otherwise (casefold + collapsed whitespace), which fixes the accidental split;
+  the picker fixes the deliberate one, since "MI State" and "Michigan State Championship" are
+  different strings by any measure. Free text stays PERMANENT, not legacy — a scout at an event the
+  coach has not entered must still record what they saw. `gate:db` green (672 db, 418 rls); 8 metrics
+  tests watched failing against the old grouping. **Two defects `tsc` accepted**: the filter still
+  compared raw `eventName` while the dropdown emitted keys, and the CSV filename would have carried
+  `name:league meet 1`. Was: **`scouting_reports.event_name` is still free text, and the summary's event filter groups on
   it exactly.** Two scouts typing "League Meet 1" and "League meet 1" produce two events in the
   filter and two separate summaries, and nothing tells anybody. Sprint 18 built
   `competition_events` for precisely this, and P-02's minimal set deliberately did not touch it

@@ -173,6 +173,19 @@ export interface ScoutingReport {
   matchNumber?: number;
   eventName?: string;
   /**
+   * The `competition_events` row this report was taken at, when the team has entered one.
+   *
+   * `eventName` remains the human label and remains written; this is the IDENTITY. The summary
+   * groups on this when it is present, because grouping on the label alone splits an event in
+   * two the moment somebody types "League meet 1" — `eventsIn()` keyed a case-sensitive Map, so
+   * two scouts at one competition produced two summaries and nothing said so.
+   *
+   * UNDEFINED IS NORMAL AND PERMANENT, not a migration to finish: a scout at an event the coach
+   * has not created yet must still be able to record what they saw, and every report written
+   * before this column has none. Readers fall back to `eventName`.
+   */
+  seasonEventId?: string;
+  /**
    * Which side of the field, and which driver station (P-02).
    *
    * BOTH OPTIONAL, for the same reason `matchNumber` is: a scout at a venue is watching a

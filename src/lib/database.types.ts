@@ -880,6 +880,7 @@ export type Database = {
           id: string
           match_number: number | null
           opponent_team_number: string
+          season_event_id: string | null
           season_id: string
           station: number | null
           team_id: string
@@ -894,6 +895,7 @@ export type Database = {
           id?: string
           match_number?: number | null
           opponent_team_number: string
+          season_event_id?: string | null
           season_id: string
           station?: number | null
           team_id: string
@@ -908,6 +910,7 @@ export type Database = {
           id?: string
           match_number?: number | null
           opponent_team_number?: string
+          season_event_id?: string | null
           season_id?: string
           station?: number | null
           team_id?: string
@@ -919,6 +922,13 @@ export type Database = {
             columns: ["created_by", "team_id"]
             isOneToOne: false
             referencedRelation: "team_members"
+            referencedColumns: ["id", "team_id"]
+          },
+          {
+            foreignKeyName: "scouting_reports_season_event_fk"
+            columns: ["season_event_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "competition_events"
             referencedColumns: ["id", "team_id"]
           },
           {
