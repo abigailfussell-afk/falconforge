@@ -151,13 +151,39 @@ share a timezone only by coincidence. Read times from the browser via `page.eval
 
 ## 8. The local `dist/` may not be the bundle you think
 
-After any `test:e2e` run, `dist/` is Playwright's build, which pins the **local** stack. Three
-sprint reports leaned on "the live bundle is byte-identical to the local build" as a deploy
-check; that comparison fails for a reason unrelated to the deploy, and would equally **pass**
-while hiding a real difference if the two happened to agree.
+Two different causes, and the second is far more common than this section used to say.
 
-**Rule.** Normalise chunk hashes and diff, then check the live lazy chunks for the feature's own
-strings.
+**After any `test:e2e` run**, `dist/` is Playwright's build, which pins the **local** stack.
+Three sprint reports leaned on "the live bundle is byte-identical to the local build" as a
+deploy check; that comparison fails for a reason unrelated to the deploy, and would equally
+**pass** while hiding a real difference if the two happened to agree.
+
+**After any `npm run gate`** — which is every sprint, repeatedly — `dist/` is a
+**PRODUCTION-wired** bundle. The Gate ends in `npm run build`, which is `vite build` with no
+`--mode`, so it reads `.env.local`, and `.env.local` points at the hosted project (§2). A
+`vite preview` afterwards then serves production on localhost, looking exactly like a local
+review build.
+
+That cost a UI investigation on 2026-08-24 that was about to be run against production's data,
+and it was caught only because a seeded LOCAL account failed to sign in — the build had reached
+production's GoTrue, which correctly said the account did not exist. **A login attempt reached
+production before the cause was found.** It recurred twice more in the same session, each time
+straight after a Gate run.
+
+**Rule — for "which backend is this?":** run `npm run check:bundle`. It is a static check on
+`dist/`, so it needs no server, no browser and no Docker, and it can run before anything
+expensive or irreversible. Use `npm run preview:local` to build, check and serve in one step
+rather than remembering `--mode development`.
+
+It asserts the local stack is **present** as well as production being absent, deliberately: a
+broken or stale build references neither, and "no production references" is true of that too
+(`docs/failure-modes.md` §4 — the zero case is the first case).
+
+**Rule — for "is the live bundle the one I built?":** normalise chunk hashes and diff, then check
+the live lazy chunks for the feature's own strings. Note that a local Gate build and a CI build
+differ *by construction* — CI builds with the production `VITE_SUPABASE_*` secrets — so a
+byte-identical comparison between them can never pass; check what the live bundle POINTS AT
+instead.
 
 ## 9. The CI runner is cold and contended; your machine is not
 

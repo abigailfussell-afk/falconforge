@@ -30,7 +30,7 @@ function defaultSeasonName(): string {
 export default function CreateTeam() {
     const navigate = useNavigate();
     const { user, ageClassification, isLoading: authLoading } = useAuth();
-    const { teams, setTeams, setCurrentTeam } = useAppStore();
+    const { teams, setTeams, setCurrentTeam, seasons, setSeasons, setCurrentSeason } = useAppStore();
     const [currentStep, setCurrentStep] = useState<Step>('attestation');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -264,6 +264,48 @@ export default function CreateTeam() {
                     },
                 ]);
                 setCurrentTeam(result.team_id);
+            }
+
+            /*
+             * AND THE SEASON, for exactly the reason the team is seeded above.
+             *
+             * `create_team_as_admin` has always returned `season_id` — it is in the typed result
+             * a few lines up — and this screen has always thrown it away, leaving
+             * `currentSeasonId` null until the season PULL landed. Online that window is a
+             * second and nobody notices. Offline the pull never lands at all, so the board comes
+             * up read-only with "Select a season first" and there is no season to select.
+             *
+             * The scenario is a real one and it is a FIRST-DAY one: a coach registers the team
+             * in the car park, walks into a venue with no usable signal, and finds an
+             * offline-first app that cannot create anything, explaining itself with a message
+             * about a season they never had the chance to choose. Every team runs this flow
+             * exactly once, on their first evening, with nobody to ask.
+             *
+             * `setSeasons` rather than `setCurrentSeason` alone: the picker renders from the
+             * `seasons` collection, so setting only the id leaves the sidebar showing "Select
+             * Season" while sitting inside that very season — the same trap the team seeding
+             * above documents, and the reason that comment says "both halves are needed".
+             *
+             * Seeded from the write we just performed, not read back. That is what this app does
+             * everywhere else and it is not a second read path: it closes the window between the
+             * RPC returning and the next pull, which is the window the coach is looking at.
+             */
+            if (result.season_id) {
+                setSeasons([
+                    ...seasons.filter((s) => s.id !== result.season_id),
+                    {
+                        id: result.season_id,
+                        name: seasonName.trim(),
+                        // The RPC does not choose a game, and neither does this screen; the
+                        // season rolls over into one later. '' is "not recorded", which is what
+                        // the column means — not a guess at DECODE.
+                        gameTitle: '',
+                        teamId: result.team_id,
+                        isArchived: false,
+                        createdAt: Date.now(),
+                    },
+                ]);
+                setCurrentSeason(result.season_id);
             }
 
             setInviteCode(result.invite_code || null);

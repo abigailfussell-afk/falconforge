@@ -5,6 +5,7 @@ import CreateTeam from '../CreateTeam';
 import * as authObj from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { recordAttestation } from '../../lib/attestations';
+import { useAppStore } from '../../lib/store';
 
 // Mock auth hook
 vi.mock('../../lib/auth', () => ({
@@ -165,6 +166,77 @@ describe('CreateTeam', () => {
             
             fireEvent.change(teamNameInput, { target: { value: 'Valid Team' } });
             expect(createButton.disabled).toBe(false);
+        });
+    });
+
+    /*
+     * THE CAR-PARK CASE. A coach registers the team, then walks into a venue with no usable
+     * signal — which for an offline-first app is the normal condition, not the edge one.
+     *
+     * `create_team_as_admin` has always RETURNED `season_id`, and this screen used to throw it
+     * away, leaving `currentSeasonId` null until the season PULL landed. Online that window is
+     * a second. Offline the pull never lands, so the board comes up read-only saying "Select a
+     * season first" about a season the coach was never offered.
+     *
+     * Asserted on the STORE rather than on rendered text, because the symptom is three screens
+     * away (the board's New button reading its `canEdit`), and a test that walked there would
+     * be testing the board's disabled-state logic rather than this screen's handover.
+     */
+    describe('the season survives going offline immediately after registering', () => {
+        const submit = () => {
+            render(<CreateTeam />, { wrapper: TestWrapper });
+            fireEvent.click(screen.getByRole('checkbox'));
+            fireEvent.click(screen.getByRole('button', { name: /next/i }));
+            fireEvent.change(screen.getByPlaceholderText('e.g., Falcon Force'), {
+                target: { value: 'Valid Team' },
+            });
+            fireEvent.click(screen.getByRole('button', { name: /create team/i }));
+        };
+
+        it('adopts the season the RPC just created, not just the team', async () => {
+            rpcMock().mockResolvedValueOnce({
+                data: { success: true, team_id: 't1', season_id: 's1', invite_code: 'CODE123' },
+                error: null,
+            });
+
+            submit();
+            await waitFor(() => expect(useAppStore.getState().currentTeamId).toBe('t1'));
+
+            // The id alone is not enough: the picker renders from the collection, so setting
+            // only `currentSeasonId` leaves the sidebar saying "Select Season" inside that very
+            // season — the same trap the team seeding documents.
+            await waitFor(() => expect(useAppStore.getState().currentSeasonId).toBe('s1'));
+            expect(useAppStore.getState().seasons.map((s) => s.id)).toContain('s1');
+        });
+
+        it('the seeded season is open, so the board accepts writes', async () => {
+            rpcMock().mockResolvedValueOnce({
+                data: { success: true, team_id: 't1', season_id: 's1', invite_code: 'CODE123' },
+                error: null,
+            });
+
+            submit();
+            await waitFor(() => expect(useAppStore.getState().currentSeasonId).toBe('s1'));
+
+            /*
+             * `isArchived: false` is the half that makes this worth anything. A season seeded as
+             * archived would satisfy the test above and still refuse every write — the read-only
+             * board with a different explanation.
+             */
+            const seeded = useAppStore.getState().seasons.find((s) => s.id === 's1');
+            expect(seeded?.isArchived).toBe(false);
+            expect(seeded?.teamId).toBe('t1');
+        });
+
+        it('a response with no season_id leaves the store alone rather than seeding a blank one', async () => {
+            rpcMock().mockResolvedValueOnce({
+                data: { success: true, team_id: 't1', invite_code: 'CODE123' },
+                error: null,
+            });
+
+            submit();
+            await waitFor(() => expect(useAppStore.getState().currentTeamId).toBe('t1'));
+            expect(useAppStore.getState().seasons.some((s) => !s.id)).toBe(false);
         });
     });
 

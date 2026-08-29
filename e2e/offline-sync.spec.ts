@@ -26,16 +26,20 @@ test.describe('offline and sync', () => {
         const offlineTitle = unique('Repair the intake');
 
         /*
-         * Be genuinely loaded before pulling the plug.
+         * THE WAIT THAT USED TO BE HERE IS GONE, AND ITS ABSENCE IS THE TEST.
          *
-         * The board's New button is disabled with "Select a season first" until the season pull
-         * lands, and `goToView` waits for the VIEW rather than for that. Under four workers this
-         * test began losing the race — a fresh team is seconds old and the pull is still in
-         * flight — and failed on a disabled button, which reads exactly like an offline defect
-         * and is not one. The scenario under test is "work created offline survives", not "the
-         * app is switched off mid-boot"; that second one is real, and it is in the parking lot.
+         * It used to wait for `season-selector` to have a value before going offline, because
+         * the board's New button was disabled with "Select a season first" until the season PULL
+         * landed — a fresh team is seconds old and the pull is still in flight. The comment said
+         * the scenario it was papering over ("the app is switched off mid-boot") was real and in
+         * the parking lot. It was: a coach who registers in the car park and walks into a venue
+         * with no signal got an app that could not create anything.
+         *
+         * `CreateTeam` now seeds the season from the `create_team_as_admin` response, the way it
+         * already seeded the team, so there is no pull to wait for. Removing the wait turns this
+         * spec from a workaround into a regression test: if the seeding is lost, this goes red on
+         * a disabled New button.
          */
-        await expect(page.getByTestId('season-selector')).not.toHaveValue('', { timeout: 30_000 });
 
         await context.setOffline(true);
 
