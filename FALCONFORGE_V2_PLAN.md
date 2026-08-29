@@ -459,6 +459,24 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 
 **Discovered / parking lot:**
 
+*From the 2026-08-29 deploys, found by getting it wrong twice:*
+- **`check-production.mjs`'s auth assertion disagrees with a real browser, and the browser is
+  right.** Twice on 2026-08-29 the deploy failed on `auth endpoint answers — This operation was
+  aborted` while Kevin signed in successfully from a browser seconds later. Both times my own
+  `curl` reproduced the hang (8/8 at a 20s cap), and both times REST through the same gateway with
+  the same anon key answered in ~0.5s. Supabase reported "Partially Degraded Service / API Gateway"
+  across the window.
+  **So the check is measuring something real and describing it wrongly.** "Auth endpoint answers"
+  reads as "people can sign in", and on this evidence it is not that: it is closer to "GoTrue is
+  reachable from a datacenter right now". A CI runner and a browser took different views of the same
+  service, twice, and the check has no way to say which one it took.
+  **Do NOT fix this by adding a retry** — that would turn a check which twice told the truth about
+  production into one that stays quiet. The honest options are to probe the endpoint a real sign-in
+  uses (`/auth/v1/token` with a deliberately bad credential, expecting a fast 400) rather than
+  `/auth/v1/settings`, or to keep the assertion and have it name the ambiguity in its failure text.
+  Worth doing before beta, because a deploy that goes red for a reason nobody can act on is a deploy
+  people learn to ignore.
+
 *From Sprint 36 — Gate reliability, `v2/sprint-36-gate-reliability` (2026-08-29):*
 - **The exit-127 death did not reproduce, and the documented lead is wrong.** Four consecutive
   clean `gate:db` runs today (672 db + 418 rls each). The entry chasing this points at
