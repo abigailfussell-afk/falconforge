@@ -80,6 +80,17 @@ const mockStore = {
     // The team has made no changes to the template. An empty array, not undefined: the page
     // does `.find` on it, and undefined is the "still loading" state this mock is not in.
     gameOverrides: [],
+    /*
+     * The team's competition events, for the scouting form's event picker. An empty array for
+     * the same reason as `gameOverrides` above: the page runs the season filter over it, and
+     * `createEventSlice` initialises it to `[]`, so `undefined` is a state the real store is
+     * never in — a mock that omitted it would be lying about the module rather than describing
+     * a case worth testing.
+     *
+     * Empty is also the meaningful default HERE: with no events, the form must still offer the
+     * free-text input, which is what these fixtures exercise.
+     */
+    competitionEvents: [],
 };
 
 /**
@@ -251,6 +262,97 @@ describe('ScoutingReport form validation', () => {
                 return selector(mockStore);
             }
             return mockStore;
+        });
+    });
+
+    /*
+     * THE EVENT PICKER, and why the free-text box has to survive it.
+     *
+     * `event_name` alone let two scouts at one competition produce two summaries — "League
+     * Meet 1" and "League meet 1" grouped separately and nothing said so. Picking from
+     * `competition_events` records the event by IDENTITY, which no amount of retyping can
+     * split.
+     *
+     * Every OTHER test in this file runs with `competitionEvents: []`, so they all exercise the
+     * free-text branch. Without this block the picker would be the only untested thing in the
+     * change that introduced it.
+     */
+    describe('the event picker', () => {
+        const withEvents = () => {
+            (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => {
+                const store = {
+                    ...mockStore,
+                    competitionEvents: [
+                        { id: 'evt-1', seasonId: 'season-1', name: 'League Meet 1' },
+                        { id: 'evt-2', seasonId: 'season-1', name: 'State Championship' },
+                    ],
+                };
+                return selector ? selector(store) : store;
+            });
+            renderCards();
+            fireEvent.click(screen.getByTestId('scout-match'));
+        };
+
+        it('offers the team’s events instead of asking the scout to type one', () => {
+            withEvents();
+
+            const picker = screen.getByTestId('scout-event-picker') as HTMLSelectElement;
+            expect([...picker.options].map((o) => o.text)).toContain('League Meet 1');
+            expect([...picker.options].map((o) => o.text)).toContain('State Championship');
+        });
+
+        it('records the id AND the label, so a deleted event leaves the report readable', () => {
+            withEvents();
+
+            fireEvent.change(screen.getByTestId('scout-event-picker'), { target: { value: 'evt-2' } });
+            fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '8412' } });
+            fireEvent.click(screen.getByTestId('save-scouting-report'));
+
+            /*
+             * BOTH fields. The id is what the summary groups on; the name is what survives the
+             * FK nulling itself when an event is deleted. Asserting only the id would pass over
+             * a version that dropped the label and left those reports showing nothing.
+             */
+            expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
+                expect.objectContaining({ seasonEventId: 'evt-2', eventName: 'State Championship' }),
+            );
+        });
+
+        it('still lets a scout type an event the team has not entered', () => {
+            /*
+             * The case that must never be closed off: a scout at a venue whose coach has not
+             * created the event. A picker with no escape would be a gate with no door on the one
+             * screen used under time pressure.
+             */
+            withEvents();
+
+            // "Another event" is the empty value — the picker starts there.
+            const typed = screen.getByTestId('scout-event-name');
+            fireEvent.change(typed, { target: { value: 'Scrimmage at Dow' } });
+            fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: '8412' } });
+            fireEvent.click(screen.getByTestId('save-scouting-report'));
+
+            expect(mockStore.addScoutingReport).toHaveBeenCalledWith(
+                expect.objectContaining({ eventName: 'Scrimmage at Dow', seasonEventId: undefined }),
+            );
+        });
+
+        it('hides the free-text box once an event is chosen, so the two cannot disagree', () => {
+            withEvents();
+            expect(screen.queryByTestId('scout-event-name')).not.toBeNull();
+
+            fireEvent.change(screen.getByTestId('scout-event-picker'), { target: { value: 'evt-1' } });
+            expect(screen.queryByTestId('scout-event-name')).toBeNull();
+        });
+
+        it('falls back to a plain text field when the team has no events at all', () => {
+            // The state every other test in this file is in, asserted once explicitly rather
+            // than relied on implicitly.
+            renderCards();
+            fireEvent.click(screen.getByTestId('scout-match'));
+
+            expect(screen.queryByTestId('scout-event-picker')).toBeNull();
+            expect(screen.queryByTestId('scout-event-name')).not.toBeNull();
         });
     });
 

@@ -171,15 +171,77 @@ export function sortSummaries(
     });
 }
 
-/** Every distinct event name in a set of reports, plus how many reports each has. */
-export function eventsIn(reports: ScoutingReport[]): { name: string; count: number }[] {
-    const counts = new Map<string, number>();
+/**
+ * One event, as the filter understands it.
+ *
+ * `key` is what reports are grouped and filtered BY; `name` is what a person is shown. They are
+ * different on purpose — the key may be an id the scout never sees, and the label may vary in
+ * spelling between reports that belong together.
+ */
+export interface ScoutedEvent {
+    key: string;
+    name: string;
+    count: number;
+    /** True when the key is a `competition_events` id rather than a normalised label. */
+    linked: boolean;
+}
+
+/**
+ * Which event does this report belong to, for grouping?
+ *
+ * IDENTITY FIRST, SPELLING SECOND. A report linked to a `competition_events` row groups by that
+ * id, so no amount of retyping the label can split it. A report with only free text groups by a
+ * NORMALISED label — casefolded, with runs of whitespace collapsed — because the defect this
+ * function exists for is two scouts at one competition typing "League Meet 1" and
+ * "League meet 1" and getting two summaries with nothing to say so.
+ *
+ * Normalising is not the same as fixing it: "MI State" and "Michigan State Championship" are
+ * still two events to this function, and no string comparison can know otherwise. That case is
+ * what the event PICKER is for. This half stops the accidental split; the picker stops the
+ * deliberate one.
+ */
+export function eventKeyOf(r: ScoutingReport): string | null {
+    if (r.seasonEventId) return `id:${r.seasonEventId}`;
+    const name = r.eventName?.trim();
+    if (!name) return null;
+    return `name:${name.toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
+/**
+ * Every distinct event in a set of reports, plus how many reports each has.
+ *
+ * The DISPLAYED name for a normalised group is the spelling the most reports used, with an
+ * alphabetical tie-break so the label cannot flip between renders on an even split — this
+ * project has been bitten three times by relying on an ordering nothing promised
+ * (`docs/failure-modes.md` §13).
+ */
+export function eventsIn(reports: ScoutingReport[]): ScoutedEvent[] {
+    const groups = new Map<string, { spellings: Map<string, number>; count: number; linked: boolean }>();
+
     for (const r of reports) {
-        const name = r.eventName?.trim();
-        if (!name) continue;
-        counts.set(name, (counts.get(name) ?? 0) + 1);
+        const key = eventKeyOf(r);
+        if (!key) continue;
+        const label = r.eventName?.trim() || '';
+        let g = groups.get(key);
+        if (!g) {
+            g = { spellings: new Map(), count: 0, linked: key.startsWith('id:') };
+            groups.set(key, g);
+        }
+        g.count += 1;
+        if (label) g.spellings.set(label, (g.spellings.get(label) ?? 0) + 1);
     }
-    return [...counts.entries()]
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+
+    return [...groups.entries()]
+        .map(([key, g]) => {
+            const name =
+                [...g.spellings.entries()].sort(
+                    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+                )[0]?.[0] ?? '';
+            return { key, name, count: g.count, linked: g.linked };
+        })
+        /*
+         * A linked event with no label at all would sort to the front on an empty string, which
+         * puts the least identifiable row where the eye lands first. Nameless groups go last.
+         */
+        .sort((a, b) => (a.name ? 0 : 1) - (b.name ? 0 : 1) || a.name.localeCompare(b.name));
 }

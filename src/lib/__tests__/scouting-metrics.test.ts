@@ -20,6 +20,7 @@ import { describe, it, expect } from 'vitest';
 import {
     aggregate,
     compareTeamNumbers,
+    eventKeyOf,
     eventsIn,
     metricValue,
     sortSummaries,
@@ -212,8 +213,100 @@ describe('eventsIn', () => {
                 report({}),
             ]),
         ).toEqual([
-            { name: 'League Meet 1', count: 1 },
-            { name: 'Regional', count: 2 },
+            { key: 'name:league meet 1', name: 'League Meet 1', count: 1, linked: false },
+            { key: 'name:regional', name: 'Regional', count: 2, linked: false },
         ]);
+    });
+
+    /*
+     * THE DEFECT THIS WAS WRITTEN FOR. Two scouts at one competition, one of whom did not hold
+     * shift. The old implementation keyed a case-sensitive Map on the trimmed label, so this
+     * produced TWO events in the filter and TWO summaries of the same competition, and nothing
+     * anywhere said so — scouting silently cut in half, with numbers that still look plausible.
+     */
+    it('does not split one event because two scouts typed it differently', () => {
+        const events = eventsIn([
+            report({ eventName: 'League Meet 1' }),
+            report({ eventName: 'League meet 1' }),
+            report({ eventName: '  league  meet 1 ' }),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].count).toBe(3);
+    });
+
+    it('shows the spelling the most reports used', () => {
+        // Not "whichever arrived first": the label a lead recognises is the common one.
+        const events = eventsIn([
+            report({ eventName: 'league meet 1' }),
+            report({ eventName: 'League Meet 1' }),
+            report({ eventName: 'League Meet 1' }),
+        ]);
+
+        expect(events[0].name).toBe('League Meet 1');
+    });
+
+    it('breaks a tie on spelling deterministically rather than by arrival order', () => {
+        // An even split must not let the label flip between renders — failure-modes section 13
+        // is three instances of relying on an ordering nothing promised.
+        const a = eventsIn([report({ eventName: 'B Event' }), report({ eventName: 'A Event' })]);
+        const b = eventsIn([report({ eventName: 'A Event' }), report({ eventName: 'B Event' })]);
+
+        expect(a[0].name).toBe(b[0].name);
+    });
+
+    /*
+     * IDENTITY BEATS SPELLING. Two reports linked to the same `competition_events` row are one
+     * event however they are labelled — which is the half normalising cannot do, because
+     * "MI State" and "Michigan State Championship" are different strings by any measure.
+     */
+    it('groups by the linked event id even when the labels disagree entirely', () => {
+        const events = eventsIn([
+            report({ seasonEventId: 'evt-1', eventName: 'MI State' }),
+            report({ seasonEventId: 'evt-1', eventName: 'Michigan State Championship' }),
+            report({ seasonEventId: 'evt-1', eventName: 'Michigan State Championship' }),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({ key: 'id:evt-1', count: 3, linked: true });
+        expect(events[0].name).toBe('Michigan State Championship');
+    });
+
+    it('keeps a linked event separate from a free-text one that happens to share a name', () => {
+        // They are different events as far as the data is concerned, and merging them would
+        // invent a fact. The dropdown can show the same label twice; the KEY is what differs.
+        const events = eventsIn([
+            report({ seasonEventId: 'evt-1', eventName: 'Regional' }),
+            report({ eventName: 'Regional' }),
+        ]);
+
+        expect(events).toHaveLength(2);
+        expect(events.map((e) => e.linked).sort()).toEqual([false, true]);
+    });
+
+    it('a linked report with no label still groups, and sorts last rather than first', () => {
+        // An empty name would sort to the front alphabetically, putting the least identifiable
+        // row where the eye lands first.
+        const events = eventsIn([
+            report({ seasonEventId: 'evt-1' }),
+            report({ eventName: 'Regional' }),
+        ]);
+
+        expect(events.map((e) => e.name)).toEqual(['Regional', '']);
+    });
+});
+
+describe('eventKeyOf', () => {
+    it('prefers the linked id over the label', () => {
+        expect(eventKeyOf(report({ seasonEventId: 'evt-1', eventName: 'Regional' }))).toBe('id:evt-1');
+    });
+
+    it('normalises a free-text label so case and spacing cannot split it', () => {
+        expect(eventKeyOf(report({ eventName: '  League  MEET 1 ' }))).toBe('name:league meet 1');
+    });
+
+    it('returns null for a report with no event at all, so it is not grouped under a blank', () => {
+        expect(eventKeyOf(report({}))).toBeNull();
+        expect(eventKeyOf(report({ eventName: '   ' }))).toBeNull();
     });
 });

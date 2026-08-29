@@ -103,6 +103,11 @@ const scoutingReport: ScoutingReport = {
     teamNumber: '12345',
     matchNumber: 7,
     eventName: 'League Meet 2',
+    // The event by identity, alongside the label. PRESENT in this fixture on the same principle
+    // the next comment states: an optional field left out of the sample is a field the
+    // round-trip test says nothing about, and this one is a foreign key — losing it in transit
+    // would silently move a report into a free-text group of its own.
+    seasonEventId: 'event-1',
     // Where on the field (P-02). Both optional, both round-tripped, and `station` is the case a
     // `|| null` would have turned into "not noted" for station... which is why it is 2 here and
     // why `alliance` is present: a sample that omits an optional field proves nothing about it.

@@ -330,6 +330,13 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         // Undefined means "not recorded" -- never 0, which the CHECK constraint rejects (B18).
         match_number: r.matchNumber ?? null,
         event_name: r.eventName || null,
+        /*
+         * The event by IDENTITY, when the team has entered one. NULL is normal and permanent:
+         * a scout at an event the coach has not created yet still records what they saw, and
+         * every row written before this column has it null. `event_name` stays the fallback
+         * and is still written, so a report never loses the human label it was taken with.
+         */
+        season_event_id: r.seasonEventId || null,
         // NULL rather than '' or 0: "not noted" is a different fact from red, or from station
         // one, and a CHECK constraint refuses both empty strings and zero anyway (P-02).
         alliance: r.alliance ?? null,
@@ -355,6 +362,7 @@ const scoutingReports: EntityDefinition<ScoutingReport> = {
         teamNumber: r.opponent_team_number,
         matchNumber: r.match_number ?? undefined,
         eventName: r.event_name || '',
+        seasonEventId: r.season_event_id ?? undefined,
         alliance: (r.alliance as 'red' | 'blue' | null) ?? undefined,
         station: r.station ?? undefined,
         /*
