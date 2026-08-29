@@ -243,6 +243,144 @@ select (select count(*) from teams) teams, (select count(*) from team_members) m
        (select count(*) from tasks) tasks, (select count(*) from meetings) meetings;
 ```
 
+### The last mile: a REAL artifact into a NEW hosted project
+
+**This is the one restore claim in this document that has never been executed, and it is the one
+that matters.** Everything above was rehearsed into the *local* stack, which is not the thing you
+would be restoring into on the worst day. The local stack hands you `auth`, `extensions`,
+`storage` and `vault` already built, because the Supabase CLI creates them; the same dump into a
+bare Postgres produced **29 errors**. A fresh hosted project provides those schemas too, but *its*
+versions, owned by *its* roles — and nobody has watched this dump land on one.
+
+So the purpose of this section is to be run **once**, deliberately, before a competition rather
+than during one. Roughly an hour.
+
+**Everything below is derived from the local rehearsal and from reading `backup.yml` — not from a
+hosted run.** Treat the expected-error list as a starting hypothesis, and write down what actually
+happened. If it disagrees with this section, the section is wrong.
+
+#### What you need
+
+- **A real nightly artifact.** Actions → *Nightly encrypted database backup* → a green run →
+  Artifacts → `db-backup-<run-id>`. They are kept **30 days**.
+- **`BACKUP_PASSPHRASE`**, the same secret the workflow encrypts with.
+- **A scratch Supabase project.** A new free project, named so nobody mistakes it for production
+  (`falconforge-restore-test`). Delete it afterwards — free-tier projects are limited per account
+  and an idle one pauses after 7 days, which is a confusing thing to rediscover later.
+- **Do not** use the production project. Nothing here writes to it, and that stays true only if
+  you never paste its URL into these commands.
+
+#### The run
+
+```bash
+# 1. Unpack and decrypt. Prompts for BACKUP_PASSPHRASE.
+unzip db-backup-<run-id>.zip
+gpg --output restored.sql --decrypt backup-<date>.sql.gpg
+
+# 2. Look at it before you run it. Both halves must be present: `backup.yml` concatenates
+#    schema.sql and data.sql, and a dump with no INSERTs restores an empty database.
+#
+#    THE NUMBERS TO COMPARE AGAINST LIVE IN §8, NOT HERE, because they move with the schema.
+#    The 2026-08-23 production release recorded 24 public tables, and the first green backup
+#    recorded 17 INSERT statements over 38,452 bytes. Four migrations have landed since and
+#    none of them adds a table. If what you see is far below either, stop — that is the
+#    finding, and it is what backup.yml's own INSERT check exists to catch.
+grep -c 'CREATE TABLE' restored.sql          # schema half
+grep -c '^INSERT INTO ' restored.sql         # data half
+grep -o '^INSERT INTO "[a-z_]*"\."[a-z_]*"' restored.sql | sort -u
+
+# 3. Target the SCRATCH project. Session pooler on 5432, as `backup.yml` uses:
+#    Actions runners have no IPv6 and Supabase's direct host is IPv6-only on the free tier.
+SCRATCH_URL='postgresql://postgres.<scratch-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
+
+# 4. Restore, capturing everything. Do NOT pipe this to /dev/null: the failure mode this
+#    document keeps recording is a restore that reports success while dropping rows.
+psql "$SCRATCH_URL" -f restored.sql 2>&1 | tee restore.log
+grep -ci '^ERROR' restore.log
+```
+
+#### What to expect, and what to do about it
+
+**Errors are not automatically failure here** — a Supabase dump replayed onto a project that
+already has `auth`, `storage` and the extensions will collide with what is already there. What
+matters is *which* errors.
+
+| Error | Verdict |
+|---|---|
+| `... already exists` on a schema, extension, or an `auth.*`/`storage.*` object | **Expected.** The hosted project built those itself. |
+| `role "..." does not exist` for `anon`, `authenticated`, `service_role`, `supabase_admin` | **Expected not to happen** — a fresh project has them. If it does, stop: the dump is being replayed somewhere that is not a Supabase project. |
+| `permission denied to set parameter "session_replication_role"` | **Expected to be possible, and handled** — see below. |
+| Anything mentioning `public.` and `violates ... constraint` | **Real.** This is the failure that produced 32 teams and no members. Stop and read the next block. |
+
+**The trigger problem, on hosted.** The data half opens with
+`SET session_replication_role = replica`, which holds triggers and foreign keys off while rows
+load. Locally that `SET` succeeds because `supautils.privileged_role` is `postgres`. **On the
+hosted project it is `supabase_privileged_role`** (read 2026-08-23 with `supabase db query
+--linked`); `postgres` is a member, and *whether membership is enough has never been tested* —
+testing it against production is exactly what nobody should do.
+
+If that `SET` is refused, the first trigger to fire rejects its row ("The team admin must accept
+the terms of service…") and every table with a foreign key to it fails after — **teams restored,
+and none of their people, work, meetings or scouting, exit 0**.
+
+So do not depend on the GUC. Wrap the load in the same two blocks
+`scripts/restore-rehearsal.mjs` uses, which work as table owner regardless:
+
+```sql
+-- BEFORE the data half
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT format('%I.%I', schemaname, tablename) AS t FROM pg_tables WHERE schemaname = 'public'
+  LOOP EXECUTE 'ALTER TABLE ' || r.t || ' DISABLE TRIGGER USER'; END LOOP;
+END $$;
+
+-- AFTER. Never skip this: the app's invariants live in these triggers.
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT format('%I.%I', schemaname, tablename) AS t FROM pg_tables WHERE schemaname = 'public'
+  LOOP EXECUTE 'ALTER TABLE ' || r.t || ' ENABLE TRIGGER USER'; END LOOP;
+END $$;
+```
+
+#### Then count. Counting is the whole point.
+
+`psql` exiting 0 is not the claim you need. Every restore failure this document records exited 0.
+
+```sql
+select (select count(*) from auth.users)       auth_users,
+       (select count(*) from public.users)     users,
+       (select count(*) from teams)            teams,
+       (select count(*) from team_members)     members,
+       (select count(*) from seasons)          seasons,
+       (select count(*) from tasks)            tasks,
+       (select count(*) from meetings)         meetings,
+       (select count(*) from license_grants)   grants,
+       (select count(*) from platform_operators) operators;
+```
+
+Compare against the same query run on **production** the same day. They should match exactly.
+`auth.users` and `teams` are the two that cannot be rebuilt by re-running anything — an account
+and a tenancy — which is why `backup.yml` refuses to encrypt a dump missing either.
+
+**Then prove the restored database is usable, not just populated.** A row count says the bytes
+arrived; it does not say PostgREST can read them. This is the gap that produced
+"permission denied for table teams" from a schema that looked perfect:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://<scratch-ref>.supabase.co/rest/v1/teams?select=id&limit=1" \
+  -H "apikey: <scratch-anon-key>" -H "Authorization: Bearer <scratch-anon-key>"
+# 200 with [] is CORRECT: RLS refusing an anonymous caller is the security boundary working.
+# 401/404/500, or a body naming a missing table or permission, is the finding.
+```
+
+#### Finish
+
+1. **Write the numbers into §8** — dated, with the artifact's run id. An unrecorded rehearsal is
+   one somebody has to do again.
+2. **Delete the scratch project.**
+3. If anything above was wrong, **fix this section in the same sitting**. The standing complaint
+   in this repo's history is documentation that was written once and never executed; a runbook
+   corrected the day it is first run stops being that.
+
 ### Restoring ONE team, without touching the others
 
 The dump is plain SQL, so a single team can be lifted out of it — which is the realistic case
