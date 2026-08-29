@@ -60,6 +60,21 @@ async function must(label, promise) {
     return data;
 }
 
+/**
+ * Every account THIS RUN created, by id.
+ *
+ * The legal-modal assertion below used to read the whole `users` table, which is a different
+ * set: db-test fixtures share the `@falconforge.test` domain and leak into it whenever
+ * `Fixtures.cleanup()` cannot delete them — an operator fixture pinned by `operator_actions` is
+ * undeletable by design, so even a CLEAN db-suite run leaves some behind. On 2026-08-29 that
+ * made a perfectly good seed refuse with "11 of 47 seeded accounts have no
+ * privacy_and_guidelines@2.0 row", naming accounts it had never created.
+ *
+ * An assertion that fails on somebody else's rows is worse than no assertion: it trains the
+ * reader to ignore it.
+ */
+const seededUserIds = new Set();
+
 async function makeUser(email, fullName, age = '18_plus') {
     /*
      * Delete first so the script is re-runnable — and SAY SO WHEN THAT FAILS.
@@ -102,6 +117,7 @@ async function makeUser(email, fullName, age = '18_plus') {
         email_confirm: true,
     });
     if (error) throw new Error(`createUser(${email}): ${error.message}`);
+    seededUserIds.add(data.user.id);
     return data.user;
 }
 
@@ -704,7 +720,24 @@ async function main() {
 async function assertNobodyMeetsTheLegalModal() {
     const version = ATTESTATION_VERSIONS.privacy_and_guidelines;
 
-    const users = await must('users for the attestation check', svc.from('users').select('id, email'));
+    /*
+     * THIS RUN'S ACCOUNTS, not every row in `users`.
+     *
+     * Reading the whole table made this assertion fail over db-test fixtures — which share the
+     * `@falconforge.test` domain, leak whenever `Fixtures.cleanup()` cannot delete them, and are
+     * nothing to do with whether the seed did its job. See `seededUserIds`.
+     */
+    const all = await must('users for the attestation check', svc.from('users').select('id, email'));
+    const users = all.filter((u) => seededUserIds.has(u.id));
+
+    if (users.length !== seededUserIds.size) {
+        // The seed created accounts the `users` mirror does not have, which is a different and
+        // worse problem than a missing attestation — `handle_new_user` did not fire.
+        throw new Error(
+            `${seededUserIds.size} accounts were created but only ${users.length} appear in ` +
+                '`public.users`. `handle_new_user` did not mirror them all.',
+        );
+    }
     const accepted = await must(
         'attestations for the check',
         svc
@@ -719,7 +752,7 @@ async function assertNobodyMeetsTheLegalModal() {
 
     if (missing.length) {
         throw new Error(
-            `${missing.length} of ${users.length} seeded accounts have no ` +
+            `${missing.length} of ${users.length} accounts seeded by THIS RUN have no ` +
                 `privacy_and_guidelines@${version} row, so each meets "We've updated our legal ` +
                 `documents" on its first screen: ${missing.slice(0, 5).map((u) => u.email).join(', ')}` +
                 `${missing.length > 5 ? ', …' : ''}. Signup metadata must carry ` +
