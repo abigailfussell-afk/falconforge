@@ -396,6 +396,44 @@ describe('ScoutingReport form validation', () => {
             return screen.getByTestId('save-scouting-report') as HTMLButtonElement;
         };
 
+        /*
+         * R-05 — the form used to open already telling the scout off.
+         *
+         * "Enter a team number" is true of an empty required box, so it rendered in red under
+         * an untouched field the instant the modal opened. The three tests below are the ones
+         * that keep the deferral from swallowing the messages that ARE about something typed:
+         * a form that says nothing is no better than one that shouts on arrival.
+         */
+        it('does not show the required message on a field nobody has touched yet', () => {
+            const saveBtn = openForm();
+
+            expect(screen.queryByTestId('scout-team-number-error')).toBeNull();
+            expect(screen.getByTestId('scout-team-number').getAttribute('aria-invalid')).toBe('false');
+            // The refusal has not gone anywhere — it moved to the button, which says why.
+            expect(saveBtn.disabled).toBe(true);
+            expect(saveBtn.title).toBe('Enter a team number first');
+        });
+
+        it('says it once the box has been left empty', () => {
+            openForm();
+            fireEvent.blur(screen.getByTestId('scout-team-number'));
+
+            expect(screen.getByTestId('scout-team-number-error').textContent).toMatch(
+                /enter a team number/i,
+            );
+        });
+
+        it('says it again when a typed number is cleared', () => {
+            openForm();
+            const input = screen.getByTestId('scout-team-number');
+            fireEvent.change(input, { target: { value: '8412' } });
+            fireEvent.change(input, { target: { value: '' } });
+
+            expect(screen.getByTestId('scout-team-number-error').textContent).toMatch(
+                /enter a team number/i,
+            );
+        });
+
         it('refuses the pasted team number, and says which box is wrong', () => {
             const saveBtn = openForm();
             fireEvent.change(screen.getByTestId('scout-team-number'), {

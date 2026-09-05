@@ -75,6 +75,21 @@ const ScoutingReports: React.FC = () => {
     const [editingReportId, setEditingReportId] = useState<string | null>(null);
 
     /**
+     * Whether the scout has been near the team-number box yet (WALK-A-05 follow-up).
+     *
+     * The box is required and starts empty, so "Enter a team number" was true — and shown, in
+     * red, under an untouched field — from the instant the modal opened. A form that opens
+     * already telling you off is a form people learn to ignore, which is the opposite of what
+     * the WALK-A-06 messages are for.
+     *
+     * ONLY THE EMPTY CASE IS DEFERRED. "Digits only" and "at most 5 digits" are about something
+     * the scout has actually typed, and those stay immediate — see the render, which asks
+     * `touched || hasTeamNumber`. Nothing here changes whether the report can be SAVED: the
+     * Save button asks `scoutingReportErrors` exactly as before and still says why it is grey.
+     */
+    const [teamNumberTouched, setTeamNumberTouched] = useState(false);
+
+    /**
      * Summary or cards, and which event (P-02).
      *
      * SUMMARY IS THE DEFAULT. The cards answer "what did we write down"; the table answers "who
@@ -161,6 +176,12 @@ const ScoutingReports: React.FC = () => {
     const errors = scoutingReportErrors(newScout);
     const dataErrors = gameDataErrors(game, newScout.data ?? {});
     const hasTeamNumber = Boolean(newScout.teamNumber?.trim());
+    /*
+     * `hasTeamNumber ||` rather than `touched &&` alone: a value that is present and wrong is
+     * worth saying immediately, and it can be present without this field having been touched —
+     * an edit of an old report, or a paste. Only "you have not filled this in yet" waits.
+     */
+    const showTeamNumberError = Boolean(errors.teamNumber) && (teamNumberTouched || hasTeamNumber);
     const canSave =
         Object.keys(errors).length === 0 && Object.keys(dataErrors).length === 0;
 
@@ -239,6 +260,9 @@ const ScoutingReports: React.FC = () => {
             data: { ...blankReportData(game), ...(report.data ?? {}) },
         });
         setEditingReportId(report.id);
+        // An existing report already has a team number, and if it somehow does not, the person
+        // editing it should be told straight away rather than after touching the box.
+        setTeamNumberTouched(true);
         setIsScoutModalOpen(true);
     };
 
@@ -249,6 +273,7 @@ const ScoutingReports: React.FC = () => {
 
     const resetForm = () => {
         setNewScout({ data: blankReportData(game), eventName: '' });
+        setTeamNumberTouched(false);
     };
 
     /** A stored value, as something a card can print. */
@@ -592,12 +617,18 @@ const ScoutingReports: React.FC = () => {
                                     type="text"
                                     inputMode="numeric"
                                     maxLength={TEAM_NUMBER_MAX_DIGITS}
-                                    aria-invalid={Boolean(errors.teamNumber)}
+                                    aria-invalid={showTeamNumberError}
                                     className="field"
                                     value={newScout.teamNumber || ''}
-                                    onChange={e => setNewScout({ ...newScout, teamNumber: e.target.value })}
+                                    onChange={e => {
+                                        setTeamNumberTouched(true);
+                                        setNewScout({ ...newScout, teamNumber: e.target.value });
+                                    }}
+                                    // Blur counts as touched too, so tabbing past the box
+                                    // without filling it still says so.
+                                    onBlur={() => setTeamNumberTouched(true)}
                                 />
-                                {errors.teamNumber && (
+                                {showTeamNumberError && (
                                     <p data-testid="scout-team-number-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.teamNumber}</p>
                                 )}
                             </div>

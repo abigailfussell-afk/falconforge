@@ -10,7 +10,7 @@
  * `team_can_write` is in every write policy and is what actually stops an unlicensed write.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveEntitlementState, EXPIRY_WARNING_DAYS } from '../entitlement';
+import { deriveEntitlementState, TEAM_EXPIRY_WARNING_DAYS } from '../entitlement';
 import type { TeamEntitlement } from '../slices/createTeamSlice';
 
 const NOW = new Date('2026-08-16T12:00:00Z');
@@ -139,14 +139,45 @@ describe('expiry warnings', () => {
     });
 
     it('warns on the boundary day rather than one day late', () => {
-        const boundary = new Date(NOW.getTime() + EXPIRY_WARNING_DAYS * 86_400_000);
+        const boundary = new Date(NOW.getTime() + TEAM_EXPIRY_WARNING_DAYS * 86_400_000);
         const state = deriveEntitlementState(
             entitlement({ validUntil: boundary.toISOString() }),
             NOW,
         );
 
-        expect(state.daysUntilExpiry).toBe(EXPIRY_WARNING_DAYS);
+        expect(state.daysUntilExpiry).toBe(TEAM_EXPIRY_WARNING_DAYS);
         expect(state.isExpiringSoon).toBe(true);
+    });
+
+    it('says nothing one day outside the window', () => {
+        const outside = new Date(NOW.getTime() + (TEAM_EXPIRY_WARNING_DAYS + 1) * 86_400_000);
+        const state = deriveEntitlementState(
+            entitlement({ validUntil: outside.toISOString() }),
+            NOW,
+        );
+
+        expect(state.daysUntilExpiry).toBe(TEAM_EXPIRY_WARNING_DAYS + 1);
+        expect(state.isExpiringSoon).toBe(false);
+    });
+
+    /*
+     * R-07 — the warning that was on from the first second.
+     *
+     * A new team gets a THIRTY-DAY probation grant (D3), and the team-facing threshold used to
+     * be thirty days as well, so "Your team's licence ends in 30 days — after that the team
+     * becomes read-only" was the first line of every screen a coach saw, on the normal path,
+     * for the whole of the trial. This is the arithmetic that made it permanent, pinned so the
+     * two numbers cannot silently converge again.
+     */
+    it('a brand-new team on its 30-day probation is not warned', () => {
+        const probationEnds = new Date(NOW.getTime() + 30 * 86_400_000);
+        const state = deriveEntitlementState(
+            entitlement({ validUntil: probationEnds.toISOString() }),
+            NOW,
+        );
+
+        expect(state.daysUntilExpiry).toBe(30);
+        expect(state.isExpiringSoon, 'the probation banner is back').toBe(false);
     });
 
     it('an open-ended grant never expires and never warns', () => {

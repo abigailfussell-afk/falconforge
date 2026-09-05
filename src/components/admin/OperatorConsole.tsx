@@ -15,7 +15,7 @@ import {
     CalendarCheck,
 } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
-import { EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
+import { OPERATOR_EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
 import { useAuth } from '../../lib/auth';
 import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 import Button from '../ui/Button';
@@ -126,7 +126,7 @@ type ExpiryFilter = 'all' | 'expiring' | 'lapsed';
 
 const FILTER_LABEL: Record<ExpiryFilter, string> = {
     all: 'All teams',
-    expiring: `Expiring in ${EXPIRY_WARNING_DAYS} days or fewer`,
+    expiring: `Expiring in ${OPERATOR_EXPIRY_WARNING_DAYS} days or fewer`,
     lapsed: 'Already read-only',
 };
 
@@ -176,7 +176,7 @@ export function orderDirectory<
             if (filter === 'lapsed') return row.entitlement_status !== 'active';
             const days = daysUntil(row.valid_until, now);
             return (
-                row.entitlement_status === 'active' && days !== null && days <= EXPIRY_WARNING_DAYS
+                row.entitlement_status === 'active' && days !== null && days <= OPERATOR_EXPIRY_WARNING_DAYS
             );
         })
         .slice()
@@ -870,7 +870,7 @@ export default function OperatorConsole() {
                                     ? 'Searching…'
                                     : rows.length > 0
                                       ? expiryFilter === 'expiring'
-                                          ? `Nothing expires in the next ${EXPIRY_WARNING_DAYS} days.`
+                                          ? `Nothing expires in the next ${OPERATOR_EXPIRY_WARNING_DAYS} days.`
                                           : 'No team is read-only.'
                                       : 'No teams matched.'
                             }
@@ -958,7 +958,7 @@ export default function OperatorConsole() {
                                     {(() => {
                                         if (row.entitlement_status !== 'active') return null;
                                         const days = daysUntil(row.valid_until, directoryLoadedAt);
-                                        if (days === null || days > EXPIRY_WARNING_DAYS) return null;
+                                        if (days === null || days > OPERATOR_EXPIRY_WARNING_DAYS) return null;
                                         return (
                                             <div
                                                 data-testid="operator-expiry-flag"

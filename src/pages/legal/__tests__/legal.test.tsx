@@ -34,13 +34,14 @@ describe('every legal document', () => {
         },
     ];
 
-    it.each(pages)('$name is marked as pending legal review', ({ element }) => {
-        // The brief asks for drafts to be marked. A beta coach relying on these is entitled to
-        // know they have not been near a lawyer.
+    it.each(pages)('$name carries no draft notice', ({ element }) => {
+        // The inverse of what this asserted until 2026-09-05, and deliberately kept rather than
+        // deleted: the "Draft — pending legal review" banner was removed by decision, not by
+        // accident, and a document that quietly grows it back is telling a coach that nobody has
+        // checked the thing they are being asked to accept. See `LegalPage.tsx`.
         renderPage(element);
-        expect(screen.getByTestId('pending-legal-review').textContent).toMatch(
-            /pending legal review/i,
-        );
+        expect(screen.queryByTestId('pending-legal-review')).toBeNull();
+        expect(document.body.textContent).not.toMatch(/pending legal review/i);
     });
 
     it.each(pages)('$name shows the version the app actually enforces', ({ element, attestation }) => {

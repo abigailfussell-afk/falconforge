@@ -16,6 +16,8 @@ import { useAppStore, useStoreHydrated } from '../lib/store';
 import { useSeasonScoped } from '../lib/season-scope';
 import { sprintProgress } from '../lib/sprint-progress';
 import { useAuth } from '../lib/auth';
+import { isMentorOrAbove } from '../lib/roles';
+import { useAppShell } from './AppShell';
 import { pathFor } from '../lib/navigation';
 import MeetingWidget from './meetings/MeetingWidget';
 import OpenCheckIns from './meetings/OpenCheckIns';
@@ -24,6 +26,9 @@ import { dateOnlyDay, dateOnlyMonthShort, todayAsDateOnly } from '../lib/date-on
 export default function DashboardHome() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    /** @see the `greetingState === 'new'` copy — who the empty-team sentence is addressed to. */
+    const { currentMember } = useAppShell();
+    const canPlanWork = isMentorOrAbove(currentMember?.role);
 
     // Was `setActiveTab(id)`, a prop threaded down from the tab switch. The tiles below name
     // the same view ids they always did; `pathFor` turns one into the route it now has, so
@@ -145,7 +150,23 @@ export default function DashboardHome() {
                             <>Your robotics Command Center is ready. You have {openCount} open {openCount === 1 ? 'task' : 'tasks'} for this sprint.</>
                         )}
                         {greetingState === 'new' && (
-                            <>Your team is set up and this is its hub. Nothing has been added yet — plan your first sprint below, or{' '}
+                            <>
+                                {/*
+                                  * R-06 — the empty-team sentence used to be admin-shaped for
+                                  * everybody. A student on a team whose coach had not added
+                                  * anything yet was told "Your team is set up and this is its
+                                  * hub… plan your first sprint below": an instruction they
+                                  * cannot follow, about a team they did not set up, pointing at
+                                  * a button the roster does not give them. It reads as a broken
+                                  * app rather than as an empty one.
+                                  *
+                                  * `isMentorOrAbove` rather than a fourth spelling of "can
+                                  * manage the team" — same predicate the shell and Training ask.
+                                  * UX only; nothing here is a boundary.
+                                  */}
+                                {canPlanWork
+                                    ? <>Your team is set up and this is its hub. Nothing has been added yet — plan your first sprint below, or{' '}</>
+                                    : <>This is your team&apos;s hub. There is nothing here yet — your coach will add tasks, meetings and checklists, and they will show up here. In the meantime you can{' '}</>}
                                 <button
                                     type="button"
                                     onClick={() => goTo('help')}

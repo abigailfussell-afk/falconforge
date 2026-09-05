@@ -68,14 +68,36 @@ export interface EntitlementState {
     validUntil: Date | null;
     /** When cover ran out, for a lapsed team's message. */
     lapsedAt: Date | null;
-    /** Cover ends within {@link EXPIRY_WARNING_DAYS}. False for open-ended grants. */
+    /** Cover ends within {@link TEAM_EXPIRY_WARNING_DAYS}. False for open-ended grants. */
     isExpiringSoon: boolean;
     /** Whole days until cover ends; null when open-ended or already lapsed. */
     daysUntilExpiry: number | null;
 }
 
-/** How long before expiry the console starts saying so. One competition cycle of notice. */
-export const EXPIRY_WARNING_DAYS = 30;
+/**
+ * How long before expiry the OPERATOR console starts flagging a team. One competition cycle of
+ * notice, so Kevin can extend a licence before anybody notices it was going to lapse.
+ *
+ * Renamed from `EXPIRY_WARNING_DAYS` when the team-facing threshold below split off from it:
+ * one constant was answering two different questions, and the bare name gave no way to tell
+ * which one a call site meant.
+ */
+export const OPERATOR_EXPIRY_WARNING_DAYS = 30;
+
+/**
+ * How long before expiry the TEAM is told, in the shell banner and on its own licence page.
+ *
+ * FOURTEEN, NOT THIRTY, because thirty is exactly the length of the probation grant a new team
+ * gets (D3). At thirty the banner was permanent: "Your team's licence ends in 30 days — after
+ * that the team becomes read-only" was the first line of every screen from the minute a coach
+ * finished creating their team, on the normal, healthy path. A warning that is always on is not
+ * a warning, and this one arrives reading like a threat during the first five minutes anybody
+ * spends in the product.
+ *
+ * The operator keeps the longer horizon deliberately: seeing it coming is the operator's job,
+ * and being interrupted about it is not the coach's.
+ */
+export const TEAM_EXPIRY_WARNING_DAYS = 14;
 
 function parseDate(value: string | null): Date | null {
     if (!value) return null;
@@ -139,7 +161,7 @@ export function deriveEntitlementState(
         validUntil,
         lapsedAt,
         isExpiringSoon:
-            daysUntilExpiry !== null && daysUntilExpiry <= EXPIRY_WARNING_DAYS,
+            daysUntilExpiry !== null && daysUntilExpiry <= TEAM_EXPIRY_WARNING_DAYS,
         daysUntilExpiry,
     };
 }

@@ -449,12 +449,30 @@ describe('auth lifecycle', () => {
      * `finally` clear it again and the test would pass either way.
      */
     describe('AUTH-01: a repeated SIGNED_IN for the same user', () => {
+      /**
+       * Sign in, and wait for the profile sync to have FINISHED.
+       *
+       * Not a fixed macrotask flush. The sync is deferred with `setTimeout(0)` and then goes
+       * through `withTimeout(...).finally()`, which is several promise ticks — under a loaded
+       * full-suite run those settled AFTER the next event, so a first user's sync would clear
+       * `isLoading` on top of a second user's sign-in and the assertion below flipped. It
+       * passed run alone and failed in `npm run test:run`, which is the worst kind of green.
+       * `isLoading` going false IS the sync's completion signal, so wait for the thing itself.
+       */
+      const signIn = async (
+        rawHandler: () => (event: string, s: unknown) => Promise<void>,
+        result: { current: { isLoading: boolean } },
+        s: unknown = session(),
+      ) => {
+        await act(async () => {
+          await rawHandler()( 'SIGNED_IN', s);
+        });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+      };
+
       it('does not put the app back on the splash', async () => {
         const { result, rawHandler } = await captureHandler();
-        await act(async () => {
-          await rawHandler()('SIGNED_IN', session());
-          await new Promise((r) => setTimeout(r, 0));
-        });
+        await signIn(rawHandler, result);
         expect(result.current.isLoading).toBe(false);
 
         // The tab was hidden and shown again. Same user, same session, nothing changed.
@@ -467,11 +485,8 @@ describe('auth lifecycle', () => {
       });
 
       it('does not make a second profile round trip', async () => {
-        const { rawHandler } = await captureHandler();
-        await act(async () => {
-          await rawHandler()('SIGNED_IN', session());
-          await new Promise((r) => setTimeout(r, 0));
-        });
+        const { result, rawHandler } = await captureHandler();
+        await signIn(rawHandler, result);
         fromMock.mockClear();
 
         await act(async () => {
@@ -487,10 +502,7 @@ describe('auth lifecycle', () => {
         // team laptop where one account replaces another must still fetch the new
         // classification before rendering anything.
         const { result, rawHandler } = await captureHandler();
-        await act(async () => {
-          await rawHandler()('SIGNED_IN', session());
-          await new Promise((r) => setTimeout(r, 0));
-        });
+        await signIn(rawHandler, result);
 
         await act(async () => {
           await rawHandler()('SIGNED_IN', session({ id: 'user-2' }));
@@ -501,10 +513,7 @@ describe('auth lifecycle', () => {
 
       it('is a real sign-in again after a sign-out', async () => {
         const { result, rawHandler } = await captureHandler();
-        await act(async () => {
-          await rawHandler()('SIGNED_IN', session());
-          await new Promise((r) => setTimeout(r, 0));
-        });
+        await signIn(rawHandler, result);
         await act(async () => {
           await rawHandler()('SIGNED_OUT', null);
           await new Promise((r) => setTimeout(r, 0));
@@ -569,9 +578,8 @@ describe('auth lifecycle', () => {
          * against the UNFIXED code. In a browser the two are a network round trip apart.
          * Splitting the acts forces the intermediate commit that a real refocus produces.
          */
-        const settle = () => act(async () => {
-          await new Promise((r) => setTimeout(r, 0));
-        });
+        const settle = () =>
+          waitFor(() => expect(screen.queryByLabelText('title')).not.toBeNull());
 
         // A genuine sign-in. This one is allowed to remount — it is the app starting.
         await act(async () => {
