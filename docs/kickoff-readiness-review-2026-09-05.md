@@ -21,6 +21,31 @@ today and kickoff, and one of them is a new bug found today.
 
 ---
 
+## 0. Status — updated 2026-09-05, branch `v2/kickoff-readiness-fixes`
+
+The review below is unchanged; this section says what happened to it.
+
+| # | Status |
+|---|---|
+| R-01 | **Fixed, NOT verified in a running app.** `auth.tsx` holds the splash only for a user it has not synced a profile for. Five regression tests, three red without the guard and two red if the guard is made too wide. Docker was down and every affected screen is behind auth, so the phone lock/unlock run in §5 is still the check that matters. |
+| R-02 | **Open — needs a release plan, not a ticket.** Cannot be written before the reveal. Filed 🔴 in the plan's parking lot with the dry-run steps. |
+| R-03 | **Ships as is, by decision** (Kevin, 2026-09-05). No version bump, no re-attestation. Cost recorded in the parking lot. |
+| R-04 | **Fixed and measured.** 1280px in a real browser: was `scrollWidth 1320` vs `clientWidth 1024` with Done 296px off-screen; now 1024/1024 with Done ending exactly at the edge. |
+| R-05 | **Fixed.** The required-empty message waits for a touch; format errors stay immediate. |
+| R-06 | **Fixed.** The empty-team greeting is role-shaped, on `isMentorOrAbove`. |
+| R-07 | **Fixed** — 14 days (Kevin's call), split from the operator's 30-day horizon. |
+| R-08 | **Fixed.** Five role cards including Guardian and Admin, verified rendering in a production build. |
+| R-09 | **Fixed**, with "Switch team" as the guaranteed way back to Create a team, plus guards for a pending request and a stored invite code. |
+| R-10 | Unchanged — the seed still labels 2026-2027 as DECODE. Relevant to the R-02 dry run. |
+| §2 | `operator_grant_extra_team` now has a button. The `token_hash` link-scanner route was **not** built this pass, by decision. |
+| §4 | Items 1, 3, 4, 5, 8 decided and actioned. 2, 6, 7, 9 are still Kevin's. |
+| §5 | Untouched — all of it is Kevin's prework, and the real-hardware block is now also R-01's only remaining verification. |
+
+The legal pages' "Draft — pending legal review" banner is dropped (§4 item 5), and the legal test
+asserts the inverse so it cannot return by accident.
+
+---
+
 ## 1. Bugs found in this review
 
 | # | Sev | Finding | Where |
