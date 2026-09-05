@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { useAppStore } from './store';
@@ -164,6 +164,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isOffline: typeof navigator !== 'undefined' && !navigator.onLine,
     });
 
+    /**
+     * The user id whose profile sync has already been started — i.e. who the app is already
+     * showing itself to.
+     *
+     * THIS IS WHAT MAKES A RE-EMISSION DISTINGUISHABLE FROM A SIGN-IN (AUTH-01), and it has to
+     * be a ref rather than a look at `state.user`, because the two are set from different
+     * places: the mount's `getSession()` records the user WITHOUT syncing the profile, while
+     * `INITIAL_SESSION` arrives moments later and is the event that must do the sync. Comparing
+     * against `state.user` would make the boot event look like a re-emission whenever
+     * `getSession()` won the race, skip the only code path that clears `isLoading`, and leave
+     * "Preparing your workspace..." on screen forever. This ref is written by the sync path and
+     * by nothing else, so it means exactly "the profile sync has run for this person".
+     *
+     * Cleared on SIGNED_OUT so the next person on a shared laptop is a sign-in again.
+     */
+    const syncedUserIdRef = useRef<string | null>(null);
+
     // Connectivity. Components use this to stop offering actions that need a network — the
     // invite manager and the roster's role controls both write through Supabase directly
     // rather than through the sync queue, so for those two "offline" really does mean "not
@@ -232,17 +249,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                // Determine if we should hold the loading state
-                // We hold it if someone just signed in or we have an initial session
-                // because we need to fetch their ageClassification before rendering securely
-                const needsProfileSync = (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user;
+                const eventUser = session?.user ?? null;
+
+                /*
+                 * SAME PERSON, SAID AGAIN (AUTH-01).
+                 *
+                 * `auth-js` re-emits SIGNED_IN on every `visibilitychange`: showing a hidden tab
+                 * runs `_recoverAndRefresh`, which ends in `_notifyAllSubscribers('SIGNED_IN')`
+                 * whether or not anything about the session changed. Treating that as a sign-in
+                 * held `isLoading`, and `App.tsx` renders the splash instead of `<Routes>` while
+                 * loading — so the ENTIRE APP UNMOUNTED AND REMOUNTED every time the tab came
+                 * back. Every open form went with it: the create-team wizard dropped to step 1
+                 * with the typed name gone, a New Item modal closed and lost its title. At a
+                 * venue that is a half-filled scouting report destroyed by switching to the
+                 * camera, taking a call, or the phone simply locking.
+                 *
+                 * Nothing in the suite could see it: jsdom never fires `visibilitychange` and
+                 * headless Playwright never hides a tab. It was found by driving a real build.
+                 *
+                 * So: hold the splash only when there is somebody NEW to fetch a profile for.
+                 * A re-emission for the person already on screen updates the session (the token
+                 * may genuinely have been refreshed) and touches nothing else — no second REST
+                 * call, no splash, no unmount.
+                 */
+                const isReEmissionForSyncedUser =
+                    eventUser !== null && syncedUserIdRef.current === eventUser.id;
+
+                // Hold the loading state while we fetch a NEW user's profile: the app must not
+                // render before `ageClassification` is known, because it gates the under-13 UI.
+                const needsProfileSync =
+                    (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') &&
+                    eventUser !== null &&
+                    !isReEmissionForSyncedUser;
+
+                if (needsProfileSync) {
+                    syncedUserIdRef.current = eventUser!.id;
+                }
 
                 setState(prev => ({
                     ...prev,
                     session,
-                    user: session?.user ?? null,
-                    // Keep loading true until profile is fetched, unless logging out
-                    isLoading: needsProfileSync ? true : false,
+                    user: eventUser,
+                    isLoading: needsProfileSync
+                        ? true
+                        // A re-emission LEAVES `isLoading` ALONE rather than forcing it false.
+                        // Refocusing during a cold start must not flash the app before the
+                        // classification lands; refocusing afterwards must not re-show the
+                        // splash. `prev` is right in both directions, and false is not.
+                        : isReEmissionForSyncedUser
+                            ? prev.isLoading
+                            : false,
                 }));
 
                 // Handle user profile creation / loading on sign up or sign in.
@@ -329,6 +385,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 if (event === 'SIGNED_OUT') {
+                    // The next person to sign in on this device is a sign-in, not a
+                    // re-emission — including the same person signing back in.
+                    syncedUserIdRef.current = null;
                     useAppStore.getState().setCurrentUserId(null);
                     // Drop the cached profile with the session. On a shared team laptop the
                     // next person must not see the previous one's name in the sidebar while
