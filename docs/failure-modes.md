@@ -87,6 +87,7 @@ and was satisfied by a state the defect also produces.
 | S7 | The venue simulation matched no elements and swallowed the failure, *"reporting success while doing nothing"*; `REVOKE … FROM anon` was a no-op that *"an assertion over `pg_proc` ACLs would have passed"* |
 | S8 | `page.goto` between two **hash** URLs does not reload, so the capture screenshotted the **previous view**; `waitForSync` matched `"Live"`, which is also true in the tick before the queue registers the write |
 | S8 retro | `JoinTeam.test.tsx` mocks `useAuth` as a plain `vi.fn()`, which returns happily from an async handler — so it **passed against B26** for eight sprints |
+| 2026-09-05 (R-01) | The refocus test dispatched the auth event **and** flushed the deferred profile sync inside one `act`, so React coalesced `isLoading: true` and `isLoading: false` into a single render: the splash never committed, nothing ever unmounted, and it **passed against the unfixed code**. Two separate `act` calls make it red. |
 
 Three variants recur: asserting a spy was called (both correct and broken code call it);
 asserting against a mock that cannot represent the property under test; and a precondition that
@@ -98,6 +99,17 @@ sole reason four vacuous tests were ever found. Beyond that: no assertion behind
 arguments, not call counts; and when a mock stands in for an async function, **make it return a
 promise** — two mocks were found in this retrospective returning `undefined` where the real API
 returns one.
+
+**And two things about `act` and React, both paid for on 2026-09-05.** A state change that is
+made and then undone inside a single `act` may never commit at all, so a test that asserts on the
+intermediate render is asserting on something React was free to skip — split the acts, one per
+thing that happens a network round trip apart in the real app. And **do not assert a transient by
+waiting a fixed number of macrotasks for it to pass**: two AUTH-01 tests waited one `setTimeout(0)`
+for a profile sync that settles later than that under a loaded runner, so they were green run
+alone five times and red once in `npm run test:run` — the worst possible order to discover it in.
+Wait for the thing's own completion signal, or, when the claim is that something is still
+OUTSTANDING, make it genuinely outstanding (a promise that never settles) so there is no race to
+lose.
 
 ---
 
@@ -177,6 +189,12 @@ identically.
   14px past the track. *"It was never positioned; it was placed by accident, and the accident
   looked roughly right at 36px on a laptop."*
 - `font-sans` re-applied the system stack over Inter, so the webfont **never rendered a glyph**.
+- Five `md:w-64` board columns is a **fixed** 1320px, and a 1280px laptop leaves ~1024px of main
+  area, so the Done column sat 296px past the right edge behind a horizontal scrollbar — on the
+  most common desktop size there is, for as long as the board has existed. Nothing was broken;
+  every class did exactly what it says. Measured in a real browser both ways
+  (`scrollWidth` 1320/1024 before, 1024/1024 after), because jsdom reports both layouts as
+  identical and "it looks fine" reports whatever width the reviewer's window happens to be.
 - A `@media (pointer: coarse)` rule matched on a class-attribute **substring**, so `p-` matched
   `placeholder-slate-400` and `pointer-events-none`.
 - A `truncate`d stat label that overflowed nothing and clipped nothing — every measurement said

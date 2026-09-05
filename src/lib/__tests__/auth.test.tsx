@@ -459,6 +459,29 @@ describe('auth lifecycle', () => {
        * passed run alone and failed in `npm run test:run`, which is the worst kind of green.
        * `isLoading` going false IS the sync's completion signal, so wait for the thing itself.
        */
+      /**
+       * A `.from()` chain whose reads never settle.
+       *
+       * Used by the two "the splash IS still held" tests below. `isLoading` going true is a
+       * transient — the profile sync's `finally` clears it a few promise ticks later — and
+       * asserting a transient against a loaded test runner is how "is a real sign-in again
+       * after a sign-out" failed once in `npm run test:run` having passed five times alone.
+       * With the read outstanding there is no race to lose: a held splash stays held, which is
+       * the claim. (`PROFILE_SYNC_TIMEOUT_MS` is 8s, well past the end of the test.)
+       */
+      const neverSettles = () => {
+        const never = new Promise(() => { /* deliberately unsettled */ });
+        fromMock.mockImplementation(() => {
+          const chain: Record<string, unknown> = {};
+          chain.select = vi.fn(() => chain);
+          chain.eq = vi.fn(() => chain);
+          chain.insert = vi.fn(() => never);
+          chain.upsert = vi.fn(() => never);
+          chain.single = vi.fn(() => never);
+          return chain;
+        });
+      };
+
       const signIn = async (
         rawHandler: () => (event: string, s: unknown) => Promise<void>,
         result: { current: { isLoading: boolean } },
@@ -504,6 +527,7 @@ describe('auth lifecycle', () => {
         const { result, rawHandler } = await captureHandler();
         await signIn(rawHandler, result);
 
+        neverSettles();
         await act(async () => {
           await rawHandler()('SIGNED_IN', session({ id: 'user-2' }));
         });
@@ -519,6 +543,7 @@ describe('auth lifecycle', () => {
           await new Promise((r) => setTimeout(r, 0));
         });
 
+        neverSettles();
         await act(async () => {
           await rawHandler()('SIGNED_IN', session());
         });
