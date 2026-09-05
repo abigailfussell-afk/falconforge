@@ -165,6 +165,67 @@ describe('finding a team', () => {
 });
 
 // =================================================================================================
+/**
+ * The multi-team coach — `operator_grant_extra_team` finally has a button.
+ *
+ * The RPC shipped with the D3 onboarding gate and nothing called it, so the first coach running
+ * two FTC numbers (a school with two teams, which is common) was a support email answered with a
+ * hand-written statement against production.
+ */
+describe('allowing an account a second team', () => {
+    const selectTeam = async () => {
+        render(<OperatorConsole />);
+        fireEvent.click(await screen.findByText(/#12345 Iron Falcons/));
+        await screen.findByRole('heading', { name: /Iron Falcons — roster/i });
+    };
+
+    it('grants against the ACCOUNT behind the membership', async () => {
+        mocks.actionResult = { success: true, grant_id: 'g-1', already_had_one: false };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('grant-extra-team-m-admin'));
+
+        await waitFor(() =>
+            expect(mocks.rpc).toHaveBeenCalledWith('operator_grant_extra_team', {
+                p_user_id: 'u-admin',
+            }),
+        );
+        expect(await screen.findByText(/can now create one more team/i)).toBeInTheDocument();
+    });
+
+    it('says when the account already had an unused grant, rather than implying a second', async () => {
+        // The RPC is idempotent — an operator who has already said yes does not buy two teams by
+        // saying it twice. A console that reported both cases identically would invite exactly
+        // that, and then a puzzled email about where the second team went.
+        mocks.actionResult = { success: true, grant_id: 'g-1', already_had_one: true };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('grant-extra-team-m-admin'));
+
+        expect(await screen.findByText(/already had an unused grant/i)).toBeInTheDocument();
+        expect(screen.queryByText(/can now create one more team/i)).not.toBeInTheDocument();
+    });
+
+    it('is not offered on a child profile, whose row carries the guardian id', async () => {
+        // SEC-11's trap, and the same one: granting from Robin's row would silently hand the
+        // extra team to their parent, who never asked for one.
+        await selectTeam();
+
+        expect(screen.queryByTestId('grant-extra-team-m-child')).not.toBeInTheDocument();
+        expect(screen.getByTestId('grant-extra-team-m-coach')).toBeInTheDocument();
+    });
+
+    it('surfaces a refusal instead of reporting success', async () => {
+        mocks.actionResult = { success: false, error: 'Not authorized' };
+        await selectTeam();
+
+        fireEvent.click(screen.getByTestId('grant-extra-team-m-admin'));
+
+        expect(await screen.findByText(/Not authorized/)).toBeInTheDocument();
+    });
+});
+
+// =================================================================================================
 describe('SEC-11 — erasing a person from the console', () => {
     const selectTeam = async () => {
         render(<OperatorConsole />);
