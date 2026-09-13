@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import OperatorConsole, { orderDirectory, daysUntil } from '../admin/OperatorConsole';
-import { deriveEntitlementState, EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
+import { deriveEntitlementState, OPERATOR_EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
 
 const mocks = vi.hoisted(() => ({
     directory: [] as Record<string, unknown>[],
@@ -146,13 +146,13 @@ describe('orderDirectory — the filter', () => {
     });
 
     /*
-     * THE BOUNDARY, at a fixed instant, in both directions. `EXPIRY_WARNING_DAYS` days out is
+     * THE BOUNDARY, at a fixed instant, in both directions. `OPERATOR_EXPIRY_WARNING_DAYS` days out is
      * IN; one day past it is out. The rounding is `Math.ceil`, shared with the entitlement
      * banner, so "29 days and 23 hours" counts as 30 and not as 29.
      */
     it('includes a team exactly at the boundary and excludes one just past it', () => {
-        const at = row({ team_name: 'At', valid_until: inDays(EXPIRY_WARNING_DAYS) });
-        const past = row({ team_name: 'Past', valid_until: inDays(EXPIRY_WARNING_DAYS + 1) });
+        const at = row({ team_name: 'At', valid_until: inDays(OPERATOR_EXPIRY_WARNING_DAYS) });
+        const past = row({ team_name: 'Past', valid_until: inDays(OPERATOR_EXPIRY_WARNING_DAYS + 1) });
 
         expect(orderDirectory([at, past], 'expiring', NOW).map((r) => r.team_name)).toEqual([
             'At',
@@ -286,7 +286,7 @@ describe('the console actually uses them', () => {
 
         await waitFor(() =>
             expect(
-                screen.getByText(`Nothing expires in the next ${EXPIRY_WARNING_DAYS} days.`),
+                screen.getByText(`Nothing expires in the next ${OPERATOR_EXPIRY_WARNING_DAYS} days.`),
             ).toBeInTheDocument(),
         );
         expect(screen.queryByText('No teams matched.')).not.toBeInTheDocument();

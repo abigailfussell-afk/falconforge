@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ATTESTATION_VERSIONS } from '../../lib/attestations';
@@ -55,25 +55,20 @@ export default function LegalPage({
 
                 <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6 shadow-xl backdrop-blur-xl md:p-8">
                     {/*
-                      * "Mark drafts pending legal review" — the sprint brief's words, and worth
-                      * being blunt about. These documents were written by the people building the
-                      * product, not by a lawyer, and a beta team's coach is entitled to know that
-                      * before relying on them.
+                      * NO "Draft — pending legal review" NOTICE, and its removal is a decision
+                      * rather than a tidy-up (Kevin, 2026-09-05).
+                      *
+                      * It was added when these documents had been read by nobody outside the
+                      * project. The 2026-08-22 review that cleared the COPPA design is judged to
+                      * cover them, so the banner now overstates the uncertainty: a coach being
+                      * asked to ACCEPT a document should not be told in the same breath that
+                      * nobody has checked it. The version-and-effective-date line below, and the
+                      * re-acceptance promise at the foot, are what a reader actually needs.
+                      *
+                      * Restoring it is a one-component change if a real review comes back with
+                      * findings — which is why this note stays instead of the history being
+                      * silently lost.
                       */}
-                    <div
-                        data-testid="pending-legal-review"
-                        className="mb-6 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"
-                    >
-                        <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-400" />
-                        <p className="text-xs text-amber-200">
-                            <strong>Draft — pending legal review.</strong> This document has been
-                            written by the FalconForge team and has not yet been reviewed by a
-                            lawyer. It states our actual intentions and we will act in accordance
-                            with it, but it may change when it is reviewed. If anything here matters
-                            to a decision you are making, ask us.
-                        </p>
-                    </div>
-
                     <p
                         data-testid="legal-version"
                         className="mb-6 text-sm text-slate-400"

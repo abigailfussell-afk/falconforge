@@ -15,7 +15,7 @@ import {
     CalendarCheck,
 } from 'lucide-react';
 import { supabaseSync, isSupabaseConfigured } from '../../lib/supabase';
-import { EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
+import { OPERATOR_EXPIRY_WARNING_DAYS } from '../../lib/entitlement';
 import { useAuth } from '../../lib/auth';
 import { TITLE_MAX_LENGTH } from '../../lib/text-limits';
 import Button from '../ui/Button';
@@ -126,7 +126,7 @@ type ExpiryFilter = 'all' | 'expiring' | 'lapsed';
 
 const FILTER_LABEL: Record<ExpiryFilter, string> = {
     all: 'All teams',
-    expiring: `Expiring in ${EXPIRY_WARNING_DAYS} days or fewer`,
+    expiring: `Expiring in ${OPERATOR_EXPIRY_WARNING_DAYS} days or fewer`,
     lapsed: 'Already read-only',
 };
 
@@ -176,7 +176,7 @@ export function orderDirectory<
             if (filter === 'lapsed') return row.entitlement_status !== 'active';
             const days = daysUntil(row.valid_until, now);
             return (
-                row.entitlement_status === 'active' && days !== null && days <= EXPIRY_WARNING_DAYS
+                row.entitlement_status === 'active' && days !== null && days <= OPERATOR_EXPIRY_WARNING_DAYS
             );
         })
         .slice()
@@ -341,6 +341,55 @@ export default function OperatorConsole() {
             }
         },
         [loadNewTeams, runSearch, search],
+    );
+
+    /**
+     * Let this account create one more team.
+     *
+     * `operator_grant_extra_team` has existed since the D3 onboarding gate and had no button:
+     * the moment a coach ran two FTC numbers — a school with two teams, which is common — it
+     * became a support email and a hand-written `select` against production. That is the whole
+     * reason this is here. The RPC is unchanged.
+     *
+     * IT IS IDEMPOTENT AT THE SERVER, and the UI says so rather than hiding it. An unused grant
+     * already sitting on the account comes back as `already_had_one`, and telling the operator
+     * "they already had one, and still have exactly one" is the difference between a control
+     * they trust and one they press twice hoping.
+     */
+    const grantExtraTeam = useCallback(
+        async (member: DetailMember) => {
+            if (!supabaseSync || !member.user_id) return;
+            setIsBusy(true);
+            setError(null);
+            setSuccess(null);
+            try {
+                const { data, error: rpcError } = await supabaseSync.rpc(
+                    'operator_grant_extra_team',
+                    { p_user_id: member.user_id },
+                );
+                if (rpcError) throw rpcError;
+                const result = data as {
+                    success: boolean;
+                    error?: string;
+                    already_had_one?: boolean;
+                };
+                if (!result.success) {
+                    setError(result.error ?? 'Could not grant another team');
+                    return;
+                }
+                const who = member.full_name ?? member.email ?? 'That account';
+                setSuccess(
+                    result.already_had_one
+                        ? `${who} already had an unused grant, so nothing changed — they can still create exactly one more team.`
+                        : `${who} can now create one more team. The grant is spent the moment they do.`,
+                );
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Could not grant another team');
+            } finally {
+                setIsBusy(false);
+            }
+        },
+        [],
     );
 
     const loadDetail = useCallback(
@@ -870,7 +919,7 @@ export default function OperatorConsole() {
                                     ? 'Searching…'
                                     : rows.length > 0
                                       ? expiryFilter === 'expiring'
-                                          ? `Nothing expires in the next ${EXPIRY_WARNING_DAYS} days.`
+                                          ? `Nothing expires in the next ${OPERATOR_EXPIRY_WARNING_DAYS} days.`
                                           : 'No team is read-only.'
                                       : 'No teams matched.'
                             }
@@ -958,7 +1007,7 @@ export default function OperatorConsole() {
                                     {(() => {
                                         if (row.entitlement_status !== 'active') return null;
                                         const days = daysUntil(row.valid_until, directoryLoadedAt);
-                                        if (days === null || days > EXPIRY_WARNING_DAYS) return null;
+                                        if (days === null || days > OPERATOR_EXPIRY_WARNING_DAYS) return null;
                                         return (
                                             <div
                                                 data-testid="operator-expiry-flag"
@@ -1039,6 +1088,25 @@ export default function OperatorConsole() {
                                                 }}
                                             >
                                                 Erase
+                                            </Button>
+                                        )}
+                                        {/*
+                                          * Same "this row is a real account" rule as Erase, and
+                                          * deliberately the same one rather than a second: a
+                                          * child profile's `user_id` is the GUARDIAN's, so a
+                                          * grant made from that row would land on the parent.
+                                          */}
+                                        {!m.is_managed && m.user_id && (
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                busy={isBusy}
+                                                disabled={isOffline}
+                                                title="Let this account create one more team — for a coach who runs two FTC numbers."
+                                                data-testid={`grant-extra-team-${m.id}`}
+                                                onClick={() => void grantExtraTeam(m)}
+                                            >
+                                                Allow another team
                                             </Button>
                                         )}
                                     </span>

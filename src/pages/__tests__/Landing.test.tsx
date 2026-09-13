@@ -131,6 +131,29 @@ describe('LandingPage', () => {
         expect(screen.getAllByText(/Present/i).length).toBeGreaterThan(0);
     });
 
+    /**
+     * R-08 / LAND-08 — the roles block named three of the five people this product has.
+     *
+     * `admin` is its own role (one per team, 18+, the only one that touches licensing) and was
+     * folded into the coach card as a badge; the guardian, who holds the login for every member
+     * under 13, was not on the page at all. The landing page is the invite, so an audience it
+     * does not name is an audience that does not know it is included.
+     */
+    it('names every role the product has, including the guardian (LAND-08)', () => {
+        render(
+            <MemoryRouter>
+                <LandingPage />
+            </MemoryRouter>
+        );
+
+        for (const role of ['Team Admin', 'Coach', 'Mentor', 'Student', 'Guardian']) {
+            expect(
+                screen.getAllByRole('heading', { name: role }).length,
+                `the ${role} card is missing from the roles block`,
+            ).toBeGreaterThan(0);
+        }
+    });
+
     it('navigates to login on default Log In click', () => {
         render(
             <MemoryRouter>

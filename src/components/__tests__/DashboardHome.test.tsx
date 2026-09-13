@@ -1,7 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
-import DashboardHome from '../DashboardHome';
+import { renderDashboard } from '@/test/render-dashboard';
 import { useAppStore } from '@/lib/store';
 
 // Opt in to the manual mocks in src/lib/__mocks__: this suite renders widgets and asserts
@@ -37,11 +36,7 @@ describe('DashboardHome', () => {
     });
 
     it('renders the dashboard widgets', () => {
-        render(
-            <MemoryRouter>
-                <DashboardHome />
-            </MemoryRouter>
-        );
+        renderDashboard();
 
         // Check for section headers
         expect(screen.getByText('Sprint Progress')).toBeInTheDocument();
@@ -68,11 +63,7 @@ describe('DashboardHome', () => {
             matchPlans: [],
         });
 
-        render(
-            <MemoryRouter>
-                <DashboardHome />
-            </MemoryRouter>
-        );
+        renderDashboard();
 
         expect(screen.getByText('0 / 0')).toBeInTheDocument();
 
@@ -80,6 +71,53 @@ describe('DashboardHome', () => {
         expect(zeros.length).toBeGreaterThanOrEqual(3); // backlog, scouting, match plans
 
         expect(screen.getByText(/No activity yet/i)).toBeInTheDocument();
+    });
+
+    /**
+     * R-06 — the empty-team sentence was admin-shaped for everybody.
+     *
+     * A student whose coach had not added anything yet was told "Your team is set up and this
+     * is its hub… plan your first sprint below": an instruction about a team they did not set
+     * up, pointing at a control the roster does not give them.
+     */
+    describe('the empty-team greeting', () => {
+        beforeEach(() => {
+            // `greetingState === 'new'` is "hydrated, not pulling, and nothing in the three
+            // collections the stat tiles count".
+            useAppStore.setState({
+                tasks: [],
+                scoutingReports: [],
+                matchPlans: [],
+                isLoading: false,
+            });
+        });
+
+        it('asks a coach to plan the first sprint', () => {
+            renderDashboard({ role: 'coach' });
+
+            expect(screen.getByTestId('dashboard-greeting-sub').textContent).toMatch(
+                /plan your first sprint/i,
+            );
+        });
+
+        it('tells a student their coach will add things, not to plan a sprint', () => {
+            renderDashboard({ role: 'student' });
+
+            const sub = screen.getByTestId('dashboard-greeting-sub').textContent ?? '';
+            expect(sub).not.toMatch(/plan your first sprint/i);
+            expect(sub).toMatch(/your coach will add/i);
+            // The one thing a student CAN do from here is still offered.
+            expect(sub).toMatch(/getting-started guide/i);
+        });
+
+        it('treats a mentor as somebody who can plan work', () => {
+            // The predicate is `isMentorOrAbove`, the same set the shell and Training use.
+            renderDashboard({ role: 'mentor' });
+
+            expect(screen.getByTestId('dashboard-greeting-sub').textContent).toMatch(
+                /plan your first sprint/i,
+            );
+        });
     });
 
     it('renders recent activity in descending chronological order', () => {
@@ -98,11 +136,7 @@ describe('DashboardHome', () => {
             seasons: [{ id: 'season-1', name: 'Test Season', gameTitle: '', fieldImageData: '', isArchived: false, createdAt: 1000 }],
         });
 
-        render(
-            <MemoryRouter>
-                <DashboardHome />
-            </MemoryRouter>
-        );
+        renderDashboard();
 
         // Items should appear in order: Newest Task (5000), Scouting 999 (3000), Mid Plan (2000), Oldest Task (1000)
         const activityItems = screen.getAllByText(/Task:|Scouting:|Match Plan:/);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth, authRedirectUrl } from '../auth';
 import { supabase } from '../supabase';
 import { useAppStore } from '../store';
@@ -432,6 +432,202 @@ describe('auth lifecycle', () => {
       });
 
       expect(supabase!.from).not.toHaveBeenCalled();
+    });
+
+    /**
+     * AUTH-01 — the refocus unmount.
+     *
+     * `auth-js` re-emits SIGNED_IN from `_recoverAndRefresh` on every `visibilitychange`,
+     * with the same session it already had. Holding `isLoading` for that put `App.tsx` back
+     * on the splash and unmounted every route below it, destroying whatever the person was
+     * typing. Found by dispatching `visibilitychange` against a real build; invisible here
+     * until these tests, because jsdom never fires it.
+     *
+     * The assertions deliberately do NOT flush the deferred macrotask: `isLoading` is set
+     * synchronously inside the callback, so reading it straight after the callback resolves
+     * is what catches the transient true. Flushing first would let the profile sync's
+     * `finally` clear it again and the test would pass either way.
+     */
+    describe('AUTH-01: a repeated SIGNED_IN for the same user', () => {
+      /**
+       * Sign in, and wait for the profile sync to have FINISHED.
+       *
+       * Not a fixed macrotask flush. The sync is deferred with `setTimeout(0)` and then goes
+       * through `withTimeout(...).finally()`, which is several promise ticks — under a loaded
+       * full-suite run those settled AFTER the next event, so a first user's sync would clear
+       * `isLoading` on top of a second user's sign-in and the assertion below flipped. It
+       * passed run alone and failed in `npm run test:run`, which is the worst kind of green.
+       * `isLoading` going false IS the sync's completion signal, so wait for the thing itself.
+       */
+      /**
+       * A `.from()` chain whose reads never settle.
+       *
+       * Used by the two "the splash IS still held" tests below. `isLoading` going true is a
+       * transient — the profile sync's `finally` clears it a few promise ticks later — and
+       * asserting a transient against a loaded test runner is how "is a real sign-in again
+       * after a sign-out" failed once in `npm run test:run` having passed five times alone.
+       * With the read outstanding there is no race to lose: a held splash stays held, which is
+       * the claim. (`PROFILE_SYNC_TIMEOUT_MS` is 8s, well past the end of the test.)
+       */
+      const neverSettles = () => {
+        const never = new Promise(() => { /* deliberately unsettled */ });
+        fromMock.mockImplementation(() => {
+          const chain: Record<string, unknown> = {};
+          chain.select = vi.fn(() => chain);
+          chain.eq = vi.fn(() => chain);
+          chain.insert = vi.fn(() => never);
+          chain.upsert = vi.fn(() => never);
+          chain.single = vi.fn(() => never);
+          return chain;
+        });
+      };
+
+      const signIn = async (
+        rawHandler: () => (event: string, s: unknown) => Promise<void>,
+        result: { current: { isLoading: boolean } },
+        s: unknown = session(),
+      ) => {
+        await act(async () => {
+          await rawHandler()( 'SIGNED_IN', s);
+        });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+      };
+
+      it('does not put the app back on the splash', async () => {
+        const { result, rawHandler } = await captureHandler();
+        await signIn(rawHandler, result);
+        expect(result.current.isLoading).toBe(false);
+
+        // The tab was hidden and shown again. Same user, same session, nothing changed.
+        await act(async () => {
+          await rawHandler()('SIGNED_IN', session());
+        });
+
+        expect(result.current.isLoading).toBe(false);
+        expect(result.current.user?.id).toBe('user-1');
+      });
+
+      it('does not make a second profile round trip', async () => {
+        const { result, rawHandler } = await captureHandler();
+        await signIn(rawHandler, result);
+        fromMock.mockClear();
+
+        await act(async () => {
+          await rawHandler()('SIGNED_IN', session());
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+        expect(supabase!.from).not.toHaveBeenCalled();
+      });
+
+      it('still holds the splash for a DIFFERENT user on the same device', async () => {
+        // The guard is "same person", not "any SIGNED_IN we have seen before". A shared
+        // team laptop where one account replaces another must still fetch the new
+        // classification before rendering anything.
+        const { result, rawHandler } = await captureHandler();
+        await signIn(rawHandler, result);
+
+        neverSettles();
+        await act(async () => {
+          await rawHandler()('SIGNED_IN', session({ id: 'user-2' }));
+        });
+
+        expect(result.current.isLoading).toBe(true);
+      });
+
+      it('is a real sign-in again after a sign-out', async () => {
+        const { result, rawHandler } = await captureHandler();
+        await signIn(rawHandler, result);
+        await act(async () => {
+          await rawHandler()('SIGNED_OUT', null);
+          await new Promise((r) => setTimeout(r, 0));
+        });
+
+        neverSettles();
+        await act(async () => {
+          await rawHandler()('SIGNED_IN', session());
+        });
+
+        expect(result.current.isLoading).toBe(true);
+      });
+
+      /**
+       * The harm itself, rather than the flag that caused it.
+       *
+       * The three tests above pin `isLoading`; this one pins what `isLoading` DID. `App.tsx`
+       * returns the splash INSTEAD of `<Routes>`, so a moment of loading is a full unmount of
+       * everything below — and React state in an open form does not survive that. This is the
+       * scouting report a student loses by glancing at the camera.
+       */
+      it('does not unmount the tree below it, so an open form keeps what was typed', async () => {
+        let handler!: (event: string, s: unknown) => Promise<void>;
+        authMock.onAuthStateChange.mockImplementation((cb: any) => {
+          handler = cb;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        });
+
+        let mounts = 0;
+        function OpenForm() {
+          const [title, setTitle] = React.useState('');
+          React.useEffect(() => {
+            mounts += 1;
+          }, []);
+          return (
+            <input
+              aria-label="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          );
+        }
+        // Deliberately mirrors App.tsx:204 — the splash REPLACES the routes, it does not
+        // overlay them. If that ever becomes an overlay this test should be revisited, not
+        // deleted: the second assertion (no remount) is the one that matters.
+        function AppLike() {
+          const { isLoading } = useAuth();
+          return isLoading ? <p>Preparing your workspace...</p> : <OpenForm />;
+        }
+
+        render(
+          <AuthProvider>
+            <AppLike />
+          </AuthProvider>,
+        );
+        await waitFor(() => expect(screen.queryByLabelText('title')).not.toBeNull());
+
+        /*
+         * TWO SEPARATE `act` CALLS, ALWAYS, and this is the difference between a test and a
+         * decoration. Dispatching the event and flushing the deferred profile sync inside one
+         * `act` lets React coalesce `isLoading: true` and `isLoading: false` into a single
+         * render — the splash never commits, nothing ever unmounts, and this test passed
+         * against the UNFIXED code. In a browser the two are a network round trip apart.
+         * Splitting the acts forces the intermediate commit that a real refocus produces.
+         */
+        const settle = () =>
+          waitFor(() => expect(screen.queryByLabelText('title')).not.toBeNull());
+
+        // A genuine sign-in. This one is allowed to remount — it is the app starting.
+        await act(async () => {
+          await handler('SIGNED_IN', session());
+        });
+        await settle();
+        const mountsBefore = mounts;
+
+        fireEvent.change(screen.getByLabelText('title'), {
+          target: { value: 'Replace the intake wheels' },
+        });
+
+        // The phone locked and woke, or the scout switched to the camera and back.
+        await act(async () => {
+          await handler('SIGNED_IN', session());
+        });
+        await settle();
+
+        expect((screen.getByLabelText('title') as HTMLInputElement).value).toBe(
+          'Replace the intake wheels',
+        );
+        expect(mounts).toBe(mountsBefore);
+      });
     });
   });
 

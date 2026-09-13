@@ -3,7 +3,7 @@ import { FEEDBACK_EMAIL } from '../lib/feedback';
 import {
     ArrowRight, ChevronRight, Check, Crown, User, Brain,
     KanbanSquare, ClipboardCheck, BarChart3, Map, Zap, Trophy,
-    CalendarDays, Sparkles, QrCode
+    CalendarDays, Sparkles, QrCode, Megaphone, HeartHandshake
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -986,8 +986,86 @@ export default function LandingPage() {
                         <p className="text-slate-400 text-lg">Specific tools tailored for the specific roles on your roster.</p>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {/* Student Tier */}
+                    {/*
+                      * EVERY PERSON THE PRODUCT ACTUALLY HAS (R-08 / LAND-08).
+                      *
+                      * This block used to be Student / Coach / Mentor, with the Coach card
+                      * wearing a "Team Admin" badge. Two things were wrong with that, and both
+                      * are visible to somebody deciding whether to sign up:
+                      *
+                      *   - `admin` is its OWN role - exactly one per team, 18+, attested, and
+                      *     the only role that touches licensing (`src/types.ts`). Badging the
+                      *     coach card with it said the two are the same, and a school with a
+                      *     head teacher who registers and a coach who runs practice would read
+                      *     that as "one of us cannot have an account".
+                      *   - GUARDIANS WERE ABSENT ENTIRELY, and they are the whole under-13
+                      *     story: the guardian holds the login, gives consent, and the child has
+                      *     no credentials at all. A parent of a twelve-year-old looking for how
+                      *     that works found nothing here.
+                      *
+                      * Five cards rather than three, so `lg:grid-cols-3` wraps to a 3+2. The
+                      * admin card keeps the raised treatment and the section's only CTA, because
+                      * registering a team is the one action this section can start. The
+                      * `md:-translate-y-4` went with the old three-up: it was a pricing-table
+                      * lift for a MIDDLE card, and there is no middle any more.
+                      */}
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {/* Team Admin - the one who registers, and the only card with a CTA. */}
+                        <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-forge-500 relative shadow-2xl shadow-forge-500/10 flex flex-col h-full">
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-forge-500 to-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+                                Registers the team
+                            </div>
+                            <div className="w-12 h-12 rounded-full bg-forge-500/20 text-forge-400 flex items-center justify-center mb-6 mt-2">
+                                <Crown className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2">Team Admin</h3>
+                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">One adult per team, 18 or over. Sets the team up and answers for it.</p>
+
+                            <ul className="space-y-4 mb-8 flex-1">
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Approve who joins, and set their roles</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Start each season with a clean slate</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Hold the team&rsquo;s licence and seats</span></li>
+                            </ul>
+
+                            <button
+                                onClick={() => navigate('/login?mode=signup')}
+                                className="w-full py-4 bg-forge-700 hover:bg-forge-800 text-white rounded-xl font-bold transition-colors"
+                            >
+                                Register a Team
+                            </button>
+                        </div>
+
+                        {/* Coach */}
+                        <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-amber-500/50 transition-all flex flex-col h-full">
+                            <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-6">
+                                <Megaphone className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2">Coach</h3>
+                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For the adults running practice, the build schedule and the competition day.</p>
+
+                            <ul className="space-y-4 mb-8 flex-1">
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" /><span className="text-slate-300">Run sprints and assign the work</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" /><span className="text-slate-300">Schedule meetings and take attendance</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" /><span className="text-slate-300">Approve members alongside the admin</span></li>
+                            </ul>
+                        </div>
+
+                        {/* Mentor */}
+                        <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-emerald-500/50 transition-all flex flex-col h-full">
+                            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6">
+                                <Brain className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-2xl font-bold mb-2">Mentor</h3>
+                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For parent volunteers and industry professionals guiding the team.</p>
+
+                            <ul className="space-y-4 mb-8 flex-1">
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create &amp; distribute Kanban tasks</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Draw Match Planner diagrams</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Read the team&rsquo;s scouting reports</span></li>
+                            </ul>
+                        </div>
+
+                        {/* Student */}
                         <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-blue-500/50 transition-all flex flex-col h-full">
                             <div className="w-12 h-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-6">
                                 <User className="w-6 h-6" />
@@ -1002,43 +1080,18 @@ export default function LandingPage() {
                             </ul>
                         </div>
 
-                        {/* Coach Tier */}
-                        <div className="p-8 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-forge-500 relative transform md:-translate-y-4 shadow-2xl shadow-forge-500/10 flex flex-col h-full">
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-forge-500 to-amber-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
-                                Team Admin
+                        {/* Guardian - the under-13 path, which had no card at all. */}
+                        <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-purple-500/50 transition-all flex flex-col h-full">
+                            <div className="w-12 h-12 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6">
+                                <HeartHandshake className="w-6 h-6" />
                             </div>
-                            <div className="w-12 h-12 rounded-full bg-forge-500/20 text-forge-400 flex items-center justify-center mb-6 mt-2">
-                                <Crown className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-2xl font-bold mb-2">Coach</h3>
-                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For lead administrators and head teachers managing the overall operation.</p>
+                            <h3 className="text-2xl font-bold mb-2">Guardian</h3>
+                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For the parent of a member under 13. You hold the login; your child has no account of their own.</p>
 
                             <ul className="space-y-4 mb-8 flex-1">
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage user roles & permissions</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create new seasons & rosters</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-forge-400 shrink-0 mt-0.5" /><span className="text-slate-300">Oversee sprint planning metrics</span></li>
-                            </ul>
-
-                            <button
-                                onClick={() => navigate('/login?mode=signup')}
-                                className="w-full py-4 bg-forge-700 hover:bg-forge-800 text-white rounded-xl font-bold transition-colors"
-                            >
-                                Register a Team
-                            </button>
-                        </div>
-
-                        {/* Mentor Tier */}
-                        <div className="p-8 rounded-3xl bg-slate-800/40 border border-slate-700 hover:border-emerald-500/50 transition-all flex flex-col h-full">
-                            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6">
-                                <Brain className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-2xl font-bold mb-2">Mentor</h3>
-                            <p className="text-slate-400 mb-8 border-b border-slate-700/50 pb-8">For parent volunteers and industry professionals guiding the team.</p>
-
-                            <ul className="space-y-4 mb-8 flex-1">
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Create & distribute Kanban tasks</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Draw Match Planner diagrams</span></li>
-                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /><span className="text-slate-300">Read the team&rsquo;s scouting reports</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" /><span className="text-slate-300">Give and withdraw consent yourself</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" /><span className="text-slate-300">See your child&rsquo;s meetings and attendance</span></li>
+                                <li className="flex items-start gap-3"><Check className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" /><span className="text-slate-300">Manage their profile on their behalf</span></li>
                             </ul>
                         </div>
                     </div>

@@ -17,10 +17,9 @@
  * milliseconds of every cold open — a flicker, which is precisely the class of defect that
  * survives review.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
-import DashboardHome from '../DashboardHome';
+import { renderDashboard } from '@/test/render-dashboard';
 import { useAppStore } from '@/lib/store';
 import type { Task } from '@/types';
 
@@ -51,13 +50,6 @@ const task = (over: Record<string, unknown> = {}): Task => ({
     seasonId: 'season-1',
     ...over,
 });
-
-const renderDashboard = () =>
-    render(
-        <MemoryRouter>
-            <DashboardHome />
-        </MemoryRouter>,
-    );
 
 beforeEach(() => {
     useAppStore.setState({

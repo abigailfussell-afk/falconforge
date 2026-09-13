@@ -248,26 +248,52 @@ export default function Onboarding() {
     };
 
     /*
-     * One team and somewhere to be: skip the picker.
+     * One team, nothing else to say: skip the picker (R-09).
      *
      * The picker exists because an account can belong to several teams, and asking is right
-     * when the answer is genuinely ambiguous. It is not ambiguous for a student with one team
-     * who has just pointed their camera at a poster — there, the screen is a speed bump
-     * between them and the thing they scanned.
+     * when the answer is genuinely ambiguous. With exactly one team it is not ambiguous — it
+     * is a screen headed "Select a team to continue" listing one thing, shown to a student on
+     * every sign-in that lands on a device holding somebody else's `currentTeamId`.
      *
-     * Deliberately narrow: only with a pending `returnTo`, and only when the choice is
-     * forced. Opening the app normally still shows the picker, which is what the existing
-     * flow and its tests describe.
+     * WHAT KEEPS THIS FROM TRAPPING A COACH WHO WANTS A SECOND TEAM. "Create a team" lives on
+     * this screen and nowhere else, so an unconditional skip would make a second team
+     * unreachable — the exact worry Kevin raised, and a real one for a school running two FTC
+     * numbers. `askedForThePicker` is the answer and it already exists: the sidebar's "Switch
+     * team" button sets it, it is rendered for every signed-in user regardless of how many
+     * teams they have, and it is the same flag that keeps the picker reachable for a guardian.
+     * Pressing it always shows this screen, one team or five.
+     *
+     * The other two guards are about not swallowing something the person needs to read. A
+     * PENDING request ("waiting for the coach to approve you") and a STORED INVITE CODE are
+     * both offered here and nowhere else; skipping past either would leave somebody wondering
+     * where their request or their code went. Neither applies when there is an explicit
+     * `returnTo` — somebody who scanned a poster asked to go somewhere, and that instruction
+     * outranks the noticeboard.
      */
     useEffect(() => {
-        if (!returnTo || isLoading) return;
+        if (isLoading) return;
         if (teams.length !== 1) return;
+        if (askedForThePicker) return;
+        if (!returnTo && (pendingTeams.length > 0 || pendingInviteCode)) return;
+
+        // `/` bounces to the dashboard, the same destination `handleSelectTeam` uses.
+        const destination = returnTo ?? '/';
         if (currentTeamId === teams[0].id) {
-            navigate(returnTo, { replace: true });
+            navigate(destination, { replace: true });
             return;
         }
         setCurrentTeam(teams[0].id);
-    }, [returnTo, isLoading, teams, currentTeamId, setCurrentTeam, navigate]);
+    }, [
+        returnTo,
+        isLoading,
+        teams,
+        currentTeamId,
+        askedForThePicker,
+        pendingTeams,
+        pendingInviteCode,
+        setCurrentTeam,
+        navigate,
+    ]);
 
     const handleSignOut = () => performSignOut(signOut);
 

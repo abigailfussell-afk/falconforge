@@ -14,6 +14,7 @@
  * would break if the redirect were written as "no teams → guardian view".
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { rememberInviteCode, clearInviteCode } from '../../lib/pending-invite';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Onboarding from '../Onboarding';
@@ -101,6 +102,9 @@ beforeEach(() => {
     mocks.memberships = [];
     mocks.children = [];
     mocks.locationState = null;
+    // A code left behind by the R-09 block would keep the NEXT test on the picker for a
+    // reason it never set up.
+    clearInviteCode();
 });
 
 describe('signing in as a guardian (WALK-B-02)', () => {
@@ -129,7 +133,7 @@ describe('signing in as a guardian (WALK-B-02)', () => {
         expect(mocks.navigate).not.toHaveBeenCalledWith('/app/guardian', expect.anything());
     });
 
-    it('leaves a member with a team on the picker — the other control', async () => {
+    it('sends a member with a team to their team, not to the guardian view', async () => {
         mocks.memberships = [
             {
                 team_id: 'team-1',
@@ -143,7 +147,10 @@ describe('signing in as a guardian (WALK-B-02)', () => {
 
         renderOnboarding();
 
-        expect(await screen.findByText('Iron Falcons')).toBeInTheDocument();
+        // The claim this test exists for: having children did not divert them.
+        await vi.waitFor(() =>
+            expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true }),
+        );
         expect(mocks.navigate).not.toHaveBeenCalledWith('/app/guardian', expect.anything());
     });
 
@@ -173,5 +180,80 @@ describe('signing in as a guardian (WALK-B-02)', () => {
             mocks.navigate,
             'pressing "Switch team" sent the guardian straight back',
         ).not.toHaveBeenCalledWith('/app/guardian', expect.anything());
+    });
+});
+
+/**
+ * R-09 — "Select a team to continue", listing one team.
+ *
+ * A user with exactly one team met the picker on any sign-in that landed on a device holding
+ * somebody else's `currentTeamId`, and answered a question with one possible answer.
+ *
+ * THE GUARDS ARE THE INTERESTING PART, not the skip. "Create a team" lives on this screen and
+ * nowhere else, so a skip with no way back would make a SECOND team unreachable — a school
+ * running two FTC numbers, which is the case Kevin flagged. Three of the four tests below are
+ * about the ways back and the things this must not swallow.
+ */
+describe('one team, no question worth asking (R-09)', () => {
+    const soleTeam = {
+        team_id: 'team-1',
+        status: 'approved',
+        managed_profile_id: null,
+        teams: { id: 'team-1', name: 'Iron Falcons', team_number: '12345', owner_id: 'x' },
+    };
+
+    it('goes straight to the team instead of asking', async () => {
+        mocks.memberships = [soleTeam];
+
+        renderOnboarding();
+
+        await vi.waitFor(() =>
+            expect(mocks.navigate, 'the picker asked a question with one answer').toHaveBeenCalledWith(
+                '/',
+                { replace: true },
+            ),
+        );
+        // The skip is not a no-op: the team it skipped to is the one now selected.
+        expect(useAppStore.getState().currentTeamId).toBe('team-1');
+    });
+
+    it('still shows the picker when "Switch team" asked for it, so a second team can be created', async () => {
+        // The whole reason this skip is safe. `Create a Team` is reachable from nowhere else,
+        // and the sidebar renders "Switch team" for every signed-in user however many teams
+        // they have — so a coach who runs two FTC numbers is one button from making the second.
+        mocks.memberships = [soleTeam];
+        mocks.locationState = { picker: true };
+
+        renderOnboarding();
+
+        expect(await screen.findByText(/Create a Team/i)).toBeInTheDocument();
+        expect(
+            mocks.navigate,
+            'pressing "Switch team" with one team skipped straight back out again',
+        ).not.toHaveBeenCalledWith('/', expect.anything());
+    });
+
+    it('does not swallow a pending request to another team', async () => {
+        // "Waiting for the coach to approve you" is said on this screen and nowhere else.
+        mocks.memberships = [
+            soleTeam,
+            { team_id: 'team-2', status: 'pending', managed_profile_id: null, teams: null },
+        ];
+
+        renderOnboarding();
+
+        await screen.findByText('Unknown Team');
+        expect(mocks.navigate).not.toHaveBeenCalledWith('/', expect.anything());
+    });
+
+    it('does not swallow an invite code the account arrived with', async () => {
+        // Same argument: the offer to use a stored code is made here only. WALK-B-04.
+        rememberInviteCode('ABC123');
+        mocks.memberships = [soleTeam];
+
+        renderOnboarding();
+
+        expect(await screen.findByText(/Create a Team/i)).toBeInTheDocument();
+        expect(mocks.navigate).not.toHaveBeenCalledWith('/', expect.anything());
     });
 });
