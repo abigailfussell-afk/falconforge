@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { allFields } from '../src/lib/game-definition';
+import { CURRENT_GAME } from '../src/lib/games';
 import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail } from './helpers';
+
+const NOTES_KEY = allFields(CURRENT_GAME).find((f) => f.type === 'textarea')!.key;
 
 /**
  * The three things a team does between competitions: scout an opponent, work the checklist,
@@ -56,7 +60,9 @@ test.describe('team lifecycle', () => {
          * safe, the layout did.
          */
         await page.getByTestId('scout-event-name').fill(`Qualifier-${'x'.repeat(120)}`);
-        await page.getByTestId('field-endGameNotes').fill('x'.repeat(500));
+        // The notes field BY TYPE, as the card finds it: this named DECODE's `endGameNotes` and
+        // broke the day a new team's default game became BIOBUZZ.
+        await page.getByTestId(`field-${NOTES_KEY}`).fill('x'.repeat(500));
         await page.getByTestId('save-scouting-report').click();
 
         /*

@@ -23,6 +23,21 @@
 import { chromium } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { mkdirSync } from 'node:fs';
+/*
+ * Iron Falcons' seeded 2026-27 season plays BIOBUZZ (it was mislabelled DECODE until kickoff, which
+ * is the only reason this walk used to name DECODE's fields). The keys below are read from the
+ * definition so a wrong one fails loudly at lookup rather than as a missing test id.
+ */
+import GAME from '../src/games/ftc-2026-biobuzz.json' with { type: 'json' };
+
+const fieldOf = (key) => {
+    const f = GAME.scouting.match.sections.flatMap((s) => s.fields).find((x) => x.key === key);
+    if (!f) throw new Error(`${GAME.id} has no field ${key}; update the probe`);
+    return f;
+};
+const HIDE = fieldOf('pickupFlower');
+const RELABEL = fieldOf('teleopCell');
+const UNTOUCHED = [fieldOf('leave'), fieldOf('teleopTips')];
 
 const APP = process.env.PROBE_URL ?? 'http://127.0.0.1:4188';
 const OUT = process.env.PROBE_OUT ?? 'screenshots/sprint-18';
@@ -81,8 +96,12 @@ try {
     await page.getByTestId('email-input').fill('reviewer@falconforge.test');
     await page.getByTestId('password-input').fill(PASSWORD);
     await page.getByTestId('sign-in-button').click();
-    await page.getByTestId('team-picker').waitFor({ state: 'visible', timeout: 45_000 });
-    await page.getByTestId('team-option').first().click();
+    // A one-team account goes straight in since the kickoff readiness pass; a multi-team one
+    // still meets the picker. Waiting for the picker alone timed out on every run after that.
+    await page.waitForSelector('[data-testid="team-picker"], [data-testid="app-nav"]', { timeout: 45_000 });
+    if (await page.getByTestId('team-picker').isVisible()) {
+        await page.getByTestId('team-option').first().click();
+    }
     await page.waitForSelector('[data-testid="app-nav"]', { state: 'attached', timeout: 45_000 });
 
     const { data: team } = await admin
@@ -262,8 +281,8 @@ try {
     await page.goto(`${APP}/#/app/admin`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="form-field-list"]', { timeout: 45_000 });
 
-    await page.getByTestId('toggle-farShooting').click();
-    await page.getByTestId('label-shotsTaken').fill('Attempts');
+    await page.getByTestId(`toggle-${HIDE.key}`).click();
+    await page.getByTestId(`label-${RELABEL.key}`).fill('Attempts');
     await page.getByTestId('new-field-label').fill('Climbed');
     await page.getByTestId('new-field-type').selectOption('bool');
     await page.getByTestId('add-field').click();
@@ -283,9 +302,9 @@ try {
         .from('team_game_overrides').select('patch, base_definition_id').eq('team_id', team.id).maybeSingle();
     log(`\n  patch as stored: ${JSON.stringify(override?.patch)}`);
     check('the patch reached the database', !!override);
-    check('it records which template it was written against', override?.base_definition_id === 'ftc-2025-decode');
-    check('it hides the field that was hidden', (override?.patch?.hide ?? []).includes('farShooting'));
-    check('it relabels the field that was relabelled', override?.patch?.relabel?.shotsTaken === 'Attempts');
+    check('it records which template it was written against', override?.base_definition_id === GAME.id);
+    check('it hides the field that was hidden', (override?.patch?.hide ?? []).includes(HIDE.key));
+    check('it relabels the field that was relabelled', override?.patch?.relabel?.[RELABEL.key] === 'Attempts');
     check('it adds the field that was added', (override?.patch?.add ?? []).length === 1);
 
     /*
@@ -298,12 +317,12 @@ try {
     await page.waitForSelector('[data-testid="schema-form"]', { timeout: 15_000 });
 
     const formText = await page.getByTestId('schema-form').innerText();
-    check('the hidden field is gone from the scouting form', !/Far Shooting/i.test(formText));
+    check('the hidden field is gone from the scouting form', !formText.includes(HIDE.label));
     check('the relabelled field shows the team’s own word', /Attempts/.test(formText));
     check('the added field is on the form', /Climbed/.test(formText));
     check(
         'the fields the team did not touch are untouched',
-        /Has Autonomous/i.test(formText) && /Intake Type/i.test(formText),
+        UNTOUCHED.every((f) => formText.includes(f.label)),
     );
 
     const modalOverflow = await page.evaluate(

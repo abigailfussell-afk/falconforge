@@ -9,6 +9,8 @@
  * of the registry's plumbing.
  */
 import { describe, it, expect } from 'vitest';
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
 import {
     allFields,
     blankReportData,
@@ -17,7 +19,7 @@ import {
     TEAM_FIELD_PREFIX,
     type GamePatch,
 } from '@/lib/game-definition';
-import { BUNDLED_GAMES, DECODE, gameForSeason, gameById } from '@/lib/games';
+import { BIOBUZZ, BUNDLED_GAMES, DECODE, gameForSeason, gameById } from '@/lib/games';
 import { findEntity } from '@/lib/entity-registry';
 import { patchIssues, fieldError } from '@/lib/scouting-validation';
 
@@ -76,6 +78,81 @@ describe('the bundled definitions', () => {
                 Object.prototype.hasOwnProperty.call(blank, field.key),
                 `${field.key} is absent from a blank report`,
             ).toBe(true);
+        }
+    });
+
+    /*
+     * THE SAME PIN FOR BIOBUZZ, written from the manual rather than from an old form. Until the
+     * 12 September reveal this file was a placeholder — Auto / TeleOp / End Game Score, and an
+     * "End game" phase the game turned out not to have (R-02). Every key below maps to a line of
+     * Table 10-2 in Competition Manual V1: LEAVE, PARK (scored in AUTO and again at the end),
+     * HIVE TIP in both periods, launches into the CELL, NECTAR and POLLEN in a FLOWER, and the
+     * GARDEN. Changing this list changes what every 2026-27 report stores, so it should take a
+     * decision rather than an edit.
+     */
+    it('BIOBUZZ has the fields Table 10-2 scores', () => {
+        expect(allFields(BIOBUZZ).map((f) => f.key).sort()).toEqual(
+            [
+                'autoCell',
+                'autoPark',
+                'autoTips',
+                'endPark',
+                'flowerNectar',
+                'flowerPollen',
+                'garden',
+                'leave',
+                'notes',
+                'pickupFloor',
+                'pickupFlower',
+                'rating',
+                'teleopCell',
+                'teleopMissed',
+                'teleopTips',
+            ].sort(),
+        );
+        expect(BIOBUZZ.version).toBeGreaterThan(0);
+    });
+
+    /*
+     * Two fields with one key are one value in the jsonb bag: ticking "Parked" at the end of
+     * AUTO would tick it at the end of the match too, and the form would show two checkboxes
+     * moving together. PARK scores in both periods, so it is exactly the field a hand-written
+     * definition is tempted to key `park` twice. `isGameDefinition` is shallow and does not
+     * look.
+     */
+    it.each(BUNDLED_GAMES.map((g) => [g.id, g] as const))('%s has no duplicate field keys', (_id, game) => {
+        const keys = allFields(game).map((f) => f.key);
+        expect(keys.filter((k, i) => keys.indexOf(k) !== i)).toEqual([]);
+    });
+
+    /*
+     * A metric over a field that does not exist, or is not a number, is a summary-table column
+     * that reads "—" for every team for the whole season — `metricValue` returns null for
+     * anything non-numeric, deliberately (B18), so nothing errors and nothing looks wrong
+     * except that the column never fills in. A typo in the JSON is enough.
+     */
+    it.each(BUNDLED_GAMES.map((g) => [g.id, g] as const))('%s: every metric reads a numeric field', (_id, game) => {
+        const numeric = new Set(['int', 'counter', 'rating']);
+        for (const metric of game.scoring.metrics) {
+            const field = allFields(game).find((f) => f.key === metric.field);
+            expect(field, `metric ${metric.key} reads ${metric.field}, which is not on the form`).toBeDefined();
+            expect(numeric.has(field!.type), `metric ${metric.key} reads a ${field!.type}`).toBe(true);
+        }
+    });
+
+    /*
+     * R-02, the defect itself: the BIOBUZZ placeholder pointed at `DecodeField.png`, so a
+     * 2026-27 season's Match Planner drew last year's field under every plan, and nothing
+     * failed. A missing file fails nothing either — the planner draws a broken image, offline,
+     * at a venue. So: every image exists, and no two games draw the same field.
+     */
+    it('every game ships its own field image, and the file is there', () => {
+        const images = BUNDLED_GAMES.map((g) => g.field.image);
+        expect(new Set(images).size, `two games share a field image: ${images.join(', ')}`).toBe(images.length);
+        for (const image of images) {
+            const file = path.resolve(process.cwd(), 'public', image);
+            expect(existsSync(file), `public/${image} does not exist`).toBe(true);
+            expect(statSync(file).size).toBeGreaterThan(0);
         }
     });
 });
