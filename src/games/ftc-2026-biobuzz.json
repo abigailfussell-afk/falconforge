@@ -3,17 +3,16 @@
   "program": "ftc",
   "seasonKey": "2026-27",
   "title": "BIOBUZZ",
-  "version": 0,
+  "version": 1,
   "match": {
     "allianceSize": 2,
     "phases": [
       { "key": "auto", "label": "Autonomous", "seconds": 30 },
-      { "key": "teleop", "label": "TeleOp", "seconds": 120 },
-      { "key": "endgame", "label": "End Game", "seconds": 30 }
+      { "key": "teleop", "label": "TeleOp", "seconds": 120 }
     ]
   },
   "field": {
-    "image": "DecodeField.png",
+    "image": "BiobuzzField.webp",
     "width": 1024,
     "height": 1024
   },
@@ -24,24 +23,33 @@
           "key": "auto",
           "label": "Autonomous",
           "fields": [
-            { "key": "hasAutonomous", "label": "Has Autonomous", "type": "bool", "default": false, "phase": "auto", "summary": true },
-            { "key": "autoScore", "label": "Auto Score", "type": "counter", "min": 0, "default": 0, "phase": "auto", "summary": true }
+            { "key": "leave", "label": "Leave (off the wall)", "type": "bool", "default": false, "phase": "auto", "summary": true },
+            { "key": "autoCell", "label": "Auto: launched into Cell", "type": "counter", "min": 0, "default": 0, "phase": "auto", "summary": true },
+            { "key": "autoTips", "label": "Auto: Hive tips caused", "type": "counter", "min": 0, "default": 0, "phase": "auto" },
+            { "key": "autoPark", "label": "Auto: parked in Loading Zone", "type": "bool", "default": false, "phase": "auto" }
           ]
         },
         {
           "key": "teleop",
           "label": "TeleOp",
           "fields": [
-            { "key": "teleopScore", "label": "TeleOp Score", "type": "counter", "min": 0, "default": 0, "phase": "teleop", "summary": true }
+            { "key": "teleopCell", "label": "TeleOp: launched into Cell", "type": "counter", "min": 0, "default": 0, "phase": "teleop", "summary": true },
+            { "key": "teleopMissed", "label": "TeleOp: missed launches", "type": "counter", "min": 0, "default": 0, "phase": "teleop" },
+            { "key": "teleopTips", "label": "TeleOp: Hive tips caused", "type": "counter", "min": 0, "default": 0, "phase": "teleop", "summary": true },
+            { "key": "garden", "label": "Placed in Garden", "type": "counter", "min": 0, "default": 0, "phase": "teleop" },
+            { "key": "pickupFloor", "label": "Collects from the floor", "type": "bool", "default": false, "phase": "teleop" },
+            { "key": "pickupFlower", "label": "Retrieves from a Flower", "type": "bool", "default": false, "phase": "teleop" }
           ]
         },
         {
-          "key": "endgame",
-          "label": "End Game",
+          "key": "final",
+          "label": "Final minute",
           "fields": [
-            { "key": "endgameScore", "label": "End Game Score", "type": "counter", "min": 0, "default": 0, "phase": "endgame", "summary": true },
+            { "key": "flowerNectar", "label": "Nectar placed in a Flower", "type": "counter", "min": 0, "default": 0, "phase": "teleop", "summary": true },
+            { "key": "flowerPollen", "label": "Pollen placed in a Flower", "type": "counter", "min": 0, "default": 0, "phase": "teleop" },
+            { "key": "endPark", "label": "End: parked in Loading Zone", "type": "bool", "default": false, "phase": "teleop", "summary": true },
             { "key": "rating", "label": "Overall Rating", "type": "rating", "min": 1, "max": 5, "default": 3, "summary": true },
-            { "key": "endGameNotes", "label": "Notes", "type": "textarea", "maxLength": 500 }
+            { "key": "notes", "label": "Notes", "type": "textarea", "maxLength": 500 }
           ]
         }
       ]
@@ -49,15 +57,18 @@
   },
   "scoring": {
     "metrics": [
-      { "key": "autoScore", "label": "Auto score", "field": "autoScore", "aggregate": "mean" },
-      { "key": "teleopScore", "label": "TeleOp score", "field": "teleopScore", "aggregate": "mean" },
+      { "key": "autoCell", "label": "Auto cell", "field": "autoCell", "aggregate": "mean" },
+      { "key": "autoTips", "label": "Auto tips", "field": "autoTips", "aggregate": "mean" },
+      { "key": "teleopCell", "label": "Tele cell", "field": "teleopCell", "aggregate": "mean" },
+      { "key": "teleopTips", "label": "Tele tips", "field": "teleopTips", "aggregate": "mean" },
+      { "key": "flowerNectar", "label": "Flower nectar", "field": "flowerNectar", "aggregate": "mean" },
       { "key": "rating", "label": "Rating", "field": "rating", "aggregate": "mean" }
     ]
   },
   "planner": {
     "partnerCapabilities": [
       { "key": "partnerAutonomous", "label": "Autonomous" },
-      { "key": "partnerPark", "label": "End game position" }
+      { "key": "partnerPark", "label": "Loading Zone park" }
     ]
   }
 }

@@ -7,8 +7,13 @@
  * same `resolveGame` — a resolver that reached for the store would have to be re-implemented
  * for the preview, which is how this project ended up with seven display-name implementations.
  */
-import decode from '../games/ftc-2025-decode.json';
-import biobuzz from '../games/ftc-2026-biobuzz.json';
+/*
+ * `with { type: 'json' }` for Playwright, whose loader emits real ESM: without it any spec that
+ * imports this module dies before running (see the same note in `attestation-versions.ts`). The
+ * Gate cannot see it — tsc, vite and vitest all accept the bare import.
+ */
+import decode from '../games/ftc-2025-decode.json' with { type: 'json' };
+import biobuzz from '../games/ftc-2026-biobuzz.json' with { type: 'json' };
 import {
     isGameDefinition,
     resolveGame,
