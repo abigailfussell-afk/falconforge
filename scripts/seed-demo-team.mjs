@@ -12,6 +12,7 @@
  * a tired evening.
  */
 import { createClient } from '@supabase/supabase-js';
+import BIOBUZZ from '../src/games/ftc-2026-biobuzz.json' with { type: 'json' };
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE_KEY =
@@ -118,7 +119,13 @@ async function main() {
         'season',
         svc
             .from('seasons')
-            .insert({ team_id: team.id, name: '2026-2027 Season', game_title: 'DECODE' })
+            .insert({
+                team_id: team.id,
+                name: '2026-2027 Season',
+                game_title: BIOBUZZ.title,
+                game_definition_id: BIOBUZZ.id,
+                game_definition_version: BIOBUZZ.version,
+            })
             .select()
             .single(),
     );

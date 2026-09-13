@@ -14,7 +14,17 @@
  * spec intercepts the download rather than trusting the handler ran.
  */
 import { test, expect } from '@playwright/test';
+import { CURRENT_GAME } from '../src/lib/games';
 import { createTeam, goToView, guardLocalBackend, registerAccount, unique, uniqueEmail } from './helpers';
+
+/*
+ * The first metric of whatever game a NEW team gets, not a named key. This spec typed into
+ * `field-autoScore`, which existed only in the pre-kickoff BIOBUZZ placeholder: replacing the
+ * placeholder with the real game on 13 September 2026 removed the field, and the Gate — which
+ * does not run this pack — stayed green. Next September's game will do the same to any key
+ * written here, so none is.
+ */
+const METRIC = CURRENT_GAME.scoring.metrics[0];
 
 test.describe('the scouting summary (P-02)', () => {
     test('scrolls inside itself at 375px, and the page does not @mobile', async ({ page, context }) => {
@@ -33,7 +43,7 @@ test.describe('the scouting summary (P-02)', () => {
             await page.getByTestId('scout-alliance').selectOption('red');
             await page.getByTestId('scout-station').selectOption('1');
             await page.getByTestId('scout-event-name').fill('League Meet 1');
-            await page.getByTestId('field-autoScore').fill(String(score));
+            await page.getByTestId(`field-${METRIC.field}`).fill(String(score));
             await page.getByTestId('save-scouting-report').click();
         }
 
@@ -41,7 +51,7 @@ test.describe('the scouting summary (P-02)', () => {
         await expect(table).toBeVisible();
 
         // The mean of 40 and 20, with the population spread beside it.
-        await expect(page.getByTestId('cell-30727-autoScore')).toHaveText('30±10.0');
+        await expect(page.getByTestId(`cell-30727-${METRIC.key}`)).toHaveText('30±10.0');
 
         const geometry = await page.evaluate(() => {
             const t = document.querySelector('[data-testid="team-summary-table"]') as HTMLElement;

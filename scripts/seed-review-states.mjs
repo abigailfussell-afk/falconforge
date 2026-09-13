@@ -37,6 +37,7 @@ import { createClient } from '@supabase/supabase-js';
  * `src/lib/attestation-versions.ts`, which is where you raise one.
  */
 import ATTESTATION_VERSIONS from '../src/lib/attestation-versions.json' with { type: 'json' };
+import BIOBUZZ from '../src/games/ftc-2026-biobuzz.json' with { type: 'json' };
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE_KEY =
@@ -188,7 +189,18 @@ async function makeTeam({ slug, name, adminEmail, grant, approved = 0, pending =
 
     await must(
         'season',
-        svc.from('seasons').insert({ team_id: team.id, name: '2026-2027 Season', game_title: 'DECODE' }),
+        /*
+         * BIOBUZZ, with the id recorded — the way SeasonManager creates a season now. This read
+         * `game_title: 'DECODE'` on a 2026-2027 season, so until kickoff no seeded team could
+         * show the current game at all and the only way to see it was the new-coach funnel (R-02).
+         */
+        svc.from('seasons').insert({
+            team_id: team.id,
+            name: '2026-2027 Season',
+            game_title: BIOBUZZ.title,
+            game_definition_id: BIOBUZZ.id,
+            game_definition_version: BIOBUZZ.version,
+        }),
     );
 
     for (let i = 0; i < approved; i++) {
