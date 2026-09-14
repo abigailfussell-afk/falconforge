@@ -79,6 +79,59 @@ describe('SEC-17 — the invite code the database chooses', () => {
     });
 
     /*
+     * THE INVITE PANEL'S OWN WRITE, AS THE ROLE THAT MAKES IT.
+     *
+     * The test above inserts as `service_role`, and so did every other successful insert in this
+     * file — which is how SEC-17 shipped a DEFAULT that no signed-in user could evaluate. The
+     * generator was SECURITY DEFINER with EXECUTE revoked from `authenticated`, on the belief
+     * that a DEFAULT "is evaluated by the server" and needs no privilege. It is evaluated AS THE
+     * INSERTING ROLE, and EXECUTE is checked: every "Generate invite" click in production from
+     * 2026-08-28 to 2026-09-14 returned `permission denied for function generate_invite_code`,
+     * and the panel said only "Failed to create invite". Found by a coach, not by 229 lines of
+     * tests about invite codes.
+     *
+     * So: the exact columns `InviteManager.createInvite` sends, through the admin's own client,
+     * reading the row back with `.select()` the way the panel does.
+     */
+    it('can be created by a roster manager from the invite panel', async () => {
+        const team = await fixtures.createTeam('sec17-panel');
+
+        const { data, error } = await team.admin.client
+            .from('invites')
+            .insert({ team_id: team.id, created_by: team.admin.id, max_uses: 5 } as never)
+            .select()
+            .single();
+
+        expect(error, `the invite panel's insert was refused: ${error?.message}`).toBeNull();
+        const row = data as { code: string; max_uses: number; expires_at: string };
+        expect(row.code).toMatch(ALPHABET);
+        expect(row.max_uses).toBe(5);
+        expect(row.expires_at, 'the lifetime DEFAULT did not apply').toBeTruthy();
+    });
+
+    /*
+     * And the policy is what refuses a student now, not a missing function grant.
+     *
+     * While the generator was unexecutable, EVERY client insert died on it before RLS was
+     * consulted — so the cross-tenant INSERT cases for `invites` were green for the wrong reason
+     * for sixteen days, and `invites_insert_roster` was not being tested at all.
+     */
+    it('is still refused to a member who cannot manage the roster, by RLS', async () => {
+        const team = await fixtures.createTeam('sec17-student');
+        const student = team.users.student;
+
+        const { error } = await student.client
+            .from('invites')
+            .insert({ team_id: team.id, created_by: student.id } as never);
+
+        expect(error, 'a student created an invite').not.toBeNull();
+        expect(error?.message ?? '', `refused for the wrong reason: ${error?.message}`).not.toMatch(
+            /generate_invite_code/,
+        );
+        expect(error?.message ?? '').toMatch(/row-level security/i);
+    });
+
+    /*
      * THE TWO PATHS, COMPARED WITH EACH OTHER.
      *
      * Not "both match /^[A-Z2-9]{8}$/" — that assertion passes on two different generators that
@@ -158,6 +211,14 @@ describe('SEC-17 — the invite code the database chooses', () => {
             `${error?.message} ${error?.code}`,
             `refused, but for the wrong reason: ${error?.message}`,
         ).toMatch(/permission denied|42501/i);
+        /*
+         * "permission denied" alone is satisfied by the generator being unexecutable too — which
+         * is the state this very file shipped in, and why this test was green over a broken panel.
+         * The refusal must be about the COLUMN.
+         */
+        expect(error?.message ?? '', `refused by the generator, not the column: ${error?.message}`).not.toMatch(
+            /function/,
+        );
     });
 
     it('cannot be edited after the fact either — rotation is revoke-and-generate', async () => {
