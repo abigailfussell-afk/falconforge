@@ -463,7 +463,7 @@ guardian and as admin: add-child wrote profile + four consents at the versions d
 **Discovered / parking lot:**
 
 *From the invite-panel hotfix (2026-09-14):*
-- **`InviteManager` still discards the database's reason.** Both `createInvite` and `revokeInvite` catch the error, log it, and show a fixed "Failed to create invite" / "Failed to revoke invite" — which is why a 42501 naming the exact function reached Kevin as a sentence that named nothing, and why diagnosis needed the database rather than the screen (`docs/failure-modes.md` §8). The component also still has seven `as any`. Worth a pass: map the known refusals (offline, at capacity, not a roster manager) to sentences and show the raw message otherwise.
+- **`InviteManager` still discards the database's reason.** Both `createInvite` and `revokeInvite` catch the error, log it, and show a fixed "Failed to create invite" / "Failed to revoke invite" — which is why a 42501 naming the exact function reached Kevin as a sentence that named nothing, and why diagnosis needed the database rather than the screen (`docs/failure-modes.md` §8). Worth a pass: map the known refusals (offline, at capacity, not a roster manager) to sentences and show the raw message otherwise.
 
 *From Sprint 37 — BIOBUZZ, `v2/sprint-37-biobuzz` (2026-09-13):*
 - **The field image is a crop of FIRST's own manual figure, and nobody has said we may ship it.**
